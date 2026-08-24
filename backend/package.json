@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:migrations": "vitest run src/shared/database/migrations.test.ts",
     "migrate:up": "node-pg-migrate up -m migrations --database-url-var DATABASE_URL",
     "migrate:down": "node-pg-migrate down -m migrations --database-url-var DATABASE_URL"
   },
@@ -26,6 +27,7 @@
     "@types/express": "^5.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.10.5",
+    "@types/pg": "^8.23.1",
     "@types/supertest": "^6.0.2",
     "eslint": "^9.18.0",
     "node-pg-migrate": "^7.8.0",
