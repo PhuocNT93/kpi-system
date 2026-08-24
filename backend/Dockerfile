@@ -8,6 +8,10 @@ COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build
 
+FROM dependencies AS migrate
+COPY migrations ./migrations
+CMD ["npm", "run", "migrate:up"]
+
 FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
