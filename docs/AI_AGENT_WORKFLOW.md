@@ -47,6 +47,30 @@ User feedback changes the current step's deliverable. The agent must revise it a
 
 The only exception is a genuine blocker (for example: missing repository access, merge conflict, ambiguous requirement, failing required check after three repair attempts). Report the blocker and wait for instruction.
 
+### Persistent step artifacts
+
+For every task, derive a lowercase kebab-case task slug. After Step 5 is approved and before the first implementation edit, create `docs/<task-slug>/`. Save the approved Step 0-5 deliverables there retrospectively, then save every subsequent step's deliverable before responding to the user. Do not edit files merely to create artifacts before Step 6.
+
+Each artifact is named `step-<n>-<slug>.md` and must state whether it is reconstructed from an earlier approved response or produced during the current step. It must use this evidence-based structure, omitting only sections that are genuinely not applicable:
+
+```markdown
+# Step <n>: <name>
+
+Status: reconstructed / produced during this step
+
+## Objective
+## Inputs Reviewed
+## Actions and Evidence
+## Changes Made
+## Decisions and Rationale
+## Risks / Blockers
+## Next Step
+```
+
+`Actions and Evidence` must identify the exact command, tool, file, or test used and its observed result. Never claim that a command was executed, a test passed, or an output was observed when it was not. Do not record secrets, tokens, passwords, or raw sensitive data.
+
+Do not create artifacts for uncompleted steps. When a task includes frontend changes, create `docs/<task-slug>/frontend-user-guide.md` during implementation and update it before final verification. The guide must cover prerequisites, startup and shutdown commands, configured URLs, expected validation behavior, configurable values, available user-visible behavior, and known limitations without exposing secrets or claiming unimplemented capabilities.
+
 ## Step 0 - Sync and Branch
 
 ### Goal
@@ -303,6 +327,8 @@ Actions Taken:
 
 Confirm all approved acceptance criteria and required checks. Do not mark done while a required check fails or is unexecuted without an approved exception.
 
+Confirm that all completed step artifacts exist in `docs/<task-slug>/`. For frontend tasks, confirm that `frontend-user-guide.md` exists and matches the final implementation.
+
 ### Required output
 
 # Task Completed
@@ -351,3 +377,4 @@ DONE / BLOCKED
 7. Never discard or overwrite user changes. Do not force-push, reset hard, or modify shared history without explicit approval.
 8. Keep scope minimal and reuse existing project patterns.
 9. Stop and ask whenever requirements, source-of-truth documents, or repository state are unclear.
+10. Save the completed deliverable for every step under `docs/<task-slug>/` before requesting user review.
