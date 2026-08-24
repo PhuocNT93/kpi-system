@@ -47,18 +47,43 @@ User feedback changes the current step's deliverable. The agent must revise it a
 
 The only exception is a genuine blocker (for example: missing repository access, merge conflict, ambiguous requirement, failing required check after three repair attempts). Report the blocker and wait for instruction.
 
+### Resuming an active task
+
+A task is already active — and must resume at its current step rather than restart at Step 0 — when either is true:
+
+- The conversation contains an earlier, unresolved `STATUS: ... - STEP <n>` for this task.
+- `docs/<task-slug>/` already holds saved step artifacts for this task.
+
+A message such as a follow-up question, a bug report against the current deliverable, or a request to tweak something already produced is feedback on the current step, not a new task. The agent revises that step's deliverable in place and ends with `STATUS: IN PROGRESS - STEP <n> (revising per feedback)`; once the revision is ready for review it ends with the normal `STATUS: WAITING FOR USER REVIEW - STEP <n>`. Step 0 is only re-entered when the user starts a genuinely new task (a different slug, or an explicit statement that this is separate work).
+
 ### Persistent step artifacts
 
 For every task, derive a lowercase kebab-case task slug. After Step 5 is approved and before the first implementation edit, create `docs/<task-slug>/`. Save the approved Step 0-5 deliverables there retrospectively, then save every subsequent step's deliverable before responding to the user. Do not edit files merely to create artifacts before Step 6.
 
-Each artifact is named `step-<n>-<slug>.md` and must state whether it is reconstructed from an earlier approved response or produced during the current step. It must use this evidence-based structure, omitting only sections that are genuinely not applicable:
+Each artifact uses a fixed per-step filename — not a free-form slug — matching `docs/int-backend-frontend/` as the reference example:
+
+| Step | Filename |
+|---|---|
+| 0 | `step-0-sync-and-branch.md` |
+| 1 | `step-1-understand.md` |
+| 2 | `step-2-investigate.md` |
+| 3 | `step-3-impact-analysis.md` |
+| 4 | `step-4-plan.md` |
+| 5 | `step-5-test-cases.md` |
+| 6 | `step-6-implementation.md` |
+| 7 | `step-7-test-results.md` |
+| 8 | `step-8-code-review.md` |
+| 9 | `step-9-performance-review.md` |
+| 10 | `step-10-final-verification.md` |
+
+Each file must state whether it is reconstructed from an earlier approved response or produced during the current step. It must use this evidence-based structure, omitting only sections that are genuinely not applicable:
 
 ```markdown
 # Step <n>: <name>
 
 Status: reconstructed / produced during this step
 
-## Objective
+## Deliverable
 ## Inputs Reviewed
 ## Actions and Evidence
 ## Changes Made
@@ -66,6 +91,8 @@ Status: reconstructed / produced during this step
 ## Risks / Blockers
 ## Next Step
 ```
+
+`Deliverable` must reproduce that step's own "Required output" in full, using the exact fields, tables, and lists defined under that step's heading elsewhere in this document — the Step 1 Task Understanding fields (Goal, Expected Behavior, Acceptance Criteria, Out of Scope, Business Rules Involved, Open Questions / Conflicts), the Step 3 impact table and risk/ADR lists, the Step 4 plan items, the Step 5 test case table, the Step 8 findings and checklist, and so on. It is a copy of the real deliverable, not a one-line paraphrase or summary — a reader must be able to act on Step 3's `Deliverable` without re-deriving the impact table from `Actions and Evidence`.
 
 `Actions and Evidence` must identify the exact command, tool, file, or test used and its observed result. Never claim that a command was executed, a test passed, or an output was observed when it was not. Do not record secrets, tokens, passwords, or raw sensitive data.
 
