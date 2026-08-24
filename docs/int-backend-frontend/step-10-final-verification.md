@@ -15,9 +15,9 @@ Confirm all acceptance criteria and task artifacts exist and match implementatio
 - Verified backend tests: `npm test` passes (1 envelope test); `npm run typecheck` passes (strict TypeScript); `npm run lint` passes.
 - Verified frontend source: `frontend/src/{main.tsx, App.tsx, query-client.ts, shared/api/*}`; `frontend/package.json` includes React, Vite, TanStack Query.
 - Verified frontend tests: `npm test` passes (2 API-client tests); `npm run typecheck` passes; `npm run build` produces production bundle.
-- Verified root config: `.env.example` defines POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD, BACKEND_PORT=4000, FRONTEND_PORT=8080; `docker-compose.yml` configures three services with healthcheck and volume.
+- Verified root config: `.env.example` defines POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD, BACKEND_PORT=8080, FRONTEND_PORT=4001; `docker-compose.yml` configures three services with healthcheck and volume.
 - Verified Docker: backend image built successfully; frontend image built successfully (after Dockerfile fix); Compose startup succeeded after port configuration.
-- Verified endpoints: `curl http://localhost:4000/health` returned 200 with envelope; `curl http://localhost:8080/` returned 200 from Nginx.
+- Verified endpoints: `curl http://localhost:8080/health` returned 200 with envelope; `curl http://localhost:4001/` returned 200 from Nginx.
 - Verified documentation: README.md has startup steps; frontend-user-guide.md covers prerequisites, startup, URLs, behavior, limitations, configuration.
 
 ## Changes Made

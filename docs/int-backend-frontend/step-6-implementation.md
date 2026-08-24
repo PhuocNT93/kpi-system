@@ -22,7 +22,7 @@ Create runnable backend/frontend source, PostgreSQL/Docker configuration, multi-
 - Attempted Compose startup: build passed, startup failed "port 5432 already allocated".
 - Removed `ports` from PostgreSQL service in Compose.
 - Attempted Compose startup: build passed, startup failed "port 80 already allocated" (frontend).
-- Changed `.env.example` `FRONTEND_PORT` from `80` to `8080`.
+- Changed `.env.example` `BACKEND_PORT` from `4000` to `8080`, `FRONTEND_PORT` from `80` to `4001`.
 - Final Docker build and startup: succeeded; verified backend health `200 OK` and frontend `200 OK`.
 
 ## Changes Made

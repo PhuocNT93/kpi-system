@@ -46,20 +46,20 @@ docker compose down -v
 | `POSTGRES_DB` | `kpi_system` | Database name |
 | `POSTGRES_USER` | `kpi_app` | Database user |
 | `POSTGRES_PASSWORD` | `change_me_for_local_development` | **CHANGE THIS** for local development |
-| `BACKEND_PORT` | `4000` | Host port for backend service |
-| `FRONTEND_PORT` | `8080` | Host port for frontend service |
+| `BACKEND_PORT` | `8080` | Host port for backend service |
+| `FRONTEND_PORT` | `4001` | Host port for frontend service |
 
 PostgreSQL is not published to a host port; it is accessible only to containers on the `kpi-system` network.
 
 ## Access the application
 
 ### Frontend
-- **URL:** `http://localhost:8080` (or port set by `FRONTEND_PORT`)
+- **URL:** `http://localhost:4001` (or port set by `FRONTEND_PORT`)
 - **Expected behavior:** Initial page displays backend health status.
 - **Expected HTTP response:** `200 OK` with HTML content.
 
 ### Backend health check
-- **URL:** `http://localhost:4000/health` (or port set by `BACKEND_PORT`)
+- **URL:** `http://localhost:8080/health` (or port set by `BACKEND_PORT`)
 - **Expected response:**
   ```json
   {
@@ -78,8 +78,8 @@ PostgreSQL is not published to a host port; it is accessible only to containers 
 
 - [ ] `docker compose up` starts without errors.
 - [ ] All three containers reach healthy/started state.
-- [ ] `http://localhost:8080` displays a page (frontend loaded).
-- [ ] `http://localhost:4000/health` returns a JSON response with `"success": true`.
+- [ ] `http://localhost:4001` displays a page (frontend loaded).
+- [ ] `http://localhost:8080/health` returns a JSON response with `"success": true`.
 - [ ] The frontend page displays "API status: healthy" after a moment (frontend API client works).
 
 ## Current behavior

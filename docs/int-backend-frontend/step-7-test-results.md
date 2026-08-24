@@ -14,12 +14,12 @@ Validate backend/frontend quality, Docker image building, and end-to-end Compose
 - Compose: ran `docker compose --env-file .env.example config`; all services/ports/volume resolved.
 - Docker builds: ran `docker compose ... up --build`; backend image built in 17s, frontend initial build failed "Could not resolve entry module index.html"; after Dockerfile fix, rebuilt frontend in 22s.
 - Compose startup: first attempt failed on PostgreSQL port `5432` (host occupied); removed port mapping; second attempt failed on frontend port `80` (host occupied); changed default to `8080`; third attempt succeeded with all containers healthy.
-- Health verification: `curl http://localhost:4000/health` returned `200 OK` with JSON envelope; `curl http://localhost:8080/` returned `200 OK` from Nginx.
+- Health verification: `curl http://localhost:8080/health` returned `200 OK` with JSON envelope; `curl http://localhost:4001/` returned `200 OK` from Nginx.
 
 ## Changes Made
 - Updated `frontend/Dockerfile` to copy `index.html`.
 - Removed PostgreSQL `ports` from `docker-compose.yml`.
-- Changed `.env.example` `FRONTEND_PORT` default from `80` to `8080`.
+- Changed `.env.example` `BACKEND_PORT` from `4000` to `8080`, `FRONTEND_PORT` from `80` to `4001`.
 
 ## Decisions and Rationale
 - Frontend Dockerfile must include Vite HTML entry point for production build.
