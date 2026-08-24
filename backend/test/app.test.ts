@@ -1,6 +1,6 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
-import { createApp } from './app.js';
+import { createApp } from '../src/app.js';
 
 describe('GET /health', () => {
   it('returns the standard success envelope', async () => {
