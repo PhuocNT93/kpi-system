@@ -92,4 +92,26 @@ export class PostgresUserRepository implements UserRepository {
     }
     return this.mapToUser(result.rows[0]!);
   }
+
+  async findAllUsersWithRoles(): Promise<import('../domain/user.model.js').UserWithRoles[]> {
+    const query = `
+      SELECT 
+        u.id, u.email, u.name, u.password_hash, u.created_at, u.updated_at,
+        COALESCE(
+          json_agg(
+            json_build_object('roleCode', r.code, 'roleName', r.name)
+          ) FILTER (WHERE r.code IS NOT NULL),
+          '[]'
+        ) as roles
+      FROM app_user u
+      LEFT JOIN user_role ur ON u.id::varchar = ur.user_id
+      LEFT JOIN role r ON ur.role_id = r.role_id
+      GROUP BY u.id
+    `;
+    const result = await this.pool.query(query);
+    return result.rows.map((row: any) => ({
+      ...this.mapToUser(row),
+      roles: row.roles,
+    }));
+  }
 }
