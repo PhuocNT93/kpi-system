@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: kpi-system-staging-api
+    name: kpi-system-develop-api
     runtime: node
     rootDir: backend
     buildCommand: npm ci && npm run build
@@ -9,7 +9,7 @@ services:
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
-        value: production
+        value: development
       - key: PORT
         value: 10000
       - key: DATABASE_URL

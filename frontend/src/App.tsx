@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { LayoutTemplate } from 'lucide-react';
 import { AppLayout } from '@/shared/layout';
 import { COLORS } from '@/lib/theme';

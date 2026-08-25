@@ -7,6 +7,8 @@ This project deploys the staging environment with:
 - PostgreSQL: Neon
 - CI/CD: GitHub Actions on the `staging` branch
 
+The `develop` branch has a separate deployment workflow and must use separate Vercel, Render, and Neon resources.
+
 ## 1. Create the Neon database
 
 1. Open [Neon](https://neon.tech) and create a project for staging.
@@ -172,3 +174,40 @@ Check the Render service type and plan support for `preDeployCommand`, then insp
 ### Workflow fails at provider deployment
 
 Check the GitHub `staging` environment secrets, Vercel project IDs, Render deploy hook, and provider project permissions.
+
+## 9. Develop deployment
+
+The `develop` branch uses a separate GitHub Actions workflow:
+
+```text
+.github/workflows/develop.yml
+```
+
+It validates the backend and frontend, deploys a Vercel Preview deployment, and triggers the separate Render develop service. Render uses the Neon develop database through `DATABASE_URL` and runs `npm run migrate:up` with `preDeployCommand`.
+
+Create a GitHub Environment named `develop` with these secrets:
+
+```text
+VERCEL_TOKEN
+VERCEL_ORG_ID
+VERCEL_PROJECT_ID
+DEVELOP_API_BASE_URL
+RENDER_DEPLOY_HOOK_URL
+```
+
+Configure the `develop` environment with:
+
+- Vercel project root directory: `frontend`
+- Vercel `VITE_API_BASE_URL`: the Render develop API URL
+- Render Blueprint: `render.develop.yaml`
+- Render `DATABASE_URL`: the Neon develop pooled connection string
+- A Render deploy hook belonging to the develop service
+
+Example non-secret values are available in `.env.develop.example`. Never reuse the staging Neon connection string, Render deploy hook, or Vercel project credentials for `develop`.
+
+Push to `develop` to trigger deployment:
+
+```powershell
+git checkout develop
+git push origin develop
+```

@@ -7,14 +7,14 @@ Status: produced during this step
 # Task Completed
 
 ## Summary
-Staging deployment configuration now targets Vercel for the frontend, Render for the Express backend, and Neon for PostgreSQL. A root-level setup guide was added.
+Develop deployment configuration targets Vercel for the frontend, Render for the Express backend, and Neon for PostgreSQL. Staging cloud deployment was removed.
 
 ## Changes
 - Added `STAGING_DEPLOYMENT.md` with setup instructions for Neon, Render, Vercel, GitHub Environment secrets, deployment, rollback, and troubleshooting.
 - Added `render.yaml` with `DATABASE_URL` and `preDeployCommand: npm run migrate:up`.
 - Added `frontend/vercel.json` for the Vite frontend.
-- Updated `.github/workflows/staging.yml` to validate both apps and deploy through Vercel and Render.
-- Retained `docker-compose.staging.yml` for local staging simulation.
+- Added `.github/workflows/develop.yml` to validate both apps and deploy through Vercel and Render.
+- Removed `docker-compose.staging.yml` and `.env.staging.example`; they are no longer needed for the Vercel/Render/Neon setup.
 
 ## Test Results
 - Unit: PASS
@@ -27,20 +27,20 @@ Staging deployment configuration now targets Vercel for the frontend, Render for
 - AC1: PASS - Neon setup and `DATABASE_URL` instructions are documented.
 - AC2: PASS - Render Blueprint and migration configuration are documented.
 - AC3: PASS - Vercel project root and Vite environment configuration are documented.
-- AC4: PASS - GitHub `staging` environment secrets are listed.
+- AC4: PASS - GitHub `develop` environment secrets are listed.
 - AC5: PASS - Deployment, migration failure, rollback, and troubleshooting guidance are documented.
-- AC6: PASS - No real credentials are committed.
+- AC6: FAIL - `.env.develop.example` still contains a real Neon credential and must be sanitized and rotated.
 
 ## Review
 - Architecture: PASS
-- Security: PASS, subject to correct external secret configuration.
+- Security: FAIL - exposed Neon credential requires immediate rotation/revocation.
 - Performance: PASS
 - LLD Compliance: PASS
 
 ## Files Changed
 - `STAGING_DEPLOYMENT.md`
-- `.github/workflows/staging.yml`
-- `render.yaml`
+- `.github/workflows/develop.yml`
+- `render.develop.yaml`
 - `frontend/vercel.json`
 - `README.md`
 - `.gitignore`
@@ -59,22 +59,26 @@ BLOCKED pending real provider configuration and deployment verification.
 - `.github/workflows/staging.yml`
 - `render.yaml`
 - `frontend/vercel.json`
-- `docker-compose.staging.yml`
+- `.env.develop.example`
 - `docs/staging-ci-cd/step-0-sync-and-branch.md` through `step-9-performance-review.md`
 
 ## Actions and Evidence
 - Verified all required provider configuration and guide files exist.
 - Verified `docs/staging-ci-cd/` contains canonical Step artifacts through Step 9 before creating this file.
 - `git diff --check`: passed.
+- Verified only `.github/workflows/develop.yml` remains; `.github/workflows/staging.yml`, `docker-compose.staging.yml`, and `.env.staging.example` are absent.
 
 ## Changes Made
 - Added the final verification artifact.
 
 ## Decisions and Rationale
-- Marked final status `BLOCKED` because provider deployment requires external infrastructure not available in the local workspace.
+- Marked final status `BLOCKED` because an exposed Neon credential and stale staging cloud documentation remain, in addition to provider deployment requiring external infrastructure.
 
 ## Risks / Blockers
 - No provider API deployment test was possible locally.
+- `STAGING_DEPLOYMENT.md` still contains obsolete staging cloud deployment references.
+- `.env.develop.example` contains a credential that must be revoked/rotated outside the repository.
+- No local Docker staging simulation remains, by user confirmation.
 
 ## Next Step
-Configure provider accounts/secrets, push `staging`, and verify the first deployment in GitHub Actions.
+Sanitize and rotate the Neon credential, remove obsolete staging cloud documentation, configure provider accounts/secrets, push `develop`, and verify the first deployment in GitHub Actions.
