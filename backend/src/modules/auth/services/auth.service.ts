@@ -42,6 +42,7 @@ export interface AuthServiceDependencies {
   passwordHasher: PasswordHasher;
   tokenService: TokenService;
   authorizer?: IAuthorizer;
+  roleResolver?: (userId: string) => Promise<import('../../../shared/auth/types.js').UserRole>;
 }
 
 export class AuthService {
@@ -49,12 +50,14 @@ export class AuthService {
   private passwordHasher: PasswordHasher;
   private tokenService: TokenService;
   private authorizer?: IAuthorizer;
+  private roleResolver?: (userId: string) => Promise<import('../../../shared/auth/types.js').UserRole>;
 
   constructor(deps: AuthServiceDependencies) {
     this.userRepository = deps.userRepository;
     this.passwordHasher = deps.passwordHasher;
     this.tokenService = deps.tokenService;
     this.authorizer = deps.authorizer;
+    this.roleResolver = deps.roleResolver;
   }
 
   private toSafeUser(user: User): SafeUser {
@@ -130,10 +133,18 @@ export class AuthService {
       throw new Unauthenticated('Invalid email or password');
     }
 
-    const actor: Actor = {
-      userId: user.id,
-      role: 'EMPLOYEE',
-    };
+    let actor: Actor;
+    if (this.roleResolver) {
+      actor = {
+        userId: user.id,
+        role: await this.roleResolver(user.id),
+      };
+    } else {
+      actor = {
+        userId: user.id,
+        role: 'EMPLOYEE',
+      };
+    }
 
     const tokens = this.tokenService.generateTokens
       ? this.tokenService.generateTokens(actor)

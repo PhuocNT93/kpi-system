@@ -9,6 +9,7 @@ import {
   UserCheck,
   ClipboardCheck,
   ShieldCheck,
+  Shield,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
@@ -95,6 +96,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           id: 'import-center',
           label: 'Import Center',
           icon: <FileSpreadsheet size={18} />
+        },
+        {
+          id: 'iam',
+          label: 'Identity & Access',
+          icon: <Shield size={18} />
         },
         {
           id: 'audit-logs',
