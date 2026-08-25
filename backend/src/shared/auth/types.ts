@@ -20,8 +20,21 @@ export interface JwtActorPayload {
   iat?: number;
 }
 
+export interface JwtRefreshTokenPayload {
+  sub: string;
+  role?: UserRole;
+  type: 'refresh';
+  iss?: string;
+  aud?: string;
+  exp?: number;
+  iat?: number;
+}
+
 export interface JwtConfig {
   secret: string;
+  refreshTokenSecret?: string;
+  expiresIn?: string | number;
+  refreshTokenExpiresIn?: string | number;
   issuer?: string;
   audience?: string;
   algorithms?: ('HS256' | 'HS384' | 'HS512')[];
