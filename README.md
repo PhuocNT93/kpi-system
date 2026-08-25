@@ -64,3 +64,13 @@ docker compose --env-file .env.staging.example -f docker-compose.staging.yml con
 ```
 
 If a Render migration fails, the new backend release does not start; do not automatically roll back the database. Roll back application code through Render/Vercel to a previous deployment after assessing migration compatibility.
+
+---
+### List of 4 seed accounts for user login
+
+| Role Code | Role Name | Email | Mật khẩu | Tên người dùng |
+| :--- | :--- | :--- | :--- | :--- |
+| `EMPLOYEE` | Employee | `employee@kpi.com` | `Password123!` | Employee User |
+| `MANAGER` | Manager | `manager@kpi.com` | `Password123!` | Manager User |
+| `HR_ADMIN` | HR Administrator | `hradmin@kpi.com` | `Password123!` | HR Admin User |
+| `SYSTEM_ADMIN` | System Administrator | `admin@kpi.com` | `Password123!` | System Admin User |

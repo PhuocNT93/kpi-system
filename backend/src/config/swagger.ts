@@ -117,8 +117,8 @@ export const swaggerOptions: swaggerJsdoc.Options = {
           type: 'object',
           required: ['email', 'password'],
           properties: {
-            email: { type: 'string', format: 'email', example: 'john.doe@example.com' },
-            password: { type: 'string', format: 'password', example: 'SecureP@ss123' },
+            email: { type: 'string', format: 'email', example: 'admin@kpi.com' },
+            password: { type: 'string', format: 'password', example: 'Password123!' },
           },
         },
         RefreshTokenRequest: {
