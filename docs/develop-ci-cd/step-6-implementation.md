@@ -6,6 +6,8 @@ Status: produced during this step
 
 Changes Made:
 - Replaced the GHCR/SSH deployment jobs in `.github/workflows/staging.yml` with Vercel frontend deployment and a Render deploy-hook trigger.
+- Added a `migrate-database` GitHub Actions job that runs `npm run migrate:up` against Neon using `DEVELOP_DATABASE_URL` before triggering Render.
+- Removed Render `preDeployCommand` from the develop Blueprint so the setup works with Render Free.
 - Added `render.yaml` for the Express backend with Neon `DATABASE_URL` and `preDeployCommand: npm run migrate:up`.
 - Added `frontend/vercel.json` for the Vite frontend.
 - Retained `docker-compose.staging.yml` as an optional local staging simulation.
@@ -19,6 +21,7 @@ Decisions Applied:
 - Database rollback is not automatic.
 - Docker Compose staging remains local-only and is no longer the cloud deployment mechanism.
 - Develop uses separate GitHub Environment `develop`, Render deploy hook, Vercel deployment, and Neon database settings.
+- `DEVELOP_DATABASE_URL` is stored in GitHub Environment `develop`; Render receives its own `DATABASE_URL` for runtime connections.
 
 Deferred / Not Changed:
 - No staging host, GitHub secrets, DNS, TLS, or production deployment was configured.
@@ -44,6 +47,7 @@ Deferred / Not Changed:
 - Backend after clean `npm ci`: 32 tests passed, 1 isolated migration test skipped; typecheck and build passed.
 - Frontend after clean `npm ci`: 9 tests passed; typecheck and build passed.
 - Provider configuration inspection found the Render migration command, Vercel settings, and no obvious committed secret patterns.
+- Wiring check confirmed the migration job, secret, and command are present and Render `preDeployCommand` is absent.
 
 ## Changes Made
 - Implemented staging and develop CI/CD deployment configuration; staging Compose remains available for local simulation.

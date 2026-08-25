@@ -86,6 +86,25 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
+      - name: Validate Neon database URL
+        env:
+          DATABASE_URL: ${{ secrets.DEVELOP_DATABASE_URL }}
+        run: |
+          node --input-type=module <<'NODE'
+          const databaseUrl = process.env.DATABASE_URL;
+          if (!databaseUrl) {
+            throw new Error('DEVELOP_DATABASE_URL is not configured in GitHub Environment develop.');
+          }
+
+          const parsedUrl = new URL(databaseUrl);
+          const localHosts = new Set(['localhost', '127.0.0.1', '::1']);
+          if (!['postgres:', 'postgresql:'].includes(parsedUrl.protocol)) {
+            throw new Error('DEVELOP_DATABASE_URL must use postgres or postgresql protocol.');
+          }
+          if (localHosts.has(parsedUrl.hostname)) {
+            throw new Error('DEVELOP_DATABASE_URL points to localhost. Use the Neon connection string.');
+          }
+          NODE
       - name: Run Neon develop migrations
         env:
           DATABASE_URL: ${{ secrets.DEVELOP_DATABASE_URL }}
