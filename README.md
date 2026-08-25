@@ -33,3 +33,23 @@ Migration integration tests are destructive only to the explicitly separate `TES
 $env:TEST_DATABASE_URL = 'postgresql://test_user:test_password@localhost:5432/kpi_system_test'
 npm --prefix backend run test:migrations
 ```
+
+## Staging deployment
+
+The `staging` branch workflow validates both applications, deploys `frontend/` to Vercel, and triggers the Render deployment for the Express backend. Render connects to Neon through `DATABASE_URL` and runs `npm run migrate:up` with its `preDeployCommand` before starting the new backend version.
+
+Create a GitHub environment named `staging` with these secrets:
+
+- `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`
+- `STAGING_API_BASE_URL` (the public Render backend URL)
+- `RENDER_DEPLOY_HOOK_URL`
+
+Configure the Render Blueprint from `render.yaml`, set its `DATABASE_URL` to the Neon staging connection string, and configure the Vercel project root directory as `frontend/`. Keep the real Neon URL and provider tokens in provider/GitHub secret storage.
+
+For local staging simulation, the existing Docker Compose file remains available:
+
+```powershell
+docker compose --env-file .env.staging.example -f docker-compose.staging.yml config
+```
+
+If a Render migration fails, the new backend release does not start; do not automatically roll back the database. Roll back application code through Render/Vercel to a previous deployment after assessing migration compatibility.
