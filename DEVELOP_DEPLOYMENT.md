@@ -183,7 +183,7 @@ The `develop` branch uses a separate GitHub Actions workflow:
 .github/workflows/develop.yml
 ```
 
-It validates the backend and frontend, runs the Neon develop migration from GitHub Actions, deploys a Vercel Preview deployment, and triggers the separate Render develop service. This works with Render Free because it does not use Render `preDeployCommand`.
+It validates the backend and frontend, deploys a Vercel Preview deployment, and triggers the separate Render develop service. Migration and seed are controlled independently by `run_migrations` and `run_seed`, which works with Render Free because it does not use Render `preDeployCommand`.
 
 Create a GitHub Environment named `develop` with these secrets:
 
@@ -203,7 +203,7 @@ Configure the `develop` environment with:
 - Render Blueprint: `render.develop.yaml`
 - Render `DATABASE_URL`: the Neon develop pooled connection string, used by the running backend
 - A Render deploy hook belonging to the develop service
-- GitHub `DEVELOP_DATABASE_URL`: the same Neon develop pooled connection string, used only by the migration job
+- GitHub `DEVELOP_DATABASE_URL`: the same Neon develop pooled connection string, used only by the manual migration/seed job
 
 Example non-secret values are available in `.env.develop.example`. Never reuse the staging Neon connection string, Render deploy hook, or Vercel project credentials for `develop`.
 
@@ -214,4 +214,13 @@ git checkout develop
 git push origin develop
 ```
 
-To seed the develop database manually, open **Actions -> Deploy Develop -> Run workflow**, select branch `develop`, set `run_seed` to `true`, and run it. This executes migrations and `npm run seed` against `DEVELOP_DATABASE_URL`; Vercel and Render deployment jobs are skipped for this run.
+To manage the develop database manually, open **Actions -> Deploy Develop -> Run workflow**, select branch `develop`, and choose the flags:
+
+| `run_migrations` | `run_seed` | Result |
+|---|---|---|
+| `false` | `false` | Deploy Vercel and Render; skip migration and seed. |
+| `true` | `false` | Run migration only; skip application deployment. |
+| `false` | `true` | Run seed only; schema must already exist; skip application deployment. |
+| `true` | `true` | Run migration, then seed; skip application deployment. |
+
+Both database jobs use `DEVELOP_DATABASE_URL`. The seed job does not depend on the migration job, so seed-only mode remains available.

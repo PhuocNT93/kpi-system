@@ -5,8 +5,13 @@ on:
     branches: [develop]
   workflow_dispatch:
     inputs:
+      run_migrations:
+        description: Run Neon migrations on the develop database
+        required: true
+        default: false
+        type: boolean
       run_seed:
-        description: Seed the develop Neon database after migrations
+        description: Seed the develop database
         required: true
         default: false
         type: boolean
@@ -56,7 +61,7 @@ jobs:
       - run: npm run build
 
   deploy-frontend:
-    if: github.ref == 'refs/heads/develop' && inputs.run_seed != true
+    if: github.ref == 'refs/heads/develop' && inputs.run_migrations != true && inputs.run_seed != true
     needs: [validate-backend, validate-frontend]
     runs-on: ubuntu-latest
     environment: develop
@@ -77,7 +82,7 @@ jobs:
         run: npx vercel@latest deploy --yes --token "$VERCEL_TOKEN"
 
   migrate-database:
-    if: github.ref == 'refs/heads/develop'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/develop' && inputs.run_migrations == true
     needs: [validate-backend, validate-frontend]
     runs-on: ubuntu-latest
     environment: develop
@@ -117,8 +122,8 @@ jobs:
         run: npm run migrate:up
 
   deploy-backend:
-    if: github.ref == 'refs/heads/develop' && inputs.run_seed != true
-    needs: [migrate-database]
+    if: github.ref == 'refs/heads/develop' && inputs.run_migrations != true && inputs.run_seed != true
+    needs: [validate-backend, validate-frontend]
     runs-on: ubuntu-latest
     environment: develop
     steps:
@@ -129,7 +134,7 @@ jobs:
 
   seed-database:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/develop' && inputs.run_seed == true
-    needs: [migrate-database]
+    needs: [validate-backend, validate-frontend]
     runs-on: ubuntu-latest
     environment: develop
     defaults:

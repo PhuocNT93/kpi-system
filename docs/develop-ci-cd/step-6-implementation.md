@@ -15,6 +15,10 @@ Changes Made:
 - Added `.github/workflows/develop.yml` for the separate `develop` environment.
 - Added `render.develop.yaml` for the Render development backend and Neon development database.
 - Added `.env.develop.example` and ignored `.env.develop`.
+- Added separate `run_migrations` and `run_seed` boolean workflow inputs.
+- Gated `migrate-database` by `run_migrations` and kept `seed-database` independently gated by `run_seed`.
+- Changed normal Vercel/Render deploy conditions to require both flags to be false.
+- Removed the seed dependency on migration so seed-only mode remains available.
 
 Decisions Applied:
 - Render migrations run before the backend release starts.
@@ -48,6 +52,7 @@ Deferred / Not Changed:
 - Frontend after clean `npm ci`: 9 tests passed; typecheck and build passed.
 - Provider configuration inspection found the Render migration command, Vercel settings, and no obvious committed secret patterns.
 - Wiring check confirmed the migration job, secret, and command are present and Render `preDeployCommand` is absent.
+- Verified both flags, independent job conditions, validation dependencies, deploy gating, four documented combinations, and `actionlint`/diff checks.
 
 ## Changes Made
 - Implemented staging and develop CI/CD deployment configuration; staging Compose remains available for local simulation.
