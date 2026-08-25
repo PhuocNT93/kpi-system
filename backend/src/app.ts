@@ -13,10 +13,27 @@ import {
   SimplePasswordHasher,
   JWTTokenService,
 } from './modules/auth/index.js';
+import {
+  InMemoryRoleRepository,
+  InMemoryPermissionRepository,
+  InMemoryUserRoleRepository,
+  InMemoryRolePermissionRepository,
+  InMemoryAuditWriter,
+  seedIamData,
+  AuthorizationService,
+  RoleService,
+  PermissionService,
+  RoleAssignmentService,
+  IamController,
+} from './modules/iam/index.js';
 
 export interface AppOptions {
   userRepository?: InMemoryUserRepository;
   jwtConfig?: JwtConfig;
+  roleRepository?: InMemoryRoleRepository;
+  permissionRepository?: InMemoryPermissionRepository;
+  userRoleRepository?: InMemoryUserRoleRepository;
+  rolePermissionRepository?: InMemoryRolePermissionRepository;
 }
 
 export function createApp(options: AppOptions = {}) {
@@ -37,6 +54,35 @@ export function createApp(options: AppOptions = {}) {
   const authController = new AuthController(authService);
   const jwtMiddleware = createJwtAuthMiddleware(jwtConfig);
 
+  // ── IAM Setup ─────────────────────────────────────────────────────────────
+  const roleRepository = options.roleRepository || new InMemoryRoleRepository();
+  const permissionRepository = options.permissionRepository || new InMemoryPermissionRepository();
+  const userRoleRepository = options.userRoleRepository || new InMemoryUserRoleRepository();
+  const rolePermissionRepository = options.rolePermissionRepository || new InMemoryRolePermissionRepository();
+  const auditWriter = new InMemoryAuditWriter();
+
+  // Seed IAM Data synchronously/in-memory setup
+  seedIamData(roleRepository, permissionRepository, userRoleRepository, rolePermissionRepository);
+
+  const authorizationService = new AuthorizationService(
+    roleRepository,
+    permissionRepository,
+    userRoleRepository,
+    rolePermissionRepository
+  );
+
+  const roleService = new RoleService(roleRepository, auditWriter);
+  const permissionService = new PermissionService(permissionRepository);
+  const roleAssignmentService = new RoleAssignmentService(
+    roleRepository,
+    permissionRepository,
+    userRoleRepository,
+    rolePermissionRepository,
+    auditWriter
+  );
+
+  const iamController = new IamController(roleService, permissionService, roleAssignmentService);
+
   // ── Global Middlewares ────────────────────────────────────────────────────
   app.use(requestIdMiddleware);
   app.use(cors());
@@ -48,7 +94,15 @@ export function createApp(options: AppOptions = {}) {
   });
 
   // ── API Routes ────────────────────────────────────────────────────────────
-  app.use('/api', createApiRouter({ authController, jwtMiddleware }));
+  app.use(
+    '/api',
+    createApiRouter({
+      authController,
+      jwtMiddleware,
+      iamController,
+      authorizationService,
+    })
+  );
 
   // ── Error Handling ────────────────────────────────────────────────────────
   app.use(notFoundHandler);
