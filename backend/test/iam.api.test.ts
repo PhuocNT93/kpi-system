@@ -34,6 +34,12 @@ describe('IAM API & Security Integration Tests', () => {
 
     await seedIamData(roleRepo, permRepo, userRoleRepo, rolePermRepo);
 
+    // Assign SYSTEM_ADMIN role to user-1 for testing permissions
+    const sysAdminRole = await roleRepo.findByCode('SYSTEM_ADMIN');
+    if (sysAdminRole) {
+      await userRoleRepo.assignRole('user-1', sysAdminRole.id);
+    }
+
     app = createApp({
       jwtConfig,
       userRepository: userRepo,
