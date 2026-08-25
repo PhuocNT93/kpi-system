@@ -2,16 +2,47 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
 import { JWTTokenService } from '../src/modules/auth/services/token.service.js';
-import { InMemoryRoleRepository, InMemoryUserRoleRepository } from '../src/modules/iam/index.js';
+import { seedIamData } from '../src/modules/iam/index.js';
+import {
+  InMemoryUserRepository,
+  InMemoryRoleRepository,
+  InMemoryPermissionRepository,
+  InMemoryUserRoleRepository,
+  InMemoryRolePermissionRepository,
+  InMemoryAuditWriter,
+} from './mocks/in-memory-test-repositories.js';
 
 describe('IAM API & Security Integration Tests', () => {
   const jwtConfig = { secret: 'test-secret' };
   const tokenService = new JWTTokenService(jwtConfig);
 
   let app: any;
+  let userRoleRepo: InMemoryUserRoleRepository;
+  let roleRepo: InMemoryRoleRepository;
+  let permRepo: InMemoryPermissionRepository;
+  let rolePermRepo: InMemoryRolePermissionRepository;
+  let auditWriter: InMemoryAuditWriter;
+  let userRepo: InMemoryUserRepository;
 
-  beforeEach(() => {
-    app = createApp({ jwtConfig });
+  beforeEach(async () => {
+    userRoleRepo = new InMemoryUserRoleRepository();
+    roleRepo = new InMemoryRoleRepository();
+    permRepo = new InMemoryPermissionRepository();
+    rolePermRepo = new InMemoryRolePermissionRepository();
+    auditWriter = new InMemoryAuditWriter();
+    userRepo = new InMemoryUserRepository();
+
+    await seedIamData(roleRepo, permRepo, userRoleRepo, rolePermRepo);
+
+    app = createApp({
+      jwtConfig,
+      userRepository: userRepo,
+      roleRepository: roleRepo,
+      permissionRepository: permRepo,
+      userRoleRepository: userRoleRepo,
+      rolePermissionRepository: rolePermRepo,
+      auditWriter,
+    });
   });
 
   it('should return 401 UNAUTHENTICATED when missing token', async () => {
@@ -51,9 +82,22 @@ describe('IAM API & Security Integration Tests', () => {
   });
 
   it('should evaluate permissions based on current RBAC state rather than static JWT claims', async () => {
-    const userRoleRepo = new InMemoryUserRoleRepository();
-    const roleRepo = new InMemoryRoleRepository();
-    const customApp = createApp({ jwtConfig, userRoleRepository: userRoleRepo, roleRepository: roleRepo });
+    const customUserRoleRepo = new InMemoryUserRoleRepository();
+    const customRoleRepo = new InMemoryRoleRepository();
+    const customPermRepo = new InMemoryPermissionRepository();
+    const customRolePermRepo = new InMemoryRolePermissionRepository();
+
+    await seedIamData(customRoleRepo, customPermRepo, customUserRoleRepo, customRolePermRepo);
+
+    const customApp = createApp({
+      jwtConfig,
+      userRepository: new InMemoryUserRepository(),
+      roleRepository: customRoleRepo,
+      permissionRepository: customPermRepo,
+      userRoleRepository: customUserRoleRepo,
+      rolePermissionRepository: customRolePermRepo,
+      auditWriter: new InMemoryAuditWriter(),
+    });
 
     const userToken = tokenService.generateAccessToken({
       userId: 'dynamic-user',
@@ -67,10 +111,10 @@ describe('IAM API & Security Integration Tests', () => {
     expect(res.status).toBe(403);
 
     // 2. Assign SYSTEM_ADMIN role dynamically without altering or re-issuing JWT token
-    const sysAdminRole = await roleRepo.findByCode('SYSTEM_ADMIN');
+    const sysAdminRole = await customRoleRepo.findByCode('SYSTEM_ADMIN');
     expect(sysAdminRole).not.toBeNull();
     if (sysAdminRole) {
-      await userRoleRepo.assignRole('dynamic-user', sysAdminRole.id);
+      await customUserRoleRepo.assignRole('dynamic-user', sysAdminRole.id);
     }
 
     // 3. Check again with same token -> now 200 OK because RBAC is dynamically resolved

@@ -11,8 +11,11 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:migrations": "vitest run src/shared/database/migrations.test.ts",
+    "seed": "tsx src/modules/iam/infrastructure/seed.ts",
     "migrate:up": "node-pg-migrate up -m migrations --database-url-var DATABASE_URL",
-    "migrate:down": "node-pg-migrate down -m migrations --database-url-var DATABASE_URL"
+    "migrate:down": "node-pg-migrate down -m migrations --database-url-var DATABASE_URL",
+    "migrate:up:tsx": "tsx ./node_modules/node-pg-migrate/bin/node-pg-migrate.js up -m migrations --database-url-var DATABASE_URL",
+    "migrate:down:tsx": "tsx ./node_modules/node-pg-migrate/bin/node-pg-migrate.js down -m migrations --database-url-var DATABASE_URL"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -32,6 +35,7 @@
     "eslint": "^9.18.0",
     "node-pg-migrate": "^7.8.0",
     "supertest": "^7.0.0",
+    "ts-node": "^10.9.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.20.0",

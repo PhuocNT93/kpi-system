@@ -1,16 +1,18 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  InMemoryRoleRepository,
-  InMemoryPermissionRepository,
-  InMemoryUserRoleRepository,
-  InMemoryRolePermissionRepository,
-  InMemoryAuditWriter,
   seedIamData,
   AuthorizationService,
   RoleService,
   PermissionService,
   RoleAssignmentService,
 } from '../src/modules/iam/index.js';
+import {
+  InMemoryRoleRepository,
+  InMemoryPermissionRepository,
+  InMemoryUserRoleRepository,
+  InMemoryRolePermissionRepository,
+  InMemoryAuditWriter,
+} from './mocks/in-memory-test-repositories.js';
 
 describe('IAM & RBAC Unit Tests', () => {
   let roleRepo: InMemoryRoleRepository;

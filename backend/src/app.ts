@@ -6,20 +6,27 @@ import { createApiRouter } from './api/routes.js';
 import { getJwtConfig } from './config/jwt.config.js';
 import { requestIdMiddleware } from './shared/request-id.js';
 import { createJwtAuthMiddleware, JwtConfig } from './shared/auth/index.js';
+import { Pool } from 'pg';
+import { createDatabasePool } from './shared/database/database.js';
 import {
   AuthService,
   AuthController,
-  InMemoryUserRepository,
+  UserRepository,
+  PostgresUserRepository,
   SimplePasswordHasher,
   JWTTokenService,
 } from './modules/auth/index.js';
 import {
-  InMemoryRoleRepository,
-  InMemoryPermissionRepository,
-  InMemoryUserRoleRepository,
-  InMemoryRolePermissionRepository,
-  InMemoryAuditWriter,
-  seedIamData,
+  PostgresRoleRepository,
+  PostgresPermissionRepository,
+  PostgresUserRoleRepository,
+  PostgresRolePermissionRepository,
+  PostgresAuditWriter,
+  RoleRepository,
+  PermissionRepository,
+  UserRoleRepository,
+  RolePermissionRepository,
+  AuditWriter,
   AuthorizationService,
   RoleService,
   PermissionService,
@@ -28,12 +35,14 @@ import {
 } from './modules/iam/index.js';
 
 export interface AppOptions {
-  userRepository?: InMemoryUserRepository;
+  userRepository?: UserRepository;
+  dbPool?: Pool;
   jwtConfig?: JwtConfig;
-  roleRepository?: InMemoryRoleRepository;
-  permissionRepository?: InMemoryPermissionRepository;
-  userRoleRepository?: InMemoryUserRoleRepository;
-  rolePermissionRepository?: InMemoryRolePermissionRepository;
+  roleRepository?: RoleRepository;
+  permissionRepository?: PermissionRepository;
+  userRoleRepository?: UserRoleRepository;
+  rolePermissionRepository?: RolePermissionRepository;
+  auditWriter?: AuditWriter;
 }
 
 export function createApp(options: AppOptions = {}) {
@@ -41,28 +50,37 @@ export function createApp(options: AppOptions = {}) {
 
   const jwtConfig = getJwtConfig(options.jwtConfig);
 
-  const userRepository = options.userRepository || new InMemoryUserRepository();
+  // ── IAM & Database Setup ──────────────────────────────────────────────────
+  const pool = options.dbPool || (process.env.DATABASE_URL ? createDatabasePool() : undefined);
+
+  const userRepository =
+    options.userRepository ||
+    (pool ? new PostgresUserRepository(pool) : (undefined as unknown as UserRepository));
   const passwordHasher = new SimplePasswordHasher();
   const tokenService = new JWTTokenService(jwtConfig);
 
-  const authService = new AuthService({
-    userRepository,
-    passwordHasher,
-    tokenService,
-  });
+  const authService = userRepository
+    ? new AuthService({
+        userRepository,
+        passwordHasher,
+        tokenService,
+      })
+    : (undefined as unknown as AuthService);
 
-  const authController = new AuthController(authService);
+  const authController = authService ? new AuthController(authService) : (undefined as unknown as AuthController);
   const jwtMiddleware = createJwtAuthMiddleware(jwtConfig);
 
-  // ── IAM Setup ─────────────────────────────────────────────────────────────
-  const roleRepository = options.roleRepository || new InMemoryRoleRepository();
-  const permissionRepository = options.permissionRepository || new InMemoryPermissionRepository();
-  const userRoleRepository = options.userRoleRepository || new InMemoryUserRoleRepository();
-  const rolePermissionRepository = options.rolePermissionRepository || new InMemoryRolePermissionRepository();
-  const auditWriter = new InMemoryAuditWriter();
-
-  // Seed IAM Data synchronously/in-memory setup
-  seedIamData(roleRepository, permissionRepository, userRoleRepository, rolePermissionRepository);
+  const roleRepository =
+    options.roleRepository || (pool ? new PostgresRoleRepository(pool) : (undefined as unknown as RoleRepository));
+  const permissionRepository =
+    options.permissionRepository || (pool ? new PostgresPermissionRepository(pool) : (undefined as unknown as PermissionRepository));
+  const userRoleRepository =
+    options.userRoleRepository || (pool ? new PostgresUserRoleRepository(pool) : (undefined as unknown as UserRoleRepository));
+  const rolePermissionRepository =
+    options.rolePermissionRepository ||
+    (pool ? new PostgresRolePermissionRepository(pool) : (undefined as unknown as RolePermissionRepository));
+  const auditWriter =
+    options.auditWriter || (pool ? new PostgresAuditWriter(pool) : (undefined as unknown as AuditWriter));
 
   const authorizationService = new AuthorizationService(
     roleRepository,
@@ -94,15 +112,17 @@ export function createApp(options: AppOptions = {}) {
   });
 
   // ── API Routes ────────────────────────────────────────────────────────────
-  app.use(
-    '/api',
-    createApiRouter({
-      authController,
-      jwtMiddleware,
-      iamController,
-      authorizationService,
-    })
-  );
+  if (authController && iamController && authorizationService) {
+    app.use(
+      '/api',
+      createApiRouter({
+        authController,
+        jwtMiddleware,
+        iamController,
+        authorizationService,
+      })
+    );
+  }
 
   // ── Error Handling ────────────────────────────────────────────────────────
   app.use(notFoundHandler);

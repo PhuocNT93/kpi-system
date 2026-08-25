@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import { createApp } from '../src/app.js';
-import { InMemoryUserRepository } from '../src/modules/auth/infrastructure/in-memory-user.repository.js';
+import { InMemoryUserRepository } from './mocks/in-memory-test-repositories.js';
 import { JwtConfig } from '../src/shared/auth/types.js';
 
 const JWT_SECRET = 'test-jwt-secret-key-999';

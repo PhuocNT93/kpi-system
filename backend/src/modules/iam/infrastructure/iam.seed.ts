@@ -83,7 +83,7 @@ export async function seedIamData(
     let perm = await permRepo.findByCode(p.code);
     if (!perm) {
       perm = await permRepo.create({
-        id: `perm-${p.code.replace(':', '-')}`,
+        id: crypto.randomUUID(),
         code: p.code,
         resource: p.resource,
         action: p.action,
@@ -109,7 +109,7 @@ export async function seedIamData(
     let role = await roleRepo.findByCode(r.code);
     if (!role) {
       role = await roleRepo.create({
-        id: `role-${r.code.toLowerCase()}`,
+        id: crypto.randomUUID(),
         code: r.code,
         name: r.name,
         description: r.description,
