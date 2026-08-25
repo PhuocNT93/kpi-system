@@ -213,3 +213,5 @@ Push to `develop` to trigger deployment:
 git checkout develop
 git push origin develop
 ```
+
+To seed the develop database manually, open **Actions -> Deploy Develop -> Run workflow**, select branch `develop`, set `run_seed` to `true`, and run it. This executes migrations and `npm run seed` against `DEVELOP_DATABASE_URL`; Vercel and Render deployment jobs are skipped for this run.
