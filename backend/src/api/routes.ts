@@ -1,13 +1,15 @@
-import { Router } from 'express';
+import { Router, RequestHandler } from 'express';
 import { NotFound, ValidationError } from './app-error.js';
 import { sendCollection, sendSuccess } from './http-response.js';
 import { parsePaginationQuery } from './pagination.js';
 import { AuthController, createAuthRouter } from '../modules/auth/index.js';
-import { RequestHandler } from 'express';
+import { IamController, createIamRouter, AuthorizationService } from '../modules/iam/index.js';
 
 export interface RegisterRoutesOptions {
   authController: AuthController;
   jwtMiddleware: RequestHandler;
+  iamController: IamController;
+  authorizationService: AuthorizationService;
 }
 
 export function createApiRouter(options: RegisterRoutesOptions): Router {
@@ -15,6 +17,9 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
 
   // ── Auth Module Routes ───────────────────────────────────────────────────
   router.use('/auth', createAuthRouter(options.authController, options.jwtMiddleware));
+
+  // ── IAM Module Routes ────────────────────────────────────────────────────
+  router.use('/iam', createIamRouter(options.iamController, options.authorizationService, options.jwtMiddleware));
 
   // ── Sample: single-resource response ──────────────────────────────────────
   router.get('/sample/resource', (_request, response) => {

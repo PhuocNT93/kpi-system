@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import { createApp } from '../src/app.js';
-import { InMemoryUserRepository } from '../src/modules/auth/infrastructure/in-memory-user.repository.js';
+import { InMemoryUserRepository } from './mocks/in-memory-test-repositories.js';
 import { JwtConfig } from '../src/shared/auth/types.js';
 
 const JWT_SECRET = 'test-jwt-secret-key-999';
@@ -94,6 +94,7 @@ describe('Auth Module Integration & Business Logic Tests', () => {
       expect(res.body.success).toBe(true);
       expect(res.body.data.tokenType).toBe('Bearer');
       expect(res.body.data.accessToken).toBeDefined();
+      expect(res.body.data.refreshToken).toBeDefined();
       expect(res.body.data.user.email).toBe('bob@example.com');
       expect(res.body.data.user.name).toBe('Bob');
       expect(res.body.data.user.passwordHash).toBeUndefined();
@@ -170,7 +171,7 @@ describe('Auth Module Integration & Business Logic Tests', () => {
 
     it('should ignore request-supplied actor/userId in request body and strictly use JWT sub', async () => {
       // 1. Create User A and User B
-      const userARes = await request(app).post('/api/auth/signup').send({
+      await request(app).post('/api/auth/signup').send({
         email: 'usera@example.com',
         password: 'userApassword',
         name: 'User A',
@@ -266,6 +267,87 @@ describe('Auth Module Integration & Business Logic Tests', () => {
       });
       expect(loginNewRes.status).toBe(200);
       expect(loginNewRes.body.data.accessToken).toBeDefined();
+    });
+  });
+
+  describe('5. REFRESH TOKEN TESTS (POST /api/auth/refresh)', () => {
+    it('should successfully refresh access token using valid refresh token', async () => {
+      await request(app).post('/api/auth/signup').send({
+        email: 'dave@example.com',
+        password: 'password123',
+        name: 'Dave',
+      });
+
+      const loginRes = await request(app).post('/api/auth/login').send({
+        email: 'dave@example.com',
+        password: 'password123',
+      });
+
+      const { accessToken, refreshToken } = loginRes.body.data;
+      expect(accessToken).toBeDefined();
+      expect(refreshToken).toBeDefined();
+
+      const refreshRes = await request(app).post('/api/auth/refresh').send({
+        refreshToken,
+      });
+
+      expect(refreshRes.status).toBe(200);
+      expect(refreshRes.body.success).toBe(true);
+      expect(refreshRes.body.data.accessToken).toBeDefined();
+      expect(refreshRes.body.data.refreshToken).toBeDefined();
+      expect(refreshRes.body.data.tokenType).toBe('Bearer');
+
+      // Verify new access token can be used on protected routes
+      const protectedRes = await request(app)
+        .post('/api/auth/change-password')
+        .set('Authorization', `Bearer ${refreshRes.body.data.accessToken}`)
+        .send({
+          currentPassword: 'password123',
+          newPassword: 'newPassword123',
+        });
+
+      expect(protectedRes.status).toBe(200);
+    });
+
+    it('should reject refresh when refresh token is missing', async () => {
+      const res = await request(app).post('/api/auth/refresh').send({});
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.meta.error.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('should reject refresh when access token is passed instead of refresh token', async () => {
+      await request(app).post('/api/auth/signup').send({
+        email: 'eve@example.com',
+        password: 'password123',
+        name: 'Eve',
+      });
+
+      const loginRes = await request(app).post('/api/auth/login').send({
+        email: 'eve@example.com',
+        password: 'password123',
+      });
+
+      const { accessToken } = loginRes.body.data;
+
+      const refreshRes = await request(app).post('/api/auth/refresh').send({
+        refreshToken: accessToken,
+      });
+
+      expect(refreshRes.status).toBe(401);
+      expect(refreshRes.body.success).toBe(false);
+      expect(refreshRes.body.meta.error.code).toBe('UNAUTHENTICATED');
+    });
+
+    it('should reject invalid or malformed refresh token', async () => {
+      const res = await request(app).post('/api/auth/refresh').send({
+        refreshToken: 'invalid.refresh.token',
+      });
+
+      expect(res.status).toBe(401);
+      expect(res.body.success).toBe(false);
+      expect(res.body.meta.error.code).toBe('UNAUTHENTICATED');
     });
   });
 });

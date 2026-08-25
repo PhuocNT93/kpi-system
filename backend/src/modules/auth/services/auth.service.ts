@@ -20,10 +20,21 @@ export interface ChangePasswordDTO {
   newPassword?: string;
 }
 
+export interface RefreshTokenDTO {
+  refreshToken?: string;
+}
+
 export interface LoginResult {
   accessToken: string;
+  refreshToken: string;
   tokenType: string;
   user: SafeUser;
+}
+
+export interface RefreshTokenResult {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
 }
 
 export interface AuthServiceDependencies {
@@ -124,12 +135,51 @@ export class AuthService {
       role: 'EMPLOYEE',
     };
 
-    const accessToken = this.tokenService.generateAccessToken(actor);
+    const tokens = this.tokenService.generateTokens
+      ? this.tokenService.generateTokens(actor)
+      : {
+          accessToken: this.tokenService.generateAccessToken(actor),
+          refreshToken: this.tokenService.generateRefreshToken(actor),
+        };
 
     return {
-      accessToken,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
       tokenType: 'Bearer',
       user: this.toSafeUser(user),
+    };
+  }
+
+  async refreshToken(dto: RefreshTokenDTO): Promise<RefreshTokenResult> {
+    if (!dto || !dto.refreshToken || !dto.refreshToken.trim()) {
+      throw new ValidationError('Validation failed for refresh token', [
+        { field: 'refreshToken', code: 'REQUIRED', message: 'Refresh token is required' },
+      ]);
+    }
+
+    const payload = this.tokenService.verifyRefreshToken(dto.refreshToken.trim());
+
+    const user = await this.userRepository.findById(payload.sub);
+    if (!user) {
+      throw new Unauthenticated('User no longer exists');
+    }
+
+    const actor: Actor = {
+      userId: user.id,
+      role: payload.role || 'EMPLOYEE',
+    };
+
+    const tokens = this.tokenService.generateTokens
+      ? this.tokenService.generateTokens(actor)
+      : {
+          accessToken: this.tokenService.generateAccessToken(actor),
+          refreshToken: this.tokenService.generateRefreshToken(actor),
+        };
+
+    return {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      tokenType: 'Bearer',
     };
   }
 

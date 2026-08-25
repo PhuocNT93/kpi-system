@@ -1,8 +1,11 @@
 import { Request, Response, NextFunction, RequestHandler } from 'express';
-import jwt, { JwtPayload, JsonWebTokenError, TokenExpiredError } from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
+import type { JwtPayload } from 'jsonwebtoken';
 import { sendFailure } from '../../api/http-response.js';
 import { Actor, JwtActorPayload, JwtConfig } from './types.js';
 import { runWithActorContext, setActorContext } from './actor-context.js';
+
+const { JsonWebTokenError, TokenExpiredError } = jwt;
 
 export function createJwtAuthMiddleware(config: JwtConfig): RequestHandler {
   const allowedAlgorithms = config.algorithms || ['HS256'];

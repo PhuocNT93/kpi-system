@@ -17,7 +17,18 @@
    ```
 
 The backend health endpoint is available at `http://localhost:8080/health`.
+The Swagger UI documentation is available at `http://localhost:8080/api-docs` (OpenAPI JSON spec at `http://localhost:8080/api-docs.json`).
 The frontend is available at `http://localhost:4001` by default. Set `BACKEND_PORT` and `FRONTEND_PORT` in `.env` to expose them on different host ports.
+
+### Swagger API Documentation & Authorization
+- **Swagger UI**: `http://localhost:3000/api-docs` (or host port mapped via `http://localhost:<PORT>/api-docs`)
+- **OpenAPI JSON**: `http://localhost:3000/api-docs.json`
+- **Testing Protected APIs**:
+  1. Register or log in via `POST /api/auth/login` in Swagger UI.
+  2. Copy the returned `accessToken` string.
+  3. Click the **Authorize** button at the top right of the Swagger UI.
+  4. Paste the token into the Value box and click **Authorize**.
+  5. All protected endpoints (IAM, Auth change-password) will send the `Authorization: Bearer <token>` header automatically.
 
 ## Database migrations
 
