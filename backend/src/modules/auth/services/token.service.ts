@@ -1,6 +1,9 @@
-import jwt, { JwtPayload, JsonWebTokenError, TokenExpiredError } from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
+import type { JwtPayload } from 'jsonwebtoken';
 import { Actor, JwtActorPayload, JwtRefreshTokenPayload, JwtConfig } from '../../../shared/auth/types.js';
 import { Unauthenticated } from '../../../api/app-error.js';
+
+const { JsonWebTokenError, TokenExpiredError } = jwt;
 
 export interface TokenService {
   generateAccessToken(actor: Actor): string;

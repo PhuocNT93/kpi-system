@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction, Router } from 'express';
+import { Request, Response, NextFunction, Router, RequestHandler } from 'express';
 import { sendCollection, sendSuccess } from '../../../api/http-response.js';
 import { AuthorizationService, PermissionService, RoleAssignmentService, RoleService } from '../application/services.js';
 import { authorize } from './authorize.middleware.js';
@@ -154,7 +154,7 @@ export class IamController {
 export function createIamRouter(
   controller: IamController,
   authzService: AuthorizationService,
-  jwtMiddleware: any
+  jwtMiddleware: RequestHandler
 ): Router {
   const router = Router();
 

@@ -1,5 +1,7 @@
 import cors from 'cors';
 import express from 'express';
+import swaggerUi from 'swagger-ui-express';
+import { swaggerSpec } from './config/swagger.js';
 import { errorHandler, notFoundHandler } from './api/error-handler.js';
 import { sendSuccess } from './api/http-response.js';
 import { createApiRouter } from './api/routes.js';
@@ -105,6 +107,13 @@ export function createApp(options: AppOptions = {}) {
   app.use(requestIdMiddleware);
   app.use(cors());
   app.use(express.json());
+
+  // ── Swagger Documentation ─────────────────────────────────────────────────
+  app.get('/api-docs.json', (_req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.send(swaggerSpec);
+  });
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
   // ── Health Check ──────────────────────────────────────────────────────────
   app.get('/health', (_request, response) => {
