@@ -4,7 +4,6 @@ services:
     runtime: node
     rootDir: backend
     buildCommand: npm ci && npm run build
-    preDeployCommand: npm run migrate:up
     startCommand: npm start
     healthCheckPath: /health
     envVars:

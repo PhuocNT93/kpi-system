@@ -183,7 +183,7 @@ The `develop` branch uses a separate GitHub Actions workflow:
 .github/workflows/develop.yml
 ```
 
-It validates the backend and frontend, deploys a Vercel Preview deployment, and triggers the separate Render develop service. Render uses the Neon develop database through `DATABASE_URL` and runs `npm run migrate:up` with `preDeployCommand`.
+It validates the backend and frontend, runs the Neon develop migration from GitHub Actions, deploys a Vercel Preview deployment, and triggers the separate Render develop service. This works with Render Free because it does not use Render `preDeployCommand`.
 
 Create a GitHub Environment named `develop` with these secrets:
 
@@ -192,6 +192,7 @@ VERCEL_TOKEN
 VERCEL_ORG_ID
 VERCEL_PROJECT_ID
 DEVELOP_API_BASE_URL
+DEVELOP_DATABASE_URL
 RENDER_DEPLOY_HOOK_URL
 ```
 
@@ -200,8 +201,9 @@ Configure the `develop` environment with:
 - Vercel project root directory: `frontend`
 - Vercel `VITE_API_BASE_URL`: the Render develop API URL
 - Render Blueprint: `render.develop.yaml`
-- Render `DATABASE_URL`: the Neon develop pooled connection string
+- Render `DATABASE_URL`: the Neon develop pooled connection string, used by the running backend
 - A Render deploy hook belonging to the develop service
+- GitHub `DEVELOP_DATABASE_URL`: the same Neon develop pooled connection string, used only by the migration job
 
 Example non-secret values are available in `.env.develop.example`. Never reuse the staging Neon connection string, Render deploy hook, or Vercel project credentials for `develop`.
 
