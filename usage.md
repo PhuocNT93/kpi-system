@@ -25,12 +25,22 @@ The agent must then read, in this order:
 For every user request, including a request for explanation, review, planning, debugging, coding, testing, or documentation:
 
 1. The agent must start or resume `docs/AI_AGENT_WORKFLOW.md`.
-2. A new task always begins at **Step 0 - Sync and Branch**.
+2. A brand-new task (a distinct feature, fix, or investigation with no in-progress step) always begins at **Step 0 - Sync and Branch**. A message that continues an already-active task — a follow-up question, a requested fix, an update to the current step's deliverable, or an approval — resumes at that task's current step. It never restarts at Step 0.
 3. The agent must complete only the current step's required work and output.
-4. The agent must end with `STATUS: WAITING FOR USER REVIEW - STEP <n>`.
+4. The agent must end with `STATUS: WAITING FOR USER REVIEW - STEP <n>`, or, while revising the current step in response to feedback, `STATUS: IN PROGRESS - STEP <n> (revising per feedback)`. The user must always be able to tell exactly where the task stands from this line alone.
 5. The agent must not continue until the user explicitly approves the current step.
 
 This gate applies even when the user asks to “just make a quick change”, “skip planning”, or “do it immediately”.
+
+### Identifying whether a task is already active
+
+Before defaulting to Step 0, the agent must check, in order:
+
+1. Is there an unresolved `STATUS: ... - STEP <n>` earlier in this conversation for a matching task? Resume at step `<n>`.
+2. Does `docs/<task-slug>/` already contain step artifacts for a task matching this request? Resume at the step after the last saved artifact.
+3. Otherwise, this is a new task — start at Step 0.
+
+If it is genuinely unclear whether a request continues an existing task or starts a new one, ask the user rather than guessing.
 
 ## How to approve and continue
 
