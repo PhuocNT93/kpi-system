@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './app/query-client';
@@ -23,7 +23,7 @@ function ProtectedLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
-  
+
   // Extract active menu from URL (e.g. /admin/iam -> iam)
   const pathParts = location.pathname.split('/');
   const activeMenu = pathParts.length > 2 ? pathParts[2] : 'iam';
@@ -83,7 +83,7 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
-            
+
             <Route element={
               <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
                 <ProtectedLayout />
