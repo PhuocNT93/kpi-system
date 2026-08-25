@@ -226,10 +226,5 @@ export async function seedIamData(
       }
     }
   }
-
-  // // Default initial seed user roles for demo/dev if needed
-  // const adminRole = roleMap.get('SYSTEM_ADMIN');
-  // if (adminRole) {
-  //   await userRoleRepo.assignRole('user-1', adminRole.id);
-  // }
+  
 }
