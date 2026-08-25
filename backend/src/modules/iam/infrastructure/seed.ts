@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { createDatabasePool } from '../../../shared/database/database.js';
+import { PostgresUserRepository, SimplePasswordHasher } from '../../auth/index.js';
 import {
   PostgresRoleRepository,
   PostgresPermissionRepository,
@@ -9,7 +10,7 @@ import {
 } from '../index.js';
 
 async function main() {
-  console.log('Starting IAM seed data process...');
+  console.log('Starting IAM & User seed data process...');
 
   const pool = createDatabasePool();
 
@@ -18,10 +19,12 @@ async function main() {
     const permRepo = new PostgresPermissionRepository(pool);
     const userRoleRepo = new PostgresUserRoleRepository(pool);
     const rolePermRepo = new PostgresRolePermissionRepository(pool);
+    const userRepo = new PostgresUserRepository(pool);
+    const passwordHasher = new SimplePasswordHasher();
 
-    await seedIamData(roleRepo, permRepo, userRoleRepo, rolePermRepo);
+    await seedIamData(roleRepo, permRepo, userRoleRepo, rolePermRepo, userRepo, passwordHasher);
 
-    console.log('IAM seed data successfully populated.');
+    console.log('IAM & User seed data successfully populated.');
   } catch (error) {
     console.error('Error seeding IAM data:', error);
     process.exitCode = 1;

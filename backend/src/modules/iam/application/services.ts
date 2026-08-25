@@ -136,7 +136,7 @@ export class RoleService {
 
     if (this.auditWriter) {
       await this.auditWriter.record({
-        id: `audit-${Date.now()}`,
+        id: crypto.randomUUID(),
         type: 'ROLE_CREATED',
         actorId,
         targetId: created.id,
@@ -163,7 +163,7 @@ export class RoleService {
 
     if (this.auditWriter) {
       await this.auditWriter.record({
-        id: `audit-${Date.now()}`,
+        id: crypto.randomUUID(),
         type: 'ROLE_UPDATED',
         actorId,
         targetId: updated.id,
@@ -258,7 +258,7 @@ export class RoleAssignmentService {
 
     if (this.auditWriter) {
       await this.auditWriter.record({
-        id: `audit-${Date.now()}`,
+        id: crypto.randomUUID(),
         type: 'ROLE_ASSIGNED',
         actorId,
         targetId: userId,
@@ -278,7 +278,7 @@ export class RoleAssignmentService {
 
     if (this.auditWriter) {
       await this.auditWriter.record({
-        id: `audit-${Date.now()}`,
+        id: crypto.randomUUID(),
         type: 'ROLE_REMOVED',
         actorId,
         targetId: userId,
@@ -319,7 +319,7 @@ export class RoleAssignmentService {
 
     if (this.auditWriter) {
       await this.auditWriter.record({
-        id: `audit-${Date.now()}`,
+        id: crypto.randomUUID(),
         type: 'PERMISSION_ASSIGNED',
         actorId,
         targetId: role.id,
@@ -340,7 +340,7 @@ export class RoleAssignmentService {
 
     if (this.auditWriter) {
       await this.auditWriter.record({
-        id: `audit-${Date.now()}`,
+        id: crypto.randomUUID(),
         type: 'PERMISSION_REMOVED',
         actorId,
         targetId: role.id,

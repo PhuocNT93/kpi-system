@@ -5,12 +5,16 @@ import {
   RolePermissionRepository,
 } from '../domain/repositories.js';
 import { AuthorizationScope, Permission, Role } from '../domain/types.js';
+import { UserRepository } from '../../auth/domain/user.model.js';
+import { PasswordHasher, SimplePasswordHasher } from '../../auth/services/password-hasher.service.js';
 
 export async function seedIamData(
   roleRepo: RoleRepository,
   permRepo: PermissionRepository,
   userRoleRepo: UserRoleRepository,
-  rolePermRepo: RolePermissionRepository
+  rolePermRepo: RolePermissionRepository,
+  userRepo?: UserRepository,
+  passwordHasher?: PasswordHasher
 ): Promise<void> {
   const permissionsData: { code: string; resource: string; action: string; description: string }[] = [
     // evaluation
@@ -196,9 +200,36 @@ export async function seedIamData(
     }
   }
 
-  // Default initial seed user roles for demo/dev if needed
-  const adminRole = roleMap.get('SYSTEM_ADMIN');
-  if (adminRole) {
-    await userRoleRepo.assignRole('user-1', adminRole.id);
+  // Seed 4 user login accounts corresponding to the 4 system roles
+  if (userRepo) {
+    const hasher = passwordHasher || new SimplePasswordHasher();
+    const seedUsersData: { email: string; name: string; password: string; roleCode: string }[] = [
+      { email: 'employee@kpi.com', name: 'Employee User', password: 'Password123!', roleCode: 'EMPLOYEE' },
+      { email: 'manager@kpi.com', name: 'Manager User', password: 'Password123!', roleCode: 'MANAGER' },
+      { email: 'hradmin@kpi.com', name: 'HR Admin User', password: 'Password123!', roleCode: 'HR_ADMIN' },
+      { email: 'admin@kpi.com', name: 'System Admin User', password: 'Password123!', roleCode: 'SYSTEM_ADMIN' },
+    ];
+
+    for (const u of seedUsersData) {
+      let user = await userRepo.findByEmail(u.email);
+      if (!user) {
+        const passwordHash = await hasher.hash(u.password);
+        user = await userRepo.create({
+          email: u.email,
+          name: u.name,
+          passwordHash,
+        });
+      }
+      const role = roleMap.get(u.roleCode);
+      if (role && user) {
+        await userRoleRepo.assignRole(user.id, role.id);
+      }
+    }
   }
+
+  // // Default initial seed user roles for demo/dev if needed
+  // const adminRole = roleMap.get('SYSTEM_ADMIN');
+  // if (adminRole) {
+  //   await userRoleRepo.assignRole('user-1', adminRole.id);
+  // }
 }
