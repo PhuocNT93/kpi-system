@@ -4,6 +4,17 @@ on:
   push:
     branches: [develop]
   workflow_dispatch:
+    inputs:
+      run_migrations:
+        description: Run Neon migrations on the develop database
+        required: true
+        default: false
+        type: boolean
+      run_seed:
+        description: Seed the develop database
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -50,7 +61,7 @@ jobs:
       - run: npm run build
 
   deploy-frontend:
-    if: github.ref == 'refs/heads/develop'
+    if: github.ref == 'refs/heads/develop' && inputs.run_migrations != true && inputs.run_seed != true
     needs: [validate-backend, validate-frontend]
     runs-on: ubuntu-latest
     environment: develop
@@ -71,7 +82,7 @@ jobs:
         run: npx vercel@latest deploy --yes --token "$VERCEL_TOKEN"
 
   migrate-database:
-    if: github.ref == 'refs/heads/develop'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/develop' && inputs.run_migrations == true
     needs: [validate-backend, validate-frontend]
     runs-on: ubuntu-latest
     environment: develop
@@ -111,8 +122,8 @@ jobs:
         run: npm run migrate:up
 
   deploy-backend:
-    if: github.ref == 'refs/heads/develop'
-    needs: [migrate-database]
+    if: github.ref == 'refs/heads/develop' && inputs.run_migrations != true && inputs.run_seed != true
+    needs: [validate-backend, validate-frontend]
     runs-on: ubuntu-latest
     environment: develop
     steps:
@@ -120,3 +131,43 @@ jobs:
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: curl --fail --silent --show-error --request POST "$RENDER_DEPLOY_HOOK_URL"
+
+  seed-database:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/develop' && inputs.run_seed == true
+    needs: [validate-backend, validate-frontend]
+    runs-on: ubuntu-latest
+    environment: develop
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - name: Validate Neon database URL
+        env:
+          DATABASE_URL: ${{ secrets.DEVELOP_DATABASE_URL }}
+        run: |
+          node --input-type=module <<'NODE'
+          const databaseUrl = process.env.DATABASE_URL;
+          if (!databaseUrl) {
+            throw new Error('DEVELOP_DATABASE_URL is not configured in GitHub Environment develop.');
+          }
+
+          const parsedUrl = new URL(databaseUrl);
+          const localHosts = new Set(['localhost', '127.0.0.1', '::1']);
+          if (!['postgres:', 'postgresql:'].includes(parsedUrl.protocol)) {
+            throw new Error('DEVELOP_DATABASE_URL must use postgres or postgresql protocol.');
+          }
+          if (localHosts.has(parsedUrl.hostname)) {
+            throw new Error('DEVELOP_DATABASE_URL points to localhost. Use the Neon connection string.');
+          }
+          NODE
+      - name: Seed Neon develop database
+        env:
+          DATABASE_URL: ${{ secrets.DEVELOP_DATABASE_URL }}
+        run: npm run seed

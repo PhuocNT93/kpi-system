@@ -58,7 +58,12 @@ export function createApp(options: AppOptions = {}) {
   const authController = authService ? new AuthController(authService) : (undefined as unknown as AuthController);
   const jwtMiddleware = createJwtAuthMiddleware(jwtConfig);
 
-  const iamController = new IamController(roleService, permissionService, roleAssignmentService);
+  const iamController = new IamController(
+    roleService, 
+    permissionService, 
+    roleAssignmentService, 
+    repositories.userRepository!
+  );
 
   const employeeModule = pool ? createEmployeeModule(pool) : undefined;
   const employeeController = employeeModule?.employeeController ?? new EmployeeController();

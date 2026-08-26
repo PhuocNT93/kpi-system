@@ -41,6 +41,20 @@ export function resolveServices(
         userRepository,
         passwordHasher,
         tokenService,
+        roleResolver: async (userId: string) => {
+          if (!userRoleRepository || !roleRepository) return 'EMPLOYEE';
+          const roles = await userRoleRepository.findRolesByUserId(userId);
+          let highestRole: any = 'EMPLOYEE';
+          for (const ur of roles) {
+            const r = await roleRepository.findById(ur.roleId);
+            if (r) {
+              if (r.code === 'SYSTEM_ADMIN') highestRole = 'SYSTEM_ADMIN';
+              else if (r.code === 'HR_ADMIN' && highestRole !== 'SYSTEM_ADMIN') highestRole = 'HR_ADMIN';
+              else if (r.code === 'MANAGER' && highestRole === 'EMPLOYEE') highestRole = 'MANAGER';
+            }
+          }
+          return highestRole;
+        },
       })
     : undefined;
 

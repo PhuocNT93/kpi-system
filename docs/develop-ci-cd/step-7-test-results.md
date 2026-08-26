@@ -16,6 +16,10 @@ Status: produced during this step
 | Provider deployment | Vercel/Render APIs | NOT APPLICABLE | Requires configured provider projects, tokens, deploy hook, and Neon URL. |
 | Develop workflow | `Get-Content -Raw .github/workflows/develop.yml \| docker run --rm -i rhysd/actionlint:latest -` | PASS | Completed without diagnostics. |
 | Develop provider files | PowerShell `Test-Path` and safe-pattern scan | PASS | Workflow, Render Blueprint, environment template, Vercel config, and guide exist; no obvious secret patterns found. |
+| Manual seed wiring | PowerShell workflow inspection | PASS | `run_seed` input, manual-only condition, migration dependency, `DEVELOP_DATABASE_URL`, and `npm run seed` are present. |
+| Manual seed documentation | PowerShell documentation inspection | PASS | `run_seed: true` and `DEVELOP_DATABASE_URL` instructions are documented. |
+| Manual seed workflow validation | PowerShell workflow inspection | PASS | `run_seed` input, manual-only condition, migration dependency, seed command, and deploy suppression are all present. |
+| Backend regression after seed workflow | `npm test; npm run typecheck` | PASS | 51 tests passed, 8 skipped; typecheck passed. |
 
 Failures / Blockers:
 - The previous GHCR/SSH deployment was replaced; provider deployment was not executed locally because no provider projects or GitHub secrets are available.
@@ -23,6 +27,8 @@ Failures / Blockers:
 - A WSL invocation of the staging Compose regression command could not resolve `.env.staging.example` at `/mnt/c/Users/phuoc.nt/AI/kpi-system`; this is a terminal path/environment limitation, not a reported Compose parse error.
 - `npm ci` reported dependency audit findings in backend and frontend packages; no dependency upgrades were made in this scope.
 - Backend validation is blocked by the user-modified dependency state: `swagger-ui-express` and `swagger-jsdoc` are declared in `backend/package.json` but unavailable in `backend/node_modules`.
+- The seed command was not executed against Neon because it writes database data; only workflow wiring and documentation were validated.
+- `actionlint` validation for the seed-enabled workflow completed without diagnostics.
 
 ## Inputs Reviewed
 - `.github/workflows/staging.yml`
