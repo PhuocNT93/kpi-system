@@ -18,7 +18,7 @@ Implemented company Google Workspace sign-in and first-use account activation fo
 ## Changes Made
 - Added Google ID-token verifier enforcing client audience, verified email, hosted domain, and company email suffix.
 - Added `POST /api/auth/google` and application JWT issue after verified employee lookup.
-- Added migration `1724500000004_add_google_workspace_identity.ts` for nullable password-only support and unique employee/Google subject links.
+- Added migration `1724500000005_add_google_workspace_identity.ts` for nullable password-only support and unique employee/Google subject links.
 - Added browser Google Identity Services script and company Google sign-in control.
 - Added frontend API and `AuthContext` integration using `id_token`.
 - Added complete actor-claim resolution for employee ID, IAM role, permissions, and managed-team scope; refresh now resolves the current actor profile.

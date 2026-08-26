@@ -19,6 +19,7 @@ Status: produced during this step; rerun after approved Step 8 repairs
 - `backend/npm test`: 8 files passed, 3 files skipped; 53 tests passed and 8 skipped.
 - `frontend/npm test`: 3 files passed; 9 tests passed.
 - Final rerun after duplicate-identity and migration rollback repairs: backend and frontend results remained unchanged and both type checks passed.
+- Migration-version correction rerun: `backend/npm test` passed (53 tests; 8 skipped). `backend/npm run test:migrations` remained skipped because `TEST_DATABASE_URL` is not configured.
 - The skipped backend suites are PostgreSQL and migration tests gated on `DATABASE_URL`; no database URL was configured for this validation.
 
 ## Changes Made
