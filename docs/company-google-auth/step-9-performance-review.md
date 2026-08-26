@@ -1,6 +1,6 @@
 # Step 9: Performance Review
 
-Status: produced during this step
+Status: produced during this step; reconfirmed after migration-version correction
 
 ## Deliverable
 ### Performance Assessment
@@ -16,6 +16,7 @@ Status: produced during this step
 ### Findings
 - No release-blocking performance defects.
 - Follow-up: assess `EXPLAIN ANALYZE` against the production database and add functional indexes for `LOWER(app_user.email)` and `LOWER(employee.email)` if needed. This is intentionally deferred because the configured email normalization policy and database data are not available locally.
+- Migration correction: renaming the Google identity migration from conflicting version `1724500000004` to `1724500000005` changes only migration ordering metadata and does not affect runtime query paths, indexes, or deployment execution cost.
 
 ## Inputs Reviewed
 - Google verifier, auth profile resolver, account repository queries, migration, and login UI.

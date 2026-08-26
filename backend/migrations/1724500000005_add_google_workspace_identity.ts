@@ -11,5 +11,5 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
 
 export async function down(pgm: MigrationBuilder): Promise<void> {
   void pgm;
-  throw new Error('Migration 1724500000004 is irreversible after Google-only accounts are created.');
+  throw new Error('Migration 1724500000005 is irreversible after Google-only accounts are created.');
 }

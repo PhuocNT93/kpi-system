@@ -1,6 +1,6 @@
 # LLD — Employee Performance Evaluation Management System
 
-> **Trạng thái tài liệu:** Draft v1.0
+> **Trạng thái tài liệu:** v1.2 — đã cập nhật theo quyết định chính thức từ HR/Manager (xem changelog cuối tài liệu) và bổ sung Google Workspace SSO.
 > **18 tiêu chí hiện tại (Performance / Capability / Contribution) chỉ được coi là *seed data / sample configuration*.** Toàn bộ hệ thống được thiết kế theo hướng **Configurable, Rule-driven Evaluation Framework** — không hard-code criterion, weight, level, hay tool phụ thuộc vào application code.
 
 ---
@@ -30,7 +30,7 @@ Kiến trúc đề xuất: **Modular Monolith**, tách rõ các bounded context 
 - Không tích hợp tự động với Jira/Git/QA tool ở MVP (evidence là URL/text/manual).
 - Không làm multi-tenant (multi-organization) ở MVP — giả định 1 organization.
 - Không làm real-time collaborative editing.
-- Không làm ranking/stack-ranking tự động (chỉ hỗ trợ xem distribution).
+- Không làm ranking/stack-ranking tự động (chỉ hỗ trợ xem distribution aggregate theo team/org — **không** xem xếp hạng cá nhân dưới bất kỳ hình thức nào, kể cả ẩn danh; ✅ đã chốt, xem mục 19).
 
 ### Scope
 In-scope: employee management, evaluation cycle/template/criteria configuration, manual entry, CSV import, scoring engine, workflow, calibration (cơ bản), reporting, audit, RBAC.
@@ -72,7 +72,7 @@ Insight quan trọng rút ra từ dữ liệu mẫu để đưa vào rule engine
 - Manual evaluation entry (Draft → Submit → Review → Approve)
 - CSV Import (template versioned, validate, preview, partial import, import history)
 - Scoring Engine (raw score → weighted score → overall score)
-- Basic evaluation workflow (configurable steps, tối thiểu: Self-assessment optional → Manager Assessment → Approval → Publish → Lock)
+- Basic evaluation workflow (configurable steps, tối thiểu: Self-assessment **bắt buộc** → Manager Assessment → Approval → Publish **tự động** → Lock — ✅ đã chốt, xem mục 14)
 - Immutable historical evaluation (snapshot)
 - Audit log (mọi thay đổi weight/score/level)
 - RBAC (4 role nhóm)
@@ -143,7 +143,7 @@ erDiagram
 ```
 
 ### RBAC — 4 nhóm
-1. **Employee** — xem evaluation của mình, nhập self-assessment (nếu cycle bật), submit self-assessment, xem lịch sử.
+1. **Employee** — xem evaluation của mình, nhập self-assessment (**bắt buộc mọi cycle** — ✅ đã chốt), submit self-assessment, xem lịch sử.
 2. **Team Lead / Manager** — đánh giá nhân viên trong team quản lý, review evidence, submit/reject, request correction.
 3. **HR / Admin** — quản lý employee/team/cycle/template/criteria, import CSV, xem report toàn org, thực hiện calibration.
 4. **System Admin** — user/permission management, cấu hình hệ thống, xem audit log toàn bộ (read-only với business data).
@@ -261,6 +261,7 @@ erDiagram
     ROLE ||--o{ EMPLOYEE : "assigned to"
     JOB_LEVEL ||--o{ EMPLOYEE : "assigned to"
     EMPLOYEE ||--o{ EMPLOYEE : "manages (manager_id)"
+    EMPLOYEE ||--o| USER_ACCOUNT : "login qua Google (mục 10.8)"
 
     EVALUATION_CYCLE ||--o{ EVALUATION_TEMPLATE_VERSION : uses
     EVALUATION_TEMPLATE ||--o{ EVALUATION_TEMPLATE_VERSION : "versioned by"
@@ -492,6 +493,25 @@ Unique: `(evaluation_cycle_id, file_hash)` → chống import lại đúng file 
 
 Index: `(entity_type, entity_id)`, `(performed_at)`.
 
+### 10.8 IAM / Authentication (mới — Google Workspace SSO)
+
+> Bổ sung schema còn thiếu ở bản draft trước: mục 7 đã liệt kê "IAM & RBAC Module" nhưng chưa có bảng cụ thể. Thêm ở đây để nhất quán với tính năng Google login (mục 21).
+
+**user_account** *(tách biệt với `employee` — 1 employee có thể chưa từng login lần nào, nên chưa có `user_account`)*
+| Column | Type | Null | Note |
+|---|---|---|---|
+| user_account_id | uuid | N | PK |
+| employee_id | uuid | N | FK → employee, UNIQUE (1-1) |
+| google_sub | varchar(255) | N | UNIQUE — Google's stable subject ID (không dùng email làm định danh chính vì email có thể đổi) |
+| email_at_login | varchar(200) | N | email lấy từ Google ID token tại lần login gần nhất (đối chiếu với `employee.email`) |
+| access_role | varchar(20) | N | ENUM: `EMPLOYEE` / `MANAGER` / `HR_ADMIN` / `SYSTEM_ADMIN` — nhóm quyền RBAC (mục 17), **khác** với `employee.role_id` (job title SI/SM/BA) |
+| status | varchar(20) | N | ENUM `ACTIVE` / `DISABLED` |
+| last_login_at | timestamptz | Y | |
+
+Unique: `(employee_id)`, `(google_sub)`.
+
+> **`access_role` mặc định = `EMPLOYEE`** khi tự động tạo account ở lần login đầu. `MANAGER` được **suy ra tự động** (nếu `employee_id` xuất hiện trong cột `manager_id` của bảng `employee` khác) — không cần gán tay. `HR_ADMIN`/`SYSTEM_ADMIN` **không bao giờ tự động gán** — chỉ System Admin hiện tại mới gán được qua IAM Admin UI, kể cả khi user đó login bằng email công ty hợp lệ (tránh privilege escalation qua Google login).
+
 ---
 
 ## 11. Configurable Criteria Model — Precedence
@@ -536,7 +556,7 @@ Template 2026 override: 20%
 - Missing evidence: cấu hình `scoring_rule.require_evidence boolean` — nếu true mà không có evidence, hệ thống cảnh báo nhưng **không chặn submit** (đánh dấu `evaluation_item.evidence_incomplete = true` để Reviewer chú ý) — vì evidence có thể phát sinh ngoài hệ thống (vd verbal feedback).
 
 ### Manual override / adjustment / rounding
-- Mọi thay đổi score sau khi Rule Engine đã tính (kể cả bởi Manager) đi qua `score_adjustment` với `reason` bắt buộc, ghi `audit_log` tự động (trigger ở Evaluation module, không phải tự nguyện từ UI).
+- **Quyền override (✅ đã chốt):** Manager (team mình) và HR/Admin — **System Admin không có quyền này** (giữ đúng nguyên tắc read-only với business data, mục 6). Mọi thay đổi score sau khi Rule Engine đã tính (kể cả bởi Manager) đi qua `score_adjustment` với `reason` bắt buộc, ghi `audit_log` tự động (trigger ở Evaluation module, không phải tự nguyện từ UI).
 - Rounding: chuẩn hóa **2 chữ số thập phân**, làm tròn theo `ROUND_HALF_UP`, áp dụng nhất quán ở tầng Rule Engine (không làm tròn ở DB, không làm tròn ở UI riêng lẻ) để tránh sai lệch cộng dồn.
 
 ---
@@ -703,21 +723,22 @@ function calculateEvaluation(evaluation):
 stateDiagram-v2
     [*] --> DRAFT
     DRAFT --> OPEN: Admin opens cycle
-    OPEN --> SELF_ASSESSMENT: employee starts (optional step)
-    OPEN --> MANAGER_ASSESSMENT: nếu self-assessment bị tắt
+    OPEN --> SELF_ASSESSMENT: employee starts (bắt buộc mọi cycle)
     SELF_ASSESSMENT --> MANAGER_ASSESSMENT: employee submits self-score
     MANAGER_ASSESSMENT --> REVIEWING: manager submits
     REVIEWING --> MANAGER_ASSESSMENT: reviewer request correction
     REVIEWING --> CALIBRATION: reviewer approves, cycle có bật calibration
     REVIEWING --> APPROVED: cycle không bật calibration
     CALIBRATION --> APPROVED: calibration committee finalize
-    APPROVED --> PUBLISHED: HR publish kết quả cho employee xem
+    APPROVED --> PUBLISHED: hệ thống tự động publish ngay khi Approved (✅ đã chốt — không có bước "HR bấm Publish" thủ công riêng)
     PUBLISHED --> LOCKED: hết thời hạn / Admin lock thủ công
     LOCKED --> [*]
 ```
 
+**✅ Đã chốt — Auto-publish:** ngay khi evaluation đạt trạng thái `APPROVED` (tức điểm đã được tính xong và final_score đã chốt — dù có qua CALIBRATION hay không), hệ thống **tự động chuyển sang `PUBLISHED`** trong cùng transaction, nhân viên xem được kết quả **ngay lập tức**, không cần HR thực hiện thêm thao tác "Publish" riêng. `POST /evaluations/{id}/approve` giờ đây thực hiện luôn cả 2 việc: approve + publish (atomic, cùng 1 audit_log ghi rõ 2 sự kiện `APPROVE` và `PUBLISH` hoặc gộp thành 1 sự kiện `APPROVE_AND_PUBLISH`).
+
 ### Có nên configurable workflow không?
-**Có, nhưng ở mức giới hạn (configurable step toggling, không phải build BPMN engine tự do).** `workflow_definition.steps` là JSON mảng các state cố định trong hệ thống (danh sách state là fixed enum), Admin chỉ được **bật/tắt** các step tùy chọn (SELF_ASSESSMENT, CALIBRATION) và cấu hình `allowed_roles` cho mỗi transition. **Lý do không cho tự do định nghĩa state mới:** state gắn chặt với business logic khác (báo cáo, lock, audit) — cho phép state tùy ý sẽ phá vỡ tính nhất quán của Reporting/Approval module. **Trade-off:** kém linh hoạt hơn full workflow engine, nhưng đúng tinh thần "tránh over-engineering" của đề bài.
+**Có, nhưng ở mức giới hạn (configurable step toggling, không phải build BPMN engine tự do).** `workflow_definition.steps` là JSON mảng các state cố định trong hệ thống (danh sách state là fixed enum), Admin chỉ được **bật/tắt** step tùy chọn còn lại (**CALIBRATION**) và cấu hình `allowed_roles` cho mỗi transition. **SELF_ASSESSMENT không còn là step tùy chọn** (✅ đã chốt bắt buộc mọi cycle, mục 29 Q3) — luôn có mặt trong mọi workflow, không cấu hình tắt được. **Lý do không cho tự do định nghĩa state mới:** state gắn chặt với business logic khác (báo cáo, lock, audit) — cho phép state tùy ý sẽ phá vỡ tính nhất quán của Reporting/Approval module. **Trade-off:** kém linh hoạt hơn full workflow engine, nhưng đúng tinh thần "tránh over-engineering" của đề bài.
 
 ### Permission theo transition (tóm tắt, chi tiết ở mục 17)
 | Transition | Role được phép |
@@ -727,8 +748,8 @@ stateDiagram-v2
 | → MANAGER_ASSESSMENT submit | Team Lead/Manager (của employee đó) |
 | → REVIEWING approve/reject | Manager cấp trên hoặc HR (theo config) |
 | → CALIBRATION adjust | HR/Admin (calibration committee) |
-| → APPROVED | HR/Admin |
-| → PUBLISHED | HR/Admin |
+| → APPROVED | HR/Admin (hoặc reviewer cấp trên theo config) |
+| → PUBLISHED | **System (auto, ngay khi vào APPROVED)** — ✅ đã chốt, không còn thao tác thủ công riêng cho HR |
 | → LOCKED | System (auto theo `end_date` + grace period) hoặc HR/Admin thủ công |
 
 ### Nếu Manager thay đổi score sau khi Employee đã submit self-assessment?
@@ -831,9 +852,9 @@ sequenceDiagram
 | POST | `/evaluations/{id}/self-submit` | Employee | |
 | POST | `/evaluations/{id}/submit` | Manager | validate no missing required score |
 | POST | `/evaluations/{id}/request-correction` | Reviewer/HR | |
-| POST | `/evaluations/{id}/approve` | HR/Admin/Reviewer (config) | |
+| POST | `/evaluations/{id}/approve` | HR/Admin/Reviewer (config) | ✅ đã chốt: approve xong tự động publish luôn (atomic), không có endpoint `/publish` riêng cho evaluation |
 | POST | `/evaluations/{id}/recalculate` | Manager/HR | trước khi lock, ghi audit |
-| POST | `/evaluations/{id}/items/{itemId}/adjust-score` | Manager/HR | tạo `score_adjustment`, reason bắt buộc (400 nếu thiếu) |
+| POST | `/evaluations/{id}/items/{itemId}/adjust-score` | Manager/HR | tạo `score_adjustment`, reason bắt buộc (400 nếu thiếu); ✅ đã chốt: Manager + HR/Admin, **không** cấp System Admin |
 | POST | `/evaluation-cycles/{id}/lock` | HR/Admin | idempotent, chặn mọi write sau đó (409 nếu đã locked) |
 
 ### Calibration
@@ -864,7 +885,7 @@ sequenceDiagram
 
 ### Ví dụ chi tiết 1 API
 **POST `/evaluations/{id}/items/{itemId}/adjust-score`**
-- Auth: Bearer JWT, role ∈ {MANAGER (own team), HR_ADMIN}
+- Auth: Bearer JWT, role ∈ {MANAGER (own team), HR_ADMIN} — ✅ đã chốt: **không** cấp System Admin (giữ nguyên tắc read-only, mục 6)
 - Request:
 ```json
 { "new_score": 4.2, "reason": "Employee vượt KPI do dự án khẩn cấp Q3, đã xác nhận với PM" }
@@ -926,6 +947,11 @@ Mọi hành động **thay đổi weight, score, level, rule, hoặc quyết đ�
 
 `audit_log` **không có API update/delete** — chỉ có `POST` (nội bộ) và `GET` (System Admin/HR). Ở DB, revoke quyền `UPDATE`/`DELETE` trên bảng này khỏi application role, chỉ cấp `INSERT`/`SELECT`.
 
+### Retention Policy (✅ đã chốt)
+- **Audit log & evaluation lịch sử: lưu trữ 2 năm** ở hot storage (query được ngay qua UI). Sau 2 năm → archive job chuyển sang cold storage (vd S3 Glacier/export file nén), **không xóa hẳn** (phòng trường hợp cần tra cứu tuân thủ/khiếu nại sau này).
+- Archive job chạy định kỳ (vd hàng tháng), có audit riêng cho chính hành động archive (`entity_type = ARCHIVE_JOB`).
+- Đề xuất partition bảng `audit_log` theo tháng để archive/query hiệu quả hơn khi dữ liệu lớn dần.
+
 ### Versioning strategy (trả lời trực tiếp câu hỏi mục 23, Q1-Q4)
 
 | Đối tượng | Chiến lược |
@@ -958,10 +984,13 @@ Mọi hành động **thay đổi weight, score, level, rule, hoặc quyết đ�
 - **Team:** average, distribution (histogram theo score range), criterion average, completion rate (`Σ evaluation status=DONE / Σ evaluation total`).
 - **Organization:** distribution toàn org, so sánh department/team, trend theo cycle.
 
-### Privacy & permission khi xem ranking
-- Ranking cá nhân-với-cá nhân **không hiển thị cho Employee** (chỉ thấy chính mình + optional "bạn thuộc top X% team" dạng ẩn danh nếu Admin bật).
-- Manager chỉ xem ranking trong team mình quản lý, không xem chi tiết điểm của employee ngoài team.
-- HR/Admin xem toàn bộ nhưng **export dữ liệu cá nhân phải ghi audit_log** (loại action `EXPORT`) vì đây là PII nhạy cảm.
+### Privacy & permission khi xem ranking (✅ đã chốt — siết chặt hơn bản draft)
+- **Không ai được xem xếp hạng/vị trí của nhân viên khác so với đồng nghiệp, dưới bất kỳ hình thức nào — kể cả ẩn danh.** Bỏ hẳn tùy chọn "top X% team" đã đề xuất ở bản draft trước.
+- Employee: chỉ xem điểm/breakdown của **chính mình**, không có bất kỳ chỉ số so sánh tương đối nào với đồng nghiệp.
+- Manager: xem được **aggregate** của team mình (average, distribution/histogram theo score range) — đây là số liệu tổng hợp, không phải xếp hạng từng cá nhân, nên vẫn cho phép; **không** được xem "nhân viên A đứng thứ mấy trong team".
+- HR/Admin: xem được aggregate toàn org/department/team; muốn xem điểm chi tiết 1 cá nhân cụ thể thì được (đúng vai trò), nhưng **không cung cấp bất kỳ tính năng "so sánh/xếp hạng nhân viên A vs B" nào trên UI hay API** — kể cả HR.
+- Export dữ liệu cá nhân vẫn phải ghi `audit_log` (action `EXPORT`) vì là PII nhạy cảm.
+- **Lưu ý implementation:** đây là lý do mục 2 (Non-goals) đã loại "ranking/stack-ranking tự động" khỏi MVP — quyết định lần này xác nhận **luôn, kể cả Phase 2 cũng không nên làm** trừ khi có yêu cầu nghiệp vụ rất rõ ràng sau này.
 
 ---
 
@@ -1004,18 +1033,73 @@ Mọi hành động **thay đổi weight, score, level, rule, hoặc quyết đ�
 
 ## 21. Security
 
-- **Authentication:** OAuth2/OIDC (SSO nội bộ) hoặc email+password với MFA optional cho HR/Admin/System Admin.
-- **Authorization:** RBAC + resource-scoping (team/self) enforce ở service layer, không chỉ ở UI.
+### Authentication — Google Workspace SSO (✅ tính năng mới, thay thế "OAuth2/OIDC generic" ở bản draft trước)
+
+**Quyết định:** dùng **Google OAuth 2.0 / OpenID Connect** làm phương thức đăng nhập **duy nhất** cho MVP (không làm email+password riêng), giới hạn theo domain công ty (vd `@cyberlogitec.com`).
+
+**Login/Register flow:**
+```mermaid
+sequenceDiagram
+    actor User
+    participant FE as Frontend
+    participant BE as Backend (Auth Module)
+    participant Google as Google OAuth/OIDC
+    participant DB
+
+    User->>FE: Click "Sign in with company Google account"
+    FE->>Google: Redirect tới Google consent screen (kèm param hd=<company_domain>)
+    User->>Google: Chọn account công ty, cấp quyền
+    Google-->>FE: Redirect về callback URL kèm authorization code
+    FE->>BE: POST /auth/google/callback { code }
+    BE->>Google: Exchange code lấy ID token (server-to-server)
+    Google-->>BE: ID token (JWT ký bởi Google)
+    BE->>BE: Verify chữ ký (Google public keys), verify email_verified=true
+    BE->>BE: Verify email domain == company domain (server-side, KHÔNG chỉ tin claim "hd")
+    alt Email không đúng domain công ty
+        BE-->>FE: 403 INVALID_DOMAIN
+    else Domain hợp lệ nhưng không tìm thấy employee tương ứng
+        BE->>DB: tìm employee theo email — không thấy
+        BE-->>FE: 403 EMPLOYEE_NOT_PROVISIONED ("Tài khoản chưa được HR khởi tạo")
+        BE->>DB: audit_log (action=LOGIN_DENIED)
+    else Hợp lệ, có employee tương ứng
+        BE->>DB: tìm/tạo user_account (liên kết employee_id, lưu google_sub)
+        BE->>DB: audit_log (action = CREATE nếu lần đầu, LOGIN nếu đã tồn tại)
+        BE-->>FE: internal session JWT (access + refresh token)
+    end
+```
+
+**Nguyên tắc bảo mật quan trọng:**
+- **Không được chỉ tin tham số `hd` (hosted domain)** trong request/response — đây chỉ là gợi ý UX (lọc danh sách account hiển thị), **có thể bị giả mạo**. Backend **luôn** verify domain bằng cách so khớp phần sau `@` của `email` trong ID token đã verify chữ ký, với domain công ty đã cấu hình (`cyberlogitec.com`), server-side, mỗi lần login.
+- Cũng verify `email_verified: true` trong ID token — Google có thể trả về email chưa xác thực trong 1 số edge case (tài khoản G Suite legacy).
+- **"Register" không phải self-serve form** — nghĩa là: user **không tự tạo employee record mới** qua màn hình login. Lần đầu login bằng Google chỉ **kích hoạt** (activate) `user_account` cho **employee đã tồn tại sẵn** trong hệ thống (do HR tạo qua `POST /employees`, mục 16). Nếu email Google không khớp bất kỳ `employee.email` nào → từ chối login, hướng dẫn liên hệ HR. **Lý do:** employee là business entity do HR quản lý (nguồn sự thật cho org chart, RBAC scope) — cho phép tự đăng ký sẽ phá vỡ tính toàn vẹn dữ liệu tổ chức.
+- Google `sub` (subject ID) là định danh chính lưu trong `user_account.google_sub` — **không dùng email làm khóa chính** vì email có thể đổi (đổi tên, đổi phòng ban dùng email khác) trong khi `sub` không đổi.
+- Session: access token (JWT) thời hạn ngắn (vd 15-30 phút) + refresh token (vd 7 ngày, rotate mỗi lần dùng). Refresh token lưu ở HttpOnly cookie, không lưu localStorage (chống XSS đánh cắp token).
+
+**API bổ sung (mục 16):**
+| Method | Endpoint | Auth | Note |
+|---|---|---|---|
+| GET | `/auth/google/login` | Public | redirect tới Google consent screen, kèm `hd=<company_domain>` |
+| POST | `/auth/google/callback` | Public | nhận `code`, verify, tạo/liên kết `user_account`, trả session token |
+| POST | `/auth/refresh` | Refresh token | cấp access token mới |
+| POST | `/auth/logout` | Bearer JWT | revoke refresh token hiện tại |
+| GET | `/auth/me` | Bearer JWT | trả thông tin actor hiện tại (employee_id, access_role, team scope) — dùng cho FE init state |
+
+**Cấu hình cần chuẩn bị trước khi implement:**
+- Google Cloud Console: tạo OAuth 2.0 Client (Web application), khai báo Authorized redirect URI.
+- Biến môi trường: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `COMPANY_EMAIL_DOMAIN=cyberlogitec.com`.
+- Nếu công ty dùng Google Workspace (không phải Gmail cá nhân), có thể cân nhắc thêm bước xác nhận qua **Google Workspace Admin SDK** để kiểm tra user đang active trong tổ chức Workspace (Phase 2 — không bắt buộc MVP, domain-check đã đủ an toàn cho hầu hết trường hợp).
+
+- **Authorization:** RBAC + resource-scoping (team/self) enforce ở service layer, không chỉ ở UI — dùng `user_account.access_role` (mục 10.8) làm nguồn RBAC group, kết hợp `employee.manager_id`/`team_id` cho scope filter.
 - **Data isolation:** mọi query có scope filter bắt buộc theo JWT claims (`employee_id`, `managed_team_ids`).
 - **Encryption:** at-rest (DB-level encryption), in-transit (TLS 1.2+).
 - **PII protection:** email/full_name là PII — mask trong log ngoài audit_log chính thức; export report cá nhân ghi audit.
-- **Rate limiting** cho `/imports/csv` và `/reports/*` để tránh abuse.
+- **Rate limiting** cho `/imports/csv`, `/reports/*`, và `/auth/google/callback` (chống brute-force/abuse endpoint auth) để tránh abuse.
 
 ---
 
 ## 22. Performance & Scalability
 
-- **Quy mô giả định (assumption — đánh dấu Open Question nếu khác thực tế):** ~2,000–5,000 employees, ~50 concurrent users giờ cao điểm, CSV import tối đa ~5,000 rows/file.
+- **Quy mô (✅ đã HR/Product xác nhận):** ~1,000 employees, ~50 concurrent users giờ cao điểm, CSV import tối đa ~5,000 rows/file. Ở quy mô này, materialized view refresh theo batch (mục 19) và cache Redis TTL 15 phút là đủ dùng — **không cần** tối ưu sớm (premature optimization) cho scale >5,000 employee.
 - CSV import >500 rows → xử lý **bất đồng bộ qua job queue**, trả `import_job.id` ngay, client poll status — tránh timeout HTTP.
 - Report query dùng materialized view + cache (Redis) TTL ngắn (~15 phút) cho dashboard tổng hợp.
 - Batch tính score khi import dùng bulk insert/transaction theo batch 100-200 rows, tránh 1 transaction khổng lồ.
@@ -1124,7 +1208,7 @@ flowchart LR
 | Database | PostgreSQL (hỗ trợ JSONB tốt cho `rule_config`) | MySQL 8 | Postgres JSONB + GIN index mạnh hơn cho query rule config |
 | Cache | Redis | Memcached | Redis hỗ trợ cấu trúc phức tạp hơn (cần cho report cache/session) |
 | File storage | S3-compatible (MinIO on-prem hoặc AWS S3) | Local disk | Cần scale & backup dễ dàng cho CSV/evidence |
-| Auth | OIDC (Keycloak self-host hoặc Auth0) | Custom JWT | Keycloak/Auth0 giảm rủi ro tự xây auth, hỗ trợ SSO |
+| Auth | **Google OAuth2/OIDC** (`accounts.google.com`), domain-restricted (✅ đã chốt — xem mục 21) | Keycloak/Auth0 self-host | Công ty đã dùng Google Workspace cho email nội bộ nên tận dụng làm IdP trực tiếp, không cần thêm hạ tầng identity provider riêng; trade-off: phụ thuộc uptime của Google (chấp nhận được vì công ty vốn đã phụ thuộc Google Workspace cho email) |
 | Background job | BullMQ (Node) / Spring Batch (Java) + Redis/RabbitMQ | AWS SQS | Tùy hạ tầng sẵn có; BullMQ đơn giản nếu đã chọn Node |
 | Reporting | Materialized view trong Postgres + Metabase (cho HR tự khám phá data) | Dedicated BI (Looker) | Metabase đủ dùng ở quy mô MVP, chi phí thấp |
 | Logging | ELK stack hoặc Loki+Grafana | CloudWatch (nếu AWS) | Tùy hạ tầng |
@@ -1141,9 +1225,9 @@ flowchart LR
 5. **Optimistic locking** trên `evaluation_item` có thể gây trải nghiệm khó chịu nếu 2 Manager cùng sửa 1 employee (hiếm nhưng cần UX xử lý conflict rõ ràng).
 6. **Materialized view lag** cho Reporting → số liệu real-time có thể trễ vài phút, cần truyền đạt rõ cho user ("Data as of ...").
 7. **Migration khi thêm `rule_type` mới trong tương lai** vẫn cần deploy code (chấp nhận trade-off đã nêu ở mục 12) — cần quy trình release rõ ràng khi việc này xảy ra.
-8. **Employee đổi team/role giữa cycle** — snapshot tại thời điểm tạo evaluation có thể gây tranh cãi nếu chuyển team giữa cycle (VD chuyển ngày 15/cycle 6 tháng) — cần business rule rõ (đã đề xuất ở mục 10.1, nhưng vẫn là **Open Question** cần chốt với HR).
+8. **Employee đổi team/role giữa cycle** — snapshot tại thời điểm tạo evaluation (đầu cycle). **Đã chốt với HR** (xem mục 30, Q1) — rủi ro còn lại chỉ là communication: cần thông báo rõ cho Manager mới biết họ **không** đánh giá nhân viên vừa chuyển đến giữa chừng cycle hiện tại.
 9. **Import file lớn (>10,000 rows)** có thể cần streaming parser thay vì load toàn bộ vào memory — cần benchmark thực tế trước khi go-live.
-10. **Audit log tăng trưởng không giới hạn** — cần chiến lược archive/partition theo thời gian sau 2-3 năm vận hành.
+10. **Audit log & evaluation lịch sử — ✅ đã chốt retention = 2 năm.** Cần implement archive job (chuyển dữ liệu >2 năm sang cold storage, không xóa hẳn — vẫn giữ được cho mục đích tuân thủ nếu cần) chạy định kỳ; cân nhắc partition bảng `audit_log` theo tháng/quý để archive job không phải quét full table.
 
 ---
 
@@ -1151,10 +1235,10 @@ flowchart LR
 
 1. Precedence Template > Team > Role > Global — HR có đồng ý Template luôn thắng tuyệt đối không?
 2. Strict validate tổng weight = 100% khi publish — có chấp nhận chặn cứng, hay cần cho phép ngoại lệ?
-3. Self-assessment có bắt buộc mặc định cho mọi cycle không, hay optional per-cycle?
+3. ~~Self-assessment có bắt buộc mặc định cho mọi cycle không, hay optional per-cycle?~~ **✅ Đã chốt: bắt buộc mọi cycle**, không cấu hình tắt được (khác với CALIBRATION vẫn togglable).
 4. Calibration có bắt buộc ở mọi cycle hay chỉ cycle cuối năm?
-5. Ranking cá nhân — tổ chức có muốn cho phép xem (dù ẩn danh) hay tuyệt đối không?
-6. Nhân viên chuyển team giữa cycle — dùng team tại thời điểm mở cycle hay tại thời điểm submit?
+5. ~~Ranking cá nhân — tổ chức có muốn cho phép xem (dù ẩn danh) hay tuyệt đối không?~~ **✅ Đã chốt: tuyệt đối không**, kể cả ẩn danh (xem mục 19).
+6. ~~Nhân viên chuyển team giữa cycle — dùng team tại thời điểm mở cycle hay tại thời điểm submit?~~ **Đã chốt:** dùng team tại thời điểm **mở cycle** (đầu cycle) — đúng theo default đã thiết kế ở mục 10.1.
 7. Quy tắc rounding — 2 chữ số thập phân có phù hợp với chính sách lương thưởng liên quan (nếu evaluation ảnh hưởng compensation)?
 8. Evidence bắt buộc hay optional — mức độ enforce khác nhau theo criterion nào?
 9. Ai có quyền approve cuối cùng — Manager cấp trên hay luôn là HR? (ảnh hưởng trực tiếp `workflow_definition`)
@@ -1166,16 +1250,16 @@ flowchart LR
 
 | # | Câu hỏi | Default đã chọn | Cần chốt bởi |
 |---|---|---|---|
-| 1 | Nhân viên chuyển team giữa cycle xử lý sao? | Snapshot team tại thời điểm tạo evaluation (đầu cycle) | HR |
+| 1 | Nhân viên chuyển team giữa cycle xử lý sao? | **✅ Đã chốt:** Snapshot team tại thời điểm tạo evaluation (đầu cycle) | HR |
 | 2 | Có multi-organization không? | Không (MVP single-org) | Product Owner |
 | 3 | Self-score có blend vào final score không? | Không, chỉ tham khảo (Phase 2 mới blend) | HR |
 | 4 | Weight ≠ 100% có được publish không? | Không, strict block | HR/Admin |
 | 5 | Evidence bắt buộc mức nào? | Cảnh báo, không chặn submit | HR |
-| 6 | Quy mô hệ thống (số employee) thực tế? | Giả định 2,000–5,000 | Product Owner |
+| 6 | Quy mô hệ thống (số employee) thực tế? | **✅ Đã chốt:** ~1,000 employees | Product Owner |
 | 7 | Có cần tích hợp Jira/Git ở MVP không? | Không, để Phase 2 | Product Owner |
 | 8 | Approval cuối cùng do ai? | Configurable theo `workflow_definition`, mặc định HR | HR |
-| 9 | Retention audit log bao lâu? | Chưa chốt, tạm thời không giới hạn + archive sau 3 năm (đề xuất) | Compliance/HR |
-| 10 | Ranking có hiển thị không? | Không hiển thị cho Employee, ẩn danh optional cho HR | HR |
+| 9 | Retention audit log bao lâu? | **✅ Đã chốt: 2 năm**, sau đó archive (cold storage, không xóa hẳn) | Compliance/HR |
+| 10 | Ranking có hiển thị không? | **✅ Đã chốt: Không**, cho bất kỳ role nào, kể cả ẩn danh | HR |
 
 ---
 
@@ -1233,4 +1317,21 @@ Security review, performance test (import lớn, concurrent), UAT với 18 KPI m
 
 ---
 
-*Hết tài liệu.*
+## Changelog v1.0 → v1.2
+
+| # | Thay đổi | Vị trí |
+|---|---|---|
+| 1 | Team chuyển giữa cycle: xác nhận dùng team lúc **mở cycle** | Mục 28 (Risk #8), 29 (Q6), 30 (Q1) |
+| 2 | Kết quả evaluation: **tự động publish cho nhân viên xem ngay sau khi tính điểm** (ngay khi vào trạng thái APPROVED) — không còn thao tác "HR bấm Publish" thủ công riêng | Mục 5, 14, 16 |
+| 3 | Quyền override score: Manager (team mình) + HR/Admin. **System Admin giữ nguyên read-only**, không có quyền override (đúng nguyên tắc gốc, đã xác nhận lại) | Mục 6, 11, 16, 17 |
+| 4 | Self-assessment: **bắt buộc mọi cycle**, không còn optional/toggle | Mục 5, 6, 14, 29 (Q3) |
+| 5 | Ranking: **tuyệt đối không** cho xem xếp hạng nhân viên khác, kể cả ẩn danh (chỉ giữ aggregate/distribution) | Mục 2, 19, 29 (Q5), 30 (Q10) |
+| 6 | Quy mô hệ thống: **~1,000 employees** (đã chốt, không còn là giả định) | Mục 22, 30 (Q6) |
+| 7 | Retention audit log & evaluation lịch sử: **2 năm**, sau đó archive | Mục 18 (mới: Retention Policy), 28 (Risk #10), 30 (Q9) |
+| 8 | **[MỚI] Google Workspace SSO** — login/register giới hạn theo domain công ty, không còn email+password | Mục 9 (ERD), 10.8 (mới: `user_account`), 16 (auth endpoints), 21 (Security), 27 (Tech stack) |
+
+> **Lưu ý:** thay đổi #2 (weight = 100% mới publish template, mục 11/16/20) **vẫn giữ nguyên như bản gốc** — câu trả lời ban đầu về "publish ngay tại lúc tính" thực chất áp dụng cho **luồng publish kết quả evaluation cho nhân viên** (workflow APPROVED→PUBLISHED, mục 14), không phải cho luồng publish Template. Business Decision #2 (mục 29) và Open Question #4 (mục 30) về weight validation **vẫn còn open**, chưa có xác nhận riêng.
+
+---
+
+*Hết tài liệu — v1.2.*
