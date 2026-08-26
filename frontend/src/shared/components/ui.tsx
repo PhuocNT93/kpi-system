@@ -57,7 +57,7 @@ export function ErrorAlert({ error, onRetry }: ErrorAlertProps) {
 interface ConfirmDialogProps {
   isOpen: boolean;
   title: string;
-  description: string;
+  description: React.ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
   onConfirm: () => void;
@@ -74,7 +74,8 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
   isPending = false,
-}: ConfirmDialogProps) {
+  disabled = false,
+}: ConfirmDialogProps & { disabled?: boolean }) {
   if (!isOpen) return null;
   return (
     <div role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title"
@@ -85,10 +86,10 @@ export function ConfirmDialog({
     >
       <div style={{ background: '#fff', borderRadius: 8, padding: '1.5rem', maxWidth: 400, width: '90%' }}>
         <h2 id="confirm-dialog-title" style={{ margin: '0 0 0.5rem' }}>{title}</h2>
-        <p style={{ margin: '0 0 1rem' }}>{description}</p>
+        <div style={{ margin: '0 0 1rem', color: '#374151' }}>{description}</div>
         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
           <Button variant="secondary" onClick={onCancel} disabled={isPending}>{cancelLabel}</Button>
-          <Button onClick={onConfirm} disabled={isPending}>
+          <Button onClick={onConfirm} disabled={isPending || disabled}>
             {isPending ? 'Processing...' : confirmLabel}
           </Button>
         </div>
