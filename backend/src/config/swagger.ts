@@ -211,6 +211,285 @@ export const swaggerOptions: swaggerJsdoc.Options = {
             scope: { type: 'string', enum: ['GLOBAL', 'DEPARTMENT', 'SELF'], example: 'DEPARTMENT' },
           },
         },
+        Employee: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid', example: 'e1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            employee_code: { type: 'string', example: 'EMP-001' },
+            full_name: { type: 'string', example: 'Nguyen Van A' },
+            email: { type: 'string', format: 'email', example: 'nva@company.com' },
+            department_id: { type: 'string', format: 'uuid', nullable: true, example: 'd1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            team_id: { type: 'string', format: 'uuid', nullable: true, example: 't1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            role_id: { type: 'string', format: 'uuid', example: 'r1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            job_level_id: { type: 'string', format: 'uuid', example: 'j1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            manager_id: { type: 'string', format: 'uuid', nullable: true, example: 'm1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            employment_status: { type: 'string', enum: ['ACTIVE', 'ON_LEAVE', 'INACTIVE', 'TERMINATED'], example: 'ACTIVE' },
+            join_date: { type: 'string', format: 'date', example: '2026-01-15' },
+            termination_date: { type: 'string', format: 'date', nullable: true, example: null },
+            version: { type: 'integer', example: 1 },
+            created_at: { type: 'string', format: 'date-time', example: '2026-01-15T08:00:00Z' },
+            updated_at: { type: 'string', format: 'date-time', example: '2026-01-15T08:00:00Z' },
+          },
+        },
+        CreateEmployeeRequest: {
+          type: 'object',
+          required: ['employee_code', 'full_name', 'email', 'role_id', 'job_level_id', 'join_date'],
+          properties: {
+            employee_code: { type: 'string', example: 'EMP-002' },
+            full_name: { type: 'string', example: 'Tran Van B' },
+            email: { type: 'string', format: 'email', example: 'tvb@company.com' },
+            department_id: { type: 'string', format: 'uuid', example: 'd1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            team_id: { type: 'string', format: 'uuid', example: 't1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            role_id: { type: 'string', format: 'uuid', example: 'r1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            job_level_id: { type: 'string', format: 'uuid', example: 'j1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            manager_id: { type: 'string', format: 'uuid', example: 'e1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            employment_status: { type: 'string', enum: ['ACTIVE', 'ON_LEAVE', 'INACTIVE', 'TERMINATED'], example: 'ACTIVE' },
+            join_date: { type: 'string', format: 'date', example: '2026-02-01' },
+          },
+        },
+        UpdateEmployeeRequest: {
+          type: 'object',
+          properties: {
+            full_name: { type: 'string', example: 'Nguyen Van A Updated' },
+            email: { type: 'string', format: 'email', example: 'nva.updated@company.com' },
+            department_id: { type: 'string', format: 'uuid', example: 'd1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            team_id: { type: 'string', format: 'uuid', example: 't1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            role_id: { type: 'string', format: 'uuid', example: 'r1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            job_level_id: { type: 'string', format: 'uuid', example: 'j1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            manager_id: { type: 'string', format: 'uuid', nullable: true, example: 'm1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            employment_status: { type: 'string', enum: ['ACTIVE', 'ON_LEAVE', 'INACTIVE', 'TERMINATED'], example: 'ACTIVE' },
+            termination_date: { type: 'string', format: 'date', example: '2026-12-31' },
+          },
+        },
+        TerminateEmployeeRequest: {
+          type: 'object',
+          properties: {
+            termination_date: { type: 'string', format: 'date', example: '2026-08-31' },
+          },
+        },
+        EmployeeAssignment: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid', example: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            employee_id: { type: 'string', format: 'uuid', example: 'e1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            department_id: { type: 'string', format: 'uuid', example: 'd1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            team_id: { type: 'string', format: 'uuid', example: 't1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            role_id: { type: 'string', format: 'uuid', example: 'r1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            job_level_id: { type: 'string', format: 'uuid', example: 'j1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            manager_id: { type: 'string', format: 'uuid', nullable: true, example: 'm1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            effective_from: { type: 'string', format: 'date', example: '2026-01-15' },
+            effective_to: { type: 'string', format: 'date', nullable: true, example: null },
+            change_reason: {
+              type: 'string',
+              enum: ['INITIAL_HIRING', 'TEAM_TRANSFER', 'PROMOTION', 'MANAGER_CHANGE', 'DEPARTMENT_REORG', 'STATUS_CHANGE', 'CORRECTION'],
+              example: 'TEAM_TRANSFER',
+            },
+            change_note: { type: 'string', nullable: true, example: 'Transferred to Backend Team' },
+            created_at: { type: 'string', format: 'date-time', example: '2026-01-15T08:00:00Z' },
+          },
+        },
+        CreateAssignmentRequest: {
+          type: 'object',
+          required: ['department_id', 'team_id', 'role_id', 'job_level_id', 'effective_from'],
+          properties: {
+            department_id: { type: 'string', format: 'uuid', example: 'd1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            team_id: { type: 'string', format: 'uuid', example: 't1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            role_id: { type: 'string', format: 'uuid', example: 'r1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            job_level_id: { type: 'string', format: 'uuid', example: 'j1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            manager_id: { type: 'string', format: 'uuid', example: 'm1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            effective_from: { type: 'string', format: 'date', example: '2026-03-01' },
+            effective_to: { type: 'string', format: 'date', example: '2026-12-31' },
+            change_reason: { type: 'string', example: 'PROMOTION' },
+            change_note: { type: 'string', example: 'Promoted to Senior Developer' },
+          },
+        },
+        EvaluationOrganizationContext: {
+          type: 'object',
+          properties: {
+            employeeId: { type: 'string', format: 'uuid', example: 'e1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            department: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', format: 'uuid', example: 'd1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+                code: { type: 'string', example: 'ENG' },
+                name: { type: 'string', example: 'Engineering' },
+              },
+            },
+            team: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', format: 'uuid', example: 't1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+                code: { type: 'string', example: 'BE' },
+                name: { type: 'string', example: 'Backend Team' },
+              },
+            },
+            jobRole: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', format: 'uuid', example: 'r1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+                code: { type: 'string', example: 'DEV' },
+                name: { type: 'string', example: 'Software Engineer' },
+              },
+            },
+            jobLevel: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', format: 'uuid', example: 'j1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+                code: { type: 'string', example: 'L3' },
+                name: { type: 'string', example: 'Senior Engineer' },
+                rank: { type: 'integer', example: 3 },
+              },
+            },
+            manager: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', format: 'uuid', nullable: true, example: 'm1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+                fullName: { type: 'string', nullable: true, example: 'Manager Name' },
+              },
+            },
+            effectiveFrom: { type: 'string', format: 'date', example: '2026-01-01' },
+            effectiveTo: { type: 'string', format: 'date', nullable: true, example: null },
+          },
+        },
+        Department: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid', example: 'd1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            code: { type: 'string', example: 'ENG' },
+            name: { type: 'string', example: 'Engineering' },
+            active: { type: 'boolean', example: true },
+            created_at: { type: 'string', format: 'date-time', example: '2026-01-01T00:00:00Z' },
+            updated_at: { type: 'string', format: 'date-time', example: '2026-01-01T00:00:00Z' },
+          },
+        },
+        CreateDepartmentRequest: {
+          type: 'object',
+          required: ['code', 'name'],
+          properties: {
+            code: { type: 'string', example: 'HR' },
+            name: { type: 'string', example: 'Human Resources' },
+          },
+        },
+        UpdateDepartmentRequest: {
+          type: 'object',
+          properties: {
+            code: { type: 'string', example: 'HR_GLOBAL' },
+            name: { type: 'string', example: 'Global HR' },
+            active: { type: 'boolean', example: true },
+          },
+        },
+        Team: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid', example: 't1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            code: { type: 'string', example: 'BE' },
+            name: { type: 'string', example: 'Backend Team' },
+            department_id: { type: 'string', format: 'uuid', example: 'd1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            active: { type: 'boolean', example: true },
+            created_at: { type: 'string', format: 'date-time', example: '2026-01-01T00:00:00Z' },
+            updated_at: { type: 'string', format: 'date-time', example: '2026-01-01T00:00:00Z' },
+          },
+        },
+        CreateTeamRequest: {
+          type: 'object',
+          required: ['code', 'name', 'department_id'],
+          properties: {
+            code: { type: 'string', example: 'FE' },
+            name: { type: 'string', example: 'Frontend Team' },
+            department_id: { type: 'string', format: 'uuid', example: 'd1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+          },
+        },
+        UpdateTeamRequest: {
+          type: 'object',
+          properties: {
+            code: { type: 'string', example: 'FE_WEB' },
+            name: { type: 'string', example: 'Frontend Web Team' },
+            department_id: { type: 'string', format: 'uuid', example: 'd1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            active: { type: 'boolean', example: true },
+          },
+        },
+        EmployeeRole: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid', example: 'r1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            code: { type: 'string', example: 'DEV' },
+            name: { type: 'string', example: 'Software Engineer' },
+            description: { type: 'string', nullable: true, example: 'Software developer role' },
+            active: { type: 'boolean', example: true },
+            created_at: { type: 'string', format: 'date-time', example: '2026-01-01T00:00:00Z' },
+            updated_at: { type: 'string', format: 'date-time', example: '2026-01-01T00:00:00Z' },
+          },
+        },
+        CreateEmployeeRoleRequest: {
+          type: 'object',
+          required: ['code', 'name'],
+          properties: {
+            code: { type: 'string', example: 'QA' },
+            name: { type: 'string', example: 'Quality Assurance Engineer' },
+            description: { type: 'string', example: 'QA Engineer role' },
+          },
+        },
+        UpdateEmployeeRoleRequest: {
+          type: 'object',
+          properties: {
+            code: { type: 'string', example: 'QA_LEAD' },
+            name: { type: 'string', example: 'QA Lead Engineer' },
+            description: { type: 'string', example: 'Lead QA Engineer role' },
+            active: { type: 'boolean', example: true },
+          },
+        },
+        JobLevel: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid', example: 'j1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            code: { type: 'string', example: 'L2' },
+            name: { type: 'string', example: 'Mid-Level Specialist' },
+            rank: { type: 'integer', example: 2 },
+            active: { type: 'boolean', example: true },
+            created_at: { type: 'string', format: 'date-time', example: '2026-01-01T00:00:00Z' },
+            updated_at: { type: 'string', format: 'date-time', example: '2026-01-01T00:00:00Z' },
+          },
+        },
+        CreateJobLevelRequest: {
+          type: 'object',
+          required: ['code', 'name', 'rank'],
+          properties: {
+            code: { type: 'string', example: 'L3' },
+            name: { type: 'string', example: 'Senior Specialist' },
+            rank: { type: 'integer', example: 3 },
+          },
+        },
+        UpdateJobLevelRequest: {
+          type: 'object',
+          properties: {
+            code: { type: 'string', example: 'L3_SENIOR' },
+            name: { type: 'string', example: 'Senior Specialist Level 3' },
+            rank: { type: 'integer', example: 3 },
+            active: { type: 'boolean', example: true },
+          },
+        },
+        EmployeeImportJob: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid', example: 'imp-1b2c3d4-e5f6' },
+            csv_template_id: { type: 'string', example: 'template-v1' },
+            evaluation_cycle_id: { type: 'string', example: 'cycle-2026-h1' },
+            file_name: { type: 'string', example: 'employees_import_2026.csv' },
+            status: { type: 'string', enum: ['UPLOADED', 'VALIDATED', 'PROCESSING', 'PROCESSED', 'COMPLETED', 'FAILED'], example: 'UPLOADED' },
+            total_rows: { type: 'integer', example: 50 },
+            success_rows: { type: 'integer', example: 48 },
+            error_rows: { type: 'integer', example: 2 },
+            created_at: { type: 'string', format: 'date-time', example: '2026-01-01T00:00:00Z' },
+          },
+        },
+        CreateImportJobRequest: {
+          type: 'object',
+          properties: {
+            csv_template_id: { type: 'string', example: 'template-v1' },
+            file_name: { type: 'string', example: 'employees_import_2026.csv' },
+            evaluation_cycle_id: { type: 'string', example: 'cycle-2026-h1' },
+          },
+        },
       },
     },
     paths: {
@@ -937,6 +1216,1494 @@ export const swaggerOptions: swaggerJsdoc.Options = {
                 },
               },
             },
+          },
+        },
+      },
+      // ── Employee Module Routes ──────────────────────────────────────────────
+      '/api/employees': {
+        get: {
+          summary: 'List employees',
+          description: 'Retrieves a paginated list of employees with optional filtering by department, team, role, job level, status, or search query.',
+          tags: ['Employee - Employees'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'department_id', in: 'query', required: false, schema: { type: 'string', format: 'uuid' } },
+            { name: 'team_id', in: 'query', required: false, schema: { type: 'string', format: 'uuid' } },
+            { name: 'role_id', in: 'query', required: false, schema: { type: 'string', format: 'uuid' } },
+            { name: 'job_level_id', in: 'query', required: false, schema: { type: 'string', format: 'uuid' } },
+            {
+              name: 'employment_status',
+              in: 'query',
+              required: false,
+              schema: { type: 'string', enum: ['ACTIVE', 'ON_LEAVE', 'INACTIVE', 'TERMINATED'] },
+            },
+            { name: 'search', in: 'query', required: false, schema: { type: 'string' } },
+            { name: 'page', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
+            { name: 'page_size', in: 'query', required: false, schema: { type: 'integer', default: 20 } },
+          ],
+          responses: {
+            200: {
+              description: 'Employees list retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiCollectionResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: {
+                            type: 'array',
+                            items: { $ref: '#/components/schemas/Employee' },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        post: {
+          summary: 'Create employee',
+          description: 'Creates a new employee record and initial assignment.',
+          tags: ['Employee - Employees'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/CreateEmployeeRequest' },
+              },
+            },
+          },
+          responses: {
+            201: {
+              description: 'Employee created successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/Employee' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            400: { description: 'Validation error' },
+            401: { description: 'Unauthorized' },
+            409: { description: 'Employee code already exists' },
+          },
+        },
+      },
+      '/api/employees/lookup': {
+        get: {
+          summary: 'Employee lookup',
+          description: 'Quick search for employees by keyword.',
+          tags: ['Employee - Employees'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'q', in: 'query', required: false, schema: { type: 'string' } },
+            { name: 'search', in: 'query', required: false, schema: { type: 'string' } },
+            { name: 'page', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
+            { name: 'page_size', in: 'query', required: false, schema: { type: 'integer', default: 10 } },
+          ],
+          responses: {
+            200: {
+              description: 'Lookup results retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiCollectionResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: {
+                            type: 'array',
+                            items: { $ref: '#/components/schemas/Employee' },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/employees/{employeeId}': {
+        get: {
+          summary: 'Get employee by ID',
+          description: 'Retrieves detailed information of an employee.',
+          tags: ['Employee - Employees'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'employeeId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: {
+              description: 'Employee details retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/Employee' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Employee not found' },
+          },
+        },
+        patch: {
+          summary: 'Update employee',
+          description: 'Updates employee profile attributes.',
+          tags: ['Employee - Employees'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'employeeId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/UpdateEmployeeRequest' },
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: 'Employee updated successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/Employee' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Employee not found' },
+          },
+        },
+      },
+      '/api/employees/{employeeId}/deactivate': {
+        post: {
+          summary: 'Deactivate employee',
+          description: 'Sets employee status to INACTIVE.',
+          tags: ['Employee - Employees'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'employeeId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: {
+              description: 'Employee deactivated successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/Employee' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Employee not found' },
+          },
+        },
+      },
+      '/api/employees/{employeeId}/reactivate': {
+        post: {
+          summary: 'Reactivate employee',
+          description: 'Sets employee status to ACTIVE.',
+          tags: ['Employee - Employees'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'employeeId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: {
+              description: 'Employee reactivated successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/Employee' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Employee not found' },
+          },
+        },
+      },
+      '/api/employees/{employeeId}/terminate': {
+        post: {
+          summary: 'Terminate employee',
+          description: 'Sets employee status to TERMINATED and closes active assignments.',
+          tags: ['Employee - Employees'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'employeeId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: false,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/TerminateEmployeeRequest' },
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: 'Employee terminated successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/Employee' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Employee not found' },
+          },
+        },
+      },
+      '/api/employees/{employeeId}/assignments': {
+        get: {
+          summary: 'Get employee assignment history',
+          description: 'Retrieves historic and current assignments of an employee.',
+          tags: ['Employee - Assignments'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'employeeId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'page', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
+            { name: 'page_size', in: 'query', required: false, schema: { type: 'integer', default: 20 } },
+          ],
+          responses: {
+            200: {
+              description: 'Assignments retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiCollectionResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: {
+                            type: 'array',
+                            items: { $ref: '#/components/schemas/EmployeeAssignment' },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Employee not found' },
+          },
+        },
+        post: {
+          summary: 'Create assignment',
+          description: 'Transfers or reassigns an employee to a new department, team, role, job level, or manager.',
+          tags: ['Employee - Assignments'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'employeeId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/CreateAssignmentRequest' },
+              },
+            },
+          },
+          responses: {
+            201: {
+              description: 'Assignment created successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/EmployeeAssignment' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            400: { description: 'Validation error' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Employee not found' },
+          },
+        },
+      },
+      '/api/employees/{employeeId}/assignments/current': {
+        get: {
+          summary: 'Get current active assignment',
+          description: 'Retrieves the currently effective assignment for an employee.',
+          tags: ['Employee - Assignments'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'employeeId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: {
+              description: 'Current assignment retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/EmployeeAssignment' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Active assignment for employee not found' },
+          },
+        },
+      },
+      '/api/employees/{employeeId}/context': {
+        get: {
+          summary: 'Get employee evaluation context',
+          description: 'Retrieves organizational evaluation context (department, team, role, level, manager) at a specific date.',
+          tags: ['Employee - Context'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'employeeId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'at', in: 'query', required: false, schema: { type: 'string', format: 'date' }, description: 'Target date (YYYY-MM-DD)' },
+          ],
+          responses: {
+            200: {
+              description: 'Employee context retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/EvaluationOrganizationContext' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Employee not found' },
+          },
+        },
+      },
+      '/api/employees/{employeeId}/direct-reports': {
+        get: {
+          summary: 'Get direct reports',
+          description: 'Retrieves all employees reporting directly to this manager.',
+          tags: ['Employee - Hierarchy'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'employeeId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'page', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
+            { name: 'page_size', in: 'query', required: false, schema: { type: 'integer', default: 20 } },
+          ],
+          responses: {
+            200: {
+              description: 'Direct reports retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiCollectionResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: {
+                            type: 'array',
+                            items: { $ref: '#/components/schemas/Employee' },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Employee not found' },
+          },
+        },
+      },
+      '/api/employees/{employeeId}/manager-chain': {
+        get: {
+          summary: 'Get manager chain',
+          description: 'Retrieves management chain hierarchy from employee up to top management.',
+          tags: ['Employee - Hierarchy'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'employeeId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'page', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
+            { name: 'page_size', in: 'query', required: false, schema: { type: 'integer', default: 20 } },
+          ],
+          responses: {
+            200: {
+              description: 'Manager chain retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiCollectionResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: {
+                            type: 'array',
+                            items: { $ref: '#/components/schemas/Employee' },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Employee not found' },
+          },
+        },
+      },
+      '/api/departments': {
+        get: {
+          summary: 'List departments',
+          description: 'Retrieves a list of all departments.',
+          tags: ['Employee - Departments'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'page', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
+            { name: 'page_size', in: 'query', required: false, schema: { type: 'integer', default: 20 } },
+          ],
+          responses: {
+            200: {
+              description: 'Departments retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiCollectionResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: {
+                            type: 'array',
+                            items: { $ref: '#/components/schemas/Department' },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        post: {
+          summary: 'Create department',
+          description: 'Creates a new department.',
+          tags: ['Employee - Departments'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/CreateDepartmentRequest' },
+              },
+            },
+          },
+          responses: {
+            201: {
+              description: 'Department created successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/Department' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            400: { description: 'Bad request' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/departments/{departmentId}': {
+        get: {
+          summary: 'Get department by ID',
+          description: 'Retrieves details of a department.',
+          tags: ['Employee - Departments'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'departmentId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: {
+              description: 'Department details retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/Department' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Department not found' },
+          },
+        },
+        patch: {
+          summary: 'Update department',
+          description: 'Updates department code, name, or active status.',
+          tags: ['Employee - Departments'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'departmentId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/UpdateDepartmentRequest' },
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: 'Department updated successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/Department' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Department not found' },
+          },
+        },
+      },
+      '/api/departments/{departmentId}/deactivate': {
+        post: {
+          summary: 'Deactivate department',
+          description: 'Sets department status to inactive.',
+          tags: ['Employee - Departments'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'departmentId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: {
+              description: 'Department deactivated successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/Department' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Department not found' },
+          },
+        },
+      },
+      '/api/departments/{departmentId}/teams': {
+        get: {
+          summary: 'List department teams',
+          description: 'Retrieves all teams belonging to a department.',
+          tags: ['Employee - Departments'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'departmentId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'page', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
+            { name: 'page_size', in: 'query', required: false, schema: { type: 'integer', default: 20 } },
+          ],
+          responses: {
+            200: {
+              description: 'Department teams retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiCollectionResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: {
+                            type: 'array',
+                            items: { $ref: '#/components/schemas/Team' },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Department not found' },
+          },
+        },
+      },
+      '/api/teams': {
+        get: {
+          summary: 'List teams',
+          description: 'Retrieves a list of all teams.',
+          tags: ['Employee - Teams'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'page', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
+            { name: 'page_size', in: 'query', required: false, schema: { type: 'integer', default: 20 } },
+          ],
+          responses: {
+            200: {
+              description: 'Teams retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiCollectionResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: {
+                            type: 'array',
+                            items: { $ref: '#/components/schemas/Team' },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        post: {
+          summary: 'Create team',
+          description: 'Creates a new team under a department.',
+          tags: ['Employee - Teams'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/CreateTeamRequest' },
+              },
+            },
+          },
+          responses: {
+            201: {
+              description: 'Team created successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/Team' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            400: { description: 'Bad request' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/teams/{teamId}': {
+        get: {
+          summary: 'Get team by ID',
+          description: 'Retrieves team details.',
+          tags: ['Employee - Teams'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'teamId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: {
+              description: 'Team retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/Team' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Team not found' },
+          },
+        },
+        patch: {
+          summary: 'Update team',
+          description: 'Updates team information.',
+          tags: ['Employee - Teams'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'teamId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/UpdateTeamRequest' },
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: 'Team updated successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/Team' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Team not found' },
+          },
+        },
+      },
+      '/api/teams/{teamId}/deactivate': {
+        post: {
+          summary: 'Deactivate team',
+          description: 'Deactivates a team.',
+          tags: ['Employee - Teams'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'teamId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: {
+              description: 'Team deactivated successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/Team' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Team not found' },
+          },
+        },
+      },
+      '/api/roles': {
+        get: {
+          summary: 'List employee roles',
+          description: 'Retrieves a list of organizational employee roles.',
+          tags: ['Employee - Roles'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'page', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
+            { name: 'page_size', in: 'query', required: false, schema: { type: 'integer', default: 20 } },
+          ],
+          responses: {
+            200: {
+              description: 'Roles retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiCollectionResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: {
+                            type: 'array',
+                            items: { $ref: '#/components/schemas/EmployeeRole' },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        post: {
+          summary: 'Create employee role',
+          description: 'Creates a new organizational role.',
+          tags: ['Employee - Roles'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/CreateEmployeeRoleRequest' },
+              },
+            },
+          },
+          responses: {
+            201: {
+              description: 'Role created successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/EmployeeRole' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            400: { description: 'Bad request' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/roles/{roleId}': {
+        get: {
+          summary: 'Get employee role by ID',
+          description: 'Retrieves details of an organizational role.',
+          tags: ['Employee - Roles'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'roleId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: {
+              description: 'Role retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/EmployeeRole' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Role not found' },
+          },
+        },
+        patch: {
+          summary: 'Update employee role',
+          description: 'Updates an organizational role.',
+          tags: ['Employee - Roles'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'roleId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/UpdateEmployeeRoleRequest' },
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: 'Role updated successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/EmployeeRole' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Role not found' },
+          },
+        },
+      },
+      '/api/roles/{roleId}/deactivate': {
+        post: {
+          summary: 'Deactivate employee role',
+          description: 'Deactivates an organizational role.',
+          tags: ['Employee - Roles'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'roleId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: {
+              description: 'Role deactivated successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/EmployeeRole' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Role not found' },
+          },
+        },
+      },
+      '/api/job-levels': {
+        get: {
+          summary: 'List job levels',
+          description: 'Retrieves job levels ordered by rank.',
+          tags: ['Employee - Job Levels'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'page', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
+            { name: 'page_size', in: 'query', required: false, schema: { type: 'integer', default: 20 } },
+          ],
+          responses: {
+            200: {
+              description: 'Job levels retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiCollectionResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: {
+                            type: 'array',
+                            items: { $ref: '#/components/schemas/JobLevel' },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        post: {
+          summary: 'Create job level',
+          description: 'Creates a new job level with rank.',
+          tags: ['Employee - Job Levels'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/CreateJobLevelRequest' },
+              },
+            },
+          },
+          responses: {
+            201: {
+              description: 'Job level created successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/JobLevel' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            400: { description: 'Bad request' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/job-levels/{jobLevelId}': {
+        get: {
+          summary: 'Get job level by ID',
+          description: 'Retrieves details of a job level.',
+          tags: ['Employee - Job Levels'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'jobLevelId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: {
+              description: 'Job level retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/JobLevel' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Job level not found' },
+          },
+        },
+        patch: {
+          summary: 'Update job level',
+          description: 'Updates job level attributes.',
+          tags: ['Employee - Job Levels'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'jobLevelId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/UpdateJobLevelRequest' },
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: 'Job level updated successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/JobLevel' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Job level not found' },
+          },
+        },
+      },
+      '/api/job-levels/{jobLevelId}/deactivate': {
+        post: {
+          summary: 'Deactivate job level',
+          description: 'Deactivates a job level.',
+          tags: ['Employee - Job Levels'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'jobLevelId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: {
+              description: 'Job level deactivated successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/JobLevel' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Job level not found' },
+          },
+        },
+      },
+      '/api/employee-imports/templates/{version}/download': {
+        get: {
+          summary: 'Download import template',
+          description: 'Retrieves download link for CSV employee import template by version.',
+          tags: ['Employee - Imports'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'version', in: 'path', required: true, schema: { type: 'string' } },
+          ],
+          responses: {
+            200: {
+              description: 'Template download link retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: {
+                            type: 'object',
+                            properties: {
+                              url: { type: 'string', example: '/api/v1/employee-imports/template.csv' },
+                            },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/employee-imports': {
+        get: {
+          summary: 'List employee import jobs',
+          description: 'Retrieves history of employee import jobs.',
+          tags: ['Employee - Imports'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'page', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
+            { name: 'page_size', in: 'query', required: false, schema: { type: 'integer', default: 20 } },
+          ],
+          responses: {
+            200: {
+              description: 'Import jobs retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiCollectionResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: {
+                            type: 'array',
+                            items: { $ref: '#/components/schemas/EmployeeImportJob' },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        post: {
+          summary: 'Create import job',
+          description: 'Initializes a new employee CSV import job.',
+          tags: ['Employee - Imports'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: false,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/CreateImportJobRequest' },
+              },
+            },
+          },
+          responses: {
+            202: {
+              description: 'Import job created successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/EmployeeImportJob' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/employee-imports/{importJobId}': {
+        get: {
+          summary: 'Get import job status',
+          description: 'Retrieves details and status of an import job.',
+          tags: ['Employee - Imports'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'importJobId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: {
+              description: 'Import job retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/EmployeeImportJob' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Import job not found' },
+          },
+        },
+      },
+      '/api/employee-imports/{importJobId}/preview': {
+        get: {
+          summary: 'Preview import job data',
+          description: 'Previews parsed data and validation results for an import job.',
+          tags: ['Employee - Imports'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'importJobId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: {
+              description: 'Import job preview retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: {
+                            type: 'object',
+                            properties: {
+                              id: { type: 'string' },
+                              rows: { type: 'array', items: { type: 'object' } },
+                            },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Import job not found' },
+          },
+        },
+      },
+      '/api/employee-imports/{importJobId}/confirm': {
+        post: {
+          summary: 'Confirm import job',
+          description: 'Confirms and processes the imported employee records.',
+          tags: ['Employee - Imports'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'importJobId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: {
+              description: 'Import job confirmed',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: {
+                            type: 'object',
+                            properties: {
+                              id: { type: 'string' },
+                              status: { type: 'string', example: 'COMPLETED' },
+                            },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Import job not found' },
           },
         },
       },

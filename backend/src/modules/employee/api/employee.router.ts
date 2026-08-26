@@ -25,6 +25,7 @@ export function createEmployeeRouter(
   router.get('/employees/:employeeId/assignments', (req, res, next) => { employeeController.getEmployeeAssignments(req, res).catch(next); });
   router.post('/employees/:employeeId/assignments', (req, res, next) => { employeeController.createAssignment(req, res).catch(next); });
   router.get('/employees/:employeeId/assignments/current', (req, res, next) => { employeeController.getCurrentAssignment(req, res).catch(next); });
+  router.get('/employees/:employeeId/context', (req, res, next) => { employeeController.getEmployeeContext(req, res).catch(next); });
   
   router.get('/employees/:employeeId/direct-reports', (req, res, next) => { employeeController.getDirectReports(req, res).catch(next); });
   router.get('/employees/:employeeId/manager-chain', (req, res, next) => { employeeController.getManagerChain(req, res).catch(next); });

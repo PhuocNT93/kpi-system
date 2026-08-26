@@ -82,3 +82,34 @@ export interface JobLevel {
   rank: number;
   active: boolean;
 }
+
+export interface EvaluationOrganizationContext {
+  employeeId: string;
+  department: {
+    id: string;
+    code?: string;
+    name?: string;
+  };
+  team: {
+    id: string;
+    code?: string;
+    name?: string;
+  };
+  jobRole: {
+    id: string;
+    code?: string;
+    name?: string;
+  };
+  jobLevel: {
+    id: string;
+    code?: string;
+    name?: string;
+    rank?: number;
+  };
+  manager: {
+    id: string | null;
+    fullName?: string | null;
+  };
+  effectiveFrom: string;
+  effectiveTo: string | null;
+}

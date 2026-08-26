@@ -70,4 +70,26 @@ describe('EmployeeContextService Unit Tests', () => {
       'Circular manager relationship detected'
     );
   });
+
+  it('TC-ORG-03: should throw error when effectiveFrom >= effectiveTo', async () => {
+    (assignmentRepo.findAssignmentHistory as any).mockResolvedValue([]);
+    await expect(
+      contextService.validateAssignmentDates('emp-1', '2026-06-30', '2026-01-01')
+    ).rejects.toThrow('effective_from must be before effective_to');
+  });
+
+  it('TC-ORG-04: should throw error when assignment date ranges overlap', async () => {
+    (assignmentRepo.findAssignmentHistory as any).mockResolvedValue([
+      {
+        employeeAssignmentId: 'a-1',
+        employeeId: 'emp-1',
+        effectiveFrom: '2026-01-01',
+        effectiveTo: '2026-06-30',
+      },
+    ]);
+
+    await expect(
+      contextService.validateAssignmentDates('emp-1', '2026-05-01', '2026-12-31')
+    ).rejects.toThrow('Overlapping assignment date range detected');
+  });
 });

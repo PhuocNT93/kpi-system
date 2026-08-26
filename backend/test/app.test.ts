@@ -28,6 +28,11 @@ describe('Swagger Documentation', () => {
     expect(response.body.paths).toHaveProperty('/health');
     expect(response.body.paths).toHaveProperty('/api/auth/login');
     expect(response.body.paths).toHaveProperty('/api/iam/roles');
+    expect(response.body.paths).toHaveProperty('/api/employees');
+    expect(response.body.paths).toHaveProperty('/api/departments');
+    expect(response.body.paths).toHaveProperty('/api/teams');
+    expect(response.body.paths).toHaveProperty('/api/job-levels');
+    expect(response.body.paths).toHaveProperty('/api/employee-imports');
   });
 
   it('GET /api-docs/ returns Swagger UI page', async () => {

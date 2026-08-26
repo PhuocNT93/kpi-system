@@ -25,6 +25,7 @@ import {
   IamController,
 } from './modules/iam/index.js';
 import { createEmployeeModule } from './modules/employee/employee.module.js';
+import { EmployeeController } from './modules/employee/api/employee.controller.js';
 
 export interface AppOptions {
   userRepository?: UserRepository;
@@ -60,6 +61,7 @@ export function createApp(options: AppOptions = {}) {
   const iamController = new IamController(roleService, permissionService, roleAssignmentService);
 
   const employeeModule = pool ? createEmployeeModule(pool) : undefined;
+  const employeeController = employeeModule?.employeeController ?? new EmployeeController();
 
   // ── Global Middlewares ────────────────────────────────────────────────────
   app.use(requestIdMiddleware);
@@ -79,7 +81,7 @@ export function createApp(options: AppOptions = {}) {
   });
 
   // ── API Routes ────────────────────────────────────────────────────────────
-  if (authController && iamController && authorizationService && employeeModule) {
+  if (authController && iamController && authorizationService) {
     app.use(
       '/api',
       createApiRouter({
@@ -87,7 +89,7 @@ export function createApp(options: AppOptions = {}) {
         jwtMiddleware,
         iamController,
         authorizationService,
-        employeeController: employeeModule.employeeController,
+        employeeController,
       })
     );
   }

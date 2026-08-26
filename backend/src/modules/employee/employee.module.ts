@@ -7,7 +7,7 @@ export function createEmployeeModule(pool: Pool) {
   const employeeRepo = new PostgresEmployeeRepository(pool);
   const assignmentRepo = new PostgresEmployeeAssignmentRepository(pool);
   const contextService = new EmployeeContextService(employeeRepo, assignmentRepo);
-  const employeeController = new EmployeeController();
+  const employeeController = new EmployeeController(employeeRepo, assignmentRepo, contextService, pool);
 
   return {
     employeeRepo,
