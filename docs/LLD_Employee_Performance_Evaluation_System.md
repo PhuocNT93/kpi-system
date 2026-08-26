@@ -93,10 +93,54 @@ Insight quan trọng rút ra từ dữ liệu mẫu để đưa vào rule engine
 
 ## 6. User Roles & Employee Model
 
-### Employee entity (tối thiểu)
-`employee_code (business code), full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status (enum: ACTIVE/INACTIVE/ON_LEAVE/TERMINATED), join_date`
+### Employee entity & Bounded Context
+`employee_code (business code), full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status (enum: ACTIVE/ON_LEAVE/INACTIVE/TERMINATED), join_date, version`
 
-`role` và `job_level` **không hard-code enum cứng** trong code — thiết kế thành bảng reference (`role`, `job_level`) để mở rộng (SI, SM, BA, QA, DevOps... ; Junior/Middle/Senior/Lead/Principal...).
+Source of truth: Current assignment fields (`department_id`, `team_id`, `role_id`, `job_level_id`, `manager_id`) are maintained on `employee` for quick querying, while historical assignment snapshots are immutably captured in `employee_assignment` with `effective_from` and `effective_to` range constraints. Evaluation cycles fetch historical assignment context via `getAssignmentAt(employeeId, cycleStartDate)` and snapshot it into evaluation records.
+
+`role` and `job_level` are maintained as reference tables (`role`, `job_level`) to decouple organizational job roles from RBAC security permissions. Optimistic locking on `employee` is enforced via the `version` column. Hard deletion of employees is prohibited; employment status transitions (e.g. `TERMINATED`) close active assignments.
+
+### ERD Detail — Employee Module & Assignment
+```mermaid
+erDiagram
+    DEPARTMENT ||--o{ TEAM : contains
+    EMPLOYEE ||--o{ EMPLOYEE_ASSIGNMENT : has
+    DEPARTMENT ||--o{ EMPLOYEE_ASSIGNMENT : assigned
+    TEAM ||--o{ EMPLOYEE_ASSIGNMENT : assigned
+    ROLE ||--o{ EMPLOYEE_ASSIGNMENT : assigned
+    JOB_LEVEL ||--o{ EMPLOYEE_ASSIGNMENT : assigned
+    EMPLOYEE ||--o{ EMPLOYEE_ASSIGNMENT : manages
+
+    EMPLOYEE {
+        uuid employee_id PK
+        string employee_code UK
+        string full_name
+        string email
+        uuid department_id FK
+        uuid team_id FK
+        uuid role_id FK
+        uuid job_level_id FK
+        uuid manager_id FK
+        string employment_status
+        date join_date
+        date termination_date
+        int version
+    }
+
+    EMPLOYEE_ASSIGNMENT {
+        uuid employee_assignment_id PK
+        uuid employee_id FK
+        uuid department_id FK
+        uuid team_id FK
+        uuid role_id FK
+        uuid job_level_id FK
+        uuid manager_id FK
+        date effective_from
+        date effective_to
+        string change_reason
+        string change_note
+    }
+```
 
 ### RBAC — 4 nhóm
 1. **Employee** — xem evaluation của mình, nhập self-assessment (nếu cycle bật), submit self-assessment, xem lịch sử.
