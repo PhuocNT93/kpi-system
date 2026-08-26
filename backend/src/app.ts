@@ -24,6 +24,7 @@ import {
   AuditWriter,
   IamController,
 } from './modules/iam/index.js';
+import { createEmployeeModule } from './modules/employee/employee.module.js';
 
 export interface AppOptions {
   userRepository?: UserRepository;
@@ -58,6 +59,8 @@ export function createApp(options: AppOptions = {}) {
 
   const iamController = new IamController(roleService, permissionService, roleAssignmentService);
 
+  const employeeModule = pool ? createEmployeeModule(pool) : undefined;
+
   // ── Global Middlewares ────────────────────────────────────────────────────
   app.use(requestIdMiddleware);
   app.use(cors());
@@ -76,7 +79,7 @@ export function createApp(options: AppOptions = {}) {
   });
 
   // ── API Routes ────────────────────────────────────────────────────────────
-  if (authController && iamController && authorizationService) {
+  if (authController && iamController && authorizationService && employeeModule) {
     app.use(
       '/api',
       createApiRouter({
@@ -84,6 +87,7 @@ export function createApp(options: AppOptions = {}) {
         jwtMiddleware,
         iamController,
         authorizationService,
+        employeeController: employeeModule.employeeController,
       })
     );
   }

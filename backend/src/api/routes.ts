@@ -4,12 +4,15 @@ import { sendCollection, sendSuccess } from './http-response.js';
 import { parsePaginationQuery } from './pagination.js';
 import { AuthController, createAuthRouter } from '../modules/auth/index.js';
 import { IamController, createIamRouter, AuthorizationService } from '../modules/iam/index.js';
+import { EmployeeController } from '../modules/employee/api/employee.controller.js';
+import { createEmployeeRouter } from '../modules/employee/api/employee.router.js';
 
 export interface RegisterRoutesOptions {
   authController: AuthController;
   jwtMiddleware: RequestHandler;
   iamController: IamController;
   authorizationService: AuthorizationService;
+  employeeController?: EmployeeController;
 }
 
 export function createApiRouter(options: RegisterRoutesOptions): Router {
@@ -20,6 +23,11 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
 
   // ── IAM Module Routes ────────────────────────────────────────────────────
   router.use('/iam', createIamRouter(options.iamController, options.authorizationService, options.jwtMiddleware));
+
+  // ── Employee Module Routes ────────────────────────────────────────────────
+  if (options.employeeController) {
+    router.use('/', createEmployeeRouter(options.employeeController, options.jwtMiddleware));
+  }
 
   // ── Sample: single-resource response ──────────────────────────────────────
   router.get('/sample/resource', (_request, response) => {
