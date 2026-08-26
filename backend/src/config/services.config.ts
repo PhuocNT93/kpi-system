@@ -1,9 +1,12 @@
 import { JwtConfig } from '../shared/auth/index.js';
+import { getGoogleAuthConfig } from './google-auth.config.js';
 import { ResolvedRepositories } from './repositories.config.js';
 import {
   AuthService,
   SimplePasswordHasher,
   JWTTokenService,
+  GoogleIdTokenVerifier,
+  GoogleIdentityVerifier,
 } from '../modules/auth/index.js';
 import {
   AuthorizationService,
@@ -22,7 +25,8 @@ export interface ResolvedServices {
 
 export function resolveServices(
   repositories: ResolvedRepositories,
-  jwtConfig: JwtConfig
+  jwtConfig: JwtConfig,
+  googleIdentityVerifier?: GoogleIdentityVerifier
 ): ResolvedServices {
   const {
     userRepository,
@@ -35,15 +39,31 @@ export function resolveServices(
 
   const passwordHasher = new SimplePasswordHasher();
   const tokenService = new JWTTokenService(jwtConfig);
+  const googleAuthConfig = getGoogleAuthConfig();
+
+  const authorizationService = new AuthorizationService(
+    roleRepository,
+    permissionRepository,
+    userRoleRepository,
+    rolePermissionRepository
+  );
 
   const authService = userRepository
     ? new AuthService({
         userRepository,
         passwordHasher,
         tokenService,
-        roleResolver: async (userId: string) => {
-          if (!userRoleRepository || !roleRepository) return 'EMPLOYEE';
-          const roles = await userRoleRepository.findRolesByUserId(userId);
+        actorResolver: async (user) => {
+          if (!userRoleRepository || !roleRepository) {
+            return {
+              userId: user.id,
+              role: 'EMPLOYEE',
+              employeeId: user.employeeId ?? undefined,
+              managedTeamIds: user.employeeId ? await userRepository.findManagedTeamIds(user.employeeId) : [],
+              permissions: [],
+            };
+          }
+          const roles = await userRoleRepository.findRolesByUserId(user.id);
           let highestRole: any = 'EMPLOYEE';
           for (const ur of roles) {
             const r = await roleRepository.findById(ur.roleId);
@@ -53,17 +73,28 @@ export function resolveServices(
               else if (r.code === 'MANAGER' && highestRole === 'EMPLOYEE') highestRole = 'MANAGER';
             }
           }
-          return highestRole;
+          const authorizationContext = await authorizationService.getAuthorizationContext(user.id);
+          return {
+            userId: user.id,
+            role: highestRole,
+            employeeId: user.employeeId ?? undefined,
+            managedTeamIds: user.employeeId ? await userRepository.findManagedTeamIds(user.employeeId) : [],
+            permissions: authorizationContext.permissions.map((permission) => permission.code),
+          };
         },
+        ensureDefaultEmployeeRole: async (userId) => {
+          if (!userRoleRepository || !roleRepository) return;
+          const existingRoles = await userRoleRepository.findRolesByUserId(userId);
+          if (existingRoles.length === 0) {
+            const employeeRole = await roleRepository.findByCode('EMPLOYEE');
+            if (employeeRole?.active) {
+              await userRoleRepository.assignRole(userId, employeeRole.id);
+            }
+          }
+        },
+        googleIdentityVerifier: googleIdentityVerifier ?? (googleAuthConfig ? new GoogleIdTokenVerifier(googleAuthConfig) : undefined),
       })
     : undefined;
-
-  const authorizationService = new AuthorizationService(
-    roleRepository,
-    permissionRepository,
-    userRoleRepository,
-    rolePermissionRepository
-  );
 
   const roleService = new RoleService(roleRepository, auditWriter);
   const permissionService = new PermissionService(permissionRepository);

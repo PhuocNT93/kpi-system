@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { createApp } from '../src/app.js';
 import { InMemoryUserRepository } from './mocks/in-memory-test-repositories.js';
 import { JwtConfig } from '../src/shared/auth/types.js';
+import { GoogleIdentityVerifier } from '../src/modules/auth/services/google-identity-verifier.service.js';
 
 const JWT_SECRET = 'test-jwt-secret-key-999';
 const jwtConfig: JwtConfig = {
@@ -124,6 +125,44 @@ describe('Auth Module Integration & Business Logic Tests', () => {
       expect(res.status).toBe(401);
       expect(res.body.success).toBe(false);
       expect(res.body.meta.error.code).toBe('UNAUTHENTICATED');
+    });
+  });
+
+  describe('2A. GOOGLE WORKSPACE LOGIN TESTS (POST /api/auth/google)', () => {
+    const googleIdentityVerifier: GoogleIdentityVerifier = {
+      verify: async () => ({
+        subject: 'google-subject-123',
+        email: 'phuoc.nt@cyberlogitec.com',
+        name: 'Phuoc Nguyen',
+      }),
+    };
+
+    it('registers an active pre-provisioned employee and returns an application session', async () => {
+      userRepository.addActiveEmployee(
+        'phuoc.nt@cyberlogitec.com',
+        'employee-123',
+        'Phuoc Nguyen'
+      );
+      app = createApp({ userRepository, jwtConfig, googleIdentityVerifier });
+
+      const response = await request(app).post('/api/auth/google').send({ id_token: 'google-id-token' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.user.email).toBe('phuoc.nt@cyberlogitec.com');
+      expect(response.body.data.user.googleSubject).toBeUndefined();
+      const payload = jwt.verify(response.body.data.accessToken, JWT_SECRET) as jwt.JwtPayload;
+      expect(payload.employeeId).toBe('employee-123');
+      expect(payload.role).toBe('EMPLOYEE');
+    });
+
+    it('rejects a verified company identity without an active employee record', async () => {
+      app = createApp({ userRepository, jwtConfig, googleIdentityVerifier });
+
+      const response = await request(app).post('/api/auth/google').send({ id_token: 'google-id-token' });
+
+      expect(response.status).toBe(401);
+      expect(response.body.meta.error.code).toBe('UNAUTHENTICATED');
+      expect(await userRepository.findByEmail('phuoc.nt@cyberlogitec.com')).toBeNull();
     });
   });
 

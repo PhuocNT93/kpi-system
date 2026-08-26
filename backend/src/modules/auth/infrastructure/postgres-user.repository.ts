@@ -1,12 +1,14 @@
 import type { Pool } from 'pg';
-import { User, UserRepository } from '../domain/user.model.js';
+import { CreateUser, User, UserRepository } from '../domain/user.model.js';
 import { NotFound, Conflict } from '../../../api/app-error.js';
 
 interface UserRow {
   id: string;
   email: string;
   name: string;
-  password_hash: string;
+  password_hash: string | null;
+  employee_id: string | null;
+  google_subject: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -20,6 +22,8 @@ export class PostgresUserRepository implements UserRepository {
       email: row.email,
       name: row.name,
       passwordHash: row.password_hash,
+      employeeId: row.employee_id,
+      googleSubject: row.google_subject,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -27,7 +31,7 @@ export class PostgresUserRepository implements UserRepository {
 
   async findById(id: string): Promise<User | null> {
     const query = `
-      SELECT id, email, name, password_hash, created_at, updated_at
+      SELECT id, email, name, password_hash, employee_id, google_subject, created_at, updated_at
       FROM app_user
       WHERE id = $1
     `;
@@ -41,7 +45,7 @@ export class PostgresUserRepository implements UserRepository {
   async findByEmail(email: string): Promise<User | null> {
     const normalizedEmail = email.toLowerCase().trim();
     const query = `
-      SELECT id, email, name, password_hash, created_at, updated_at
+      SELECT id, email, name, password_hash, employee_id, google_subject, created_at, updated_at
       FROM app_user
       WHERE LOWER(email) = $1
     `;
@@ -52,7 +56,7 @@ export class PostgresUserRepository implements UserRepository {
     return this.mapToUser(result.rows[0]!);
   }
 
-  async create(userData: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): Promise<User> {
+  async create(userData: CreateUser): Promise<User> {
     const normalizedEmail = userData.email.toLowerCase().trim();
     const existing = await this.findByEmail(normalizedEmail);
     if (existing) {
@@ -60,15 +64,17 @@ export class PostgresUserRepository implements UserRepository {
     }
 
     const query = `
-      INSERT INTO app_user (email, name, password_hash)
-      VALUES ($1, $2, $3)
-      RETURNING id, email, name, password_hash, created_at, updated_at
+      INSERT INTO app_user (email, name, password_hash, employee_id, google_subject)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id, email, name, password_hash, employee_id, google_subject, created_at, updated_at
     `;
     try {
       const result = await this.pool.query<UserRow>(query, [
         normalizedEmail,
         userData.name,
         userData.passwordHash,
+        userData.employeeId ?? null,
+        userData.googleSubject ?? null,
       ]);
       return this.mapToUser(result.rows[0]!);
     } catch (err: unknown) {
@@ -79,12 +85,66 @@ export class PostgresUserRepository implements UserRepository {
     }
   }
 
+  async findActiveEmployeeByEmail(email: string): Promise<{ id: string; name: string } | null> {
+    const result = await this.pool.query<{ employee_id: string; full_name: string }>(
+      `SELECT employee_id, full_name FROM employee WHERE LOWER(email) = $1 AND employment_status = 'ACTIVE'`,
+      [email.toLowerCase().trim()]
+    );
+    const employee = result.rows[0];
+    return employee ? { id: employee.employee_id, name: employee.full_name } : null;
+  }
+
+  async findManagedTeamIds(employeeId: string): Promise<string[]> {
+    const result = await this.pool.query<{ team_id: string }>(
+      `
+        SELECT DISTINCT team_id
+        FROM employee
+        WHERE manager_id = $1
+          AND employment_status = 'ACTIVE'
+          AND team_id IS NOT NULL
+      `,
+      [employeeId]
+    );
+    return result.rows.map((team) => team.team_id);
+  }
+
+  async linkGoogleIdentity(user: User | null, employeeId: string, googleSubject: string, email: string, name: string): Promise<User> {
+    try {
+      const result = await this.pool.query<UserRow>(
+        `
+          INSERT INTO app_user (email, name, password_hash, employee_id, google_subject)
+          VALUES ($1, $2, NULL, $3, $4)
+          ON CONFLICT (email) DO UPDATE
+            SET employee_id = EXCLUDED.employee_id,
+                google_subject = EXCLUDED.google_subject,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE (app_user.google_subject IS NULL OR app_user.google_subject = EXCLUDED.google_subject)
+              AND (app_user.employee_id IS NULL OR app_user.employee_id = EXCLUDED.employee_id)
+          RETURNING id, email, name, password_hash, employee_id, google_subject, created_at, updated_at
+        `,
+        [email.toLowerCase().trim(), user?.name || name, employeeId, googleSubject]
+      );
+      if (result.rows.length === 0) {
+        throw new Conflict('Google account cannot be linked.', 'GOOGLE_IDENTITY_CONFLICT');
+      }
+      return this.mapToUser(result.rows[0]!);
+    } catch (error: unknown) {
+      if (error instanceof Conflict) {
+        throw error;
+      }
+      if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === '23505') {
+        throw new Conflict('Google account cannot be linked.', 'GOOGLE_IDENTITY_CONFLICT');
+      }
+      throw error;
+    }
+  }
+
   async updatePassword(userId: string, passwordHash: string): Promise<User> {
     const query = `
       UPDATE app_user
       SET password_hash = $1, updated_at = CURRENT_TIMESTAMP
       WHERE id = $2
-      RETURNING id, email, name, password_hash, created_at, updated_at
+      RETURNING id, email, name, password_hash, employee_id, google_subject, created_at, updated_at
     `;
     const result = await this.pool.query<UserRow>(query, [passwordHash, userId]);
     if (result.rows.length === 0) {
@@ -96,7 +156,7 @@ export class PostgresUserRepository implements UserRepository {
   async findAllUsersWithRoles(): Promise<import('../domain/user.model.js').UserWithRoles[]> {
     const query = `
       SELECT 
-        u.id, u.email, u.name, u.password_hash, u.created_at, u.updated_at,
+        u.id, u.email, u.name, u.password_hash, u.employee_id, u.google_subject, u.created_at, u.updated_at,
         COALESCE(
           json_agg(
             json_build_object('roleCode', r.code, 'roleName', r.name)

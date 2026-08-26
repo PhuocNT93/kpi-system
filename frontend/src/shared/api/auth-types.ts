@@ -4,6 +4,10 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface GoogleLoginRequest {
+  id_token: string;
+}
+
 export interface SignupRequest {
   email: string;
   password: string;

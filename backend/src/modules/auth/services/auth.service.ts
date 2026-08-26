@@ -1,6 +1,7 @@
 import { SafeUser, User, UserRepository } from '../domain/user.model.js';
 import { PasswordHasher } from './password-hasher.service.js';
 import { TokenService } from './token.service.js';
+import { GoogleIdentityVerifier } from './google-identity-verifier.service.js';
 import { IAuthorizer, Actor } from '../../../shared/auth/types.js';
 import { BadRequest, Unauthenticated, ValidationError } from '../../../api/app-error.js';
 
@@ -13,6 +14,10 @@ export interface SignupDTO {
 export interface LoginDTO {
   email?: string;
   password?: string;
+}
+
+export interface GoogleLoginDTO {
+  id_token?: string;
 }
 
 export interface ChangePasswordDTO {
@@ -42,7 +47,9 @@ export interface AuthServiceDependencies {
   passwordHasher: PasswordHasher;
   tokenService: TokenService;
   authorizer?: IAuthorizer;
-  roleResolver?: (userId: string) => Promise<import('../../../shared/auth/types.js').UserRole>;
+  actorResolver?: (user: User) => Promise<Actor>;
+  ensureDefaultEmployeeRole?: (userId: string) => Promise<void>;
+  googleIdentityVerifier?: GoogleIdentityVerifier;
 }
 
 export class AuthService {
@@ -50,19 +57,23 @@ export class AuthService {
   private passwordHasher: PasswordHasher;
   private tokenService: TokenService;
   private authorizer?: IAuthorizer;
-  private roleResolver?: (userId: string) => Promise<import('../../../shared/auth/types.js').UserRole>;
+  private actorResolver?: (user: User) => Promise<Actor>;
+  private ensureDefaultEmployeeRole?: (userId: string) => Promise<void>;
+  private googleIdentityVerifier?: GoogleIdentityVerifier;
 
   constructor(deps: AuthServiceDependencies) {
     this.userRepository = deps.userRepository;
     this.passwordHasher = deps.passwordHasher;
     this.tokenService = deps.tokenService;
     this.authorizer = deps.authorizer;
-    this.roleResolver = deps.roleResolver;
+    this.actorResolver = deps.actorResolver;
+    this.ensureDefaultEmployeeRole = deps.ensureDefaultEmployeeRole;
+    this.googleIdentityVerifier = deps.googleIdentityVerifier;
   }
 
   private toSafeUser(user: User): SafeUser {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { passwordHash, ...safeUser } = user;
+    const { passwordHash, googleSubject, ...safeUser } = user;
     return safeUser;
   }
 
@@ -128,37 +139,49 @@ export class AuthService {
       throw new Unauthenticated('Invalid email or password');
     }
 
-    const isMatch = await this.passwordHasher.compare(dto.password!, user.passwordHash);
+    const isMatch = user.passwordHash ? await this.passwordHasher.compare(dto.password!, user.passwordHash) : false;
     if (!isMatch) {
       throw new Unauthenticated('Invalid email or password');
     }
 
-    let actor: Actor;
-    if (this.roleResolver) {
-      actor = {
-        userId: user.id,
-        role: await this.roleResolver(user.id),
-      };
-    } else {
-      actor = {
-        userId: user.id,
-        role: 'EMPLOYEE',
-      };
+    return this.createLoginResult(user);
+  }
+
+  async loginWithGoogle(dto: GoogleLoginDTO): Promise<LoginResult> {
+    if (!dto.id_token?.trim()) {
+      throw new ValidationError('Validation failed for Google sign-in', [
+        { field: 'id_token', code: 'REQUIRED', message: 'Google ID token is required' },
+      ]);
+    }
+    if (!this.googleIdentityVerifier) {
+      throw new BadRequest('Google sign-in is not configured.', 'GOOGLE_SIGN_IN_UNAVAILABLE');
     }
 
+    const identity = await this.googleIdentityVerifier.verify(dto.id_token.trim());
+    const employee = await this.userRepository.findActiveEmployeeByEmail(identity.email);
+    if (!employee) {
+      throw new Unauthenticated('Google account is not eligible to sign in.');
+    }
+
+    const user = await this.userRepository.linkGoogleIdentity(
+      await this.userRepository.findByEmail(identity.email),
+      employee.id,
+      identity.subject,
+      identity.email,
+      employee.name
+    );
+    await this.ensureDefaultEmployeeRole?.(user.id);
+    return this.createLoginResult(user);
+  }
+
+  private async createLoginResult(user: User): Promise<LoginResult> {
+    const actor: Actor = this.actorResolver
+      ? await this.actorResolver(user)
+      : { userId: user.id, role: 'EMPLOYEE', employeeId: user.employeeId ?? undefined };
     const tokens = this.tokenService.generateTokens
       ? this.tokenService.generateTokens(actor)
-      : {
-          accessToken: this.tokenService.generateAccessToken(actor),
-          refreshToken: this.tokenService.generateRefreshToken(actor),
-        };
-
-    return {
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-      tokenType: 'Bearer',
-      user: this.toSafeUser(user),
-    };
+      : { accessToken: this.tokenService.generateAccessToken(actor), refreshToken: this.tokenService.generateRefreshToken(actor) };
+    return { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, tokenType: 'Bearer', user: this.toSafeUser(user) };
   }
 
   async refreshToken(dto: RefreshTokenDTO): Promise<RefreshTokenResult> {
@@ -175,10 +198,9 @@ export class AuthService {
       throw new Unauthenticated('User no longer exists');
     }
 
-    const actor: Actor = {
-      userId: user.id,
-      role: payload.role || 'EMPLOYEE',
-    };
+    const actor: Actor = this.actorResolver
+      ? await this.actorResolver(user)
+      : { userId: user.id, role: payload.role || 'EMPLOYEE', employeeId: user.employeeId ?? undefined };
 
     const tokens = this.tokenService.generateTokens
       ? this.tokenService.generateTokens(actor)
@@ -218,6 +240,10 @@ export class AuthService {
     const user = await this.userRepository.findById(actor.userId);
     if (!user) {
       throw new Unauthenticated('User does not exist');
+    }
+
+    if (!user.passwordHash) {
+      throw new BadRequest('Password is not available for this account.', 'PASSWORD_SIGN_IN_DISABLED');
     }
 
     const isMatch = await this.passwordHasher.compare(dto.currentPassword!, user.passwordHash);

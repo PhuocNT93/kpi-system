@@ -9,6 +9,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: (idToken: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -39,8 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsInitializing(false);
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const result = await authApi.login({ email, password });
+  const applyLoginResult = useCallback((result: Awaited<ReturnType<typeof authApi.login>>) => {
     setAccessToken(result.accessToken);
     localStorage.setItem(TOKEN_STORAGE_KEY, result.accessToken);
     
@@ -57,6 +57,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authUser));
   }, []);
 
+  const login = useCallback(async (email: string, password: string) => {
+    applyLoginResult(await authApi.login({ email, password }));
+  }, [applyLoginResult]);
+
+  const loginWithGoogle = useCallback(async (idToken: string) => {
+    applyLoginResult(await authApi.loginWithGoogle({ id_token: idToken }));
+  }, [applyLoginResult]);
+
   const logout = useCallback(() => {
     setAccessToken(null);
     setUser(null);
@@ -65,8 +73,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, isAuthenticated: user !== null, login, logout }),
-    [user, login, logout],
+    () => ({ user, isAuthenticated: user !== null, login, loginWithGoogle, logout }),
+    [user, login, loginWithGoogle, logout],
   );
 
   if (isInitializing) {

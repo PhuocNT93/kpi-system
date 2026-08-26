@@ -1,4 +1,4 @@
-import { User, UserRepository } from '../../src/modules/auth/domain/user.model.js';
+import { CreateUser, User, UserRepository, UserWithRoles } from '../../src/modules/auth/domain/user.model.js';
 import { NotFound, Conflict } from '../../src/api/app-error.js';
 import {
   Role,
@@ -19,6 +19,7 @@ import {
 export class InMemoryUserRepository implements UserRepository {
   private users: Map<string, User> = new Map();
   private emailIndex: Map<string, string> = new Map();
+  private activeEmployees = new Map<string, { id: string; name: string }>();
 
   async findById(id: string): Promise<User | null> {
     const user = this.users.get(id);
@@ -33,7 +34,7 @@ export class InMemoryUserRepository implements UserRepository {
     return user ? { ...user } : null;
   }
 
-  async create(userData: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): Promise<User> {
+  async create(userData: CreateUser): Promise<User> {
     const normalizedEmail = userData.email.toLowerCase().trim();
     if (this.emailIndex.has(normalizedEmail)) {
       throw new Conflict('Email is already registered', 'DUPLICATE_EMAIL');
@@ -45,6 +46,8 @@ export class InMemoryUserRepository implements UserRepository {
       ...userData,
       email: normalizedEmail,
       id,
+      employeeId: userData.employeeId ?? null,
+      googleSubject: userData.googleSubject ?? null,
       createdAt: now,
       updatedAt: now,
     };
@@ -52,6 +55,27 @@ export class InMemoryUserRepository implements UserRepository {
     this.users.set(id, user);
     this.emailIndex.set(normalizedEmail, id);
     return { ...user };
+  }
+
+  async findActiveEmployeeByEmail(email: string): Promise<{ id: string; name: string } | null> {
+    return this.activeEmployees.get(email.toLowerCase().trim()) ?? null;
+  }
+
+  async findManagedTeamIds(_employeeId: string): Promise<string[]> {
+    return [];
+  }
+
+  async linkGoogleIdentity(user: User | null, employeeId: string, googleSubject: string, email: string, name: string): Promise<User> {
+    if (user) {
+      const updated = { ...user, employeeId, googleSubject, updatedAt: new Date() };
+      this.users.set(updated.id, updated);
+      return { ...updated };
+    }
+    return this.create({ email, name, passwordHash: null, employeeId, googleSubject });
+  }
+
+  addActiveEmployee(email: string, employeeId: string, name: string): void {
+    this.activeEmployees.set(email.toLowerCase().trim(), { id: employeeId, name });
   }
 
   async updatePassword(userId: string, passwordHash: string): Promise<User> {
@@ -68,6 +92,10 @@ export class InMemoryUserRepository implements UserRepository {
 
     this.users.set(userId, updatedUser);
     return { ...updatedUser };
+  }
+
+  async findAllUsersWithRoles(): Promise<UserWithRoles[]> {
+    return Array.from(this.users.values()).map((user) => ({ ...user, roles: [] }));
   }
 
   clear(): void {

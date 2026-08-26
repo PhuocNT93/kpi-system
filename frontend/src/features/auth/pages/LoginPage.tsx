@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { Chrome } from 'lucide-react';
 import { useAuth } from '../../../shared/auth/AuthContext';
 import { ApiClientError } from '../../../shared/api/api-client';
 
@@ -13,7 +14,7 @@ const loginSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 export function LoginPage() {
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname ?? '/';
@@ -39,6 +40,41 @@ export function LoginPage() {
       }
     }
   });
+
+  const handleGoogleSignIn = async () => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      setError('root', { message: 'Google sign-in is not configured.' });
+      return;
+    }
+    if (!window.google) {
+      await new Promise<void>((resolve, reject) => {
+        const script = document.querySelector<HTMLScriptElement>('script[src="https://accounts.google.com/gsi/client"]');
+        if (!script) {
+          reject(new Error('Google Identity Services is unavailable.'));
+          return;
+        }
+        script.addEventListener('load', () => resolve(), { once: true });
+        script.addEventListener('error', () => reject(new Error('Google Identity Services failed to load.')), { once: true });
+      }).catch((error: unknown) => {
+        setError('root', { message: error instanceof Error ? error.message : 'Google sign-in is unavailable.' });
+      });
+      if (!window.google) return;
+    }
+    window.google.accounts.id.initialize({
+      client_id: clientId,
+      callback: async ({ credential }) => {
+        try {
+          await loginWithGoogle(credential);
+          navigate(from, { replace: true });
+        } catch (error) {
+          setError('root', { message: error instanceof ApiClientError ? error.message : 'Google sign-in failed. Please try again.' });
+        }
+      },
+      hosted_domain: 'cyberlogitec.com',
+    });
+    window.google.accounts.id.prompt();
+  };
 
   return (
     <main
@@ -107,6 +143,14 @@ export function LoginPage() {
             }}
           >
             {isSubmitting ? 'Signing in…' : 'Sign in'}
+          </button>
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            style={{ padding: '0.625rem', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 4, fontWeight: 600, cursor: 'pointer' }}
+          >
+            <Chrome size={16} aria-hidden="true" style={{ marginRight: '0.5rem', verticalAlign: 'text-bottom' }} />
+            Sign in with company Google account
           </button>
         </form>
       </div>
