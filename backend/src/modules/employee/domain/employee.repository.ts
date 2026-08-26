@@ -1,4 +1,5 @@
-import { Employee, EmployeeAssignment } from './employee.domain.js';
+import { Employee, EmployeeAssignment, Team, TeamWithContext, CreateTeamParams, UpdateTeamParams } from './employee.domain.js';
+
 
 export interface EmployeeRepository {
   findById(employeeId: string): Promise<Employee | null>;
@@ -26,3 +27,21 @@ export interface EmployeeAssignmentRepository {
   findAssignmentHistory(employeeId: string): Promise<EmployeeAssignment[]>;
   closeActiveAssignment(employeeId: string, closeDate: string, client?: any): Promise<void>;
 }
+
+export interface TeamRepository {
+  findById(teamId: string): Promise<Team | null>;
+  findByCode(code: string): Promise<Team | null>;
+  findMany(params: {
+    departmentId?: string;
+    active?: boolean;
+    search?: string;
+    teamIds?: string[];
+    limit?: number;
+    offset?: number;
+  }): Promise<{ teams: Team[]; total: number }>;
+  findWithContext(teamId: string): Promise<TeamWithContext | null>;
+  create(params: CreateTeamParams, actorEmployeeId: string | null, client?: any): Promise<Team>;
+  update(teamId: string, params: UpdateTeamParams, actorEmployeeId: string | null, client?: any): Promise<Team>;
+  countActiveMembers(teamId: string): Promise<number>;
+}
+

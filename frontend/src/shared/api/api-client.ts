@@ -73,7 +73,7 @@ export async function getApi<T>(path: string): Promise<T> {
     response = await fetch(`${apiBaseUrl}${path}`, {
       headers: buildHeaders(),
     });
-  } catch (err) {
+  } catch {
     throw new ApiClientError('Network Error: Could not connect to the backend server.', 'NETWORK_ERROR', 'unknown', 0);
   }
   return parseResponse<T>(response);
@@ -95,7 +95,7 @@ export async function postApi<T>(
       headers: buildHeaders(extraHeaders),
       body: JSON.stringify(body),
     });
-  } catch (err) {
+  } catch {
     throw new ApiClientError('Network Error: Could not connect to the backend server.', 'NETWORK_ERROR', 'unknown', 0);
   }
   return parseResponse<T>(response);
@@ -109,11 +109,26 @@ export async function putApi<T>(path: string, body: unknown): Promise<T> {
       headers: buildHeaders(),
       body: JSON.stringify(body),
     });
-  } catch (err) {
+  } catch {
     throw new ApiClientError('Network Error: Could not connect to the backend server.', 'NETWORK_ERROR', 'unknown', 0);
   }
   return parseResponse<T>(response);
 }
+
+export async function patchApi<T>(path: string, body: unknown): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(`${apiBaseUrl}${path}`, {
+      method: 'PATCH',
+      headers: buildHeaders(),
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new ApiClientError('Network Error: Could not connect to the backend server.', 'NETWORK_ERROR', 'unknown', 0);
+  }
+  return parseResponse<T>(response);
+}
+
 
 export async function deleteApi<T>(path: string): Promise<T> {
   let response: Response;
@@ -122,7 +137,7 @@ export async function deleteApi<T>(path: string): Promise<T> {
       method: 'DELETE',
       headers: buildHeaders(),
     });
-  } catch (err) {
+  } catch {
     throw new ApiClientError('Network Error: Could not connect to the backend server.', 'NETWORK_ERROR', 'unknown', 0);
   }
   return parseResponse<T>(response);

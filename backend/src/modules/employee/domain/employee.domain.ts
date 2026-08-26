@@ -64,7 +64,34 @@ export interface Team {
   departmentId: string;
   code: string;
   name: string;
+  description?: string | null;
   active: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+}
+
+/** Enriched team view including member count. Used by GET /teams/:id */
+export interface TeamWithContext extends Team {
+  memberCount: number;
+  activeMemberCount: number;
+}
+
+/** Parameters for TeamService.createTeam */
+export interface CreateTeamParams {
+  code: string;
+  name: string;
+  departmentId: string;
+  description?: string | null;
+}
+
+/** Parameters for TeamService.updateTeam */
+export interface UpdateTeamParams {
+  name?: string;
+  departmentId?: string;
+  description?: string | null;
+  active?: boolean;
 }
 
 export interface OrganizationRole {
