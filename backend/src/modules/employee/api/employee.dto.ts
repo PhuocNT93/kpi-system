@@ -21,11 +21,34 @@ export interface DepartmentResponse extends BaseResourceResponse {
   active: boolean;
 }
 
-export interface TeamResponse extends BaseResourceResponse {
+export interface TeamResponse {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  department_id: string;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TeamDetailResponse extends TeamResponse {
+  member_count: number;
+  active_member_count: number;
+}
+
+export interface CreateTeamRequest {
   code: string;
   name: string;
   department_id: string;
-  active: boolean;
+  description?: string | null;
+}
+
+export interface UpdateTeamRequest {
+  name?: string;
+  department_id?: string;
+  description?: string | null;
+  active?: boolean;
 }
 
 export interface RoleResponse extends BaseResourceResponse {

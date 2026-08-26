@@ -1,18 +1,21 @@
 import { Request, Response } from 'express';
 import type { Pool } from 'pg';
-import { sendSuccess, sendCollection } from '../../../api/http-response.js';
+import { sendSuccess, sendCollection, sendCreated } from '../../../api/http-response.js';
 import { parsePaginationQuery } from '../../../api/pagination.js';
-import { AppError, BadRequest, NotFound, Conflict } from '../../../api/app-error.js';
+import { AppError, BadRequest, NotFound, Conflict, Forbidden } from '../../../api/app-error.js';
 import { EmployeeRepository, EmployeeAssignmentRepository } from '../domain/employee.repository.js';
 import { EmployeeContextService } from '../application/employee-context.service.js';
-import { EmploymentStatus, Employee, EmployeeAssignment, EvaluationOrganizationContext } from '../domain/employee.domain.js';
+import { TeamService } from '../application/team.service.js';
+import { EmploymentStatus, Employee, EmployeeAssignment, EvaluationOrganizationContext, Team, TeamWithContext } from '../domain/employee.domain.js';
+import { getActorFromContext } from '../../../shared/auth/actor-context.js';
 
 export class EmployeeController {
   constructor(
     private employeeRepo?: EmployeeRepository,
     private assignmentRepo?: EmployeeAssignmentRepository,
     private contextService?: EmployeeContextService,
-    private pool?: Pool
+    private pool?: Pool,
+    private teamService?: TeamService
   ) {}
 
   private hasDb(): boolean {
@@ -126,15 +129,23 @@ export class EmployeeController {
         throw new NotFound(`Employee with ID ${employeeId}`);
       }
 
+      const newManagerId = req.body.manager_id !== undefined ? req.body.manager_id : existing.managerId;
+      const newTeamId = req.body.team_id ?? existing.teamId;
+
+      // Validate manager assignment when manager_id is being changed
+      if (this.teamService && req.body.manager_id !== undefined && req.body.manager_id !== existing.managerId) {
+        await this.teamService.validateManagerAssignment(employeeId, newManagerId, newTeamId);
+      }
+
       const updated = await this.employeeRepo.update({
         ...existing,
         fullName: req.body.full_name ?? existing.fullName,
         email: req.body.email ?? existing.email,
         departmentId: req.body.department_id ?? existing.departmentId,
-        teamId: req.body.team_id ?? existing.teamId,
+        teamId: newTeamId,
         roleId: req.body.role_id ?? existing.roleId,
         jobLevelId: req.body.job_level_id ?? existing.jobLevelId,
-        managerId: req.body.manager_id !== undefined ? req.body.manager_id : existing.managerId,
+        managerId: newManagerId,
         employmentStatus: req.body.employment_status ?? existing.employmentStatus,
         terminationDate: req.body.termination_date ?? existing.terminationDate,
       });
@@ -542,113 +553,84 @@ export class EmployeeController {
   // ── Team ─────────────────────────────────────────────────────────────────
 
   async getTeams(req: Request, res: Response): Promise<void> {
+    const actor = getActorFromContext(req);
+    if (!actor) throw new Forbidden();
     const { limit, offset, buildPageMeta } = parsePaginationQuery(req.query as Record<string, unknown>);
-    if (this.hasDb()) {
-      const countRes = await this.pool!.query(`SELECT COUNT(*) as total FROM team`);
-      const total = parseInt(countRes.rows[0].total, 10);
-      const dataRes = await this.pool!.query(
-        `SELECT team_id, code, name, department_id, active, created_at, updated_at FROM team ORDER BY name ASC LIMIT $1 OFFSET $2`,
-        [limit, offset]
-      );
-      const items = dataRes.rows.map(row => ({
-        id: row.team_id,
-        code: row.code,
-        name: row.name,
-        department_id: row.department_id,
-        active: row.active,
-        created_at: row.created_at,
-        updated_at: row.updated_at,
-      }));
-      sendCollection(res, 'Teams retrieved successfully', items, buildPageMeta(total));
+
+    if (this.teamService && this.hasDb()) {
+      const page = parseInt((req.query.page as string) ?? '1', 10) || 1;
+      const pageSize = limit;
+      const result = await this.teamService.getTeams(actor, {
+        departmentId: req.query.department_id as string | undefined,
+        active: req.query.active !== undefined ? req.query.active === 'true' : undefined,
+        search: req.query.search as string | undefined,
+        page,
+        pageSize,
+      });
+      const data = result.teams.map(this.mapTeamToResponse);
+      sendCollection(res, 'Teams retrieved successfully', data, buildPageMeta(result.total));
       return;
     }
     sendCollection(res, 'Teams retrieved successfully', [], buildPageMeta(0));
   }
 
   async createTeam(req: Request, res: Response): Promise<void> {
-    const { code, name, department_id } = req.body || {};
-    if (!code || !name || !department_id) throw new BadRequest('Team code, name, and department_id are required');
-    if (this.hasDb()) {
-      const resDb = await this.pool!.query(
-        `INSERT INTO team (code, name, department_id) VALUES ($1, $2, $3) RETURNING team_id, code, name, department_id, active, created_at, updated_at`,
-        [code, name, department_id]
-      );
-      const row = resDb.rows[0];
-      sendSuccess(res, 201, 'Team created successfully', {
-        id: row.team_id,
-        code: row.code,
-        name: row.name,
-        department_id: row.department_id,
-        active: row.active,
-        created_at: row.created_at,
-        updated_at: row.updated_at,
-      });
+    const actor = getActorFromContext(req);
+    if (!actor) throw new Forbidden();
+    const { code, name, department_id, description } = req.body || {};
+
+    if (this.teamService && this.hasDb()) {
+      const team = await this.teamService.createTeam(actor, { code, name, departmentId: department_id, description });
+      sendCreated(res, 'Team created successfully', this.mapTeamToResponse(team), `/api/teams/${team.teamId}`);
       return;
     }
     throw new AppError(503, 'SERVICE_UNAVAILABLE', 'Database service is unavailable');
   }
 
   async getTeamById(req: Request, res: Response): Promise<void> {
-    const { teamId } = req.params;
+    const actor = getActorFromContext(req);
+    if (!actor) throw new Forbidden();
+    const teamId = req.params.teamId as string;
     if (!teamId) throw new BadRequest('Team ID is required');
-    if (this.hasDb()) {
-      const resDb = await this.pool!.query(
-        `SELECT team_id, code, name, department_id, active, created_at, updated_at FROM team WHERE team_id = $1`,
-        [teamId]
-      );
-      if (resDb.rows.length === 0) throw new NotFound(`Team with ID ${teamId}`);
-      const row = resDb.rows[0];
-      sendSuccess(res, 200, 'Team retrieved successfully', {
-        id: row.team_id,
-        code: row.code,
-        name: row.name,
-        department_id: row.department_id,
-        active: row.active,
-        created_at: row.created_at,
-        updated_at: row.updated_at,
-      });
+
+    if (this.teamService && this.hasDb()) {
+      const team = await this.teamService.getTeamById(actor, teamId);
+      sendSuccess(res, 200, 'Team retrieved successfully', this.mapTeamDetailToResponse(team));
       return;
     }
     sendSuccess(res, 200, 'Team retrieved successfully', { id: teamId, name: 'Sample Team', code: 'TEAM_A', active: true });
   }
 
   async updateTeam(req: Request, res: Response): Promise<void> {
-    const { teamId } = req.params;
+    const actor = getActorFromContext(req);
+    if (!actor) throw new Forbidden();
+    const teamId = req.params.teamId as string;
     if (!teamId) throw new BadRequest('Team ID is required');
-    const { code, name, department_id, active } = req.body || {};
-    if (this.hasDb()) {
-      const resDb = await this.pool!.query(
-        `UPDATE team SET code = COALESCE($1, code), name = COALESCE($2, name), department_id = COALESCE($3, department_id), active = COALESCE($4, active)
-         WHERE team_id = $5 RETURNING team_id, code, name, department_id, active, created_at, updated_at`,
-        [code, name, department_id, active, teamId]
-      );
-      if (resDb.rows.length === 0) throw new NotFound(`Team with ID ${teamId}`);
-      const row = resDb.rows[0];
-      sendSuccess(res, 200, 'Team updated successfully', {
-        id: row.team_id,
-        code: row.code,
-        name: row.name,
-        department_id: row.department_id,
-        active: row.active,
-        created_at: row.created_at,
-        updated_at: row.updated_at,
+    const { code, name, department_id, description, active } = req.body || {};
+
+    if (this.teamService && this.hasDb()) {
+      const team = await this.teamService.updateTeam(actor, teamId, {
+        code, // TeamService will reject if code changes
+        name,
+        departmentId: department_id,
+        description,
+        active,
       });
+      sendSuccess(res, 200, 'Team updated successfully', this.mapTeamToResponse(team));
       return;
     }
     throw new AppError(503, 'SERVICE_UNAVAILABLE', 'Database service is unavailable');
   }
 
   async deactivateTeam(req: Request, res: Response): Promise<void> {
-    const { teamId } = req.params;
+    const actor = getActorFromContext(req);
+    if (!actor) throw new Forbidden();
+    const teamId = req.params.teamId as string;
     if (!teamId) throw new BadRequest('Team ID is required');
-    if (this.hasDb()) {
-      const resDb = await this.pool!.query(
-        `UPDATE team SET active = false WHERE team_id = $1 RETURNING team_id, active`,
-        [teamId]
-      );
-      if (resDb.rows.length === 0) throw new NotFound(`Team with ID ${teamId}`);
-      const row = resDb.rows[0];
-      sendSuccess(res, 200, 'Team deactivated successfully', { id: row.team_id, active: row.active });
+
+    if (this.teamService && this.hasDb()) {
+      const team = await this.teamService.deactivateTeam(actor, teamId);
+      sendSuccess(res, 200, 'Team deactivated successfully', { id: team.teamId, active: team.active });
       return;
     }
     throw new AppError(503, 'SERVICE_UNAVAILABLE', 'Database service is unavailable');
@@ -952,4 +934,25 @@ export class EmployeeController {
       created_at: assign.createdAt,
     };
   };
-}
+
+  private mapTeamToResponse = (team: Team) => {
+    return {
+      id: team.teamId,
+      code: team.code,
+      name: team.name,
+      description: team.description ?? null,
+      department_id: team.departmentId,
+      active: team.active,
+      created_at: team.createdAt ?? null,
+      updated_at: team.updatedAt ?? null,
+    };
+  };
+
+  private mapTeamDetailToResponse = (team: TeamWithContext) => {
+    return {
+      ...this.mapTeamToResponse(team),
+      member_count: team.memberCount,
+      active_member_count: team.activeMemberCount,
+    };
+  };
+}
