@@ -28,6 +28,7 @@ import {
 import { createEmployeeModule } from './modules/employee/employee.module.js';
 import { EmployeeController } from './modules/employee/api/employee.controller.js';
 import { createOrganizationModule } from './modules/organization/organization.module.js';
+import { createConfigurationModule } from './modules/configuration/configuration.module.js';
 
 export interface AppOptions {
   userRepository?: UserRepository;
@@ -74,6 +75,9 @@ export function createApp(options: AppOptions = {}) {
   const organizationModule = pool ? createOrganizationModule(pool) : undefined;
   const organizationController = organizationModule?.organizationController;
 
+  const configurationModule = pool ? createConfigurationModule(pool) : undefined;
+  const configurationController = configurationModule?.configurationController;
+
   // ── Global Middlewares ────────────────────────────────────────────────────
   app.use(requestIdMiddleware);
   app.use(cors());
@@ -102,6 +106,7 @@ export function createApp(options: AppOptions = {}) {
         authorizationService,
         employeeController,
         organizationController,
+        configurationController,
       })
     );
   }

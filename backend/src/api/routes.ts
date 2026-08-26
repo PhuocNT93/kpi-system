@@ -8,6 +8,8 @@ import { EmployeeController } from '../modules/employee/api/employee.controller.
 import { createEmployeeRouter } from '../modules/employee/api/employee.router.js';
 import { OrganizationController } from '../modules/organization/api/organization.controller.js';
 import { createOrganizationRouter } from '../modules/organization/api/organization.router.js';
+import { ConfigurationController } from '../modules/configuration/api/configuration.controller.js';
+import { createConfigurationRouter } from '../modules/configuration/api/configuration.router.js';
 
 export interface RegisterRoutesOptions {
   authController: AuthController;
@@ -16,6 +18,7 @@ export interface RegisterRoutesOptions {
   authorizationService: AuthorizationService;
   employeeController?: EmployeeController;
   organizationController?: OrganizationController;
+  configurationController?: ConfigurationController;
 }
 
 export function createApiRouter(options: RegisterRoutesOptions): Router {
@@ -35,6 +38,11 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
   // ── Organization Module Routes ────────────────────────────────────────────
   if (options.organizationController) {
     router.use('/org', createOrganizationRouter(options.organizationController, options.jwtMiddleware));
+  }
+
+  // ── Configuration Module Routes ───────────────────────────────────────────
+  if (options.configurationController) {
+    router.use('/v1/configuration', createConfigurationRouter(options.configurationController, options.authorizationService, options.jwtMiddleware));
   }
 
   // ── Sample: single-resource response ──────────────────────────────────────

@@ -299,6 +299,30 @@ export const swaggerOptions: swaggerJsdoc.Options = {
             change_note: { type: 'string', example: 'Promoted to Senior Developer' },
           },
         },
+        Criterion: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            code: { type: 'string', example: 'ON_TIME_COMPLETION' },
+            category: { type: 'string', enum: ['PERFORMANCE', 'CAPABILITY', 'CONTRIBUTION', 'CUSTOM'], example: 'PERFORMANCE' },
+            name: { type: 'string', example: 'On-time Completion' },
+            description: { type: 'string', example: 'Percentage of work completed on time' },
+            status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'], example: 'ACTIVE' },
+            version: { type: 'integer', example: 1 },
+          },
+        },
+        ScoringRule: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            code: { type: 'string', example: 'RULE_ON_TIME_COMPLETION' },
+            name: { type: 'string', example: 'On-time Completion Range Threshold' },
+            rule_type: { type: 'string', enum: ['RANGE_THRESHOLD', 'INVERSE_THRESHOLD', 'COUNT_THRESHOLD', 'ORDINAL_MANUAL', 'ROLE_CONDITIONAL'], example: 'RANGE_THRESHOLD' },
+            config: { type: 'object' },
+            status: { type: 'string', enum: ['DRAFT', 'VALIDATING', 'VALID', 'PUBLISHED', 'RETIRED'], example: 'PUBLISHED' },
+            version: { type: 'integer', example: 1 },
+          },
+        },
         EvaluationOrganizationContext: {
           type: 'object',
           properties: {
@@ -2700,6 +2724,1148 @@ export const swaggerOptions: swaggerJsdoc.Options = {
             },
             401: { description: 'Unauthorized' },
             404: { description: 'Import job not found' },
+          },
+        },
+      },
+
+      // ── Configuration Module Routes ──────────────────────────────────────────
+      '/api/v1/configuration/criteria': {
+        get: {
+          summary: 'List criteria',
+          description: 'Retrieves a list of evaluation criteria.',
+          tags: ['Configuration - Criteria'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'category', in: 'query', required: false, schema: { type: 'string' } },
+            { name: 'status', in: 'query', required: false, schema: { type: 'string' } },
+          ],
+          responses: {
+            200: { description: 'Criteria list retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden' },
+          },
+        },
+        post: {
+          summary: 'Create criterion',
+          description: 'Creates a new evaluation criterion.',
+          tags: ['Configuration - Criteria'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            201: { description: 'Criterion created successfully' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden' },
+          },
+        },
+      },
+      '/api/v1/configuration/criteria/{criterionId}': {
+        get: {
+          summary: 'Get criterion by ID',
+          description: 'Retrieves details of a specific evaluation criterion.',
+          tags: ['Configuration - Criteria'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'criterionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Criterion retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Criterion not found' },
+          },
+        },
+        put: {
+          summary: 'Update criterion',
+          description: 'Updates an existing evaluation criterion.',
+          tags: ['Configuration - Criteria'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'criterionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            200: { description: 'Criterion updated successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Criterion not found' },
+          },
+        },
+      },
+      '/api/v1/configuration/criteria/{criterionId}/activate': {
+        post: {
+          summary: 'Activate criterion',
+          description: 'Activates an evaluation criterion.',
+          tags: ['Configuration - Criteria'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'criterionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Criterion activated successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Criterion not found' },
+          },
+        },
+      },
+      '/api/v1/configuration/criteria/{criterionId}/deactivate': {
+        post: {
+          summary: 'Deactivate criterion',
+          description: 'Deactivates an evaluation criterion.',
+          tags: ['Configuration - Criteria'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'criterionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Criterion deactivated successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Criterion not found' },
+          },
+        },
+      },
+      '/api/v1/configuration/criteria/{criterionId}/versions': {
+        get: {
+          summary: 'Get criterion versions',
+          description: 'Retrieves version history for a criterion.',
+          tags: ['Configuration - Criteria'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'criterionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Criterion versions retrieved successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        post: {
+          summary: 'Create criterion version',
+          description: 'Creates a new version for a criterion.',
+          tags: ['Configuration - Criteria'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'criterionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            201: { description: 'Criterion version created successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/criteria/{criterionId}/versions/{versionId}': {
+        get: {
+          summary: 'Get criterion version by ID',
+          description: 'Retrieves details of a specific criterion version.',
+          tags: ['Configuration - Criteria'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'criterionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'versionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Criterion version retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Version not found' },
+          },
+        },
+        put: {
+          summary: 'Update criterion version',
+          description: 'Updates a specific criterion version.',
+          tags: ['Configuration - Criteria'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'criterionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'versionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            200: { description: 'Criterion version updated successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Version not found' },
+          },
+        },
+      },
+      '/api/v1/configuration/criteria/{criterionId}/versions/{versionId}/publish': {
+        post: {
+          summary: 'Publish criterion version',
+          description: 'Publishes a criterion version.',
+          tags: ['Configuration - Criteria'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'criterionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'versionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Criterion version published successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Version not found' },
+          },
+        },
+      },
+      '/api/v1/configuration/levels': {
+        get: {
+          summary: 'List evaluation levels',
+          description: 'Retrieves all evaluation levels.',
+          tags: ['Configuration - Levels'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: { description: 'Levels retrieved successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        post: {
+          summary: 'Create evaluation level',
+          description: 'Creates a new evaluation level.',
+          tags: ['Configuration - Levels'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            201: { description: 'Evaluation level created successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/levels/{id}': {
+        get: {
+          summary: 'Get evaluation level by ID',
+          description: 'Retrieves a single evaluation level.',
+          tags: ['Configuration - Levels'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Evaluation level retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Level not found' },
+          },
+        },
+        put: {
+          summary: 'Update evaluation level',
+          description: 'Updates an evaluation level.',
+          tags: ['Configuration - Levels'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            200: { description: 'Evaluation level updated successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Level not found' },
+          },
+        },
+      },
+      '/api/v1/configuration/levels/{id}/activate': {
+        post: {
+          summary: 'Activate evaluation level',
+          description: 'Activates an evaluation level.',
+          tags: ['Configuration - Levels'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Evaluation level activated successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/levels/{id}/deactivate': {
+        post: {
+          summary: 'Deactivate evaluation level',
+          description: 'Deactivates an evaluation level.',
+          tags: ['Configuration - Levels'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Evaluation level deactivated successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/scoring-rules': {
+        get: {
+          summary: 'List scoring rules',
+          description: 'Retrieves all scoring rules.',
+          tags: ['Configuration - Scoring Rules'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: { description: 'Scoring rules retrieved successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        post: {
+          summary: 'Create scoring rule',
+          description: 'Creates a new scoring rule.',
+          tags: ['Configuration - Scoring Rules'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            201: { description: 'Scoring rule created successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/scoring-rules/{id}': {
+        get: {
+          summary: 'Get scoring rule by ID',
+          description: 'Retrieves details of a scoring rule.',
+          tags: ['Configuration - Scoring Rules'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Scoring rule retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Scoring rule not found' },
+          },
+        },
+        put: {
+          summary: 'Update scoring rule',
+          description: 'Updates a scoring rule.',
+          tags: ['Configuration - Scoring Rules'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            200: { description: 'Scoring rule updated successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Scoring rule not found' },
+          },
+        },
+      },
+      '/api/v1/configuration/scoring-rules/{id}/validate': {
+        post: {
+          summary: 'Validate scoring rule',
+          description: 'Validates a scoring rule configuration.',
+          tags: ['Configuration - Scoring Rules'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Scoring rule validation completed' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/scoring-rules/{id}/publish': {
+        post: {
+          summary: 'Publish scoring rule',
+          description: 'Publishes a scoring rule.',
+          tags: ['Configuration - Scoring Rules'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Scoring rule published successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/templates': {
+        get: {
+          summary: 'List templates',
+          description: 'Retrieves all evaluation templates.',
+          tags: ['Configuration - Templates'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: { description: 'Templates retrieved successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        post: {
+          summary: 'Create template',
+          description: 'Creates a new evaluation template.',
+          tags: ['Configuration - Templates'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            201: { description: 'Template created successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/templates/{id}': {
+        get: {
+          summary: 'Get template by ID',
+          description: 'Retrieves details of an evaluation template.',
+          tags: ['Configuration - Templates'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Template retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Template not found' },
+          },
+        },
+        put: {
+          summary: 'Update template',
+          description: 'Updates an evaluation template.',
+          tags: ['Configuration - Templates'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            200: { description: 'Template updated successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Template not found' },
+          },
+        },
+      },
+      '/api/v1/configuration/templates/{id}/activate': {
+        post: {
+          summary: 'Activate template',
+          description: 'Activates an evaluation template.',
+          tags: ['Configuration - Templates'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Template activated successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/templates/{id}/deactivate': {
+        post: {
+          summary: 'Deactivate template',
+          description: 'Deactivates an evaluation template.',
+          tags: ['Configuration - Templates'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Template deactivated successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/templates/{templateId}/versions': {
+        get: {
+          summary: 'List template versions',
+          description: 'Retrieves all versions of an evaluation template.',
+          tags: ['Configuration - Templates'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'templateId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Template versions retrieved successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        post: {
+          summary: 'Create template version',
+          description: 'Creates a new version for an evaluation template.',
+          tags: ['Configuration - Templates'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'templateId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            201: { description: 'Template version created successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/templates/{templateId}/versions/{versionId}': {
+        get: {
+          summary: 'Get template version by ID',
+          description: 'Retrieves details of a specific template version.',
+          tags: ['Configuration - Templates'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'templateId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'versionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Template version retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Version not found' },
+          },
+        },
+        put: {
+          summary: 'Update template version',
+          description: 'Updates a specific template version.',
+          tags: ['Configuration - Templates'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'templateId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'versionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            200: { description: 'Template version updated successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Version not found' },
+          },
+        },
+      },
+      '/api/v1/configuration/templates/{templateId}/versions/{versionId}/validate': {
+        post: {
+          summary: 'Validate template version',
+          description: 'Validates a template version.',
+          tags: ['Configuration - Templates'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'templateId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'versionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Template version validated' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/templates/{templateId}/versions/{versionId}/publish': {
+        post: {
+          summary: 'Publish template version',
+          description: 'Publishes a template version.',
+          tags: ['Configuration - Templates'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'templateId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'versionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Template version published successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/templates/{templateId}/versions/{versionId}/retire': {
+        post: {
+          summary: 'Retire template version',
+          description: 'Retires a template version.',
+          tags: ['Configuration - Templates'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'templateId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'versionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Template version retired successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/templates/{templateId}/versions/{versionId}/clone': {
+        post: {
+          summary: 'Clone template version',
+          description: 'Clones a template version into a new version.',
+          tags: ['Configuration - Templates'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'templateId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'versionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            201: { description: 'Template version cloned successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/templates/{templateId}/versions/{versionId}/snapshot': {
+        get: {
+          summary: 'Get template version snapshot',
+          description: 'Retrieves full frozen snapshot of a template version.',
+          tags: ['Configuration - Templates'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'templateId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'versionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Template snapshot retrieved successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/templates/{templateId}/versions/{fromVersion}/diff/{toVersion}': {
+        get: {
+          summary: 'Diff template versions',
+          description: 'Compares two versions of a template.',
+          tags: ['Configuration - Templates'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'templateId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'fromVersion', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'toVersion', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Diff generated successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/templates/{templateId}/versions/{versionId}/criteria': {
+        get: {
+          summary: 'Get template criteria',
+          description: 'Retrieves criteria assigned to a template version.',
+          tags: ['Configuration - Templates'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'templateId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'versionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Template criteria retrieved successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        post: {
+          summary: 'Add criterion to template version',
+          description: 'Adds a criterion to a template version.',
+          tags: ['Configuration - Templates'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'templateId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'versionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            201: { description: 'Criterion added to template version successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        put: {
+          summary: 'Bulk update template criteria',
+          description: 'Updates multiple criteria bindings in a template version.',
+          tags: ['Configuration - Templates'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'templateId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'versionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            200: { description: 'Template criteria updated successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/templates/{templateId}/versions/{versionId}/criteria/{id}': {
+        delete: {
+          summary: 'Remove criterion from template version',
+          description: 'Removes a criterion from a template version.',
+          tags: ['Configuration - Templates'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'templateId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'versionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Criterion removed from template version' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/role-overrides': {
+        get: {
+          summary: 'List role overrides',
+          description: 'Retrieves all role-level configuration overrides.',
+          tags: ['Configuration - Overrides'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: { description: 'Role overrides retrieved successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        post: {
+          summary: 'Create role override',
+          description: 'Creates a role-level configuration override.',
+          tags: ['Configuration - Overrides'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            201: { description: 'Role override created successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/role-overrides/{id}': {
+        get: {
+          summary: 'Get role override by ID',
+          description: 'Retrieves details of a role override.',
+          tags: ['Configuration - Overrides'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Role override retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Override not found' },
+          },
+        },
+        put: {
+          summary: 'Update role override',
+          description: 'Updates a role override.',
+          tags: ['Configuration - Overrides'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            200: { description: 'Role override updated successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Override not found' },
+          },
+        },
+        delete: {
+          summary: 'Delete role override',
+          description: 'Deletes a role override.',
+          tags: ['Configuration - Overrides'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Role override deleted successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Override not found' },
+          },
+        },
+      },
+      '/api/v1/configuration/team-overrides': {
+        get: {
+          summary: 'List team overrides',
+          description: 'Retrieves all team-level configuration overrides.',
+          tags: ['Configuration - Overrides'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: { description: 'Team overrides retrieved successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        post: {
+          summary: 'Create team override',
+          description: 'Creates a team-level configuration override.',
+          tags: ['Configuration - Overrides'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            201: { description: 'Team override created successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/team-overrides/{id}': {
+        get: {
+          summary: 'Get team override by ID',
+          description: 'Retrieves details of a team override.',
+          tags: ['Configuration - Overrides'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Team override retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Override not found' },
+          },
+        },
+        put: {
+          summary: 'Update team override',
+          description: 'Updates a team override.',
+          tags: ['Configuration - Overrides'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            200: { description: 'Team override updated successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Override not found' },
+          },
+        },
+        delete: {
+          summary: 'Delete team override',
+          description: 'Deletes a team override.',
+          tags: ['Configuration - Overrides'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Team override deleted successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Override not found' },
+          },
+        },
+      },
+      '/api/v1/configuration/template-overrides': {
+        get: {
+          summary: 'List template overrides',
+          description: 'Retrieves all template-level configuration overrides.',
+          tags: ['Configuration - Overrides'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: { description: 'Template overrides retrieved successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        post: {
+          summary: 'Create template override',
+          description: 'Creates a template-level configuration override.',
+          tags: ['Configuration - Overrides'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            201: { description: 'Template override created successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/template-overrides/{id}': {
+        get: {
+          summary: 'Get template override by ID',
+          description: 'Retrieves details of a template override.',
+          tags: ['Configuration - Overrides'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Template override retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Override not found' },
+          },
+        },
+        put: {
+          summary: 'Update template override',
+          description: 'Updates a template override.',
+          tags: ['Configuration - Overrides'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            200: { description: 'Template override updated successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Override not found' },
+          },
+        },
+        delete: {
+          summary: 'Delete template override',
+          description: 'Deletes a template override.',
+          tags: ['Configuration - Overrides'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Template override deleted successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Override not found' },
+          },
+        },
+      },
+      '/api/v1/configuration/effective-configurations/resolve': {
+        post: {
+          summary: 'Resolve effective configuration',
+          description: 'Resolves effective configuration for a target evaluation context.',
+          tags: ['Configuration - Effective Config'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            200: { description: 'Effective configuration resolved successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/effective-configurations/preview': {
+        post: {
+          summary: 'Preview effective configuration',
+          description: 'Previews effective configuration resolution with candidate overrides.',
+          tags: ['Configuration - Effective Config'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            200: { description: 'Effective configuration previewed successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/validate': {
+        post: {
+          summary: 'Validate global configuration',
+          description: 'Validates entire system configuration matrix.',
+          tags: ['Configuration - Effective Config'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: { description: 'Global configuration validation succeeded' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/workflows': {
+        get: {
+          summary: 'List workflows',
+          description: 'Retrieves all evaluation workflow definitions.',
+          tags: ['Configuration - Workflows'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: { description: 'Workflows retrieved successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        post: {
+          summary: 'Create workflow',
+          description: 'Creates a new workflow definition.',
+          tags: ['Configuration - Workflows'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            201: { description: 'Workflow created successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/workflows/{id}': {
+        get: {
+          summary: 'Get workflow by ID',
+          description: 'Retrieves details of a workflow definition.',
+          tags: ['Configuration - Workflows'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Workflow retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Workflow not found' },
+          },
+        },
+        put: {
+          summary: 'Update workflow',
+          description: 'Updates a workflow definition.',
+          tags: ['Configuration - Workflows'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            200: { description: 'Workflow updated successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Workflow not found' },
+          },
+        },
+      },
+      '/api/v1/configuration/workflows/{id}/states': {
+        get: {
+          summary: 'Get workflow states',
+          description: 'Retrieves states for a workflow.',
+          tags: ['Configuration - Workflows'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Workflow states retrieved successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        post: {
+          summary: 'Add workflow state',
+          description: 'Adds a state to a workflow.',
+          tags: ['Configuration - Workflows'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            201: { description: 'Workflow state added successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/workflows/{id}/transitions': {
+        get: {
+          summary: 'Get workflow transitions',
+          description: 'Retrieves state transitions for a workflow.',
+          tags: ['Configuration - Workflows'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Workflow transitions retrieved successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        post: {
+          summary: 'Add workflow transition',
+          description: 'Adds a state transition to a workflow.',
+          tags: ['Configuration - Workflows'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            201: { description: 'Workflow transition added successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/workflows/{id}/validate': {
+        post: {
+          summary: 'Validate workflow',
+          description: 'Validates a workflow structure and graph integrity.',
+          tags: ['Configuration - Workflows'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Workflow validation completed' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/workflows/{id}/publish': {
+        post: {
+          summary: 'Publish workflow',
+          description: 'Publishes a workflow definition.',
+          tags: ['Configuration - Workflows'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Workflow published successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/configuration/audit-logs': {
+        get: {
+          summary: 'List configuration audit logs',
+          description: 'Retrieves audit logs for configuration changes.',
+          tags: ['Configuration - Audit Logs'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'page', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
+            { name: 'page_size', in: 'query', required: false, schema: { type: 'integer', default: 20 } },
+          ],
+          responses: {
+            200: { description: 'Audit logs retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden' },
+          },
+        },
+      },
+      '/api/v1/configuration/audit-logs/{id}': {
+        get: {
+          summary: 'Get audit log by ID',
+          description: 'Retrieves details of a specific configuration audit log.',
+          tags: ['Configuration - Audit Logs'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Audit log retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Audit log not found' },
           },
         },
       },
