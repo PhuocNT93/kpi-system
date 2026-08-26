@@ -9,6 +9,7 @@ export function createAuthRouter(
 
   router.post('/signup', authController.signup);
   router.post('/login', authController.login);
+  router.post('/google', authController.loginWithGoogle);
   router.post('/refresh', authController.refreshToken);
   router.post('/refresh-token', authController.refreshToken);
   router.post('/change-password', jwtAuthMiddleware, authController.changePassword);

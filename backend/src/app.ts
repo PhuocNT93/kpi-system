@@ -14,6 +14,7 @@ import { createJwtAuthMiddleware, JwtConfig } from './shared/auth/index.js';
 import { Pool } from 'pg';
 import {
   AuthController,
+  GoogleIdentityVerifier,
   UserRepository,
 } from './modules/auth/index.js';
 import {
@@ -34,6 +35,7 @@ export interface AppOptions {
   userRoleRepository?: UserRoleRepository;
   rolePermissionRepository?: RolePermissionRepository;
   auditWriter?: AuditWriter;
+  googleIdentityVerifier?: GoogleIdentityVerifier;
 }
 
 export function createApp(options: AppOptions = {}) {
@@ -51,7 +53,7 @@ export function createApp(options: AppOptions = {}) {
     roleService,
     permissionService,
     roleAssignmentService,
-  } = resolveServices(repositories, jwtConfig);
+  } = resolveServices(repositories, jwtConfig, options.googleIdentityVerifier);
 
   const authController = authService ? new AuthController(authService) : (undefined as unknown as AuthController);
   const jwtMiddleware = createJwtAuthMiddleware(jwtConfig);
