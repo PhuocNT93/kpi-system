@@ -17,7 +17,7 @@ export const swaggerOptions: swaggerJsdoc.Options = {
         description: 'Local Development Server',
       },
       {
-        url: '/api',
+        url: '/',
         description: 'Relative API Base',
       },
     ],
