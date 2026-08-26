@@ -27,6 +27,7 @@ import {
 } from './modules/iam/index.js';
 import { createEmployeeModule } from './modules/employee/employee.module.js';
 import { EmployeeController } from './modules/employee/api/employee.controller.js';
+import { createOrganizationModule } from './modules/organization/organization.module.js';
 
 export interface AppOptions {
   userRepository?: UserRepository;
@@ -70,6 +71,9 @@ export function createApp(options: AppOptions = {}) {
   const employeeModule = pool ? createEmployeeModule(pool) : undefined;
   const employeeController = employeeModule?.employeeController ?? new EmployeeController();
 
+  const organizationModule = pool ? createOrganizationModule(pool) : undefined;
+  const organizationController = organizationModule?.organizationController;
+
   // ── Global Middlewares ────────────────────────────────────────────────────
   app.use(requestIdMiddleware);
   app.use(cors());
@@ -97,6 +101,7 @@ export function createApp(options: AppOptions = {}) {
         iamController,
         authorizationService,
         employeeController,
+        organizationController,
       })
     );
   }

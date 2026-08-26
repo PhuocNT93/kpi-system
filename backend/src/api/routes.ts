@@ -6,6 +6,8 @@ import { AuthController, createAuthRouter } from '../modules/auth/index.js';
 import { IamController, createIamRouter, AuthorizationService } from '../modules/iam/index.js';
 import { EmployeeController } from '../modules/employee/api/employee.controller.js';
 import { createEmployeeRouter } from '../modules/employee/api/employee.router.js';
+import { OrganizationController } from '../modules/organization/api/organization.controller.js';
+import { createOrganizationRouter } from '../modules/organization/api/organization.router.js';
 
 export interface RegisterRoutesOptions {
   authController: AuthController;
@@ -13,6 +15,7 @@ export interface RegisterRoutesOptions {
   iamController: IamController;
   authorizationService: AuthorizationService;
   employeeController?: EmployeeController;
+  organizationController?: OrganizationController;
 }
 
 export function createApiRouter(options: RegisterRoutesOptions): Router {
@@ -27,6 +30,11 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
   // ── Employee Module Routes ────────────────────────────────────────────────
   if (options.employeeController) {
     router.use('/', createEmployeeRouter(options.employeeController, options.jwtMiddleware));
+  }
+
+  // ── Organization Module Routes ────────────────────────────────────────────
+  if (options.organizationController) {
+    router.use('/org', createOrganizationRouter(options.organizationController, options.jwtMiddleware));
   }
 
   // ── Sample: single-resource response ──────────────────────────────────────
@@ -48,12 +56,12 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
   });
 
   // ── Sample: AppError thrown inside a route ────────────────────────────────
-  router.get('/sample/error', (_req, _res) => {
+  router.get('/sample/error', () => {
     throw new NotFound('Sample resource');
   });
 
   // ── Sample: validation error with field details ───────────────────────────
-  router.get('/sample/validation-error', (_req, _res) => {
+  router.get('/sample/validation-error', () => {
     throw new ValidationError('Request validation failed.', [
       { field: 'name', code: 'REQUIRED', message: 'name is required.' },
       { field: 'page_size', code: 'OUT_OF_RANGE', message: 'page_size must be between 1 and 100.' },

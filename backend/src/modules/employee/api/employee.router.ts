@@ -30,39 +30,7 @@ export function createEmployeeRouter(
   router.get('/employees/:employeeId/direct-reports', (req, res, next) => { employeeController.getDirectReports(req, res).catch(next); });
   router.get('/employees/:employeeId/manager-chain', (req, res, next) => { employeeController.getManagerChain(req, res).catch(next); });
 
-  // ── Department Routes ──────────────────────────────────────────────────────
-  router.get('/departments', (req, res, next) => { employeeController.getDepartments(req, res).catch(next); });
-  router.post('/departments', (req, res, next) => { employeeController.createDepartment(req, res).catch(next); });
-  
-  router.get('/departments/:departmentId', (req, res, next) => { employeeController.getDepartmentById(req, res).catch(next); });
-  router.patch('/departments/:departmentId', (req, res, next) => { employeeController.updateDepartment(req, res).catch(next); });
-  router.post('/departments/:departmentId/deactivate', (req, res, next) => { employeeController.deactivateDepartment(req, res).catch(next); });
-  
-  router.get('/departments/:departmentId/teams', (req, res, next) => { employeeController.getDepartmentTeams(req, res).catch(next); });
 
-  // ── Team Routes ────────────────────────────────────────────────────────────
-  router.get('/teams', (req, res, next) => { employeeController.getTeams(req, res).catch(next); });
-  router.post('/teams', (req, res, next) => { employeeController.createTeam(req, res).catch(next); });
-  
-  router.get('/teams/:teamId', (req, res, next) => { employeeController.getTeamById(req, res).catch(next); });
-  router.patch('/teams/:teamId', (req, res, next) => { employeeController.updateTeam(req, res).catch(next); });
-  router.post('/teams/:teamId/deactivate', (req, res, next) => { employeeController.deactivateTeam(req, res).catch(next); });
-
-  // ── Role Routes ────────────────────────────────────────────────────────────
-  router.get('/roles', (req, res, next) => { employeeController.getRoles(req, res).catch(next); });
-  router.post('/roles', (req, res, next) => { employeeController.createRole(req, res).catch(next); });
-  
-  router.get('/roles/:roleId', (req, res, next) => { employeeController.getRoleById(req, res).catch(next); });
-  router.patch('/roles/:roleId', (req, res, next) => { employeeController.updateRole(req, res).catch(next); });
-  router.post('/roles/:roleId/deactivate', (req, res, next) => { employeeController.deactivateRole(req, res).catch(next); });
-
-  // ── Job Level Routes ───────────────────────────────────────────────────────
-  router.get('/job-levels', (req, res, next) => { employeeController.getJobLevels(req, res).catch(next); });
-  router.post('/job-levels', (req, res, next) => { employeeController.createJobLevel(req, res).catch(next); });
-  
-  router.get('/job-levels/:jobLevelId', (req, res, next) => { employeeController.getJobLevelById(req, res).catch(next); });
-  router.patch('/job-levels/:jobLevelId', (req, res, next) => { employeeController.updateJobLevel(req, res).catch(next); });
-  router.post('/job-levels/:jobLevelId/deactivate', (req, res, next) => { employeeController.deactivateJobLevel(req, res).catch(next); });
 
   // ── Employee Import Routes ─────────────────────────────────────────────────
   router.get('/employee-imports/templates/:version/download', (req, res, next) => { employeeController.downloadImportTemplate(req, res).catch(next); });
