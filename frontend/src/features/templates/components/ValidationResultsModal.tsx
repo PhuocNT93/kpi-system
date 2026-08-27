@@ -1,5 +1,4 @@
-import React from 'react';
-import type { TemplateValidationResult, ValidationErrorItem } from '../domain/template-models';
+import type { TemplateValidationResult } from '../domain/template-models';
 import { Button } from '../../../shared/ui/Button/Button';
 
 interface ValidationResultsModalProps {

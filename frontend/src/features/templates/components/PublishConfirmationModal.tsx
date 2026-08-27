@@ -1,4 +1,3 @@
-import React from 'react';
 import type { EvaluationTemplateVersion } from '../domain/template-models';
 import { Button } from '../../../shared/ui/Button/Button';
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { TemplateCriterion, EvaluationLevel, ScoringRule } from '../domain/template-models';
 import { ApplicabilityEditor } from './ApplicabilityEditor';
 import { LevelEditor } from './LevelEditor';

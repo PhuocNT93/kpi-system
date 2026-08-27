@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { TemplateCriterion, VersionDiffItem } from '../domain/template-models';
 import { compareTemplateVersions } from '../domain/template-mappers';
 import { Button } from '../../../shared/ui/Button/Button';

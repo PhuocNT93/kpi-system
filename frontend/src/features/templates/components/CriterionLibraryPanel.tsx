@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { Criterion } from '../domain/template-models';
 import { Button } from '../../../shared/ui/Button/Button';
 
