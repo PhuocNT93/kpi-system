@@ -37,6 +37,25 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
       ('LVL-SR', 'Senior', 3, true)
     ON CONFLICT (code) DO NOTHING;
   `);
+
+  // Insert Teams (Dummy Data)
+  pgm.sql(`
+    INSERT INTO team (code, name, description, department_id, active)
+    VALUES 
+      ('TEAM-FE', 'Frontend Team', 'React specialists', (SELECT department_id FROM department WHERE code = 'DEPT-ENG'), true),
+      ('TEAM-BE', 'Backend Team', 'Node specialists', (SELECT department_id FROM department WHERE code = 'DEPT-ENG'), true)
+    ON CONFLICT (code) DO NOTHING;
+  `);
+
+  // Insert Employees (Dummy Data)
+  pgm.sql(`
+    INSERT INTO employee (employee_code, full_name, email, department_id, role_id, job_level_id, employment_status, join_date)
+    VALUES 
+      ('EMP-001', 'John Doe', 'john@kpi.com', (SELECT department_id FROM department WHERE code = 'DEPT-ENG'), (SELECT role_id FROM role WHERE code = 'ROLE-SWE'), (SELECT job_level_id FROM job_level WHERE code = 'LVL-SR'), 'ACTIVE', '2024-01-01'),
+      ('EMP-002', 'Jane Smith', 'jane@kpi.com', (SELECT department_id FROM department WHERE code = 'DEPT-HR'), (SELECT role_id FROM role WHERE code = 'ROLE-HR'), (SELECT job_level_id FROM job_level WHERE code = 'LVL-MID'), 'ACTIVE', '2024-03-15'),
+      ('EMP-003', 'Bob Johnson', 'bob@kpi.com', (SELECT department_id FROM department WHERE code = 'DEPT-ENG'), (SELECT role_id FROM role WHERE code = 'ROLE-PM'), (SELECT job_level_id FROM job_level WHERE code = 'LVL-JR'), 'ACTIVE', '2024-06-01')
+    ON CONFLICT (employee_code) DO NOTHING;
+  `);
 }
 
 export async function down(pgm: MigrationBuilder): Promise<void> {
