@@ -6,15 +6,18 @@ import { useCreateEmployee, useUpdateEmployee } from '../hooks/useEmployees';
 import { ErrorAlert } from '../../../shared/components/ui';
 import { Button } from '../../../shared/ui/Button/Button';
 import type { OrgEmployee } from '../domain/organization-models';
+import { useDepartments } from '../hooks/useDepartments';
+import { useJobRoles } from '../hooks/useJobRoles';
+import { useJobLevels } from '../hooks/useJobLevels';
 
 const createSchema = z.object({
   employee_code: z.string().optional(),
   full_name: z.string().min(1, 'Name is required').max(100),
   email: z.string().email('Invalid email address').optional().or(z.literal('')),
-  department_id: z.string().optional(),
+  department_id: z.string().min(1, 'Department is required'),
   team_id: z.string().optional(),
-  role_id: z.string().optional(),
-  job_level_id: z.string().optional(),
+  role_id: z.string().min(1, 'Job Role is required'),
+  job_level_id: z.string().min(1, 'Job Level is required'),
   manager_id: z.string().optional(),
   employment_status: z.string().optional(),
 });
@@ -22,10 +25,10 @@ const createSchema = z.object({
 const updateSchema = z.object({
   full_name: z.string().min(1, 'Name is required').max(100),
   email: z.string().email('Invalid email address').optional().or(z.literal('')),
-  department_id: z.string().optional(),
+  department_id: z.string().min(1, 'Department is required'),
   team_id: z.string().optional(),
-  role_id: z.string().optional(),
-  job_level_id: z.string().optional(),
+  role_id: z.string().min(1, 'Job Role is required'),
+  job_level_id: z.string().min(1, 'Job Level is required'),
   manager_id: z.string().optional(),
   employment_status: z.string().optional(),
 });
@@ -43,6 +46,10 @@ export function EmployeeFormModal({ isOpen, employee, onClose }: EmployeeFormMod
   const isEditMode = employee !== undefined;
   const createMutation = useCreateEmployee();
   const updateMutation = useUpdateEmployee();
+  
+  const { data: departments } = useDepartments();
+  const { data: roles } = useJobRoles();
+  const { data: levels } = useJobLevels();
 
   const isPending = createMutation.isPending || updateMutation.isPending;
   const mutationError = createMutation.error ?? updateMutation.error;
@@ -222,6 +229,69 @@ export function EmployeeFormModal({ isOpen, employee, onClose }: EmployeeFormMod
                 <option value="ON_LEAVE">ON_LEAVE</option>
                 <option value="TERMINATED">TERMINATED</option>
               </select>
+            </div>
+
+            <div>
+              <label htmlFor="emp-dept" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
+                Department
+              </label>
+              <select 
+                id="emp-dept" 
+                {...register('department_id')} 
+                style={{ display: 'block', width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
+              >
+                <option value="">-- Select Department --</option>
+                {departments?.map(d => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+              {(errors as Record<string, { message?: string }>).department_id && (
+                <span role="alert" style={{ color: '#dc2626', fontSize: '0.875rem', marginTop: '0.25rem', display: 'block' }}>
+                  {(errors as Record<string, { message?: string }>).department_id?.message}
+                </span>
+              )}
+            </div>
+
+            <div>
+              <label htmlFor="emp-role" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
+                Job Role
+              </label>
+              <select 
+                id="emp-role" 
+                {...register('role_id')} 
+                style={{ display: 'block', width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
+              >
+                <option value="">-- Select Role --</option>
+                {roles?.map(r => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
+              {(errors as Record<string, { message?: string }>).role_id && (
+                <span role="alert" style={{ color: '#dc2626', fontSize: '0.875rem', marginTop: '0.25rem', display: 'block' }}>
+                  {(errors as Record<string, { message?: string }>).role_id?.message}
+                </span>
+              )}
+            </div>
+
+            <div>
+              <label htmlFor="emp-level" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
+                Job Level
+              </label>
+              <select 
+                id="emp-level" 
+                {...register('job_level_id')} 
+                style={{ display: 'block', width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
+              >
+                <option value="">-- Select Level --</option>
+                {levels?.map(l => (
+                  <option key={l.id} value={l.id}>{l.name}</option>
+                ))}
+              </select>
+              {(errors as Record<string, { message?: string }>).job_level_id && (
+                <span role="alert" style={{ color: '#dc2626', fontSize: '0.875rem', marginTop: '0.25rem', display: 'block' }}>
+                  {(errors as Record<string, { message?: string }>).job_level_id?.message}
+                </span>
+              )}
             </div>
           </div>
 
