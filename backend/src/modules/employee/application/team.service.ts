@@ -30,39 +30,7 @@ import {
   EmployeeRepository,
 } from '../domain/employee.repository.js';
 
-// ── Audit ────────────────────────────────────────────────────────────────────
-
-async function writeAudit(
-  client: PoolClient,
-  params: {
-    entityType: string;
-    entityId: string;
-    action: string;
-    fieldName?: string | null;
-    oldValue?: string | null;
-    newValue?: string | null;
-    reason?: string | null;
-    performedBy: string | null;
-  }
-): Promise<void> {
-  // Skip audit if no actor employee is linked (SYSTEM_ADMIN without employee row)
-  if (!params.performedBy) return;
-
-  await client.query(
-    `INSERT INTO audit_log (entity_type, entity_id, action, field_name, old_value, new_value, reason, performed_by, source)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'API')`,
-    [
-      params.entityType,
-      params.entityId,
-      params.action,
-      params.fieldName ?? null,
-      params.oldValue ?? null,
-      params.newValue ?? null,
-      params.reason ?? null,
-      params.performedBy,
-    ]
-  );
-}
+import { AuditService } from '../../audit/application/audit.service.js';
 
 // ── Guard helpers ────────────────────────────────────────────────────────────
 
@@ -87,7 +55,8 @@ export class TeamService {
   constructor(
     private teamRepo: TeamRepository,
     private employeeRepo: EmployeeRepository,
-    private pool: Pool
+    private pool: Pool,
+    private auditService: AuditService
   ) {}
 
   // ── List ─────────────────────────────────────────────────────────────────
@@ -169,13 +138,15 @@ export class TeamService {
         client
       );
 
-      await writeAudit(client, {
-        entityType: 'team',
-        entityId: team.teamId,
-        action: 'TEAM_CREATED',
-        newValue: JSON.stringify({ code: team.code, name: team.name, department_id: team.departmentId }),
-        performedBy: actor.employeeId ?? null,
-      });
+      if (actor.employeeId) {
+        await this.auditService.record(client, {
+          entityType: 'TEAM',
+          entityId: team.teamId,
+          action: 'TEAM_CREATED',
+          newValue: JSON.stringify({ code: team.code, name: team.name, department_id: team.departmentId }),
+          performedBy: actor.employeeId,
+        });
+      }
 
       await client.query('COMMIT');
       return team;
@@ -223,16 +194,18 @@ export class TeamService {
         changedFields.push({ field: 'description', old: existing.description ?? null, new: updated.description ?? null });
       }
 
-      for (const field of changedFields) {
-        await writeAudit(client, {
-          entityType: 'team',
-          entityId: teamId,
-          action: 'TEAM_UPDATED',
-          fieldName: field.field,
-          oldValue: field.old,
-          newValue: field.new,
-          performedBy: actor.employeeId ?? null,
-        });
+      if (actor.employeeId) {
+        for (const field of changedFields) {
+          await this.auditService.record(client, {
+            entityType: 'TEAM',
+            entityId: teamId,
+            action: 'TEAM_UPDATED',
+            fieldName: field.field,
+            oldValue: field.old,
+            newValue: field.new,
+            performedBy: actor.employeeId,
+          });
+        }
       }
 
       await client.query('COMMIT');
@@ -270,14 +243,16 @@ export class TeamService {
 
       const updated = await this.teamRepo.update(teamId, { active: false }, actor.employeeId ?? null, client);
 
-      await writeAudit(client, {
-        entityType: 'team',
-        entityId: teamId,
-        action: 'TEAM_DEACTIVATED',
-        oldValue: 'true',
-        newValue: 'false',
-        performedBy: actor.employeeId ?? null,
-      });
+      if (actor.employeeId) {
+        await this.auditService.record(client, {
+          entityType: 'TEAM',
+          entityId: teamId,
+          action: 'TEAM_DEACTIVATED',
+          oldValue: 'true',
+          newValue: 'false',
+          performedBy: actor.employeeId,
+        });
+      }
 
       await client.query('COMMIT');
       return updated;

@@ -1,5 +1,5 @@
 export interface TransactionClient {
-  query(queryText: string): Promise<unknown>;
+  query(queryText: string, values?: any[]): Promise<unknown>;
   release(): void;
 }
 
