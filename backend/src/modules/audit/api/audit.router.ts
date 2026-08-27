@@ -26,7 +26,9 @@ export function createAuditRouter(
     next();
   };
 
-  router.get('/audit-logs', requireAdmin, auditController.getLogs);
+  router.get('/audit-logs', requireAdmin, (req, res, next) => {
+    auditController.getLogs(req, res).catch(next);
+  });
 
   return router;
 }
