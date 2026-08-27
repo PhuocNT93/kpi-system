@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAuth } from '@/shared/auth/AuthContext';
 import {
   LayoutDashboard,
   Users,
@@ -48,6 +49,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [toggleHovered, setToggleHovered] = useState(false);
   const [isCollapsedUncontrolled, setIsCollapsedUncontrolled] = useState(defaultCollapsed);
+  const { user } = useAuth();
+  
+  const canViewConfig = user?.role === 'SYSTEM_ADMIN' || user?.role === 'HR_ADMIN';
 
   const isCollapsed = collapsed !== undefined ? collapsed : isCollapsedUncontrolled;
 
@@ -69,12 +73,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }
       ]
     },
-    {
+    ...(canViewConfig ? [{
       title: 'Configuration',
       items: [
         {
-          id: 'employees',
-          label: 'Employees',
+          id: 'organization',
+          label: 'Organization',
           icon: <Users size={18} />
         },
         {
@@ -108,7 +112,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: <ShieldCheck size={18} />
         }
       ]
-    },
+    }] : []),
     {
       title: 'Performance',
       items: [
