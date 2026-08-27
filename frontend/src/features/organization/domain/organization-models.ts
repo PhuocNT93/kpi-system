@@ -25,3 +25,41 @@ export interface OrgDepartment {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface OrgJobRole {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface OrgJobLevel {
+  id: string;
+  code: string;
+  name: string;
+  rank: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface OrgEmployee {
+  id: string;
+  employeeCode: string;
+  fullName: string;
+  email: string;
+  departmentId: string | null;
+  teamId: string | null;
+  roleId: string;
+  jobLevelId: string;
+  managerId: string | null;
+  employmentStatus: string;
+  joinDate: string;
+  terminationDate: string | null;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+}

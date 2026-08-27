@@ -13,6 +13,11 @@ import {
 } from './features/iam/pages/IamPage';
 import { TeamsPage } from './features/organization/pages/TeamsPage';
 import { EvaluationTemplatesPage } from './features/templates/pages/EvaluationTemplatesPage';
+import { OrganizationPage } from './features/organization/pages/OrganizationPage';
+import { DepartmentsPage } from './features/organization/pages/DepartmentsPage';
+import { OrgRolesPage } from './features/organization/pages/OrgRolesPage';
+import { JobLevelsPage } from './features/organization/pages/JobLevelsPage';
+import { EmployeesPage } from './features/organization/pages/EmployeesPage';
 import { AppLayout } from '@/shared/layout';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
@@ -102,12 +107,16 @@ export default function App() {
                 <Route path="permissions" element={<PermissionsPage />} />
               </Route>
               <Route path="/admin/organization" element={
-                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
-                  <Outlet />
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
+                  <OrganizationPage />
                 </ProtectedRoute>
               }>
-                <Route index element={<Navigate to="teams" replace />} />
+                <Route index element={<Navigate to="departments" replace />} />
+                <Route path="departments" element={<DepartmentsPage />} />
                 <Route path="teams" element={<TeamsPage />} />
+                <Route path="roles" element={<OrgRolesPage />} />
+                <Route path="levels" element={<JobLevelsPage />} />
+                <Route path="employees" element={<EmployeesPage />} />
               </Route>
               <Route path="/admin/templates" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
