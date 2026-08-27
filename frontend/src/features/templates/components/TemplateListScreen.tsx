@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { EvaluationTemplate } from '../domain/template-models';
 import { StatusBadge, LoadingSpinner, ErrorAlert } from '../../../shared/components/ui';
 import { Button } from '../../../shared/ui/Button/Button';

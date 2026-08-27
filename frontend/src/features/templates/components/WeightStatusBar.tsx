@@ -1,5 +1,3 @@
-import React from 'react';
-
 interface WeightStatusBarProps {
   totalWeight: number;
   hasConditionalApplicability?: boolean;

@@ -1,4 +1,3 @@
-import React from 'react';
 import type { TemplateCriterion } from '../domain/template-models';
 import { ProvenancePopover } from './ProvenancePopover';
 import { Button } from '../../../shared/ui/Button/Button';
@@ -17,7 +16,6 @@ export function SelectedCriteriaCanvas({
   onWeightChange,
   onRemoveCriterion,
   onConfigureClick,
-  onReorder,
   isReadOnly = false,
 }: SelectedCriteriaCanvasProps) {
   if (criteria.length === 0) {

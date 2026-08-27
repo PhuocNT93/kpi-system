@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { CriterionProvenance } from '../domain/template-models';
 
 interface ProvenancePopoverProps {
@@ -9,7 +9,6 @@ interface ProvenancePopoverProps {
 
 export function ProvenancePopover({
   provenance,
-  criterionName,
   configuredWeight,
 }: ProvenancePopoverProps) {
   const [isOpen, setIsOpen] = useState(false);

@@ -1,6 +1,4 @@
-import React from 'react';
 import type { RuleType, ScoringRule } from '../domain/template-models';
-import { Button } from '../../../shared/ui/Button/Button';
 
 interface ScoringRuleEditorsProps {
   rule?: ScoringRule;
@@ -278,8 +276,6 @@ function InverseThresholdEditor({
 // ── 3. CountThresholdEditor ──────────────────────────────────────────────────
 function CountThresholdEditor({
   config,
-  onChange,
-  isReadOnly,
 }: {
   config: { counts?: { minCount: number; maxCount: number | null; levelName: string }[] };
   onChange: (cfg: any) => void;
@@ -344,8 +340,6 @@ function OrdinalManualEditor({
 // ── 5. RoleConditionalEditor ─────────────────────────────────────────────────
 function RoleConditionalEditor({
   config,
-  onChange,
-  isReadOnly,
 }: {
   config: { branches?: { roleId: string; roleName: string; ruleType: string }[] };
   onChange: (cfg: any) => void;
