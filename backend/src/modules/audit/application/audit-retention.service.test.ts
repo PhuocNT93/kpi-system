@@ -22,6 +22,7 @@ describe('AuditRetentionService', () => {
     auditRepo = {
       insert: vi.fn(),
       deleteOlderThan: vi.fn(),
+      findMany: vi.fn(),
     };
 
     service = new AuditRetentionService(mockPool, auditRepo);

@@ -11,6 +11,7 @@ import {
   RolesPage,
   PermissionsPage,
 } from './features/iam/pages/IamPage';
+import { AuditLogPage } from './features/audit/pages/AuditLogPage';
 import { TeamsPage } from './features/organization/pages/TeamsPage';
 import { OrganizationPage } from './features/organization/pages/OrganizationPage';
 import { DepartmentsPage } from './features/organization/pages/DepartmentsPage';
@@ -105,6 +106,12 @@ export default function App() {
                 <Route path="roles" element={<RolesPage />} />
                 <Route path="permissions" element={<PermissionsPage />} />
               </Route>
+
+              <Route path="/admin/audit-logs" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
+                  <AuditLogPage />
+                </ProtectedRoute>
+              } />
               <Route path="/admin/organization" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
                   <OrganizationPage />

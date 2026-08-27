@@ -1,5 +1,5 @@
 import { TransactionClient } from '../../../shared/database/transaction.js';
-import { AuditRecordParams } from './audit.domain.js';
+import { AuditRecordParams, AuditLogQuery, PaginatedAuditLogs } from './audit.domain.js';
 
 export interface AuditRepository {
   /**
@@ -16,4 +16,9 @@ export interface AuditRepository {
    * Returns the number of rows deleted.
    */
   deleteOlderThan(cutoffDate: Date, batchSize: number, client: TransactionClient): Promise<number>;
+  
+  /**
+   * Retrieve paginated audit logs based on filters.
+   */
+  findMany(filters: AuditLogQuery): Promise<PaginatedAuditLogs>;
 }
