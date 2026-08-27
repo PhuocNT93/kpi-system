@@ -1,5 +1,5 @@
 import { TransactionClient } from '../../../shared/database/transaction.js';
-import { AuditRecordParams, AuditRecordParamsSchema } from '../domain/audit.domain.js';
+import { AuditRecordParams, AuditRecordParamsSchema, AuditLogQuery, AuditLogQuerySchema, PaginatedAuditLogs } from '../domain/audit.domain.js';
 import { AuditRepository } from '../domain/audit.repository.js';
 
 export class AuditService {
@@ -17,5 +17,10 @@ export class AuditService {
     
     // Explicitly pass the transaction client so it operates in the exact same transaction
     await this.auditRepo.insert(validParams, tx);
+  }
+
+  async getLogs(filters: unknown): Promise<PaginatedAuditLogs> {
+    const validFilters = AuditLogQuerySchema.parse(filters);
+    return this.auditRepo.findMany(validFilters);
   }
 }

@@ -110,6 +110,7 @@ export function createApp(options: AppOptions = {}) {
         employeeController,
         organizationController,
         configurationController,
+        auditController: auditModule?.auditController,
       })
     );
   }

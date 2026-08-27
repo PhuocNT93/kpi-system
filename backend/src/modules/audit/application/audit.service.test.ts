@@ -13,6 +13,7 @@ describe('AuditService', () => {
     auditRepo = {
       insert: vi.fn(),
       deleteOlderThan: vi.fn(),
+      findMany: vi.fn(),
     };
     auditService = new AuditService(auditRepo);
     mockTx = {
