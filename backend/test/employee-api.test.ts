@@ -69,7 +69,12 @@ describe('Employee API Routes (MVP Scaffolding)', () => {
       const res = await request(app)
         .post('/api/employees')
         .set(headers())
-        .send({ dummy: 'data' });
+        .send({ 
+          dummy: 'data',
+          department_id: 'dept-123',
+          role_id: 'role-123',
+          job_level_id: 'lvl-123'
+        });
       expect(res.status).toBe(201);
       expect(res.body.success).toBe(true);
     });

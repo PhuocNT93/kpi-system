@@ -63,8 +63,11 @@ export class EmployeeController {
     const empCode = employee_code || req.body?.code || `EMP-${Date.now()}`;
     const fullName = full_name || req.body?.name || 'New Employee';
     const empEmail = email || `emp-${Date.now()}@example.com`;
-    const roleId = role_id || 'default-role';
-    const jobLevelId = job_level_id || 'default-level';
+    
+    if (!role_id) throw new BadRequest('Role ID is required');
+    if (!job_level_id) throw new BadRequest('Job Level ID is required');
+    if (!department_id) throw new BadRequest('Department ID is required');
+
     const joinDate = join_date || new Date().toISOString().slice(0, 10);
 
     if (this.employeeRepo && this.hasDb()) {
@@ -79,8 +82,8 @@ export class EmployeeController {
         email: empEmail,
         departmentId: department_id || null,
         teamId: team_id || null,
-        roleId: roleId,
-        jobLevelId: jobLevelId,
+        roleId: role_id,
+        jobLevelId: job_level_id,
         managerId: manager_id || null,
         employmentStatus: employment_status || EmploymentStatus.ACTIVE,
         joinDate: joinDate,
@@ -91,8 +94,8 @@ export class EmployeeController {
           employeeId: created.employeeId,
           departmentId: department_id,
           teamId: team_id,
-          roleId: roleId,
-          jobLevelId: jobLevelId,
+          roleId: role_id,
+          jobLevelId: job_level_id,
           managerId: manager_id || null,
           effectiveFrom: joinDate,
           effectiveTo: null,
