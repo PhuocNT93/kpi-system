@@ -67,6 +67,16 @@ export async function seedIamData(
     // audit
     { code: 'audit:read', resource: 'audit', action: 'read', description: 'Read audit logs' },
 
+    // configuration
+    { code: 'CONFIGURATION_READ', resource: 'configuration', action: 'read', description: 'View configuration entities' },
+    { code: 'CONFIGURATION_CREATE', resource: 'configuration', action: 'create', description: 'Create configuration entities' },
+    { code: 'CONFIGURATION_UPDATE', resource: 'configuration', action: 'update', description: 'Update configuration entities' },
+    { code: 'CONFIGURATION_VALIDATE', resource: 'configuration', action: 'validate', description: 'Validate configuration entities' },
+    { code: 'CONFIGURATION_PUBLISH', resource: 'configuration', action: 'publish', description: 'Publish configuration entities' },
+    { code: 'CONFIGURATION_RETIRE', resource: 'configuration', action: 'retire', description: 'Retire configuration entities' },
+    { code: 'CONFIGURATION_OVERRIDE', resource: 'configuration', action: 'override', description: 'Manage configuration overrides' },
+    { code: 'CONFIGURATION_AUDIT_READ', resource: 'configuration', action: 'audit_read', description: 'View configuration audit logs' },
+
     // user & iam
     { code: 'user:read', resource: 'user', action: 'read', description: 'Read users' },
     { code: 'user:create', resource: 'user', action: 'create', description: 'Create user' },
@@ -178,18 +188,21 @@ export async function seedIamData(
     { roleCode: 'HR_ADMIN', permCode: 'calibration:finalize', scope: 'ORGANIZATION' },
     { roleCode: 'HR_ADMIN', permCode: 'report:organization', scope: 'ORGANIZATION' },
     { roleCode: 'HR_ADMIN', permCode: 'audit:read', scope: 'ORGANIZATION' },
+    { roleCode: 'HR_ADMIN', permCode: 'CONFIGURATION_READ', scope: 'ORGANIZATION' },
+    { roleCode: 'HR_ADMIN', permCode: 'CONFIGURATION_CREATE', scope: 'ORGANIZATION' },
+    { roleCode: 'HR_ADMIN', permCode: 'CONFIGURATION_UPDATE', scope: 'ORGANIZATION' },
+    { roleCode: 'HR_ADMIN', permCode: 'CONFIGURATION_VALIDATE', scope: 'ORGANIZATION' },
+    { roleCode: 'HR_ADMIN', permCode: 'CONFIGURATION_PUBLISH', scope: 'ORGANIZATION' },
+    { roleCode: 'HR_ADMIN', permCode: 'CONFIGURATION_RETIRE', scope: 'ORGANIZATION' },
+    { roleCode: 'HR_ADMIN', permCode: 'CONFIGURATION_OVERRIDE', scope: 'ORGANIZATION' },
+    { roleCode: 'HR_ADMIN', permCode: 'CONFIGURATION_AUDIT_READ', scope: 'ORGANIZATION' },
 
-    // SYSTEM_ADMIN
-    { roleCode: 'SYSTEM_ADMIN', permCode: 'user:read', scope: 'SYSTEM' },
-    { roleCode: 'SYSTEM_ADMIN', permCode: 'user:create', scope: 'SYSTEM' },
-    { roleCode: 'SYSTEM_ADMIN', permCode: 'user:update', scope: 'SYSTEM' },
-    { roleCode: 'SYSTEM_ADMIN', permCode: 'user:assign_role', scope: 'SYSTEM' },
-    { roleCode: 'SYSTEM_ADMIN', permCode: 'role:read', scope: 'SYSTEM' },
-    { roleCode: 'SYSTEM_ADMIN', permCode: 'role:create', scope: 'SYSTEM' },
-    { roleCode: 'SYSTEM_ADMIN', permCode: 'role:update', scope: 'SYSTEM' },
-    { roleCode: 'SYSTEM_ADMIN', permCode: 'role:assign_permission', scope: 'SYSTEM' },
-    { roleCode: 'SYSTEM_ADMIN', permCode: 'permission:read', scope: 'SYSTEM' },
-    { roleCode: 'SYSTEM_ADMIN', permCode: 'audit:read', scope: 'SYSTEM' },
+    // SYSTEM_ADMIN (gets all permissions with SYSTEM scope)
+    ...permissionsData.map((p) => ({
+      roleCode: 'SYSTEM_ADMIN',
+      permCode: p.code,
+      scope: 'SYSTEM' as AuthorizationScope,
+    })),
   ];
 
   for (const assign of rolePermAssignments) {

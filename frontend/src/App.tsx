@@ -12,6 +12,7 @@ import {
   PermissionsPage,
 } from './features/iam/pages/IamPage';
 import { TeamsPage } from './features/organization/pages/TeamsPage';
+import { EvaluationTemplatesPage } from './features/templates/pages/EvaluationTemplatesPage';
 import { AppLayout } from '@/shared/layout';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
@@ -108,6 +109,11 @@ export default function App() {
                 <Route index element={<Navigate to="teams" replace />} />
                 <Route path="teams" element={<TeamsPage />} />
               </Route>
+              <Route path="/admin/templates" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
+                  <EvaluationTemplatesPage />
+                </ProtectedRoute>
+              } />
               <Route path="/draft" element={
                 <div
                   style={{
