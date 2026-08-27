@@ -19,8 +19,16 @@ export class AuditService {
     await this.auditRepo.insert(validParams, tx);
   }
 
-  async getLogs(filters: unknown): Promise<PaginatedAuditLogs> {
-    const validFilters = AuditLogQuerySchema.parse(filters);
-    return this.auditRepo.findMany(validFilters);
+  async getLogs(query: Record<string, any>): Promise<PaginatedAuditLogs> {
+    try {
+      const validated = AuditLogQuerySchema.parse(query);
+      return await this.auditRepo.findMany(validated);
+    } catch (error: any) {
+      if (error?.name === 'ZodError') {
+        const { BadRequest } = await import('../../../api/app-error.js');
+        throw new BadRequest('Invalid query parameters for audit logs');
+      }
+      throw error;
+    }
   }
 }
