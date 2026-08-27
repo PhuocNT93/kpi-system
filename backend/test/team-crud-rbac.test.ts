@@ -148,7 +148,7 @@ describe('TeamService — CRUD RBAC', () => {
     teamRepo = new InMemoryTeamRepository();
     employeeRepo = new InMemoryEmployeeRepository();
     pool = buildMockPool({ active: true });
-    svc = new TeamService(teamRepo, employeeRepo as any, pool);
+    svc = new TeamService(teamRepo, employeeRepo as any, pool, { record: vi.fn() } as any);
   });
 
   // ── CREATE ──────────────────────────────────────────────────────────────

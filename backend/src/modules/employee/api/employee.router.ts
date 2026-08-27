@@ -31,6 +31,12 @@ export function createEmployeeRouter(
   router.get('/employees/:employeeId/manager-chain', (req, res, next) => { employeeController.getManagerChain(req, res).catch(next); });
 
 
+  // ── Team Routes ────────────────────────────────────────────────────────────
+  router.get('/teams', (req, res, next) => { employeeController.getTeams(req, res).catch(next); });
+  router.post('/teams', (req, res, next) => { employeeController.createTeam(req, res).catch(next); });
+  router.get('/teams/:teamId', (req, res, next) => { employeeController.getTeamById(req, res).catch(next); });
+  router.patch('/teams/:teamId', (req, res, next) => { employeeController.updateTeam(req, res).catch(next); });
+  router.post('/teams/:teamId/deactivate', (req, res, next) => { employeeController.deactivateTeam(req, res).catch(next); });
 
   // ── Employee Import Routes ─────────────────────────────────────────────────
   router.get('/employee-imports/templates/:version/download', (req, res, next) => { employeeController.downloadImportTemplate(req, res).catch(next); });

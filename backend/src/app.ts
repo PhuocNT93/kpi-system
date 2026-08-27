@@ -29,6 +29,7 @@ import { createEmployeeModule } from './modules/employee/employee.module.js';
 import { EmployeeController } from './modules/employee/api/employee.controller.js';
 import { createOrganizationModule } from './modules/organization/organization.module.js';
 import { createConfigurationModule } from './modules/configuration/configuration.module.js';
+import { createAuditModule } from './modules/audit/audit.module.js';
 
 export interface AppOptions {
   userRepository?: UserRepository;
@@ -69,7 +70,9 @@ export function createApp(options: AppOptions = {}) {
     repositories.userRepository!
   );
 
-  const employeeModule = pool ? createEmployeeModule(pool) : undefined;
+  const auditModule = pool ? createAuditModule(pool) : undefined;
+
+  const employeeModule = pool && auditModule ? createEmployeeModule(pool, auditModule.auditService) : undefined;
   const employeeController = employeeModule?.employeeController ?? new EmployeeController();
 
   const organizationModule = pool ? createOrganizationModule(pool) : undefined;
