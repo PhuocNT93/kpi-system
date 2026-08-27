@@ -2,15 +2,34 @@ import type { ApiEnvelope } from './api-types';
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
 
-// Token storage — memory-only, not localStorage (no PII in browser storage)
+const TOKEN_STORAGE_KEY = 'kpi_auth_token';
+
+// Token storage — in-memory with localStorage fallback
 let _accessToken: string | null = null;
 
 export function setAccessToken(token: string | null): void {
   _accessToken = token;
+  if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+    if (token) {
+      localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    } else {
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
+    }
+  }
 }
 
 export function getAccessToken(): string | null {
-  return _accessToken;
+  if (_accessToken) {
+    return _accessToken;
+  }
+  if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+    const storedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
+    if (storedToken) {
+      _accessToken = storedToken;
+      return storedToken;
+    }
+  }
+  return null;
 }
 
 export class ApiClientError extends Error {
@@ -32,8 +51,9 @@ function buildHeaders(extraHeaders?: Record<string, string>): Record<string, str
     'Content-Type': 'application/json',
     ...extraHeaders,
   };
-  if (_accessToken) {
-    headers['Authorization'] = `Bearer ${_accessToken}`;
+  const token = getAccessToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
   return headers;
 }

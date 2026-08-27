@@ -12,6 +12,7 @@ import {
   PermissionsPage,
 } from './features/iam/pages/IamPage';
 import { TeamsPage } from './features/organization/pages/TeamsPage';
+import { EvaluationTemplatesPage } from './features/templates/pages/EvaluationTemplatesPage';
 import { OrganizationPage } from './features/organization/pages/OrganizationPage';
 import { DepartmentsPage } from './features/organization/pages/DepartmentsPage';
 import { OrgRolesPage } from './features/organization/pages/OrgRolesPage';
@@ -117,6 +118,11 @@ export default function App() {
                 <Route path="levels" element={<JobLevelsPage />} />
                 <Route path="employees" element={<EmployeesPage />} />
               </Route>
+              <Route path="/admin/templates" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
+                  <EvaluationTemplatesPage />
+                </ProtectedRoute>
+              } />
               <Route path="/draft" element={
                 <div
                   style={{
