@@ -266,13 +266,27 @@ export class TemplateService {
       if (!cv) throw new NotFound(`CriterionVersion '${item.criterion_version_id}'`);
     }
 
-    const mappedItems: Partial<TemplateCriterion>[] = criteriaItems.map((item, idx) => ({
-      criterion_version_id: item.criterion_version_id,
-      weight: item.weight,
-      display_order: item.display_order ?? idx + 1,
-      required: item.required ?? true,
-      enabled: item.enabled ?? true,
-    }));
+    const mappedItems: Partial<TemplateCriterion>[] = criteriaItems.map((item: any, idx) => {
+      let applicability = item.applicability;
+      if (!applicability && (item.applicable_role_ids || item.applicable_team_ids)) {
+        const rules = [];
+        if (item.applicable_role_ids?.length) {
+          rules.push({ dimension: 'ROLE', operator: 'IN', values: item.applicable_role_ids });
+        }
+        if (item.applicable_team_ids?.length) {
+          rules.push({ dimension: 'TEAM', operator: 'IN', values: item.applicable_team_ids });
+        }
+        applicability = { rules };
+      }
+      return {
+        criterion_version_id: item.criterion_version_id,
+        weight: item.weight ?? item.effective_weight,
+        display_order: item.display_order ?? idx + 1,
+        required: item.required ?? true,
+        enabled: item.enabled ?? true,
+        applicability: applicability || {},
+      };
+    });
 
     // Pre-validate weight total
     const validation = ConfigurationValidationService.validateTemplateCriteria(

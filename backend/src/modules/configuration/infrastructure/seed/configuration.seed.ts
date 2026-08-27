@@ -17,12 +17,38 @@ export async function seedConfigurationModule(pool: Pool): Promise<void> {
   for (const l of levelDefs) {
     const existing = await configModule.levelRepo.findByCode(l.code);
     if (!existing) {
-      await configModule.levelService.createLevel(l, 'SEED_SYSTEM');
+      await configModule.levelService.createLevel(l);
     }
   }
 
   // 2. Rules
   const rules = [
+    {
+      code: 'RANGE_ON_TIME',
+      name: 'Range Threshold',
+      rule_type: ScoringRuleType.RANGE_THRESHOLD,
+      config: {
+        type: ScoringRuleType.RANGE_THRESHOLD,
+        ranges: [
+          { min: 0, max: 69.99, level: 1 },
+          { min: 70, max: 89.99, level: 2 },
+          { min: 90, max: 100, level: 3 },
+        ],
+      },
+    },
+    {
+      code: 'RANGE_PLANNING',
+      name: 'Range Threshold',
+      rule_type: ScoringRuleType.RANGE_THRESHOLD,
+      config: {
+        type: ScoringRuleType.RANGE_THRESHOLD,
+        ranges: [
+          { min: 0, max: 79.99, level: 1 },
+          { min: 80, max: 89.99, level: 2 },
+          { min: 90, max: 100, level: 3 },
+        ],
+      },
+    },
     {
       code: 'RULE_ON_TIME_COMPLETION',
       name: 'On-Time Completion Rule',
@@ -66,8 +92,26 @@ export async function seedConfigurationModule(pool: Pool): Promise<void> {
       },
     },
     {
+      code: 'RULE_OWNERSHIP',
+      name: 'Product Ownership Manual Rule',
+      rule_type: ScoringRuleType.ORDINAL_MANUAL,
+      config: {
+        type: ScoringRuleType.ORDINAL_MANUAL,
+        allowed_levels: [1, 2, 3, 4, 5],
+      },
+    },
+    {
       code: 'RULE_INDEPENDENCE',
       name: 'Independence Manual Rule',
+      rule_type: ScoringRuleType.ORDINAL_MANUAL,
+      config: {
+        type: ScoringRuleType.ORDINAL_MANUAL,
+        allowed_levels: [1, 2, 3, 4, 5],
+      },
+    },
+    {
+      code: 'RULE_SYSTEM_ARCHITECTURE',
+      name: 'System Architecture Manual Rule',
       rule_type: ScoringRuleType.ORDINAL_MANUAL,
       config: {
         type: ScoringRuleType.ORDINAL_MANUAL,
@@ -80,21 +124,101 @@ export async function seedConfigurationModule(pool: Pool): Promise<void> {
   for (const r of rules) {
     let existing = await configModule.scoringRuleRepo.findByCode(r.code);
     if (!existing) {
-      existing = await configModule.scoringRuleService.createScoringRule(r, 'SEED_SYSTEM');
-      await configModule.scoringRuleService.publishScoringRule(existing.id, 'SEED_SYSTEM');
+      existing = await configModule.scoringRuleService.createScoringRule(r);
+      await configModule.scoringRuleService.publishScoringRule(existing.id);
     }
     ruleMap.set(r.code, existing.id);
   }
 
   // 3. Criteria & Versions
   const criteriaDefs = [
-    { code: 'ON_TIME_COMPLETION', category: CriterionCategory.PERFORMANCE, name: 'On-time Completion', weight: 25, unit: '%', ruleCode: 'RULE_ON_TIME_COMPLETION' },
-    { code: 'PRODUCTION_INCIDENT', category: CriterionCategory.PERFORMANCE, name: 'Production Incident', weight: 25, unit: 'incidents', ruleCode: 'RULE_PRODUCTION_INCIDENT' },
-    { code: 'KNOWLEDGE_SHARING', category: CriterionCategory.CONTRIBUTION, name: 'Knowledge Sharing', weight: 20, unit: 'sessions', ruleCode: 'RULE_KNOWLEDGE_SHARING' },
-    { code: 'INDEPENDENCE', category: CriterionCategory.CAPABILITY, name: 'Independence', weight: 30, unit: 'level', ruleCode: 'RULE_INDEPENDENCE' },
+    {
+      code: 'ON_TIME_COMPLETION',
+      category: CriterionCategory.PERFORMANCE,
+      name: 'On-time Completion',
+      description: 'Percentage of assigned Jira tasks delivered within milestone target dates.',
+      weight: 20,
+      unit: '%',
+      sourceLabel: 'Jira Software',
+      ruleCode: 'RANGE_ON_TIME',
+      applicableRoleIds: ['role-si', 'role-sm'],
+      applicableTeamIds: [],
+    },
+    {
+      code: 'PLANNING_DISCIPLINE',
+      category: CriterionCategory.PERFORMANCE,
+      name: 'Planning Discipline',
+      description: 'Quality of sprint estimation and milestone planning accuracy.',
+      weight: 15,
+      unit: '%',
+      sourceLabel: 'Direct Input',
+      ruleCode: 'RANGE_PLANNING',
+      applicableRoleIds: [],
+      applicableTeamIds: [],
+    },
+    {
+      code: 'OWNERSHIP',
+      category: CriterionCategory.CAPABILITY,
+      name: 'Product Ownership',
+      description: 'Proactive end-to-end accountability for component quality.',
+      weight: 20,
+      unit: 'Ordinal',
+      sourceLabel: 'Manager Assessment',
+      ruleCode: 'RULE_OWNERSHIP',
+      applicableRoleIds: [],
+      applicableTeamIds: [],
+    },
+    {
+      code: 'INDEPENDENCE',
+      category: CriterionCategory.CONTRIBUTION,
+      name: 'Autonomous Execution',
+      description: 'Ability to execute complex technical goals with minimal supervision.',
+      weight: 25,
+      unit: 'Score',
+      sourceLabel: 'Peer & Manager Review',
+      ruleCode: 'RULE_INDEPENDENCE',
+      applicableRoleIds: [],
+      applicableTeamIds: [],
+    },
+    {
+      code: 'SYSTEM_ARCHITECTURE',
+      category: CriterionCategory.CONTRIBUTION,
+      name: 'System Architecture & LLD Quality',
+      description: 'Technical design quality and alignment with enterprise LLD standards.',
+      weight: 20,
+      unit: 'Score',
+      sourceLabel: 'Architecture Guild',
+      ruleCode: 'RULE_SYSTEM_ARCHITECTURE',
+      applicableRoleIds: [],
+      applicableTeamIds: [],
+    },
+    {
+      code: 'PRODUCTION_INCIDENT',
+      category: CriterionCategory.PERFORMANCE,
+      name: 'Production Incident',
+      description: 'Number of production incidents caused.',
+      weight: 25,
+      unit: 'incidents',
+      sourceLabel: 'Incident System',
+      ruleCode: 'RULE_PRODUCTION_INCIDENT',
+      applicableRoleIds: [],
+      applicableTeamIds: [],
+    },
+    {
+      code: 'KNOWLEDGE_SHARING',
+      category: CriterionCategory.CONTRIBUTION,
+      name: 'Knowledge Sharing',
+      description: 'Tech talks or knowledge sharing sessions conducted.',
+      weight: 20,
+      unit: 'sessions',
+      sourceLabel: 'Internal Wiki',
+      ruleCode: 'RULE_KNOWLEDGE_SHARING',
+      applicableRoleIds: [],
+      applicableTeamIds: [],
+    },
   ];
 
-  const criterionVersionIds: Array<{ versionId: string; weight: number }> = [];
+  const criterionVersionMap = new Map<string, { versionId: string; weight: number; applicableRoleIds: string[]; applicableTeamIds: string[] }>();
 
   for (const c of criteriaDefs) {
     let existingCriterion = await configModule.criterionRepo.findByCode(c.code);
@@ -105,17 +229,19 @@ export async function seedConfigurationModule(pool: Pool): Promise<void> {
         code: c.code,
         category: c.category,
         name: c.name,
-      }, 'SEED_SYSTEM');
+        description: c.description,
+      });
 
       existingCriterion = created.criterion;
 
       const version = await configModule.criterionService.updateDraftVersion(created.initialVersion.id, {
         default_weight: c.weight,
         measurement_unit: c.unit,
+        measurement_source_label: c.sourceLabel,
         scoring_rule_id: ruleMap.get(c.ruleCode),
-      }, undefined, 'SEED_SYSTEM');
+      });
 
-      const published = await configModule.criterionService.publishVersion(version.id, 'SEED_SYSTEM');
+      const published = await configModule.criterionService.publishVersion(version.id);
       versionId = published.id;
     } else {
       const versions = await configModule.criterionService.getCriterionVersions(existingCriterion.id);
@@ -125,36 +251,83 @@ export async function seedConfigurationModule(pool: Pool): Promise<void> {
         const v = await configModule.criterionService.createVersion(existingCriterion.id, {
           default_weight: c.weight,
           measurement_unit: c.unit,
+          measurement_source_label: c.sourceLabel,
           scoring_rule_id: ruleMap.get(c.ruleCode),
-        }, 'SEED_SYSTEM');
-        const published = await configModule.criterionService.publishVersion(v.id, 'SEED_SYSTEM');
+        });
+        const published = await configModule.criterionService.publishVersion(v.id);
         versionId = published.id;
       }
     }
 
-    criterionVersionIds.push({ versionId, weight: c.weight });
+    criterionVersionMap.set(c.code, {
+      versionId,
+      weight: c.weight,
+      applicableRoleIds: c.applicableRoleIds,
+      applicableTeamIds: c.applicableTeamIds,
+    });
   }
 
-  // 4. Template: ENGINEERING_EVALUATION
-  let template = await configModule.templateRepo.findByCode('ENGINEERING_EVALUATION');
-  if (!template) {
-    const createdTemplate = await configModule.templateService.createTemplate({
+  // 4. Templates: ENG_EVAL_2026 & ENGINEERING_EVALUATION
+  const templateCodesToSeed = [
+    {
+      code: 'ENG_EVAL_2026',
+      name: 'Engineering Evaluation 2026',
+      description: 'Standard annual performance evaluation framework for engineering teams.',
+      criteriaItems: [
+        { code: 'ON_TIME_COMPLETION', weight: 20 },
+        { code: 'PLANNING_DISCIPLINE', weight: 15 },
+        { code: 'OWNERSHIP', weight: 20 },
+        { code: 'INDEPENDENCE', weight: 25 },
+        { code: 'SYSTEM_ARCHITECTURE', weight: 20 },
+      ],
+    },
+    {
       code: 'ENGINEERING_EVALUATION',
       name: 'Engineering Performance Evaluation Framework',
-    }, 'SEED_SYSTEM');
+      description: 'Standard performance evaluation framework.',
+      criteriaItems: [
+        { code: 'ON_TIME_COMPLETION', weight: 25 },
+        { code: 'PRODUCTION_INCIDENT', weight: 25 },
+        { code: 'KNOWLEDGE_SHARING', weight: 25 },
+        { code: 'INDEPENDENCE', weight: 25 },
+      ],
+    },
+  ];
 
-    template = createdTemplate.template;
-    const versionId = createdTemplate.initialVersion.id;
+  for (const tplDef of templateCodesToSeed) {
+    let template = await configModule.templateRepo.findByCode(tplDef.code);
+    if (!template) {
+      const createdTemplate = await configModule.templateService.createTemplate({
+        code: tplDef.code,
+        name: tplDef.name,
+        description: tplDef.description,
+      });
 
-    const criteriaPayload = criterionVersionIds.map((item, idx) => ({
-      criterion_version_id: item.versionId,
-      weight: item.weight,
-      display_order: idx + 1,
-      required: true,
-      enabled: true,
-    }));
+      template = createdTemplate.template;
+      const versionId = createdTemplate.initialVersion.id;
 
-    await configModule.templateService.bulkUpdateTemplateCriteria(versionId, criteriaPayload, 'SEED_SYSTEM');
-    await configModule.templateService.publishTemplateVersion(versionId, 'SEED_SYSTEM');
+      const criteriaPayload = tplDef.criteriaItems.map((cItem, idx) => {
+        const item = criterionVersionMap.get(cItem.code)!;
+        const applicabilityRules = [];
+        if (item.applicableRoleIds.length) {
+          applicabilityRules.push({ dimension: 'ROLE', operator: 'IN', values: item.applicableRoleIds });
+        }
+        if (item.applicableTeamIds.length) {
+          applicabilityRules.push({ dimension: 'TEAM', operator: 'IN', values: item.applicableTeamIds });
+        }
+
+        return {
+          criterion_version_id: item.versionId,
+          weight: cItem.weight,
+          display_order: idx + 1,
+          required: true,
+          enabled: true,
+          applicability: applicabilityRules.length ? { rules: applicabilityRules } : {},
+        };
+      });
+
+      await configModule.templateService.bulkUpdateTemplateCriteria(versionId, criteriaPayload);
+    }
   }
 }
+
