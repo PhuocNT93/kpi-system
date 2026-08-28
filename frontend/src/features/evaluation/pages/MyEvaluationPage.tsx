@@ -46,7 +46,7 @@ export function MyEvaluationPage() {
           {evaluations.map((item: MyEvaluation) => (
             <div
               key={item.evaluation.evaluation_id}
-              onClick={() => navigate(`/admin/my-evaluation/${item.evaluation.evaluation_id}`)}
+              onClick={() => navigate(`/admin/my-evaluations/${item.evaluation.evaluation_id}`)}
               style={{
                 backgroundColor: COLORS.neutral.white,
                 borderRadius: RADII.xl,

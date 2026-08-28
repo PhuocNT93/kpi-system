@@ -123,7 +123,7 @@ export function EvaluationDetailPage() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <button 
-            onClick={() => navigate('/admin/my-evaluation')}
+            onClick={() => navigate('/admin/my-evaluations')}
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '8px', borderRadius: RADII.full, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             onMouseEnter={e => e.currentTarget.style.backgroundColor = COLORS.neutral[100]}
             onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
