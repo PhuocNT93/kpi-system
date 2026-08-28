@@ -173,12 +173,12 @@ export default function App() {
               } />
               
               {/* Employee & Manager Routes */}
-              <Route path="/admin/my-evaluation" element={
+              <Route path="/admin/my-evaluations" element={
                 <ProtectedRoute allowedRoles={['EMPLOYEE', 'MANAGER', 'SYSTEM_ADMIN']}>
                   <MyEvaluationPage />
                 </ProtectedRoute>
               } />
-              <Route path="/admin/my-evaluation/:id" element={
+              <Route path="/admin/my-evaluations/:id" element={
                 <ProtectedRoute allowedRoles={['EMPLOYEE', 'MANAGER', 'SYSTEM_ADMIN']}>
                   <EvaluationDetailPage />
                 </ProtectedRoute>
