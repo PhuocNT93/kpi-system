@@ -218,6 +218,11 @@ export class TemplateService {
     return this.templateCriterionRepo.findByTemplateVersionId(templateVersionId);
   }
 
+  async getTemplateCriteriaWithDetails(templateVersionId: string): Promise<any[]> {
+    await this.getTemplateVersionById(templateVersionId);
+    return this.templateCriterionRepo.findByTemplateVersionIdWithDetails(templateVersionId);
+  }
+
   async addTemplateCriterion(
     templateVersionId: string,
     data: { criterion_version_id: string; weight: number; display_order?: number; required?: boolean; enabled?: boolean },
