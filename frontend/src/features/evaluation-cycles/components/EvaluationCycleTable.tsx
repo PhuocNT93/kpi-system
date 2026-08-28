@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import type { EvaluationCycleDTO, CycleFilterParams } from '../types/cycle-types';
+import type { EvaluationCycleDTO } from '../types/cycle-types';
 import { CycleStatusBadge } from './CycleStatusBadge';
 import { Button } from '@/shared/ui/Button/Button';
 import { COLORS } from '@/lib/theme';
-import { RADII, TYPOGRAPHY } from '@/shared/theme';
+import { RADII } from '@/shared/theme';
 import { Search, Eye, Edit3, Play, Lock, Plus } from 'lucide-react';
 import { EmptyState } from '@/shared/components/ui';
 

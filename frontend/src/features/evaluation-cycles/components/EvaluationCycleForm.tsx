@@ -118,7 +118,7 @@ export const EvaluationCycleForm: React.FC<EvaluationCycleFormProps> = ({
     >
       {/* Basic Information */}
       <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.md, color: COLORS.neutral.textPrimary }}>
+        <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.base, color: COLORS.neutral.textPrimary }}>
           Basic Information
         </h3>
 
@@ -171,7 +171,7 @@ export const EvaluationCycleForm: React.FC<EvaluationCycleFormProps> = ({
 
       {/* Evaluation Template */}
       <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.md, color: COLORS.neutral.textPrimary }}>
+        <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.base, color: COLORS.neutral.textPrimary }}>
           Evaluation Template
         </h3>
 
@@ -208,7 +208,7 @@ export const EvaluationCycleForm: React.FC<EvaluationCycleFormProps> = ({
 
       {/* Scope Configuration */}
       <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.md, color: COLORS.neutral.textPrimary }}>
+        <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.base, color: COLORS.neutral.textPrimary }}>
           Applicable Scope
         </h3>
 
@@ -295,7 +295,7 @@ export const EvaluationCycleForm: React.FC<EvaluationCycleFormProps> = ({
 
       {/* Timeline */}
       <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.md, color: COLORS.neutral.textPrimary }}>
+        <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.base, color: COLORS.neutral.textPrimary }}>
           Timeline & Dates
         </h3>
 
@@ -346,7 +346,7 @@ export const EvaluationCycleForm: React.FC<EvaluationCycleFormProps> = ({
 
       {/* Workflow Controls */}
       <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.md, color: COLORS.neutral.textPrimary }}>
+        <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.base, color: COLORS.neutral.textPrimary }}>
           Workflow Rules & Calibration
         </h3>
 

@@ -117,7 +117,9 @@ export const COLORS = {
     draft: '#64748B',
     active: '#7C3AED',
     completed: '#16A34A',
-    locked: '#0F172A'
+    locked: '#0F172A',
+    error: '#DC2626',
+    success: '#16A34A',
   }
 } as const;
 

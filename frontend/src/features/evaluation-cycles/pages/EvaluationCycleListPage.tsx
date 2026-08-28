@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { EvaluationCycleTable } from '../components/EvaluationCycleTable';
 import {
   useEvaluationCyclesQuery,
-  useOpenCycleMutation,
   useLockCycleMutation,
 } from '../hooks/use-evaluation-cycles';
 import type { EvaluationCycleDTO } from '../types/cycle-types';
@@ -122,7 +121,6 @@ export const EvaluationCycleListPage: React.FC = () => {
   const navigate = useNavigate();
   const { data, isLoading, error, refetch } = useEvaluationCyclesQuery();
 
-  const openMutation = useOpenCycleMutation();
   const lockMutation = useLockCycleMutation();
 
   const cycles = data ?? MOCK_CYCLES;
