@@ -253,72 +253,30 @@ export class ConfigurationController {
   getTemplateVersionById = async (req: Request, res: Response): Promise<void> => {
     const versionId = req.params.versionId as string;
     const version = await this.templateService.getTemplateVersionById(versionId);
-    const templateCriteria = await this.templateService.getTemplateCriteria(versionId);
+    const enrichedCriteria = await this.templateService.getTemplateCriteriaWithDetails(versionId);
+    
+    // Format the result to match the existing response structure
+    const formattedCriteria = enrichedCriteria.map(tc => {
+      const roleRule = tc.applicability?.rules?.find((r: any) => r.dimension === 'ROLE');
+      const teamRule = tc.applicability?.rules?.find((r: any) => r.dimension === 'TEAM');
 
-    const enrichedCriteria = await Promise.all(
-      templateCriteria.map(async (tc) => {
-        let criterion: any = null;
-        if (tc.criterion_version_id) {
-          const cv = await this.criterionService.getCriterionVersionById(tc.criterion_version_id).catch(() => null);
-          if (cv) {
-            const parent = await this.criterionService.getCriterionById(cv.criterion_id).catch(() => null);
-            let scoringRule: any = null;
-            if (cv.scoring_rule_id) {
-              scoringRule = await this.scoringRuleService.getScoringRuleById(cv.scoring_rule_id).catch(() => null);
-            }
-            if (parent) {
-              criterion = {
-                id: parent.id,
-                code: parent.code,
-                category: parent.category,
-                name: parent.name,
-                description: parent.description,
-                status: parent.status,
-                version: parent.version,
-                current_version: {
-                  id: cv.id,
-                  criterion_id: cv.criterion_id,
-                  version_no: cv.version_no,
-                  default_weight: cv.default_weight,
-                  measurement_unit: cv.measurement_unit,
-                  measurement_source_label: cv.measurement_source_label,
-                  status: cv.status,
-                  scoring_rule: scoringRule ? {
-                    id: scoringRule.id,
-                    code: scoringRule.code,
-                    name: scoringRule.name,
-                    rule_type: scoringRule.rule_type,
-                    config: scoringRule.config,
-                    status: scoringRule.status,
-                    version: scoringRule.version,
-                  } : undefined,
-                },
-              };
-            }
-          }
-        }
-
-        const roleRule = tc.applicability?.rules?.find((r) => r.dimension === 'ROLE');
-        const teamRule = tc.applicability?.rules?.find((r) => r.dimension === 'TEAM');
-
-        return {
-          id: tc.id,
-          template_version_id: tc.template_version_id,
-          criterion_version_id: tc.criterion_version_id,
-          criterion,
-          effective_weight: tc.weight,
-          applicable_role_ids: roleRule ? roleRule.values : [],
-          applicable_team_ids: teamRule ? teamRule.values : [],
-          is_disabled: !tc.enabled,
-          is_optional: !tc.required,
-          display_order: tc.display_order,
-        };
-      })
-    );
+      return {
+        id: tc.id,
+        template_version_id: tc.template_version_id,
+        criterion_version_id: tc.criterion_version_id,
+        criterion: tc.criterion,
+        effective_weight: tc.weight,
+        applicable_role_ids: roleRule ? roleRule.values : [],
+        applicable_team_ids: teamRule ? teamRule.values : [],
+        is_disabled: !tc.enabled,
+        is_optional: !tc.required,
+        display_order: tc.display_order,
+      };
+    });
 
     sendSuccess(res, 200, 'Template version retrieved successfully.', {
       ...version,
-      criteria: enrichedCriteria,
+      criteria: formattedCriteria,
     });
   };
 

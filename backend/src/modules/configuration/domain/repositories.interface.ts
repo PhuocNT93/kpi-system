@@ -104,6 +104,7 @@ export interface ITemplateVersionRepository {
 export interface ITemplateCriterionRepository {
   findById(id: string, client?: PoolClient): Promise<TemplateCriterion | null>;
   findByTemplateVersionId(templateVersionId: string, client?: PoolClient): Promise<TemplateCriterion[]>;
+  findByTemplateVersionIdWithDetails(templateVersionId: string, client?: PoolClient): Promise<any[]>;
   create(tc: Partial<TemplateCriterion>, client?: PoolClient): Promise<TemplateCriterion>;
   update(id: string, tc: Partial<TemplateCriterion>, client?: PoolClient): Promise<TemplateCriterion>;
   delete(id: string, client?: PoolClient): Promise<void>;
