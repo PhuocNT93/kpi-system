@@ -10,6 +10,7 @@ import {
 } from '../index.js';
 import { seedOrganizationModule } from '../../organization/infrastructure/seed/organization.seed.js';
 import { seedConfigurationModule } from '../../configuration/infrastructure/seed/configuration.seed.js';
+import { seedEvaluationCycleModule } from '../../evaluation-cycle/infrastructure/seed/evaluation-cycle.seed.js';
 
 async function main() {
   console.log('Starting seed data process...');
@@ -32,6 +33,9 @@ async function main() {
 
     await seedConfigurationModule(pool);
     console.log('Configuration (Criteria & Templates) seed data successfully populated.');
+
+    await seedEvaluationCycleModule(pool);
+    console.log('Evaluation Cycle seed data successfully populated.');
   } catch (error) {
     console.error('Error seeding data:', error);
     process.exitCode = 1;

@@ -14,6 +14,8 @@ import { KpiRelationshipController } from '../modules/kpi/api/kpi-relationship.c
 import { createKpiRouter } from '../modules/kpi/api/kpi.router.js';
 import { AuditController } from '../modules/audit/api/audit.controller.js';
 import { createAuditRouter } from '../modules/audit/api/audit.router.js';
+import { EvaluationCycleController } from '../modules/evaluation-cycle/api/evaluation-cycle.controller.js';
+import { createEvaluationCycleRouter } from '../modules/evaluation-cycle/api/evaluation-cycle.router.js';
 
 export interface RegisterRoutesOptions {
   authController: AuthController;
@@ -25,6 +27,7 @@ export interface RegisterRoutesOptions {
   configurationController?: ConfigurationController;
   kpiRelationshipController?: KpiRelationshipController;
   auditController?: AuditController;
+  evaluationCycleController?: EvaluationCycleController;
 }
 
 export function createApiRouter(options: RegisterRoutesOptions): Router {
@@ -59,6 +62,13 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
   // ── Audit Module Routes ───────────────────────────────────────────────────
   if (options.auditController) {
     router.use('/', createAuditRouter(options.auditController, options.authorizationService, options.jwtMiddleware));
+  }
+
+  // ── Evaluation Cycle Module Routes ────────────────────────────────────────
+  if (options.evaluationCycleController) {
+    const cycleRouter = createEvaluationCycleRouter(options.evaluationCycleController, options.jwtMiddleware);
+    router.use('/v1', cycleRouter);
+    router.use('/', cycleRouter);
   }
 
   // ── Sample: single-resource response ──────────────────────────────────────

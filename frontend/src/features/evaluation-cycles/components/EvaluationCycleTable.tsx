@@ -37,13 +37,14 @@ export const EvaluationCycleTable: React.FC<EvaluationCycleTableProps> = ({
   const filteredCycles = cycles.filter((cycle) => {
     const matchesSearch =
       !search ||
-      cycle.name.toLowerCase().includes(search.toLowerCase()) ||
-      cycle.code.toLowerCase().includes(search.toLowerCase());
+      (cycle.name && cycle.name.toLowerCase().includes(search.toLowerCase())) ||
+      (cycle.code && cycle.code.toLowerCase().includes(search.toLowerCase()));
 
     const matchesStatus = selectedStatus === 'ALL' || cycle.status === selectedStatus;
-    const matchesTemplate = selectedTemplate === 'ALL' || cycle.template.id === selectedTemplate;
+    const matchesTemplate = selectedTemplate === 'ALL' || cycle.template?.id === selectedTemplate;
     const matchesTeam =
       selectedTeam === 'ALL' ||
+      !cycle.scope?.teams ||
       cycle.scope.teams.length === 0 ||
       cycle.scope.teams.some((t) => t.id === selectedTeam);
 
@@ -208,9 +209,19 @@ export const EvaluationCycleTable: React.FC<EvaluationCycleTableProps> = ({
             </thead>
             <tbody>
               {filteredCycles.map((cycle) => {
-                const canEdit = cycle.allowedActions.includes('EDIT');
-                const canOpen = cycle.allowedActions.includes('OPEN');
-                const canLock = cycle.allowedActions.includes('LOCK');
+                const allowedActions = cycle.allowedActions || [];
+                const canEdit = allowedActions.includes('EDIT');
+                const canOpen = allowedActions.includes('OPEN');
+                const canLock = allowedActions.includes('LOCK');
+
+                const templateName = cycle.template?.name || 'Evaluation Template';
+                const templateVersion = cycle.template?.version || 'v1';
+                const startDate = cycle.period?.startDate || '';
+                const endDate = cycle.period?.endDate || '';
+                const teamsList = cycle.scope?.teams || [];
+                const rolesList = cycle.scope?.roles || [];
+                const generated = cycle.evaluationSummary?.generated ?? 0;
+                const totalEmployees = cycle.evaluationSummary?.applicableEmployees ?? 0;
 
                 return (
                   <tr
@@ -230,25 +241,25 @@ export const EvaluationCycleTable: React.FC<EvaluationCycleTableProps> = ({
                     </td>
                     <td style={{ padding: '14px 16px' }}>
                       <div style={{ color: COLORS.neutral.textPrimary, fontWeight: 500 }}>
-                        {cycle.template.name}
+                        {templateName}
                       </div>
                       <div style={{ fontSize: '0.75rem', color: COLORS.neutral.textSecondary }}>
-                        Version {cycle.template.version}
+                        Version {templateVersion}
                       </div>
                     </td>
                     <td style={{ padding: '14px 16px', color: COLORS.neutral.textPrimary }}>
-                      {cycle.period.startDate} → {cycle.period.endDate}
+                      {startDate} → {endDate}
                     </td>
                     <td style={{ padding: '14px 16px' }}>
                       <div style={{ fontSize: '0.8125rem', color: COLORS.neutral.textPrimary }}>
-                        Teams: {cycle.scope.teams.length > 0 ? cycle.scope.teams.map((t) => t.name).join(', ') : 'All'}
+                        Teams: {teamsList.length > 0 ? teamsList.map((t) => t.name).join(', ') : 'All'}
                       </div>
                       <div style={{ fontSize: '0.75rem', color: COLORS.neutral.textSecondary }}>
-                        Roles: {cycle.scope.roles.length > 0 ? cycle.scope.roles.map((r) => r.name).join(', ') : 'All'}
+                        Roles: {rolesList.length > 0 ? rolesList.map((r) => r.name).join(', ') : 'All'}
                       </div>
                     </td>
                     <td style={{ padding: '14px 16px', fontWeight: 600, color: COLORS.neutral.textPrimary }}>
-                      {cycle.evaluationSummary.generated} / {cycle.evaluationSummary.applicableEmployees}
+                      {generated} / {totalEmployees}
                     </td>
                     <td style={{ padding: '14px 16px' }}>
                       <CycleStatusBadge status={cycle.status} />
