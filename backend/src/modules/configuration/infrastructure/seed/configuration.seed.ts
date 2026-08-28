@@ -306,27 +306,57 @@ export async function seedConfigurationModule(pool: Pool): Promise<void> {
       template = createdTemplate.template;
       const versionId = createdTemplate.initialVersion.id;
 
-      const criteriaPayload = tplDef.criteriaItems.map((cItem, idx) => {
-        const item = criterionVersionMap.get(cItem.code)!;
-        const applicabilityRules = [];
-        if (item.applicableRoleIds.length) {
-          applicabilityRules.push({ dimension: 'ROLE', operator: 'IN', values: item.applicableRoleIds });
+      // Define KPIs for the structure
+      const kpisPayload = [
+        {
+          kpi_id: '00000000-0000-0000-0000-000000000001', // Dummy KPI ID for Core Skills
+          weight: 50,
+          display_order: 1,
+          criteria: tplDef.criteriaItems.slice(0, 2).map((cItem, idx) => {
+            const item = criterionVersionMap.get(cItem.code)!;
+            const applicabilityRules = [];
+            if (item.applicableRoleIds.length) {
+              applicabilityRules.push({ dimension: 'ROLE', operator: 'IN', values: item.applicableRoleIds });
+            }
+            if (item.applicableTeamIds.length) {
+              applicabilityRules.push({ dimension: 'TEAM', operator: 'IN', values: item.applicableTeamIds });
+            }
+            return {
+              criterion_version_id: item.versionId,
+              weight: cItem.weight,
+              display_order: idx + 1,
+              required: true,
+              enabled: true,
+              applicability: applicabilityRules.length ? { rules: applicabilityRules } : {},
+            };
+          }),
+        },
+        {
+          kpi_id: '00000000-0000-0000-0000-000000000002', // Dummy KPI ID for Impact
+          weight: 50,
+          display_order: 2,
+          criteria: tplDef.criteriaItems.slice(2).map((cItem, idx) => {
+            const item = criterionVersionMap.get(cItem.code)!;
+            const applicabilityRules = [];
+            if (item.applicableRoleIds.length) {
+              applicabilityRules.push({ dimension: 'ROLE', operator: 'IN', values: item.applicableRoleIds });
+            }
+            if (item.applicableTeamIds.length) {
+              applicabilityRules.push({ dimension: 'TEAM', operator: 'IN', values: item.applicableTeamIds });
+            }
+            return {
+              criterion_version_id: item.versionId,
+              weight: cItem.weight,
+              display_order: idx + 1,
+              required: true,
+              enabled: true,
+              applicability: applicabilityRules.length ? { rules: applicabilityRules } : {},
+            };
+          }),
         }
-        if (item.applicableTeamIds.length) {
-          applicabilityRules.push({ dimension: 'TEAM', operator: 'IN', values: item.applicableTeamIds });
-        }
+      ];
 
-        return {
-          criterion_version_id: item.versionId,
-          weight: cItem.weight,
-          display_order: idx + 1,
-          required: true,
-          enabled: true,
-          applicability: applicabilityRules.length ? { rules: applicabilityRules } : {},
-        };
-      });
-
-      await configModule.templateService.bulkUpdateTemplateCriteria(versionId, criteriaPayload);
+      await configModule.templateService.bulkUpdateTemplateStructure(versionId, kpisPayload);
     }
   }
 }

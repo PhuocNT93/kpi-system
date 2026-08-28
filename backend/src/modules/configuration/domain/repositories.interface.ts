@@ -5,7 +5,8 @@ import {
   ScoringRule,
   EvaluationTemplate,
   EvaluationTemplateVersion,
-  TemplateCriterion,
+  TemplateKpi,
+  TemplateKpiCriterion,
   RoleOverride,
   TeamOverride,
   TemplateOverride,
@@ -101,14 +102,23 @@ export interface ITemplateVersionRepository {
   update(id: string, version: Partial<EvaluationTemplateVersion>, expectedVersion?: number, client?: PoolClient): Promise<EvaluationTemplateVersion>;
 }
 
-export interface ITemplateCriterionRepository {
-  findById(id: string, client?: PoolClient): Promise<TemplateCriterion | null>;
-  findByTemplateVersionId(templateVersionId: string, client?: PoolClient): Promise<TemplateCriterion[]>;
-  findByTemplateVersionIdWithDetails(templateVersionId: string, client?: PoolClient): Promise<any[]>;
-  create(tc: Partial<TemplateCriterion>, client?: PoolClient): Promise<TemplateCriterion>;
-  update(id: string, tc: Partial<TemplateCriterion>, client?: PoolClient): Promise<TemplateCriterion>;
+export interface ITemplateKpiRepository {
+  findById(id: string, client?: PoolClient): Promise<TemplateKpi | null>;
+  findByTemplateVersionId(templateVersionId: string, client?: PoolClient): Promise<TemplateKpi[]>;
+  create(tk: Partial<TemplateKpi>, client?: PoolClient): Promise<TemplateKpi>;
+  update(id: string, tk: Partial<TemplateKpi>, client?: PoolClient): Promise<TemplateKpi>;
   delete(id: string, client?: PoolClient): Promise<void>;
-  replaceAllForVersion(templateVersionId: string, items: Partial<TemplateCriterion>[], client?: PoolClient): Promise<TemplateCriterion[]>;
+  replaceAllForVersion(templateVersionId: string, items: Partial<TemplateKpi>[], client?: PoolClient): Promise<TemplateKpi[]>;
+}
+
+export interface ITemplateKpiCriterionRepository {
+  findById(id: string, client?: PoolClient): Promise<TemplateKpiCriterion | null>;
+  findByTemplateKpiId(templateKpiId: string, client?: PoolClient): Promise<TemplateKpiCriterion[]>;
+  findByTemplateVersionIdWithDetails(templateVersionId: string, client?: PoolClient): Promise<any[]>;
+  create(tkc: Partial<TemplateKpiCriterion>, client?: PoolClient): Promise<TemplateKpiCriterion>;
+  update(id: string, tkc: Partial<TemplateKpiCriterion>, client?: PoolClient): Promise<TemplateKpiCriterion>;
+  delete(id: string, client?: PoolClient): Promise<void>;
+  replaceAllForTemplateKpi(templateKpiId: string, items: Partial<TemplateKpiCriterion>[], client?: PoolClient): Promise<TemplateKpiCriterion[]>;
 }
 
 export interface IOverrideRepository {

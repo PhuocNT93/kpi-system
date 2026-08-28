@@ -5,7 +5,8 @@ import { PostgresEvaluationLevelRepository } from './infrastructure/persistence/
 import { PostgresScoringRuleRepository } from './infrastructure/persistence/postgres-scoring-rule.repository.js';
 import { PostgresTemplateRepository } from './infrastructure/persistence/postgres-template.repository.js';
 import { PostgresTemplateVersionRepository } from './infrastructure/persistence/postgres-template-version.repository.js';
-import { PostgresTemplateCriterionRepository } from './infrastructure/persistence/postgres-template-criterion.repository.js';
+import { PostgresTemplateKpiRepository } from './infrastructure/persistence/postgres-template-kpi.repository.js';
+import { PostgresTemplateKpiCriterionRepository } from './infrastructure/persistence/postgres-template-kpi-criterion.repository.js';
 import { PostgresOverrideRepository } from './infrastructure/persistence/postgres-override.repository.js';
 import { PostgresWorkflowRepository } from './infrastructure/persistence/postgres-workflow.repository.js';
 import { PostgresConfigurationAuditRepository } from './infrastructure/persistence/postgres-configuration-audit.repository.js';
@@ -31,7 +32,8 @@ export interface ConfigurationModule {
   scoringRuleRepo: PostgresScoringRuleRepository;
   templateRepo: PostgresTemplateRepository;
   templateVersionRepo: PostgresTemplateVersionRepository;
-  templateCriterionRepo: PostgresTemplateCriterionRepository;
+  templateKpiRepo: PostgresTemplateKpiRepository;
+  templateKpiCriterionRepo: PostgresTemplateKpiCriterionRepository;
   overrideRepo: PostgresOverrideRepository;
   workflowRepo: PostgresWorkflowRepository;
   auditRepo: PostgresConfigurationAuditRepository;
@@ -58,7 +60,8 @@ export function createConfigurationModule(pool: Pool): ConfigurationModule {
   const scoringRuleRepo = new PostgresScoringRuleRepository(pool);
   const templateRepo = new PostgresTemplateRepository(pool);
   const templateVersionRepo = new PostgresTemplateVersionRepository(pool);
-  const templateCriterionRepo = new PostgresTemplateCriterionRepository(pool);
+  const templateKpiRepo = new PostgresTemplateKpiRepository(pool);
+  const templateKpiCriterionRepo = new PostgresTemplateKpiCriterionRepository(pool);
   const overrideRepo = new PostgresOverrideRepository(pool);
   const workflowRepo = new PostgresWorkflowRepository(pool);
   const auditRepo = new PostgresConfigurationAuditRepository(pool);
@@ -66,23 +69,25 @@ export function createConfigurationModule(pool: Pool): ConfigurationModule {
   const criterionService = new CriterionService(criterionRepo, versionRepo, scoringRuleRepo, auditRepo, pool);
   const levelService = new EvaluationLevelService(levelRepo, auditRepo);
   const scoringRuleService = new ScoringRuleService(scoringRuleRepo, auditRepo);
-  const templateService = new TemplateService(templateRepo, templateVersionRepo, templateCriterionRepo, versionRepo, auditRepo, pool);
+  const templateService = new TemplateService(templateRepo, templateVersionRepo, templateKpiRepo, templateKpiCriterionRepo, versionRepo, auditRepo, pool);
   const overrideService = new OverrideService(overrideRepo, templateVersionRepo, versionRepo, auditRepo);
   const effectiveResolver = new EffectiveConfigurationResolver(
     templateRepo,
     templateVersionRepo,
-    templateCriterionRepo,
+    templateKpiRepo,
+    templateKpiCriterionRepo,
     criterionRepo,
     versionRepo,
     scoringRuleRepo,
     overrideRepo
   );
-  const diffService = new ConfigurationDiffService(templateVersionRepo, templateCriterionRepo, versionRepo, criterionRepo);
-  const cloneService = new ConfigurationCloneService(templateRepo, templateVersionRepo, templateCriterionRepo, auditRepo, pool);
+  const diffService = new ConfigurationDiffService(templateVersionRepo, templateKpiRepo, templateKpiCriterionRepo, versionRepo, criterionRepo);
+  const cloneService = new ConfigurationCloneService(templateRepo, templateVersionRepo, templateKpiRepo, templateKpiCriterionRepo, auditRepo, pool);
   const snapshotService = new ConfigurationSnapshotService(
     templateRepo,
     templateVersionRepo,
-    templateCriterionRepo,
+    templateKpiRepo,
+    templateKpiCriterionRepo,
     criterionRepo,
     versionRepo,
     levelRepo,
@@ -113,7 +118,8 @@ export function createConfigurationModule(pool: Pool): ConfigurationModule {
     scoringRuleRepo,
     templateRepo,
     templateVersionRepo,
-    templateCriterionRepo,
+    templateKpiRepo,
+    templateKpiCriterionRepo,
     overrideRepo,
     workflowRepo,
     auditRepo,

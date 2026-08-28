@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { TemplateCriterion, EvaluationLevel, ScoringRule } from '../domain/template-models';
+import type { TemplateKpiCriterion, EvaluationLevel, ScoringRule } from '../domain/template-models';
 import { ApplicabilityEditor } from './ApplicabilityEditor';
 import { LevelEditor } from './LevelEditor';
 import { ScoringRuleEditors } from './ScoringRuleEditors';
@@ -7,21 +7,26 @@ import { ProvenancePopover } from './ProvenancePopover';
 import { Button } from '../../../shared/ui/Button/Button';
 
 interface CriterionConfigDrawerProps {
-  criterionItem: TemplateCriterion | null;
+  criterionItem: TemplateKpiCriterion | null;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (updatedItem: TemplateCriterion) => void;
+  onSave: (updatedItem: TemplateKpiCriterion) => void;
   isReadOnly?: boolean;
 }
 
-export function CriterionConfigDrawer({
+export function CriterionConfigDrawer(props: CriterionConfigDrawerProps) {
+  if (!props.isOpen || !props.criterionItem) return null;
+  return <CriterionConfigInner {...props} />;
+}
+
+function CriterionConfigInner({
   criterionItem,
-  isOpen,
   onClose,
   onSave,
   isReadOnly = false,
-}: CriterionConfigDrawerProps) {
-  if (!isOpen || !criterionItem) return null;
+}: Omit<CriterionConfigDrawerProps, 'isOpen'>) {
+  if (!criterionItem) return null;
+
 
   const [weight, setWeight] = useState<number>(criterionItem.effectiveWeight);
   const [isOptional, setIsOptional] = useState<boolean>(criterionItem.isOptional);
