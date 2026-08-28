@@ -14,6 +14,7 @@ import {
 import { AuditLogPage } from './features/audit/pages/AuditLogPage';
 import { TeamsPage } from './features/organization/pages/TeamsPage';
 import { EvaluationTemplatesPage } from './features/templates/pages/EvaluationTemplatesPage';
+import { CriteriaPage } from './features/criteria/pages/CriteriaPage';
 import { OrganizationPage } from './features/organization/pages/OrganizationPage';
 import { DepartmentsPage } from './features/organization/pages/DepartmentsPage';
 import { OrgRolesPage } from './features/organization/pages/OrgRolesPage';
@@ -161,6 +162,11 @@ export default function App() {
               <Route path="/admin/templates" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
                   <EvaluationTemplatesPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/criteria" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
+                  <CriteriaPage />
                 </ProtectedRoute>
               } />
               <Route path="/admin/*" element={<DraftPlaceholder title="Feature Coming Soon" />} />

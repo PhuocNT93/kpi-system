@@ -9,233 +9,139 @@ import {
   usePublishVersionMutation,
   useCreateVersionMutation,
   useTemplateDetailQuery,
+  useCreateTemplateMutation,
 } from '../index';
 import type {
   EvaluationTemplate,
-  EvaluationTemplateVersion,
-  Criterion,
   TemplateCriterion,
 } from '../index';
+import { COLORS } from '@/lib/theme';
+import { RADII, TYPOGRAPHY } from '@/shared/theme';
 
-const MOCK_CRITERIA_LIBRARY: Criterion[] = [
-  {
-    id: 'crit-1',
-    code: 'ON_TIME_COMPLETION',
-    category: 'Performance',
-    name: 'On-time Completion',
-    description: 'Percentage of assigned Jira tasks delivered within milestone target dates.',
-    status: 'ACTIVE',
-    version: 2,
-    currentVersion: {
-      id: 'cv-1',
-      criterionId: 'crit-1',
-      versionNo: 2,
-      defaultWeight: 20,
-      measurementUnit: '%',
-      measurementSourceLabel: 'Jira Software',
-      status: 'PUBLISHED',
-      scoringRule: {
-        id: 'rule-1',
-        code: 'RANGE_ON_TIME',
-        name: 'Range Threshold',
-        ruleType: 'RANGE_THRESHOLD',
-        config: {
-          ranges: [
-            { minScore: 0, maxScore: 69.99, levelId: 'l1', levelName: 'Level 1' },
-            { minScore: 70, maxScore: 89.99, levelId: 'l2', levelName: 'Level 2' },
-            { minScore: 90, maxScore: 100, levelId: 'l3', levelName: 'Level 3' },
-          ],
-        },
-        status: 'ACTIVE',
-        version: 1,
-      },
-    },
-  },
-  {
-    id: 'crit-2',
-    code: 'PLANNING_DISCIPLINE',
-    category: 'Performance',
-    name: 'Planning Discipline',
-    description: 'Quality of sprint estimation and milestone planning accuracy.',
-    status: 'ACTIVE',
-    version: 1,
-    currentVersion: {
-      id: 'cv-2',
-      criterionId: 'crit-2',
-      versionNo: 1,
-      defaultWeight: 15,
-      measurementUnit: '%',
-      measurementSourceLabel: 'Direct Input',
-      status: 'PUBLISHED',
-      scoringRule: {
-        id: 'rule-2',
-        code: 'RANGE_PLANNING',
-        name: 'Range Threshold',
-        ruleType: 'RANGE_THRESHOLD',
-        config: {},
-        status: 'ACTIVE',
-        version: 1,
-      },
-    },
-  },
-  {
-    id: 'crit-3',
-    code: 'OWNERSHIP',
-    category: 'Capability',
-    name: 'Product Ownership',
-    description: 'Proactive end-to-end accountability for component quality.',
-    status: 'ACTIVE',
-    version: 1,
-    currentVersion: {
-      id: 'cv-3',
-      criterionId: 'crit-3',
-      versionNo: 1,
-      defaultWeight: 20,
-      measurementUnit: 'Ordinal',
-      measurementSourceLabel: 'Manager Assessment',
-      status: 'PUBLISHED',
-    },
-  },
-  {
-    id: 'crit-4',
-    code: 'INDEPENDENCE',
-    category: 'Contribution',
-    name: 'Autonomous Execution',
-    description: 'Ability to execute complex technical goals with minimal supervision.',
-    status: 'ACTIVE',
-    version: 1,
-    currentVersion: {
-      id: 'cv-4',
-      criterionId: 'crit-4',
-      versionNo: 1,
-      defaultWeight: 25,
-      measurementUnit: 'Score',
-      measurementSourceLabel: 'Peer & Manager Review',
-      status: 'PUBLISHED',
-    },
-  },
-  {
-    id: 'crit-5',
-    code: 'SYSTEM_ARCHITECTURE',
-    category: 'Contribution',
-    name: 'System Architecture & LLD Quality',
-    description: 'Technical design quality and alignment with enterprise LLD standards.',
-    status: 'ACTIVE',
-    version: 1,
-    currentVersion: {
-      id: 'cv-5',
-      criterionId: 'crit-5',
-      versionNo: 1,
-      defaultWeight: 20,
-      measurementUnit: 'Score',
-      measurementSourceLabel: 'Architecture Guild',
-      status: 'PUBLISHED',
-    },
-  },
-];
+// ── Create Template Modal ─────────────────────────────────────────────────────
+interface CreateTemplateModalProps {
+  isOpen: boolean;
+  isLoading: boolean;
+  onClose: () => void;
+  onSubmit: (data: { code: string; name: string; description?: string }) => void;
+}
 
-const MOCK_TEMPLATE: EvaluationTemplate = {
-  id: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
-  code: 'ENG_EVAL_2026',
-  name: 'Engineering Evaluation 2026',
-  description: 'Standard annual performance evaluation framework for engineering teams.',
-  status: 'DRAFT',
-  currentVersionId: '550e8400-e29b-41d4-a716-446655440000',
-  criteriaCount: 5,
-  version: 1,
-  createdAt: '2026-08-27T00:00:00Z',
-  updatedAt: '2026-08-27T08:30:00Z',
-  updatedByName: 'Minh Nguyen',
-};
+function CreateTemplateModal({ isOpen, isLoading, onClose, onSubmit }: CreateTemplateModalProps) {
+  const [code, setCode] = useState('');
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-const MOCK_VERSION: EvaluationTemplateVersion = {
-  id: '550e8400-e29b-41d4-a716-446655440000',
-  templateId: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
-  versionNo: 1,
-  status: 'DRAFT',
-  weightTotalPolicy: 'EXACT_100',
-  version: 1,
-  criteria: [
-    {
-      id: 'tc-1',
-      templateVersionId: '550e8400-e29b-41d4-a716-446655440000',
-      criterionVersionId: 'cv-1',
-      criterion: MOCK_CRITERIA_LIBRARY[0],
-      effectiveWeight: 20,
-      applicableRoleIds: ['role-si', 'role-sm'],
-      applicableTeamIds: [],
-      isDisabled: false,
-      isOptional: false,
-      displayOrder: 1,
-      provenance: {
-        effectiveWeight: 20,
-        effectiveSource: 'TEMPLATE',
-        effectiveSourceLabel: 'Template Override',
-        tiers: [
-          { scope: 'GLOBAL', scopeLabel: 'Global Default', weight: 10, isApplied: false },
-          { scope: 'ROLE', scopeLabel: 'Role · Software Engineer', weight: 12, isApplied: false },
-          { scope: 'TEAM', scopeLabel: 'Team · Core Platform', weight: 15, isApplied: false },
-          { scope: 'TEMPLATE', scopeLabel: 'Template Override', weight: 20, isApplied: true },
-        ],
-      },
-    },
-    {
-      id: 'tc-2',
-      templateVersionId: '550e8400-e29b-41d4-a716-446655440000',
-      criterionVersionId: 'cv-2',
-      criterion: MOCK_CRITERIA_LIBRARY[1],
-      effectiveWeight: 15,
-      applicableRoleIds: [],
-      applicableTeamIds: [],
-      isDisabled: false,
-      isOptional: false,
-      displayOrder: 2,
-    },
-    {
-      id: 'tc-3',
-      templateVersionId: '550e8400-e29b-41d4-a716-446655440000',
-      criterionVersionId: 'cv-3',
-      criterion: MOCK_CRITERIA_LIBRARY[2],
-      effectiveWeight: 25,
-      applicableRoleIds: [],
-      applicableTeamIds: [],
-      isDisabled: false,
-      isOptional: false,
-      displayOrder: 3,
-    },
-    {
-      id: 'tc-4',
-      templateVersionId: '550e8400-e29b-41d4-a716-446655440000',
-      criterionVersionId: 'cv-4',
-      criterion: MOCK_CRITERIA_LIBRARY[3],
-      effectiveWeight: 20,
-      applicableRoleIds: [],
-      applicableTeamIds: [],
-      isDisabled: false,
-      isOptional: false,
-      displayOrder: 4,
-    },
-    {
-      id: 'tc-5',
-      templateVersionId: '550e8400-e29b-41d4-a716-446655440000',
-      criterionVersionId: 'cv-5',
-      criterion: MOCK_CRITERIA_LIBRARY[4],
-      effectiveWeight: 20,
-      applicableRoleIds: [],
-      applicableTeamIds: [],
-      isDisabled: false,
-      isOptional: false,
-      displayOrder: 5,
-    },
-  ],
-};
+  if (!isOpen) return null;
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newErrors: Record<string, string> = {};
+    if (!code.trim()) newErrors.code = 'Code is required.';
+    if (!name.trim()) newErrors.name = 'Name is required.';
+    if (Object.keys(newErrors).length) { setErrors(newErrors); return; }
+    setErrors({});
+    onSubmit({ code: code.trim().toUpperCase(), name: name.trim(), description: description.trim() || undefined });
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '8px 12px', borderRadius: RADII.md,
+    border: `1px solid ${COLORS.neutral[300]}`, fontSize: '0.875rem',
+    fontFamily: TYPOGRAPHY.fontFamily.body, boxSizing: 'border-box',
+    outline: 'none',
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block', fontSize: '0.8125rem', fontWeight: 500,
+    color: COLORS.neutral.textSecondary, marginBottom: '4px',
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+    }}>
+      <div style={{
+        backgroundColor: COLORS.neutral.white, borderRadius: RADII['2xl'],
+        padding: '32px', width: '480px', maxWidth: '90vw',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+      }}>
+        <h2 style={{ margin: '0 0 24px', fontSize: '1.125rem', fontWeight: 700, color: COLORS.neutral.textPrimary }}>
+          Create New Template
+        </h2>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div>
+            <label style={labelStyle}>Code <span style={{ color: COLORS.error?.DEFAULT ?? '#ef4444' }}>*</span></label>
+            <input
+              id="template-code"
+              value={code}
+              onChange={e => setCode(e.target.value.toUpperCase())}
+              placeholder="e.g. ENG_EVAL_2027"
+              style={{ ...inputStyle, borderColor: errors.code ? '#ef4444' : COLORS.neutral[300] }}
+            />
+            {errors.code && <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: '#ef4444' }}>{errors.code}</p>}
+          </div>
+          <div>
+            <label style={labelStyle}>Name <span style={{ color: COLORS.error?.DEFAULT ?? '#ef4444' }}>*</span></label>
+            <input
+              id="template-name"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="e.g. Engineering Evaluation 2027"
+              style={{ ...inputStyle, borderColor: errors.name ? '#ef4444' : COLORS.neutral[300] }}
+            />
+            {errors.name && <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: '#ef4444' }}>{errors.name}</p>}
+          </div>
+          <div>
+            <label style={labelStyle}>Description</label>
+            <textarea
+              id="template-description"
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              rows={3}
+              placeholder="Optional description..."
+              style={{ ...inputStyle, resize: 'vertical' }}
+            />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isLoading}
+              style={{
+                padding: '8px 20px', borderRadius: RADII.md, border: `1px solid ${COLORS.neutral[300]}`,
+                background: 'transparent', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 500,
+                color: COLORS.neutral.textPrimary,
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isLoading}
+              style={{
+                padding: '8px 20px', borderRadius: RADII.md, border: 'none',
+                backgroundColor: COLORS.primary.DEFAULT, color: COLORS.neutral.white,
+                cursor: isLoading ? 'not-allowed' : 'pointer', fontSize: '0.875rem', fontWeight: 600,
+                opacity: isLoading ? 0.7 : 1,
+              }}
+            >
+              {isLoading ? 'Creating...' : 'Create Template'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
 export function EvaluationTemplatesPage() {
   const [activeView, setActiveView] = useState<'list' | 'builder'>('list');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | undefined>();
   const [selectedVersionId, setSelectedVersionId] = useState<string | undefined>();
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
-  // TanStack Queries (with mock fallback for development)
   const templatesQuery = useTemplatesQuery();
   const templateDetailQuery = useTemplateDetailQuery(selectedTemplateId);
   const templateVersionQuery = useTemplateVersionQuery(selectedTemplateId, selectedVersionId);
@@ -244,31 +150,32 @@ export function EvaluationTemplatesPage() {
   const saveDraftMutation = useSaveCriteriaDraftMutation();
   const publishMutation = usePublishVersionMutation();
   const createVersionMutation = useCreateVersionMutation();
-
-  const templatesList = templatesQuery.data?.length ? templatesQuery.data : [MOCK_TEMPLATE];
-  const libraryCriteria = libraryQuery.data?.length ? libraryQuery.data : MOCK_CRITERIA_LIBRARY;
-
-  const currentTemplate = templateDetailQuery.data || MOCK_TEMPLATE;
-  const currentVersion = templateVersionQuery.data || MOCK_VERSION;
+  const createTemplateMutation = useCreateTemplateMutation();
 
   const handleSelectTemplate = (templateId: string, versionId?: string) => {
+    const template = templatesQuery.data?.find(t => t.id === templateId);
     setSelectedTemplateId(templateId);
-    setSelectedVersionId(versionId || '550e8400-e29b-41d4-a716-446655440000');
+    setSelectedVersionId(versionId || template?.currentVersionId);
     setActiveView('builder');
   };
 
-  const handleCreateNewTemplate = () => {
-    setSelectedTemplateId('6ba7b810-9dad-11d1-80b4-00c04fd430c8');
-    setSelectedVersionId('550e8400-e29b-41d4-a716-446655440000');
+  const handleCreateTemplate = async (data: { code: string; name: string; description?: string }) => {
+    const created = await createTemplateMutation.mutateAsync(data);
+    setShowCreateModal(false);
+    // Navigate into the builder with the newly created template's first version
+    setSelectedTemplateId(created.id);
+    setSelectedVersionId(created.currentVersionId);
     setActiveView('builder');
   };
 
   const handleCreateNewVersion = async (templateId: string) => {
     try {
-      await createVersionMutation.mutateAsync({ templateId });
-      handleSelectTemplate(templateId, 'ver-2');
+      const newVersion = await createVersionMutation.mutateAsync({ templateId });
+      setSelectedTemplateId(templateId);
+      setSelectedVersionId(newVersion.id);
+      setActiveView('builder');
     } catch {
-      handleSelectTemplate(templateId, 'ver-2');
+      // stay on list
     }
   };
 
@@ -293,14 +200,32 @@ export function EvaluationTemplatesPage() {
     }
   };
 
-  if (activeView === 'builder') {
+  if (activeView === 'builder' && templateDetailQuery.data && (templateVersionQuery.data || templateVersionQuery.isLoading)) {
+    const currentVersion = templateVersionQuery.data;
+    if (!currentVersion && templateVersionQuery.isLoading) {
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, color: COLORS.neutral.textSecondary }}>
+          Loading template version...
+        </div>
+      );
+    }
+    if (!currentVersion) {
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, color: COLORS.neutral.textSecondary }}>
+          <div>
+            <p>Could not load template version.</p>
+            <button onClick={() => setActiveView('list')} style={{ cursor: 'pointer' }}>← Back to list</button>
+          </div>
+        </div>
+      );
+    }
     return (
       <TemplateBuilderWorkspace
-        template={currentTemplate}
+        template={templateDetailQuery.data}
         version={currentVersion}
-        libraryCriteria={libraryCriteria}
-        isLoading={false}
-        error={null}
+        libraryCriteria={libraryQuery.data ?? []}
+        isLoading={libraryQuery.isLoading}
+        error={libraryQuery.error}
         onSaveDraft={handleSaveDraft}
         onPublishVersion={handlePublishVersion}
         onBackToList={() => setActiveView('list')}
@@ -312,13 +237,21 @@ export function EvaluationTemplatesPage() {
   }
 
   return (
-    <TemplateListScreen
-      templates={templatesList}
-      isLoading={templatesQuery.isLoading && templatesList.length === 0}
-      error={templatesQuery.error}
-      onSelectTemplate={handleSelectTemplate}
-      onCreateNewTemplate={handleCreateNewTemplate}
-      onCreateNewVersion={handleCreateNewVersion}
-    />
+    <>
+      <TemplateListScreen
+        templates={templatesQuery.data ?? []}
+        isLoading={templatesQuery.isLoading}
+        error={templatesQuery.error}
+        onSelectTemplate={handleSelectTemplate}
+        onCreateNewTemplate={() => setShowCreateModal(true)}
+        onCreateNewVersion={handleCreateNewVersion}
+      />
+      <CreateTemplateModal
+        isOpen={showCreateModal}
+        isLoading={createTemplateMutation.isPending}
+        onClose={() => setShowCreateModal(false)}
+        onSubmit={handleCreateTemplate}
+      />
+    </>
   );
 }
