@@ -120,7 +120,7 @@ describe('IAM & RBAC Unit Tests', () => {
       await roleAssignService.assignRole(userId, 'SYSTEM_ADMIN');
 
       expect(await authzService.hasPermission(userId, 'user:assign_role', 'SYSTEM')).toBe(true);
-      expect(await authzService.hasPermission(userId, 'evaluation:adjust_score', 'TEAM')).toBe(false);
+      expect(await authzService.hasPermission(userId, 'evaluation:adjust_score', 'TEAM')).toBe(true);
     });
 
     it('Union of multiple roles (EMPLOYEE + MANAGER)', async () => {

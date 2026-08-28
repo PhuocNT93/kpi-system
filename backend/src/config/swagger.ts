@@ -404,11 +404,24 @@ export const swaggerOptions: swaggerJsdoc.Options = {
             id: { type: 'string', format: 'uuid', example: 't1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
             code: { type: 'string', example: 'BE' },
             name: { type: 'string', example: 'Backend Team' },
+            description: { type: 'string', nullable: true, example: 'Backend Engineering Team' },
             department_id: { type: 'string', format: 'uuid', example: 'd1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
             active: { type: 'boolean', example: true },
             created_at: { type: 'string', format: 'date-time', example: '2026-01-01T00:00:00Z' },
             updated_at: { type: 'string', format: 'date-time', example: '2026-01-01T00:00:00Z' },
           },
+        },
+        TeamDetail: {
+          allOf: [
+            { $ref: '#/components/schemas/Team' },
+            {
+              type: 'object',
+              properties: {
+                member_count: { type: 'integer', example: 10 },
+                active_member_count: { type: 'integer', example: 8 },
+              },
+            },
+          ],
         },
         CreateTeamRequest: {
           type: 'object',
@@ -417,14 +430,15 @@ export const swaggerOptions: swaggerJsdoc.Options = {
             code: { type: 'string', example: 'FE' },
             name: { type: 'string', example: 'Frontend Team' },
             department_id: { type: 'string', format: 'uuid', example: 'd1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            description: { type: 'string', nullable: true, example: 'Frontend Web Team' },
           },
         },
         UpdateTeamRequest: {
           type: 'object',
           properties: {
-            code: { type: 'string', example: 'FE_WEB' },
             name: { type: 'string', example: 'Frontend Web Team' },
             department_id: { type: 'string', format: 'uuid', example: 'd1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+            description: { type: 'string', nullable: true, example: 'Updated team description' },
             active: { type: 'boolean', example: true },
           },
         },
@@ -1980,10 +1994,13 @@ export const swaggerOptions: swaggerJsdoc.Options = {
       '/api/teams': {
         get: {
           summary: 'List teams',
-          description: 'Retrieves a list of all teams.',
+          description: 'Retrieves a list of all teams with optional filtering by department, active status, or search query.',
           tags: ['Employee - Teams'],
           security: [{ bearerAuth: [] }],
           parameters: [
+            { name: 'department_id', in: 'query', required: false, schema: { type: 'string', format: 'uuid' } },
+            { name: 'active', in: 'query', required: false, schema: { type: 'boolean' } },
+            { name: 'search', in: 'query', required: false, schema: { type: 'string' } },
             { name: 'page', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
             { name: 'page_size', in: 'query', required: false, schema: { type: 'integer', default: 20 } },
           ],
@@ -2052,7 +2069,7 @@ export const swaggerOptions: swaggerJsdoc.Options = {
       '/api/teams/{teamId}': {
         get: {
           summary: 'Get team by ID',
-          description: 'Retrieves team details.',
+          description: 'Retrieves team details including member counts.',
           tags: ['Employee - Teams'],
           security: [{ bearerAuth: [] }],
           parameters: [
@@ -2069,7 +2086,7 @@ export const swaggerOptions: swaggerJsdoc.Options = {
                       {
                         type: 'object',
                         properties: {
-                          data: { $ref: '#/components/schemas/Team' },
+                          data: { $ref: '#/components/schemas/TeamDetail' },
                         },
                       },
                     ],
@@ -2141,7 +2158,13 @@ export const swaggerOptions: swaggerJsdoc.Options = {
                       {
                         type: 'object',
                         properties: {
-                          data: { $ref: '#/components/schemas/Team' },
+                          data: {
+                            type: 'object',
+                            properties: {
+                              id: { type: 'string', format: 'uuid', example: 't1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d' },
+                              active: { type: 'boolean', example: false },
+                            },
+                          },
                         },
                       },
                     ],

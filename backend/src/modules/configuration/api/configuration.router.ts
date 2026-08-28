@@ -1,6 +1,7 @@
 import { Router, RequestHandler } from 'express';
 import { ConfigurationController } from './configuration.controller.js';
 import { AuthorizationService } from '../../iam/index.js';
+import { getActorFromContext } from '../../../shared/auth/index.js';
 
 export function createConfigurationRouter(
   controller: ConfigurationController,
@@ -13,12 +14,11 @@ export function createConfigurationRouter(
   const requirePermission = (permissionCode: string): RequestHandler => {
     return async (req, res, next) => {
       try {
-        const actor = (req as unknown as { user?: { userId?: string; roles?: string[] } }).user;
+        const actor = req.actor || getActorFromContext(req);
         if (!actor || !actor.userId) {
           res.status(401).json({ success: false, message: 'Authentication required.' });
           return;
         }
-
         const hasPerm = await authorizationService.hasPermission(actor.userId, permissionCode);
         if (!hasPerm) {
           res.status(403).json({ success: false, message: `Permission '${permissionCode}' required.` });
