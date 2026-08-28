@@ -253,16 +253,30 @@ export class ConfigurationController {
   getTemplateVersionById = async (req: Request, res: Response): Promise<void> => {
     const versionId = req.params.versionId as string;
     const version = await this.templateService.getTemplateVersionById(versionId);
-    const enrichedCriteria = await this.templateService.getTemplateCriteriaWithDetails(versionId);
+    const enrichedCriteria = await this.templateService.getTemplateStructureWithDetails(versionId);
     
-    // Format the result to match the existing response structure
-    const formattedCriteria = enrichedCriteria.map(tc => {
+    // Format the result to group criteria under KPIs
+    const kpisMap = new Map<string, any>();
+    
+    for (const tc of enrichedCriteria) {
+      if (!kpisMap.has(tc.kpi_id)) {
+        kpisMap.set(tc.kpi_id, {
+          id: tc.template_kpi_id, // This is the template_kpi.id
+          kpi_id: tc.kpi_id,
+          kpi_code: tc.kpi_code,
+          kpi_name: tc.kpi_name,
+          weight: 0, // We'll need to fetch the kpi weight, or we can include it in the query
+          display_order: 0,
+          criteria: []
+        });
+      }
+      
       const roleRule = tc.applicability?.rules?.find((r: any) => r.dimension === 'ROLE');
       const teamRule = tc.applicability?.rules?.find((r: any) => r.dimension === 'TEAM');
-
-      return {
+      
+      kpisMap.get(tc.kpi_id).criteria.push({
         id: tc.id,
-        template_version_id: tc.template_version_id,
+        template_kpi_id: tc.template_kpi_id,
         criterion_version_id: tc.criterion_version_id,
         criterion: tc.criterion,
         effective_weight: tc.weight,
@@ -271,12 +285,12 @@ export class ConfigurationController {
         is_disabled: !tc.enabled,
         is_optional: !tc.required,
         display_order: tc.display_order,
-      };
-    });
+      });
+    }
 
     sendSuccess(res, 200, 'Template version retrieved successfully.', {
       ...version,
-      criteria: formattedCriteria,
+      kpis: Array.from(kpisMap.values()),
     });
   };
 
@@ -327,32 +341,19 @@ export class ConfigurationController {
     sendSuccess(res, 200, 'Template version diff generated successfully.', diff);
   };
 
-  // ── Template Criteria ───────────────────────────────────────────────────────
+  // ── Template Structure ───────────────────────────────────────────────────────
 
-  getTemplateCriteria = async (req: Request, res: Response): Promise<void> => {
+  getTemplateStructure = async (req: Request, res: Response): Promise<void> => {
     const versionId = req.params.versionId as string;
-    const criteria = await this.templateService.getTemplateCriteria(versionId);
-    sendSuccess(res, 200, 'Template criteria retrieved successfully.', criteria);
+    const structure = await this.templateService.getTemplateStructure(versionId);
+    sendSuccess(res, 200, 'Template structure retrieved successfully.', structure);
   };
 
-  addTemplateCriterion = async (req: Request, res: Response): Promise<void> => {
+  bulkUpdateTemplateStructure = async (req: Request, res: Response): Promise<void> => {
     const versionId = req.params.versionId as string;
-    const created = await this.templateService.addTemplateCriterion(versionId, req.body, this.getActorId(req));
-    sendSuccess(res, 201, 'Template criterion added successfully.', created);
-  };
-
-  bulkUpdateTemplateCriteria = async (req: Request, res: Response): Promise<void> => {
-    const versionId = req.params.versionId as string;
-    const items = req.body.criteria || req.body;
-    const updated = await this.templateService.bulkUpdateTemplateCriteria(versionId, items, this.getActorId(req));
-    sendSuccess(res, 200, 'Template criteria updated in bulk successfully.', updated);
-  };
-
-  deleteTemplateCriterion = async (req: Request, res: Response): Promise<void> => {
-    const versionId = req.params.versionId as string;
-    const id = req.params.id as string;
-    await this.templateService.deleteTemplateCriterion(versionId, id, this.getActorId(req));
-    sendSuccess(res, 200, 'Template criterion removed successfully.', null);
+    const kpisPayload = req.body.kpis || req.body;
+    await this.templateService.bulkUpdateTemplateStructure(versionId, kpisPayload, this.getActorId(req));
+    sendSuccess(res, 200, 'Template structure updated in bulk successfully.', null);
   };
 
   // ── Overrides ───────────────────────────────────────────────────────────────

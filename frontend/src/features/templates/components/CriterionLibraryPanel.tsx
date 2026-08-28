@@ -5,14 +5,12 @@ import { Button } from '../../../shared/ui/Button/Button';
 interface CriterionLibraryPanelProps {
   criteria: Criterion[];
   existingCriterionIds: Set<string>;
-  onAddCriterion: (criterion: Criterion) => void;
   isReadOnly?: boolean;
 }
 
 export function CriterionLibraryPanel({
   criteria,
   existingCriterionIds,
-  onAddCriterion,
   isReadOnly = false,
 }: CriterionLibraryPanelProps) {
   const [search, setSearch] = useState('');
@@ -115,6 +113,11 @@ export function CriterionLibraryPanel({
               return (
                 <div
                   key={c.id}
+                  draggable={!isAdded && !isReadOnly}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('application/json', JSON.stringify(c));
+                    e.dataTransfer.effectAllowed = 'copy';
+                  }}
                   style={{
                     border: '1px solid #e5e7eb',
                     borderRadius: 6,
@@ -123,6 +126,8 @@ export function CriterionLibraryPanel({
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '0.375rem',
+                    cursor: (isAdded || isReadOnly) ? 'default' : 'grab',
+                    opacity: isAdded ? 0.6 : 1,
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -144,24 +149,22 @@ export function CriterionLibraryPanel({
                   </div>
 
                   <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                    v{c.version} · Published
+                    {c.currentVersion ? `v${c.currentVersion.versionNo}` : '-'} · {c.status === 'ACTIVE' ? 'Active' : 'Inactive'}
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
-                    {isAdded ? (
-                      <span style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 600 }}>
-                        ✓ Already added
-                      </span>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="outlined"
-                        disabled={isReadOnly}
-                        onClick={() => onAddCriterion(c)}
-                      >
-                        + Add to Template
-                      </Button>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.25rem' }}>
+                    {!isAdded && !isReadOnly && (
+                      <div style={{ fontSize: '0.75rem', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ fontSize: '0.875rem' }}>⠿</span> Drag to add
+                      </div>
                     )}
+                    <div style={{ marginLeft: 'auto' }}>
+                      {isAdded && (
+                        <span style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 600 }}>
+                          ✓ Already added
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               );

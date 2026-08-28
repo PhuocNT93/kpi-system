@@ -82,10 +82,8 @@ export function createConfigurationRouter(
   router.get('/templates/:templateId/versions/:versionId/snapshot', requirePermission('CONFIGURATION_READ'), controller.getTemplateSnapshot);
   router.get('/templates/:templateId/versions/:fromVersion/diff/:toVersion', requirePermission('CONFIGURATION_READ'), controller.diffTemplateVersions);
 
-  router.get('/templates/:templateId/versions/:versionId/criteria', requirePermission('CONFIGURATION_READ'), controller.getTemplateCriteria);
-  router.post('/templates/:templateId/versions/:versionId/criteria', requirePermission('CONFIGURATION_CREATE'), controller.addTemplateCriterion);
-  router.put('/templates/:templateId/versions/:versionId/criteria', requirePermission('CONFIGURATION_UPDATE'), controller.bulkUpdateTemplateCriteria);
-  router.delete('/templates/:templateId/versions/:versionId/criteria/:id', requirePermission('CONFIGURATION_UPDATE'), controller.deleteTemplateCriterion);
+  router.get('/templates/:templateId/versions/:versionId/structure', requirePermission('CONFIGURATION_READ'), controller.getTemplateStructure);
+  router.put('/templates/:templateId/versions/:versionId/structure', requirePermission('CONFIGURATION_UPDATE'), controller.bulkUpdateTemplateStructure);
 
   // ── Overrides Routes ────────────────────────────────────────────────────────
   router.get('/role-overrides', requirePermission('CONFIGURATION_READ'), controller.getRoleOverrides);

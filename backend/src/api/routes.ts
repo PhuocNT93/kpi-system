@@ -11,6 +11,7 @@ import { createOrganizationRouter } from '../modules/organization/api/organizati
 import { ConfigurationController } from '../modules/configuration/api/configuration.controller.js';
 import { createConfigurationRouter } from '../modules/configuration/api/configuration.router.js';
 import { KpiRelationshipController } from '../modules/kpi/api/kpi-relationship.controller.js';
+import { KpiController } from '../modules/kpi/api/kpi.controller.js';
 import { createKpiRouter } from '../modules/kpi/api/kpi.router.js';
 import { AuditController } from '../modules/audit/api/audit.controller.js';
 import { createAuditRouter } from '../modules/audit/api/audit.router.js';
@@ -25,6 +26,7 @@ export interface RegisterRoutesOptions {
   employeeController?: EmployeeController;
   organizationController?: OrganizationController;
   configurationController?: ConfigurationController;
+  kpiController?: KpiController;
   kpiRelationshipController?: KpiRelationshipController;
   auditController?: AuditController;
   evaluationCycleController?: EvaluationCycleController;
@@ -55,8 +57,8 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
   }
 
   // ── KPI Module Routes ─────────────────────────────────────────────────────
-  if (options.kpiRelationshipController) {
-    router.use('/kpi', createKpiRouter(options.kpiRelationshipController, options.jwtMiddleware));
+  if (options.kpiController && options.kpiRelationshipController) {
+    router.use('/kpi', createKpiRouter(options.kpiController, options.kpiRelationshipController, options.jwtMiddleware));
   }
 
   // ── Audit Module Routes ───────────────────────────────────────────────────

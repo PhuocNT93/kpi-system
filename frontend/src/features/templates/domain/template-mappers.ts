@@ -1,7 +1,8 @@
 import type {
   EvaluationTemplate,
   EvaluationTemplateVersion,
-  TemplateCriterion,
+  TemplateKpi,
+  TemplateKpiCriterion,
   Criterion,
   CriterionVersion,
   ScoringRule,
@@ -10,88 +11,103 @@ import type {
   VersionDiffItem,
 } from './template-models';
 
-export function calculateConfiguredWeightTotal(criteria: TemplateCriterion[]): number {
-  return criteria
-    .filter((c) => !c.isDisabled)
-    .reduce((sum, c) => sum + (Number(c.effectiveWeight) || 0), 0);
+export function calculateConfiguredWeightTotal(kpis: TemplateKpi[]): number {
+  return kpis.reduce((sum, k) => sum + (Number(k.weight) || 0), 0);
 }
 
 export function validateTemplateClientSide(
-  criteria: TemplateCriterion[]
+  kpis: TemplateKpi[]
 ): TemplateValidationResult {
-  const activeCriteria = criteria.filter((c) => !c.isDisabled);
-  const totalWeight = Math.round(calculateConfiguredWeightTotal(activeCriteria) * 100) / 100;
+  const totalWeight = Math.round(calculateConfiguredWeightTotal(kpis) * 100) / 100;
   const errors: ValidationErrorItem[] = [];
   const warnings: ValidationErrorItem[] = [];
 
-  // Weight validation
+  // Weight validation - KPIs level
   if (Math.abs(totalWeight - 100) > 0.01) {
     errors.push({
       code: 'WEIGHT_TOTAL_NOT_100',
       category: 'WEIGHT',
-      message: `Total configured weight is ${totalWeight}%. Expected exactly 100%.`,
+      message: `Total configured KPI weight is ${totalWeight}%. Expected exactly 100%.`,
       actual: totalWeight,
       expected: 100,
     });
   }
 
-  // Scoring Rule & Applicability validation
-  activeCriteria.forEach((tc) => {
-    if (tc.effectiveWeight <= 0) {
+  // Weight validation - Criteria level inside each KPI
+  kpis.forEach(kpi => {
+    const activeCriteria = kpi.criteria.filter((c) => !c.isDisabled);
+    const totalCriteriaWeight = Math.round(
+      activeCriteria.reduce((sum, c) => sum + (Number(c.effectiveWeight) || 0), 0) * 100
+    ) / 100;
+
+    if (Math.abs(totalCriteriaWeight - 100) > 0.01) {
       errors.push({
-        code: 'MISSING_REQUIRED_FIELD',
+        code: 'WEIGHT_TOTAL_NOT_100',
         category: 'WEIGHT',
-        criterionCode: tc.criterion.code,
-        criterionName: tc.criterion.name,
-        message: `Criterion "${tc.criterion.name}" weight must be greater than 0%.`,
+        message: `Total criteria weight for KPI "${kpi.kpiName || 'Unknown'}" is ${totalCriteriaWeight}%. Expected exactly 100%.`,
+        actual: totalCriteriaWeight,
+        expected: 100,
       });
     }
 
-    if (tc.isOptional) {
-      warnings.push({
-        code: 'MISSING_REQUIRED_FIELD',
-        category: 'WARNINGS',
-        criterionCode: tc.criterion.code,
-        criterionName: tc.criterion.name,
-        message: `Criterion "${tc.criterion.name}" is marked as optional.`,
-        isWarning: true,
-      });
-    }
+    // Scoring Rule & Applicability validation
+    activeCriteria.forEach((tc) => {
+      if (tc.effectiveWeight <= 0) {
+        errors.push({
+          code: 'MISSING_REQUIRED_FIELD',
+          category: 'WEIGHT',
+          criterionCode: tc.criterion.code,
+          criterionName: tc.criterion.name,
+          message: `Criterion "${tc.criterion.name}" weight must be greater than 0%.`,
+        });
+      }
 
-    // Scoring rule validation for RANGE_THRESHOLD
-    const rule = tc.customScoringRule || tc.criterion.currentVersion?.scoringRule;
-    if (rule && rule.ruleType === 'RANGE_THRESHOLD' && rule.config) {
-      const config = rule.config as { ranges?: { minScore: number; maxScore: number }[] };
-      if (config.ranges && config.ranges.length > 1) {
-        for (let i = 0; i < config.ranges.length - 1; i++) {
-          const curr = config.ranges[i];
-          const next = config.ranges[i + 1];
-          if (curr.maxScore >= next.minScore) {
-            errors.push({
-              code: 'INVALID_RANGE',
-              category: 'SCORING_RULE',
-              criterionCode: tc.criterion.code,
-              criterionName: tc.criterion.name,
-              message: `Scoring range overlap detected between level ${i + 1} and ${i + 2} in "${tc.criterion.name}".`,
-            });
+      if (tc.isOptional) {
+        warnings.push({
+          code: 'MISSING_REQUIRED_FIELD',
+          category: 'WARNINGS',
+          criterionCode: tc.criterion.code,
+          criterionName: tc.criterion.name,
+          message: `Criterion "${tc.criterion.name}" is marked as optional.`,
+          isWarning: true,
+        });
+      }
+
+      // Scoring rule validation for RANGE_THRESHOLD
+      const rule = tc.customScoringRule || tc.criterion.currentVersion?.scoringRule;
+      if (rule && rule.ruleType === 'RANGE_THRESHOLD' && rule.config) {
+        const config = rule.config as { ranges?: { minScore: number; maxScore: number }[] };
+        if (config.ranges && config.ranges.length > 1) {
+          for (let i = 0; i < config.ranges.length - 1; i++) {
+            const curr = config.ranges[i];
+            const next = config.ranges[i + 1];
+            if (curr.maxScore >= next.minScore) {
+              errors.push({
+                code: 'INVALID_RANGE',
+                category: 'SCORING_RULE',
+                criterionCode: tc.criterion.code,
+                criterionName: tc.criterion.name,
+                message: `Scoring range overlap detected between level ${i + 1} and ${i + 2} in "${tc.criterion.name}".`,
+              });
+            }
           }
         }
       }
-    }
 
-    // ROLE_CONDITIONAL check
-    if (rule && rule.ruleType === 'ROLE_CONDITIONAL' && rule.config) {
-      const config = rule.config as { branches?: { roleId: string; roleName: string }[] };
-      if (!config.branches || config.branches.length === 0) {
-        errors.push({
-          code: 'MISSING_SCORING_BRANCH',
-          category: 'APPLICABILITY',
-          criterionCode: tc.criterion.code,
-          criterionName: tc.criterion.name,
-          message: `Role conditional rule in "${tc.criterion.name}" has no configured role branches.`,
-        });
+      // ROLE_CONDITIONAL check
+      if (rule && rule.ruleType === 'ROLE_CONDITIONAL' && rule.config) {
+        const config = rule.config as { branches?: { roleId: string; roleName: string }[] };
+        if (!config.branches || config.branches.length === 0) {
+          errors.push({
+            code: 'MISSING_SCORING_BRANCH',
+            category: 'APPLICABILITY',
+            criterionCode: tc.criterion.code,
+            criterionName: tc.criterion.name,
+            message: `Role conditional rule in "${tc.criterion.name}" has no configured role branches.`,
+          });
+        }
       }
-    }
+    });
   });
 
   return {
@@ -103,9 +119,13 @@ export function validateTemplateClientSide(
 }
 
 export function compareTemplateVersions(
-  v1Criteria: TemplateCriterion[],
-  v2Criteria: TemplateCriterion[]
+  v1Kpis: TemplateKpi[],
+  v2Kpis: TemplateKpi[]
 ): VersionDiffItem[] {
+  // A simplistic diff for now, flattening the criteria to compare them.
+  // In a real scenario, we might also want to diff KPIs themselves.
+  const v1Criteria = v1Kpis.flatMap(k => k.criteria);
+  const v2Criteria = v2Kpis.flatMap(k => k.criteria);
   const diffs: VersionDiffItem[] = [];
   const v1Map = new Map(v1Criteria.map((c) => [c.criterion.code, c]));
   const v2Map = new Map(v2Criteria.map((c) => [c.criterion.code, c]));
@@ -182,7 +202,7 @@ export function mapWireTemplateToDomain(wire: any): EvaluationTemplate {
     status: wire.status,
     currentVersionId: wire.current_version_id ?? undefined,
     currentVersion: wire.current_version ? mapWireVersionToDomain(wire.current_version) : undefined,
-    criteriaCount: wire.criteria_count ?? (wire.current_version?.criteria?.length || 0),
+    criteriaCount: wire.criteria_count ?? (wire.current_version?.kpis?.reduce((sum: number, kpi: any) => sum + (kpi.criteria?.length || 0), 0) || 0),
     version: wire.version ?? 1,
     createdAt: wire.created_at,
     createdBy: wire.created_by ?? undefined,
@@ -205,16 +225,30 @@ export function mapWireVersionToDomain(wire: any): EvaluationTemplateVersion {
     publishedBy: wire.published_by ?? undefined,
     publishedByName: wire.published_by_name ?? undefined,
     version: wire.version ?? 1,
-    criteria: Array.isArray(wire.criteria)
-      ? wire.criteria.map(mapWireTemplateCriterionToDomain)
+    kpis: Array.isArray(wire.kpis)
+      ? wire.kpis.map(mapWireTemplateKpiToDomain)
       : [],
   };
 }
 
-export function mapWireTemplateCriterionToDomain(wire: any): TemplateCriterion {
+export function mapWireTemplateKpiToDomain(wire: any): TemplateKpi {
   return {
     id: wire.id,
     templateVersionId: wire.template_version_id,
+    kpiId: wire.kpi_id,
+    kpiName: wire.kpi_name || wire.kpi?.name || 'Unknown KPI',
+    weight: Number(wire.weight) || 0,
+    displayOrder: wire.display_order ?? 0,
+    criteria: Array.isArray(wire.criteria)
+      ? wire.criteria.map(mapWireTemplateKpiCriterionToDomain)
+      : [],
+  };
+}
+
+export function mapWireTemplateKpiCriterionToDomain(wire: any): TemplateKpiCriterion {
+  return {
+    id: wire.id,
+    templateKpiId: wire.template_kpi_id,
     criterionVersionId: wire.criterion_version_id,
     criterion: mapWireCriterionToDomain(wire.criterion || {}),
     effectiveWeight: Number(wire.effective_weight) || 0,
@@ -267,7 +301,7 @@ export function mapWireScoringRuleToDomain(wire: any): ScoringRule {
   };
 }
 
-export function mapWireProvenanceToDomain(wire: any): TemplateCriterion['provenance'] {
+export function mapWireProvenanceToDomain(wire: any): TemplateKpiCriterion['provenance'] {
   if (!wire) return undefined;
   return {
     effectiveWeight: Number(wire.effective_weight) || 0,

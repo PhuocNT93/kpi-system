@@ -4,7 +4,8 @@ import {
 import {
   ITemplateRepository,
   ITemplateVersionRepository,
-  ITemplateCriterionRepository,
+  ITemplateKpiRepository,
+  ITemplateKpiCriterionRepository,
   ICriterionRepository,
   ICriterionVersionRepository,
   IEvaluationLevelRepository,
@@ -17,7 +18,8 @@ export class ConfigurationSnapshotService {
   constructor(
     private templateRepo: ITemplateRepository,
     private versionRepo: ITemplateVersionRepository,
-    private templateCriterionRepo: ITemplateCriterionRepository,
+    private templateKpiRepo: ITemplateKpiRepository,
+    private templateKpiCriterionRepo: ITemplateKpiCriterionRepository,
     private criterionRepo: ICriterionRepository,
     private criterionVersionRepo: ICriterionVersionRepository,
     private levelRepo: IEvaluationLevelRepository,
@@ -38,28 +40,41 @@ export class ConfigurationSnapshotService {
     }
 
     const levels = await this.levelRepo.findAll();
-    const templateCriteria = await this.templateCriterionRepo.findByTemplateVersionId(versionId);
+    const templateKpis = await this.templateKpiRepo.findByTemplateVersionId(versionId);
 
-    const snapshotCriteria: TemplateSnapshot['criteria'] = [];
+    const snapshotKpis: TemplateSnapshot['kpis'] = [];
 
-    for (const tc of templateCriteria) {
-      const cv = await this.criterionVersionRepo.findById(tc.criterion_version_id);
-      if (!cv) continue;
+    for (const tk of templateKpis) {
+      const templateCriteria = await this.templateKpiCriterionRepo.findByTemplateKpiId(tk.id);
+      const snapshotCriteria = [];
 
-      const criterion = await this.criterionRepo.findById(cv.criterion_id);
-      if (!criterion) continue;
+      for (const tc of templateCriteria) {
+        const cv = await this.criterionVersionRepo.findById(tc.criterion_version_id);
+        if (!cv) continue;
 
-      let rule = undefined;
-      if (cv.scoring_rule_id) {
-        const sr = await this.scoringRuleRepo.findById(cv.scoring_rule_id);
-        if (sr) rule = sr;
+        const criterion = await this.criterionRepo.findById(cv.criterion_id);
+        if (!criterion) continue;
+
+        let rule = undefined;
+        if (cv.scoring_rule_id) {
+          const sr = await this.scoringRuleRepo.findById(cv.scoring_rule_id);
+          if (sr) rule = sr;
+        }
+
+        snapshotCriteria.push({
+          criterion,
+          version: cv,
+          template_kpi_criterion: tc,
+          scoring_rule: rule,
+        });
       }
 
-      snapshotCriteria.push({
-        criterion,
-        version: cv,
-        template_criterion: tc,
-        scoring_rule: rule,
+      // We'd ideally fetch KPI entity here, but for now we include a placeholder or fetch it if needed.
+      // Let's assume the snapshot can live without full KPI entity or we just include id.
+      snapshotKpis.push({
+        kpi: { kpi_id: tk.kpi_id },
+        template_kpi: tk,
+        criteria: snapshotCriteria,
       });
     }
 
@@ -87,7 +102,7 @@ export class ConfigurationSnapshotService {
         weight_total_policy: templateVersion.weight_total_policy,
       },
       levels,
-      criteria: snapshotCriteria,
+      kpis: snapshotKpis,
       workflow: workflowSnapshot,
       snapshot_created_at: new Date().toISOString(),
     };

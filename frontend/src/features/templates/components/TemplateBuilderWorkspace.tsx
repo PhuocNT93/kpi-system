@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import type {
   EvaluationTemplate,
   EvaluationTemplateVersion,
-  TemplateCriterion,
+  TemplateKpi,
+  TemplateKpiCriterion,
   Criterion,
   TemplateValidationResult,
 } from '../domain/template-models';
@@ -11,7 +12,7 @@ import {
   validateTemplateClientSide,
 } from '../domain/template-mappers';
 import { CriterionLibraryPanel } from './CriterionLibraryPanel';
-import { SelectedCriteriaCanvas } from './SelectedCriteriaCanvas';
+import { SelectedKpiCanvas } from './SelectedKpiCanvas';
 import { WeightStatusBar } from './WeightStatusBar';
 import { CriterionConfigDrawer } from './CriterionConfigDrawer';
 import { ValidationResultsModal } from './ValidationResultsModal';
@@ -20,6 +21,7 @@ import { VersionHistoryDiffModal } from './VersionHistoryDiffModal';
 import { ConflictResolutionModal } from './ConflictResolutionModal';
 import { StatusBadge, LoadingSpinner, ErrorAlert } from '../../../shared/components/ui';
 import { Button } from '../../../shared/ui/Button/Button';
+import { useKpis } from '../../kpi/api/kpi-api';
 
 interface TemplateBuilderWorkspaceProps {
   template: EvaluationTemplate;
@@ -27,7 +29,7 @@ interface TemplateBuilderWorkspaceProps {
   libraryCriteria: Criterion[];
   isLoading?: boolean;
   error?: unknown;
-  onSaveDraft: (updatedCriteria: TemplateCriterion[], expectedVersion: number) => Promise<void>;
+  onSaveDraft: (updatedKpis: TemplateKpi[], expectedVersion: number) => Promise<void>;
   onPublishVersion: (expectedVersion: number) => Promise<void>;
   onBackToList: () => void;
   isSavePending?: boolean;
@@ -51,22 +53,27 @@ export function TemplateBuilderWorkspace({
   const isPublished = version.status === 'PUBLISHED' || template.status === 'PUBLISHED';
   const isReadOnly = isPublished;
 
-  const [criteria, setCriteria] = useState<TemplateCriterion[]>(version.criteria || []);
+  const [kpis, setKpis] = useState<TemplateKpi[]>(version.kpis || []);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState<string>('Just now');
   const [validationResult, setValidationResult] = useState<TemplateValidationResult | null>(null);
 
   // Active drawer & modals state
-  const [selectedConfigCriterion, setSelectedConfigCriterion] = useState<TemplateCriterion | null>(null);
+  const [selectedConfigCriterion, setSelectedConfigCriterion] = useState<{ kpiId: string; criterion: TemplateKpiCriterion } | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isValidationModalOpen, setIsValidationModalOpen] = useState(false);
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [isDiffModalOpen, setIsDiffModalOpen] = useState(false);
   const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
 
-  // Sync criteria state when version prop updates
+  // KPI Dropdown State
+  const [isKpiDropdownOpen, setIsKpiDropdownOpen] = useState(false);
+
+  const { data: availableKpis = [] } = useKpis();
+
+  // Sync kpis state when version prop updates
   useEffect(() => {
-    setCriteria(version.criteria || []);
+    setKpis(version.kpis || []);
     setHasUnsavedChanges(false);
   }, [version]);
 
@@ -77,28 +84,86 @@ export function TemplateBuilderWorkspace({
     }
   }, [saveError]);
 
-  const configuredTotalWeight = calculateConfiguredWeightTotal(criteria);
+  const configuredTotalWeight = calculateConfiguredWeightTotal(kpis);
 
-  // Handlers
-  const handleWeightChange = (id: string, newWeight: number) => {
+  // ── KPI Handlers ──────────────────────────────────────────────────────────
+
+  const handleAddKpi = (kpiData: any) => {
     if (isReadOnly) return;
-    setCriteria((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, effectiveWeight: newWeight } : item))
+    const newKpi: TemplateKpi = {
+      id: `tkpi-${Date.now()}`,
+      templateVersionId: version.id,
+      kpiId: kpiData.kpiId,
+      kpiName: kpiData.name,
+      weight: 10,
+      displayOrder: kpis.length + 1,
+      criteria: [],
+    };
+    setKpis((prev) => [...prev, newKpi]);
+    setHasUnsavedChanges(true);
+    setIsKpiDropdownOpen(false);
+  };
+
+  const handleRemoveKpi = (id: string) => {
+    if (isReadOnly) return;
+    setKpis((prev) => prev.filter((item) => item.id !== id));
+    setHasUnsavedChanges(true);
+  };
+
+  const handleKpiWeightChange = (id: string, newWeight: number) => {
+    if (isReadOnly) return;
+    setKpis((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, weight: newWeight } : item))
     );
     setHasUnsavedChanges(true);
   };
 
-  const handleRemoveCriterion = (id: string) => {
+  // ── Criterion Handlers ────────────────────────────────────────────────────
+
+  const handleCriterionWeightChange = (kpiId: string, criterionId: string, newWeight: number) => {
     if (isReadOnly) return;
-    setCriteria((prev) => prev.filter((item) => item.id !== id));
+    setKpis((prev) =>
+      prev.map((kpi) => {
+        if (kpi.id === kpiId) {
+          return {
+            ...kpi,
+            criteria: kpi.criteria.map((c) => (c.id === criterionId ? { ...c, effectiveWeight: newWeight } : c)),
+          };
+        }
+        return kpi;
+      })
+    );
     setHasUnsavedChanges(true);
   };
 
-  const handleAddCriterionFromLibrary = (criterion: Criterion) => {
+  const handleRemoveCriterion = (kpiId: string, criterionId: string) => {
     if (isReadOnly) return;
-    const newCriterionItem: TemplateCriterion = {
+    setKpis((prev) =>
+      prev.map((kpi) => {
+        if (kpi.id === kpiId) {
+          return {
+            ...kpi,
+            criteria: kpi.criteria.filter((c) => c.id !== criterionId),
+          };
+        }
+        return kpi;
+      })
+    );
+    setHasUnsavedChanges(true);
+  };
+
+  const handleAddCriterionFromLibrary = (criterion: Criterion, targetKpiId: string) => {
+    if (isReadOnly || kpis.length === 0) {
+      alert("Please add a KPI group first.");
+      return;
+    }
+    const targetKpiIndex = kpis.findIndex(k => k.id === targetKpiId);
+    if (targetKpiIndex === -1) return;
+    const targetKpi = kpis[targetKpiIndex];
+
+    const newCriterionItem: TemplateKpiCriterion = {
       id: `tc-${Date.now()}`,
-      templateVersionId: version.id,
+      templateKpiId: targetKpi.id,
       criterionVersionId: criterion.currentVersion?.id || `cv-${criterion.id}`,
       criterion,
       effectiveWeight: 10,
@@ -106,33 +171,53 @@ export function TemplateBuilderWorkspace({
       applicableTeamIds: [],
       isDisabled: false,
       isOptional: false,
-      displayOrder: criteria.length + 1,
+      displayOrder: targetKpi.criteria.length + 1,
     };
-    setCriteria((prev) => [...prev, newCriterionItem]);
+    
+    setKpis((prev) => {
+      const next = [...prev];
+      next[targetKpiIndex] = {
+        ...next[targetKpiIndex],
+        criteria: [...next[targetKpiIndex].criteria, newCriterionItem],
+      };
+      return next;
+    });
     setHasUnsavedChanges(true);
   };
 
-  const handleSaveDrawerCriterion = (updatedItem: TemplateCriterion) => {
-    if (isReadOnly) return;
-    setCriteria((prev) => prev.map((item) => (item.id === updatedItem.id ? updatedItem : item)));
+  const handleSaveDrawerCriterion = (updatedItem: any) => {
+    if (isReadOnly || !selectedConfigCriterion) return;
+    setKpis((prev) =>
+      prev.map((kpi) => {
+        if (kpi.id === selectedConfigCriterion.kpiId) {
+          return {
+            ...kpi,
+            criteria: kpi.criteria.map((c) => (c.id === updatedItem.id ? updatedItem : c)),
+          };
+        }
+        return kpi;
+      })
+    );
     setHasUnsavedChanges(true);
   };
+
+  // ── Actions ───────────────────────────────────────────────────────────────
 
   const handleRunValidation = () => {
-    const res = validateTemplateClientSide(criteria);
+    const res = validateTemplateClientSide(kpis);
     setValidationResult(res);
     setIsValidationModalOpen(true);
   };
 
   const handleSaveDraft = async () => {
     if (isReadOnly) return;
-    await onSaveDraft(criteria, version.version);
+    await onSaveDraft(kpis, version.version);
     setHasUnsavedChanges(false);
     setLastSavedTime(new Date().toLocaleTimeString());
   };
 
   const handlePublishClick = () => {
-    const res = validateTemplateClientSide(criteria);
+    const res = validateTemplateClientSide(kpis);
     setValidationResult(res);
     if (!res.isValid) {
       setIsValidationModalOpen(true);
@@ -146,13 +231,13 @@ export function TemplateBuilderWorkspace({
     setIsPublishModalOpen(false);
   };
 
-  const existingCriterionIds = new Set(criteria.map((c) => c.criterion.id));
+  const existingCriterionIds = new Set(kpis.flatMap((k) => k.criteria.map((c) => c.criterion.id)));
 
   if (isLoading) return <LoadingSpinner label="Loading Template Workspace..." />;
   if (error) return <ErrorAlert error={error} onRetry={onBackToList} />;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f3f4f6' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, background: '#f3f4f6' }}>
       {/* ── Top Workspace Header ───────────────────────────────────────────── */}
       <div
         style={{
@@ -253,7 +338,6 @@ export function TemplateBuilderWorkspace({
         <CriterionLibraryPanel
           criteria={libraryCriteria}
           existingCriterionIds={existingCriterionIds}
-          onAddCriterion={handleAddCriterionFromLibrary}
           isReadOnly={isReadOnly}
         />
 
@@ -263,8 +347,8 @@ export function TemplateBuilderWorkspace({
           <div style={{ marginBottom: '1.25rem' }}>
             <WeightStatusBar
               totalWeight={configuredTotalWeight}
-              hasConditionalApplicability={criteria.some(
-                (c) => c.applicableRoleIds?.length || c.applicableTeamIds?.length
+              hasConditionalApplicability={kpis.some(
+                (k) => k.criteria.some((c) => c.applicableRoleIds?.length || c.applicableTeamIds?.length)
               )}
             />
           </div>
@@ -279,29 +363,68 @@ export function TemplateBuilderWorkspace({
             }}
           >
             <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#111827' }}>
-              SELECTED CRITERIA ({criteria.length})
+              SELECTED KPI GROUPS ({kpis.length})
             </h3>
-            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#4b5563' }}>
-              Total Configured Weight: {configuredTotalWeight}%
-            </span>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#4b5563' }}>
+                Total Configured Weight: {configuredTotalWeight}%
+              </span>
+              
+              {!isReadOnly && (
+                <div style={{ position: 'relative' }}>
+                  <Button size="sm" onClick={() => setIsKpiDropdownOpen(!isKpiDropdownOpen)}>
+                    + Add KPI
+                  </Button>
+                  
+                  {isKpiDropdownOpen && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '100%',
+                      right: 0,
+                      marginTop: '0.5rem',
+                      background: '#ffffff',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: 6,
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                      width: 240,
+                      zIndex: 10,
+                      maxHeight: 200,
+                      overflowY: 'auto',
+                    }}>
+                      {availableKpis.map(kpi => (
+                        <div
+                          key={kpi.kpiId}
+                          onClick={() => handleAddKpi(kpi)}
+                          style={{
+                            padding: '0.5rem 1rem',
+                            cursor: 'pointer',
+                            fontSize: '0.875rem',
+                            borderBottom: '1px solid #f3f4f6',
+                          }}
+                        >
+                          {kpi.name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Selected Criteria Draggable List */}
-          <SelectedCriteriaCanvas
-            criteria={criteria}
-            onWeightChange={handleWeightChange}
+          {/* Selected KPI Draggable List */}
+          <SelectedKpiCanvas
+            kpis={kpis}
+            onKpiWeightChange={handleKpiWeightChange}
+            onRemoveKpi={handleRemoveKpi}
+            onCriterionWeightChange={handleCriterionWeightChange}
             onRemoveCriterion={handleRemoveCriterion}
-            onConfigureClick={(item) => {
-              setSelectedConfigCriterion(item);
+            onConfigureCriterionClick={(kpiId, item) => {
+              setSelectedConfigCriterion({ kpiId, criterion: item as any });
               setIsDrawerOpen(true);
             }}
-            onReorder={(drag, drop) => {
-              const updated = [...criteria];
-              const [moved] = updated.splice(drag, 1);
-              updated.splice(drop, 0, moved);
-              setCriteria(updated);
-              setHasUnsavedChanges(true);
-            }}
+            onCriterionDrop={(kpiId, criterion) => handleAddCriterionFromLibrary(criterion, kpiId)}
             isReadOnly={isReadOnly}
           />
         </div>
@@ -309,7 +432,7 @@ export function TemplateBuilderWorkspace({
 
       {/* ── Slide-over Criterion Configuration Drawer ────────────────────────── */}
       <CriterionConfigDrawer
-        criterionItem={selectedConfigCriterion}
+        criterionItem={selectedConfigCriterion?.criterion as any}
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
         onSave={handleSaveDrawerCriterion}
@@ -325,7 +448,7 @@ export function TemplateBuilderWorkspace({
 
       <PublishConfirmationModal
         isOpen={isPublishModalOpen}
-        version={version}
+        version={version as any}
         templateName={template.name}
         onConfirm={handleConfirmPublish}
         onCancel={() => setIsPublishModalOpen(false)}
@@ -335,8 +458,8 @@ export function TemplateBuilderWorkspace({
       <VersionHistoryDiffModal
         isOpen={isDiffModalOpen}
         onClose={() => setIsDiffModalOpen(false)}
-        v1Criteria={version.criteria}
-        v2Criteria={criteria}
+        v1Criteria={version.kpis as any}
+        v2Criteria={kpis as any}
       />
 
       <ConflictResolutionModal

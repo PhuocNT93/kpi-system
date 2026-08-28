@@ -124,9 +124,9 @@ export interface ApplicabilityConfig {
   applicableTeamNames?: string[];
 }
 
-export interface TemplateCriterion {
+export interface TemplateKpiCriterion {
   id: string;
-  templateVersionId: string;
+  templateKpiId: string;
   criterionVersionId: string;
   criterion: Criterion;
   effectiveWeight: number;
@@ -137,6 +137,16 @@ export interface TemplateCriterion {
   displayOrder: number;
   customScoringRule?: ScoringRule;
   provenance?: CriterionProvenance;
+}
+
+export interface TemplateKpi {
+  id: string;
+  templateVersionId: string;
+  kpiId: string;
+  kpiName: string;
+  weight: number;
+  displayOrder: number;
+  criteria: TemplateKpiCriterion[];
 }
 
 export interface EvaluationTemplateVersion {
@@ -151,7 +161,7 @@ export interface EvaluationTemplateVersion {
   publishedBy?: string;
   publishedByName?: string;
   version: number; // optimistic lock
-  criteria: TemplateCriterion[];
+  kpis: TemplateKpi[];
 }
 
 export interface EvaluationTemplate {

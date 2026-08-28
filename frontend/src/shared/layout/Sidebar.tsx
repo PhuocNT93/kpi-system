@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
   ShieldCheck,
   Shield,
+  Target,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
@@ -85,6 +86,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           id: 'cycles',
           label: 'Evaluation Cycles',
           icon: <CalendarRange size={18} />
+        },
+        {
+          id: 'kpis',
+          label: 'KPI Catalog',
+          icon: <Target size={18} />
         },
         {
           id: 'criteria',
