@@ -77,6 +77,100 @@ export class PostgresCriterionRepository implements ICriterionRepository {
     };
   }
 
+  async findAllWithCurrentVersion(
+    filter: CriteriaFilter,
+    client?: PoolClient
+  ): Promise<{ items: any[]; total: number }> {
+    const runner = client || this.pool;
+    const page = filter.page || 1;
+    const size = filter.size || 20;
+    const offset = (page - 1) * size;
+
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    let idx = 1;
+
+    if (filter.status) {
+      conditions.push(`c.status = $${idx++}`);
+      params.push(filter.status);
+    }
+    if (filter.category) {
+      conditions.push(`c.category = $${idx++}`);
+      params.push(filter.category);
+    }
+    if (filter.search) {
+      conditions.push(`(c.name ILIKE $${idx} OR c.code ILIKE $${idx})`);
+      params.push(`%${filter.search}%`);
+      idx++;
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    // Count total (distinct criteria)
+    const countRes = await runner.query(
+      `SELECT COUNT(DISTINCT c.id) FROM criteria c ${whereClause}`,
+      params
+    );
+    const total = parseInt(countRes.rows[0].count, 10);
+
+    // Single JOIN query – replaces N+1 pattern
+    const queryParams = [...params, size, offset];
+    const dataRes = await runner.query(
+      `SELECT DISTINCT ON (c.id)
+         c.id, c.code, c.category, c.name, c.description, c.status, c.version,
+         c.created_at, c.created_by, c.updated_at, c.updated_by,
+         cv.id            AS cv_id,
+         cv.version_no    AS cv_version_no,
+         cv.default_weight AS cv_default_weight,
+         cv.measurement_unit AS cv_measurement_unit,
+         cv.measurement_source_label AS cv_measurement_source_label,
+         cv.status        AS cv_status,
+         cv.scoring_rule_id AS cv_scoring_rule_id,
+         sr.id            AS sr_id,
+         sr.code          AS sr_code,
+         sr.name          AS sr_name,
+         sr.rule_type     AS sr_rule_type,
+         sr.config        AS sr_config,
+         sr.status        AS sr_status
+       FROM criteria c
+       LEFT JOIN criterion_versions cv ON cv.criterion_id = c.id
+       LEFT JOIN scoring_rules sr ON sr.id = cv.scoring_rule_id
+       ${whereClause}
+       ORDER BY c.id, cv.version_no DESC
+       LIMIT $${idx++} OFFSET $${idx++}`,
+      queryParams
+    );
+
+    const items = dataRes.rows.map((r) => ({
+      ...this.mapRow(r),
+      current_version: r.cv_id
+        ? {
+            id: r.cv_id,
+            criterion_id: r.id,
+            version_no: r.cv_version_no,
+            default_weight: r.cv_default_weight,
+            measurement_unit: r.cv_measurement_unit,
+            measurement_source_label: r.cv_measurement_source_label,
+            status: r.cv_status,
+            scoring_rule_id: r.cv_scoring_rule_id,
+            scoring_rule: r.sr_id
+              ? {
+                  id: r.sr_id,
+                  code: r.sr_code,
+                  name: r.sr_name,
+                  rule_type: r.sr_rule_type,
+                  config: r.sr_config,
+                  status: r.sr_status,
+                }
+              : null,
+          }
+        : undefined,
+    }));
+
+    return { items, total };
+  }
+
+
   async create(criterion: Partial<Criterion>, client?: PoolClient): Promise<Criterion> {
     const runner = client || this.pool;
     const res = await runner.query(

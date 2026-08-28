@@ -88,6 +88,10 @@ export class CriterionService {
     return this.criterionRepo.findAll(filter);
   }
 
+  async getCriteriaWithCurrentVersion(filter: CriteriaFilter): Promise<{ items: any[]; total: number }> {
+    return this.criterionRepo.findAllWithCurrentVersion(filter);
+  }
+
   async getCriterionById(id: string): Promise<Criterion> {
     const criterion = await this.criterionRepo.findById(id);
     if (!criterion) throw new NotFound('Criterion');
