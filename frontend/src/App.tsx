@@ -20,6 +20,8 @@ import { DepartmentsPage } from './features/organization/pages/DepartmentsPage';
 import { OrgRolesPage } from './features/organization/pages/OrgRolesPage';
 import { JobLevelsPage } from './features/organization/pages/JobLevelsPage';
 import { EmployeesPage } from './features/organization/pages/EmployeesPage';
+import { MyEvaluationPage } from './features/evaluation/pages/MyEvaluationPage';
+import { EvaluationDetailPage } from './features/evaluation/pages/EvaluationDetailPage';
 import { AppLayout } from '@/shared/layout';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
@@ -169,6 +171,19 @@ export default function App() {
                   <CriteriaPage />
                 </ProtectedRoute>
               } />
+              
+              {/* Employee & Manager Routes */}
+              <Route path="/admin/my-evaluation" element={
+                <ProtectedRoute allowedRoles={['EMPLOYEE', 'MANAGER', 'SYSTEM_ADMIN']}>
+                  <MyEvaluationPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/my-evaluation/:id" element={
+                <ProtectedRoute allowedRoles={['EMPLOYEE', 'MANAGER', 'SYSTEM_ADMIN']}>
+                  <EvaluationDetailPage />
+                </ProtectedRoute>
+              } />
+
               <Route path="/admin/*" element={<DraftPlaceholder title="Feature Coming Soon" />} />
             </Route>
 
