@@ -14,6 +14,7 @@ import { KpiRelationshipController } from '../modules/kpi/api/kpi-relationship.c
 import { createKpiRouter } from '../modules/kpi/api/kpi.router.js';
 import { AuditController } from '../modules/audit/api/audit.controller.js';
 import { createAuditRouter } from '../modules/audit/api/audit.router.js';
+import { EvaluationController, createEvaluationRouter } from '../modules/evaluation/index.js';
 
 export interface RegisterRoutesOptions {
   authController: AuthController;
@@ -25,6 +26,7 @@ export interface RegisterRoutesOptions {
   configurationController?: ConfigurationController;
   kpiRelationshipController?: KpiRelationshipController;
   auditController?: AuditController;
+  evaluationController?: EvaluationController;
 }
 
 export function createApiRouter(options: RegisterRoutesOptions): Router {
@@ -59,6 +61,11 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
   // ── Audit Module Routes ───────────────────────────────────────────────────
   if (options.auditController) {
     router.use('/', createAuditRouter(options.auditController, options.authorizationService, options.jwtMiddleware));
+  }
+
+  // ── Evaluation Module Routes ──────────────────────────────────────────────
+  if (options.evaluationController) {
+    router.use('/v1/evaluations', createEvaluationRouter(options.evaluationController, options.jwtMiddleware));
   }
 
   // ── Sample: single-resource response ──────────────────────────────────────

@@ -31,6 +31,7 @@ import { createOrganizationModule } from './modules/organization/organization.mo
 import { createConfigurationModule } from './modules/configuration/configuration.module.js';
 import { createKpiModule } from './modules/kpi/kpi.module.js';
 import { createAuditModule } from './modules/audit/audit.module.js';
+import { createEvaluationModule } from './modules/evaluation/evaluation.module.js';
 
 export interface AppOptions {
   userRepository?: UserRepository;
@@ -85,6 +86,9 @@ export function createApp(options: AppOptions = {}) {
   const kpiModule = pool ? createKpiModule(pool) : undefined;
   const kpiRelationshipController = kpiModule?.relationshipController;
 
+  const evaluationModule = pool ? createEvaluationModule(pool) : undefined;
+  const evaluationController = evaluationModule?.evaluationController;
+
   // ── Global Middlewares ────────────────────────────────────────────────────
   app.use(requestIdMiddleware);
   app.use(cors());
@@ -116,6 +120,7 @@ export function createApp(options: AppOptions = {}) {
         configurationController,
         kpiRelationshipController,
         auditController: auditModule?.auditController,
+        evaluationController,
       })
     );
   }
