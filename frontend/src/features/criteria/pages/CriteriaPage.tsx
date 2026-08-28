@@ -2,9 +2,6 @@ import { useState } from 'react';
 import { useCriteriaQuery, useCreateCriterionMutation } from '../api/use-criteria';
 import { StatusBadge, LoadingSpinner, ErrorAlert } from '../../../shared/components/ui';
 import { Button } from '../../../shared/ui/Button/Button';
-import { RADII, TYPOGRAPHY } from '../../../shared/theme';
-import { COLORS } from '@/lib/theme';
-import type { Criterion } from '../domain/criteria-models';
 import { CreateCriterionModal } from '../components/CreateCriterionModal';
 
 export function CriteriaPage() {

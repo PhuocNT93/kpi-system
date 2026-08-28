@@ -3,14 +3,10 @@ import {
   fetchCriteria,
   fetchCriterionById,
   createCriterion,
-  updateCriterion,
   fetchCriterionVersions,
   updateCriterionVersion,
   publishCriterionVersion,
   fetchScoringRules,
-  createScoringRule,
-  updateScoringRule,
-  publishScoringRule,
 } from './criteria-api';
 
 export const criteriaKeys = {

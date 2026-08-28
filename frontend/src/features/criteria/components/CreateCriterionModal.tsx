@@ -146,7 +146,7 @@ export function CreateCriterionModal({
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
             <Button
               type="button"
-              variant="outline"
+              variant="outlined"
               onClick={onClose}
               disabled={isSubmitting}
             >

@@ -12,7 +12,6 @@ import {
   useCreateTemplateMutation,
 } from '../index';
 import type {
-  EvaluationTemplate,
   TemplateCriterion,
 } from '../index';
 import { COLORS } from '@/lib/theme';
@@ -71,7 +70,7 @@ function CreateTemplateModal({ isOpen, isLoading, onClose, onSubmit }: CreateTem
         </h2>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
-            <label style={labelStyle}>Code <span style={{ color: COLORS.error?.DEFAULT ?? '#ef4444' }}>*</span></label>
+            <label style={labelStyle}>Code <span style={{ color: '#ef4444' }}>*</span></label>
             <input
               id="template-code"
               value={code}
@@ -82,7 +81,7 @@ function CreateTemplateModal({ isOpen, isLoading, onClose, onSubmit }: CreateTem
             {errors.code && <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: '#ef4444' }}>{errors.code}</p>}
           </div>
           <div>
-            <label style={labelStyle}>Name <span style={{ color: COLORS.error?.DEFAULT ?? '#ef4444' }}>*</span></label>
+            <label style={labelStyle}>Name <span style={{ color: '#ef4444' }}>*</span></label>
             <input
               id="template-name"
               value={name}
