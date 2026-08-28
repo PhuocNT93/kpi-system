@@ -29,6 +29,7 @@ import { createEmployeeModule } from './modules/employee/employee.module.js';
 import { EmployeeController } from './modules/employee/api/employee.controller.js';
 import { createOrganizationModule } from './modules/organization/organization.module.js';
 import { createConfigurationModule } from './modules/configuration/configuration.module.js';
+import { createKpiModule } from './modules/kpi/kpi.module.js';
 import { createAuditModule } from './modules/audit/audit.module.js';
 
 export interface AppOptions {
@@ -81,6 +82,9 @@ export function createApp(options: AppOptions = {}) {
   const configurationModule = pool ? createConfigurationModule(pool) : undefined;
   const configurationController = configurationModule?.configurationController;
 
+  const kpiModule = pool ? createKpiModule(pool) : undefined;
+  const kpiRelationshipController = kpiModule?.relationshipController;
+
   // ── Global Middlewares ────────────────────────────────────────────────────
   app.use(requestIdMiddleware);
   app.use(cors());
@@ -110,6 +114,7 @@ export function createApp(options: AppOptions = {}) {
         employeeController,
         organizationController,
         configurationController,
+        kpiRelationshipController,
         auditController: auditModule?.auditController,
       })
     );
