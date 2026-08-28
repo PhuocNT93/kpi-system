@@ -43,7 +43,9 @@ export class ConfigurationController {
     const { offset, limit, buildPageMeta } = parsePaginationQuery(req.query as Record<string, unknown>);
     const page = Math.floor(offset / limit) + 1;
     const { status, category, search } = req.query;
-    const result = await this.criterionService.getCriteria({
+
+    // Single query with JOINs – replaces the N+1 pattern
+    const result = await this.criterionService.getCriteriaWithCurrentVersion({
       page,
       size: limit,
       status: status as any,
@@ -51,44 +53,9 @@ export class ConfigurationController {
       search: search as string,
     });
 
-    const itemsWithVersion = await Promise.all(
-      result.items.map(async (c) => {
-        const versions = await this.criterionService.getCriterionVersions(c.id);
-        const currentVersion = versions.length > 0 ? versions[0] : undefined;
-        let scoringRule: any = null;
-        if (currentVersion?.scoring_rule_id) {
-          scoringRule = await this.scoringRuleService.getScoringRuleById(currentVersion.scoring_rule_id).catch(() => null);
-        }
-        return {
-          ...c,
-          current_version: currentVersion
-            ? {
-                id: currentVersion.id,
-                criterion_id: currentVersion.criterion_id,
-                version_no: currentVersion.version_no,
-                default_weight: currentVersion.default_weight,
-                measurement_unit: currentVersion.measurement_unit,
-                measurement_source_label: currentVersion.measurement_source_label,
-                status: currentVersion.status,
-                scoring_rule: scoringRule
-                  ? {
-                      id: scoringRule.id,
-                      code: scoringRule.code,
-                      name: scoringRule.name,
-                      rule_type: scoringRule.rule_type,
-                      config: scoringRule.config,
-                      status: scoringRule.status,
-                      version: scoringRule.version,
-                    }
-                  : undefined,
-              }
-            : undefined,
-        };
-      })
-    );
-
-    sendCollection(res, 'Criteria retrieved successfully.', itemsWithVersion, buildPageMeta(result.total));
+    sendCollection(res, 'Criteria retrieved successfully.', result.items, buildPageMeta(result.total));
   };
+
 
   getCriterionById = async (req: Request, res: Response): Promise<void> => {
     const criterionId = req.params.criterionId as string;
@@ -286,72 +253,30 @@ export class ConfigurationController {
   getTemplateVersionById = async (req: Request, res: Response): Promise<void> => {
     const versionId = req.params.versionId as string;
     const version = await this.templateService.getTemplateVersionById(versionId);
-    const templateCriteria = await this.templateService.getTemplateCriteria(versionId);
+    const enrichedCriteria = await this.templateService.getTemplateCriteriaWithDetails(versionId);
+    
+    // Format the result to match the existing response structure
+    const formattedCriteria = enrichedCriteria.map(tc => {
+      const roleRule = tc.applicability?.rules?.find((r: any) => r.dimension === 'ROLE');
+      const teamRule = tc.applicability?.rules?.find((r: any) => r.dimension === 'TEAM');
 
-    const enrichedCriteria = await Promise.all(
-      templateCriteria.map(async (tc) => {
-        let criterion: any = null;
-        if (tc.criterion_version_id) {
-          const cv = await this.criterionService.getCriterionVersionById(tc.criterion_version_id).catch(() => null);
-          if (cv) {
-            const parent = await this.criterionService.getCriterionById(cv.criterion_id).catch(() => null);
-            let scoringRule: any = null;
-            if (cv.scoring_rule_id) {
-              scoringRule = await this.scoringRuleService.getScoringRuleById(cv.scoring_rule_id).catch(() => null);
-            }
-            if (parent) {
-              criterion = {
-                id: parent.id,
-                code: parent.code,
-                category: parent.category,
-                name: parent.name,
-                description: parent.description,
-                status: parent.status,
-                version: parent.version,
-                current_version: {
-                  id: cv.id,
-                  criterion_id: cv.criterion_id,
-                  version_no: cv.version_no,
-                  default_weight: cv.default_weight,
-                  measurement_unit: cv.measurement_unit,
-                  measurement_source_label: cv.measurement_source_label,
-                  status: cv.status,
-                  scoring_rule: scoringRule ? {
-                    id: scoringRule.id,
-                    code: scoringRule.code,
-                    name: scoringRule.name,
-                    rule_type: scoringRule.rule_type,
-                    config: scoringRule.config,
-                    status: scoringRule.status,
-                    version: scoringRule.version,
-                  } : undefined,
-                },
-              };
-            }
-          }
-        }
-
-        const roleRule = tc.applicability?.rules?.find((r) => r.dimension === 'ROLE');
-        const teamRule = tc.applicability?.rules?.find((r) => r.dimension === 'TEAM');
-
-        return {
-          id: tc.id,
-          template_version_id: tc.template_version_id,
-          criterion_version_id: tc.criterion_version_id,
-          criterion,
-          effective_weight: tc.weight,
-          applicable_role_ids: roleRule ? roleRule.values : [],
-          applicable_team_ids: teamRule ? teamRule.values : [],
-          is_disabled: !tc.enabled,
-          is_optional: !tc.required,
-          display_order: tc.display_order,
-        };
-      })
-    );
+      return {
+        id: tc.id,
+        template_version_id: tc.template_version_id,
+        criterion_version_id: tc.criterion_version_id,
+        criterion: tc.criterion,
+        effective_weight: tc.weight,
+        applicable_role_ids: roleRule ? roleRule.values : [],
+        applicable_team_ids: teamRule ? teamRule.values : [],
+        is_disabled: !tc.enabled,
+        is_optional: !tc.required,
+        display_order: tc.display_order,
+      };
+    });
 
     sendSuccess(res, 200, 'Template version retrieved successfully.', {
       ...version,
-      criteria: enrichedCriteria,
+      criteria: formattedCriteria,
     });
   };
 

@@ -14,11 +14,14 @@ import {
 import { AuditLogPage } from './features/audit/pages/AuditLogPage';
 import { TeamsPage } from './features/organization/pages/TeamsPage';
 import { EvaluationTemplatesPage } from './features/templates/pages/EvaluationTemplatesPage';
+import { CriteriaPage } from './features/criteria/pages/CriteriaPage';
 import { OrganizationPage } from './features/organization/pages/OrganizationPage';
 import { DepartmentsPage } from './features/organization/pages/DepartmentsPage';
 import { OrgRolesPage } from './features/organization/pages/OrgRolesPage';
 import { JobLevelsPage } from './features/organization/pages/JobLevelsPage';
 import { EmployeesPage } from './features/organization/pages/EmployeesPage';
+import { MyEvaluationPage } from './features/evaluation/pages/MyEvaluationPage';
+import { EvaluationDetailPage } from './features/evaluation/pages/EvaluationDetailPage';
 import {
   EvaluationCycleListPage,
   EvaluationCycleCreatePage,
@@ -90,6 +93,39 @@ function ProtectedLayout() {
   );
 }
 
+function DraftPlaceholder({ title = "Coming Soon" }: { title?: string }) {
+  return (
+    <div
+      style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: COLORS.neutral.white,
+        borderRadius: RADII['2xl'],
+        border: `1.5px dashed ${COLORS.primary[200]}`,
+        padding: '48px 24px',
+        boxSizing: 'border-box',
+        gap: '16px'
+      }}
+    >
+      <div style={{ width: '48px', height: '48px', borderRadius: RADII.xl, backgroundColor: COLORS.primary[50], display: 'flex', alignItems: 'center', justifyContent: 'center', color: COLORS.primary.DEFAULT }}>
+        <LayoutTemplate size={24} />
+      </div>
+      <div style={{ textAlign: 'center' }}>
+        <h2 style={{ margin: '0 0 8px 0', fontFamily: TYPOGRAPHY.fontFamily.headline, fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
+          {title}
+        </h2>
+        <p style={{ margin: 0, fontFamily: TYPOGRAPHY.fontFamily.body, fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary, maxWidth: '480px', lineHeight: TYPOGRAPHY.lineHeight.relaxed }}>
+          Tính năng này đang được phát triển. Khung layout (Sidebar Menu Tree, Header, Bottom Action Bar) đã sẵn sàng.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -136,6 +172,11 @@ export default function App() {
                   <EvaluationTemplatesPage />
                 </ProtectedRoute>
               } />
+              <Route path="/admin/criteria" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
+                  <CriteriaPage />
+                </ProtectedRoute>
+              } />
               <Route path="/admin/cycles" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
                   <EvaluationCycleListPage />
@@ -144,6 +185,11 @@ export default function App() {
               <Route path="/admin/cycles/new" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
                   <EvaluationCycleCreatePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/my-evaluations/:id" element={
+                <ProtectedRoute allowedRoles={['EMPLOYEE', 'MANAGER', 'SYSTEM_ADMIN']}>
+                  <EvaluationDetailPage />
                 </ProtectedRoute>
               } />
               <Route path="/admin/cycles/:id" element={

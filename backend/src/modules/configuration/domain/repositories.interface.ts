@@ -48,10 +48,15 @@ export interface AuditLogFilter {
   to_date?: string;
 }
 
+export interface CriterionWithVersion extends Criterion {
+  currentVersion?: CriterionVersion & { scoringRule?: ScoringRule | null };
+}
+
 export interface ICriterionRepository {
   findById(id: string, client?: PoolClient): Promise<Criterion | null>;
   findByCode(code: string, client?: PoolClient): Promise<Criterion | null>;
   findAll(filter: CriteriaFilter, client?: PoolClient): Promise<{ items: Criterion[]; total: number }>;
+  findAllWithCurrentVersion(filter: CriteriaFilter, client?: PoolClient): Promise<{ items: CriterionWithVersion[]; total: number }>;
   create(criterion: Partial<Criterion>, client?: PoolClient): Promise<Criterion>;
   update(id: string, criterion: Partial<Criterion>, expectedVersion?: number, client?: PoolClient): Promise<Criterion>;
 }
@@ -99,6 +104,7 @@ export interface ITemplateVersionRepository {
 export interface ITemplateCriterionRepository {
   findById(id: string, client?: PoolClient): Promise<TemplateCriterion | null>;
   findByTemplateVersionId(templateVersionId: string, client?: PoolClient): Promise<TemplateCriterion[]>;
+  findByTemplateVersionIdWithDetails(templateVersionId: string, client?: PoolClient): Promise<any[]>;
   create(tc: Partial<TemplateCriterion>, client?: PoolClient): Promise<TemplateCriterion>;
   update(id: string, tc: Partial<TemplateCriterion>, client?: PoolClient): Promise<TemplateCriterion>;
   delete(id: string, client?: PoolClient): Promise<void>;

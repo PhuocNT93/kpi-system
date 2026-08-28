@@ -31,7 +31,7 @@ export function TemplateListScreen({
   if (error) return <ErrorAlert error={error} />;
 
   return (
-    <div style={{ padding: '2rem', maxWidth: 1200, margin: '0 auto' }}>
+    <div style={{ padding: '2rem', width: '100%' }}>
       {/* Header Bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <div>
