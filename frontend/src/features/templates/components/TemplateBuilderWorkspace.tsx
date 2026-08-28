@@ -458,8 +458,8 @@ export function TemplateBuilderWorkspace({
       <VersionHistoryDiffModal
         isOpen={isDiffModalOpen}
         onClose={() => setIsDiffModalOpen(false)}
-        v1Criteria={version.kpis as any}
-        v2Criteria={kpis as any}
+        v1Kpis={version.kpis as any}
+        v2Kpis={kpis as any}
       />
 
       <ConflictResolutionModal

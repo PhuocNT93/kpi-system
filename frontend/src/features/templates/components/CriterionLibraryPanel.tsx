@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import type { Criterion } from '../domain/template-models';
-import { Button } from '../../../shared/ui/Button/Button';
 
 interface CriterionLibraryPanelProps {
   criteria: Criterion[];

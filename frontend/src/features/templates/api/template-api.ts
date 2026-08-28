@@ -4,7 +4,6 @@ import type {
   EvaluationTemplateVersion,
   Criterion,
   TemplateKpi,
-  TemplateKpiCriterion,
   TemplateValidationResult,
 } from '../domain/template-models';
 import {

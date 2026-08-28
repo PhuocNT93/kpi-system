@@ -4,7 +4,8 @@ import { ConfigurationValidationService } from '../src/modules/configuration/app
 import {
   ScoringRuleType,
   WeightPolicy,
-  TemplateCriterion,
+  TemplateKpi,
+  TemplateKpiCriterion,
   WorkflowState,
   WorkflowTransition,
   WorkflowStateType,
@@ -99,33 +100,39 @@ describe('Configuration Module — Unit Tests', () => {
 
   describe('ConfigurationValidationService (TC-CFG-05 & TC-CFG-12)', () => {
     it('should enforce EXACT_100 weight policy', () => {
-      const criteria: Partial<TemplateCriterion>[] = [
-        { criterion_version_id: 'cv-1', weight: 30, enabled: true },
-        { criterion_version_id: 'cv-2', weight: 40, enabled: true },
-        { criterion_version_id: 'cv-3', weight: 20, enabled: true },
+      const kpis: Partial<TemplateKpi>[] = [{ id: 'kpi-1', kpi_id: 'ref-1', weight: 100 }];
+      const criteria: Partial<TemplateKpiCriterion>[] = [
+        { template_kpi_id: 'kpi-1', criterion_version_id: 'cv-1', weight: 30, enabled: true },
+        { template_kpi_id: 'kpi-1', criterion_version_id: 'cv-2', weight: 40, enabled: true },
+        { template_kpi_id: 'kpi-1', criterion_version_id: 'cv-3', weight: 20, enabled: true },
       ];
+      const criteriaMap = new Map([['kpi-1', criteria as TemplateKpiCriterion[]]]);
 
-      const result = ConfigurationValidationService.validateTemplateCriteria(
-        criteria as TemplateCriterion[],
+      const result = ConfigurationValidationService.validateTemplateStructure(
+        kpis as TemplateKpi[],
+        criteriaMap,
         WeightPolicy.EXACT_100
       );
 
       expect(result.valid).toBe(false);
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].code).toBe('INVALID_WEIGHT_TOTAL');
-      expect(result.errors[0].details).toEqual({ actual: 90, expected: 100 });
+      expect(result.errors[0].details).toEqual({ kpi_id: 'ref-1', actual: 90, expected: 100 });
     });
 
     it('should pass EXACT_100 when weights sum to 100%', () => {
-      const criteria: Partial<TemplateCriterion>[] = [
-        { criterion_version_id: 'cv-1', weight: 25, enabled: true },
-        { criterion_version_id: 'cv-2', weight: 25, enabled: true },
-        { criterion_version_id: 'cv-3', weight: 20, enabled: true },
-        { criterion_version_id: 'cv-4', weight: 30, enabled: true },
+      const kpis: Partial<TemplateKpi>[] = [{ id: 'kpi-1', kpi_id: 'ref-1', weight: 100 }];
+      const criteria: Partial<TemplateKpiCriterion>[] = [
+        { template_kpi_id: 'kpi-1', criterion_version_id: 'cv-1', weight: 25, enabled: true },
+        { template_kpi_id: 'kpi-1', criterion_version_id: 'cv-2', weight: 25, enabled: true },
+        { template_kpi_id: 'kpi-1', criterion_version_id: 'cv-3', weight: 20, enabled: true },
+        { template_kpi_id: 'kpi-1', criterion_version_id: 'cv-4', weight: 30, enabled: true },
       ];
+      const criteriaMap = new Map([['kpi-1', criteria as TemplateKpiCriterion[]]]);
 
-      const result = ConfigurationValidationService.validateTemplateCriteria(
-        criteria as TemplateCriterion[],
+      const result = ConfigurationValidationService.validateTemplateStructure(
+        kpis as TemplateKpi[],
+        criteriaMap,
         WeightPolicy.EXACT_100
       );
 
