@@ -51,7 +51,7 @@ export const ScopePreviewCard: React.FC<ScopePreviewCardProps> = ({ data, isLoad
           <h3
             style={{
               margin: 0,
-              fontSize: TYPOGRAPHY.fontSize.md,
+              fontSize: TYPOGRAPHY.fontSize.base,
               fontWeight: TYPOGRAPHY.fontWeight.bold,
               color: COLORS.neutral.textPrimary,
             }}

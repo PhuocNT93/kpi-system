@@ -93,7 +93,7 @@ export const CycleConfigurationSummary: React.FC<CycleConfigurationSummaryProps>
               padding: '8px 12px',
               backgroundColor: COLORS.neutral[50],
               borderRadius: RADII.lg,
-              border: `1px solid ${COLORS.neutral[150] ?? COLORS.neutral[200]}`,
+              border: `1px solid ${COLORS.neutral[100] ?? COLORS.neutral[200]}`,
             }}
           >
             <div style={{ marginTop: '2px', display: 'flex', alignItems: 'center' }}>

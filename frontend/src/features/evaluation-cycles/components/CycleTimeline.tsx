@@ -44,10 +44,10 @@ export const CycleTimeline: React.FC<CycleTimelineProps> = ({ currentStatus }) =
         const isCurrent = idx === activeIndex;
         const isCompleted = idx < activeIndex;
 
-        let circleBg = COLORS.neutral[100];
-        let circleColor = COLORS.neutral[500];
-        let circleBorder = `2px solid ${COLORS.neutral[300]}`;
-        let labelColor = COLORS.neutral[500];
+        let circleBg: string = COLORS.neutral[100];
+        let circleColor: string = COLORS.neutral[500];
+        let circleBorder: string = `2px solid ${COLORS.neutral[300]}`;
+        let labelColor: string = COLORS.neutral[500];
         let labelWeight: number = TYPOGRAPHY.fontWeight.medium;
 
         if (isCurrent) {

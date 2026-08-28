@@ -1,6 +1,5 @@
 import React from 'react';
 import type { CycleOpeningStatusDTO } from '../types/cycle-types';
-import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
 import { Loader2 } from 'lucide-react';
 
