@@ -1,7 +1,7 @@
 import { Pool } from 'pg';
 import { IEvaluationRepository, IEvaluationItemRepository } from '../../domain/repositories.interface.js';
 import { EvaluationStatus, Evaluation } from '../../domain/evaluation.types.js';
-import { NotFound, AppError } from '../../../api/app-error.js';
+import { NotFound, AppError } from '../../../../api/app-error.js';
 
 export class EvaluationService {
   constructor(
