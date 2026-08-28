@@ -10,6 +10,8 @@ import { OrganizationController } from '../modules/organization/api/organization
 import { createOrganizationRouter } from '../modules/organization/api/organization.router.js';
 import { ConfigurationController } from '../modules/configuration/api/configuration.controller.js';
 import { createConfigurationRouter } from '../modules/configuration/api/configuration.router.js';
+import { KpiRelationshipController } from '../modules/kpi/api/kpi-relationship.controller.js';
+import { createKpiRouter } from '../modules/kpi/api/kpi.router.js';
 
 export interface RegisterRoutesOptions {
   authController: AuthController;
@@ -19,6 +21,7 @@ export interface RegisterRoutesOptions {
   employeeController?: EmployeeController;
   organizationController?: OrganizationController;
   configurationController?: ConfigurationController;
+  kpiRelationshipController?: KpiRelationshipController;
 }
 
 export function createApiRouter(options: RegisterRoutesOptions): Router {
@@ -43,6 +46,11 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
   // ── Configuration Module Routes ───────────────────────────────────────────
   if (options.configurationController) {
     router.use('/v1/configuration', createConfigurationRouter(options.configurationController, options.authorizationService, options.jwtMiddleware));
+  }
+
+  // ── KPI Module Routes ─────────────────────────────────────────────────────
+  if (options.kpiRelationshipController) {
+    router.use('/kpi', createKpiRouter(options.kpiRelationshipController, options.jwtMiddleware));
   }
 
   // ── Sample: single-resource response ──────────────────────────────────────
