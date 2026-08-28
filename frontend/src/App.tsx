@@ -19,6 +19,12 @@ import { DepartmentsPage } from './features/organization/pages/DepartmentsPage';
 import { OrgRolesPage } from './features/organization/pages/OrgRolesPage';
 import { JobLevelsPage } from './features/organization/pages/JobLevelsPage';
 import { EmployeesPage } from './features/organization/pages/EmployeesPage';
+import {
+  EvaluationCycleListPage,
+  EvaluationCycleCreatePage,
+  EvaluationCycleDetailPage,
+  EvaluationCycleEditPage,
+} from './features/evaluation-cycles';
 import { AppLayout } from '@/shared/layout';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
@@ -128,6 +134,26 @@ export default function App() {
               <Route path="/admin/templates" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
                   <EvaluationTemplatesPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/cycles" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
+                  <EvaluationCycleListPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/cycles/new" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
+                  <EvaluationCycleCreatePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/cycles/:id" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
+                  <EvaluationCycleDetailPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/cycles/:id/edit" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
+                  <EvaluationCycleEditPage />
                 </ProtectedRoute>
               } />
               <Route path="/draft" element={
