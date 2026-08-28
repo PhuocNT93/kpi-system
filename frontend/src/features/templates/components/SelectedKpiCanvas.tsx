@@ -1,4 +1,3 @@
-import React from 'react';
 import type { TemplateKpi, TemplateKpiCriterion } from '../domain/template-models';
 import { ProvenancePopover } from './ProvenancePopover';
 import { Button } from '../../../shared/ui/Button/Button';
