@@ -43,7 +43,9 @@ export class ConfigurationController {
     const { offset, limit, buildPageMeta } = parsePaginationQuery(req.query as Record<string, unknown>);
     const page = Math.floor(offset / limit) + 1;
     const { status, category, search } = req.query;
-    const result = await this.criterionService.getCriteria({
+
+    // Single query with JOINs – replaces the N+1 pattern
+    const result = await this.criterionService.getCriteriaWithCurrentVersion({
       page,
       size: limit,
       status: status as any,
@@ -51,44 +53,9 @@ export class ConfigurationController {
       search: search as string,
     });
 
-    const itemsWithVersion = await Promise.all(
-      result.items.map(async (c) => {
-        const versions = await this.criterionService.getCriterionVersions(c.id);
-        const currentVersion = versions.length > 0 ? versions[0] : undefined;
-        let scoringRule: any = null;
-        if (currentVersion?.scoring_rule_id) {
-          scoringRule = await this.scoringRuleService.getScoringRuleById(currentVersion.scoring_rule_id).catch(() => null);
-        }
-        return {
-          ...c,
-          current_version: currentVersion
-            ? {
-                id: currentVersion.id,
-                criterion_id: currentVersion.criterion_id,
-                version_no: currentVersion.version_no,
-                default_weight: currentVersion.default_weight,
-                measurement_unit: currentVersion.measurement_unit,
-                measurement_source_label: currentVersion.measurement_source_label,
-                status: currentVersion.status,
-                scoring_rule: scoringRule
-                  ? {
-                      id: scoringRule.id,
-                      code: scoringRule.code,
-                      name: scoringRule.name,
-                      rule_type: scoringRule.rule_type,
-                      config: scoringRule.config,
-                      status: scoringRule.status,
-                      version: scoringRule.version,
-                    }
-                  : undefined,
-              }
-            : undefined,
-        };
-      })
-    );
-
-    sendCollection(res, 'Criteria retrieved successfully.', itemsWithVersion, buildPageMeta(result.total));
+    sendCollection(res, 'Criteria retrieved successfully.', result.items, buildPageMeta(result.total));
   };
+
 
   getCriterionById = async (req: Request, res: Response): Promise<void> => {
     const criterionId = req.params.criterionId as string;
