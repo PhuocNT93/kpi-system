@@ -15,7 +15,6 @@ import { AuditLogPage } from './features/audit/pages/AuditLogPage';
 import { TeamsPage } from './features/organization/pages/TeamsPage';
 import { EvaluationTemplatesPage } from './features/templates/pages/EvaluationTemplatesPage';
 import { CriteriaPage } from './features/criteria/pages/CriteriaPage';
-import { KpiListPage } from './features/kpi';
 import { OrganizationPage } from './features/organization/pages/OrganizationPage';
 import { DepartmentsPage } from './features/organization/pages/DepartmentsPage';
 import { OrgRolesPage } from './features/organization/pages/OrgRolesPage';
@@ -92,35 +91,6 @@ function ProtectedLayout() {
     </AppLayout>
   );
 }
-const DraftPlaceholder = () => (
-  <div
-    style={{
-      flex: 1,
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: COLORS.neutral.white,
-      borderRadius: RADII['2xl'],
-      border: `1.5px dashed ${COLORS.primary[200]}`,
-      padding: '48px 24px',
-      boxSizing: 'border-box',
-      gap: '16px'
-    }}
-  >
-    <div style={{ width: '48px', height: '48px', borderRadius: RADII.xl, backgroundColor: COLORS.primary[50], display: 'flex', alignItems: 'center', justifyContent: 'center', color: COLORS.primary.DEFAULT }}>
-      <LayoutTemplate size={24} />
-    </div>
-    <div style={{ textAlign: 'center' }}>
-      <h2 style={{ margin: '0 0 8px 0', fontFamily: TYPOGRAPHY.fontFamily.headline, fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
-        Feature in Development
-      </h2>
-      <p style={{ margin: 0, fontFamily: TYPOGRAPHY.fontFamily.body, fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary, maxWidth: '480px', lineHeight: TYPOGRAPHY.lineHeight.relaxed }}>
-        This page is currently under construction and will be available in a future update.
-      </p>
-    </div>
-  </div>
-);
 
 export default function App() {
   return (
@@ -135,11 +105,6 @@ export default function App() {
                 <ProtectedLayout />
               </ProtectedRoute>
             }>
-              <Route path="/admin/dashboard" element={<DraftPlaceholder />} />
-              <Route path="/admin/import-center" element={<DraftPlaceholder />} />
-              <Route path="/admin/team-evaluations" element={<DraftPlaceholder />} />
-              <Route path="/admin/my-evaluations" element={<DraftPlaceholder />} />
-
               <Route path="/admin/iam" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
                   <IamPage />
@@ -178,11 +143,6 @@ export default function App() {
                   <CriteriaPage />
                 </ProtectedRoute>
               } />
-              <Route path="/admin/kpis" element={
-                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
-                  <KpiListPage />
-                </ProtectedRoute>
-              } />
               <Route path="/admin/cycles" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
                   <EvaluationCycleListPage />
@@ -207,6 +167,35 @@ export default function App() {
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
                   <EvaluationCycleEditPage />
                 </ProtectedRoute>
+              } />
+              <Route path="/draft" element={
+                <div
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: COLORS.neutral.white,
+                    borderRadius: RADII['2xl'],
+                    border: `1.5px dashed ${COLORS.primary[200]}`,
+                    padding: '48px 24px',
+                    boxSizing: 'border-box',
+                    gap: '16px'
+                  }}
+                >
+                  <div style={{ width: '48px', height: '48px', borderRadius: RADII.xl, backgroundColor: COLORS.primary[50], display: 'flex', alignItems: 'center', justifyContent: 'center', color: COLORS.primary.DEFAULT }}>
+                    <LayoutTemplate size={24} />
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <h2 style={{ margin: '0 0 8px 0', fontFamily: TYPOGRAPHY.fontFamily.headline, fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
+                      Main Content Slot (Draft Ready)
+                    </h2>
+                    <p style={{ margin: 0, fontFamily: TYPOGRAPHY.fontFamily.body, fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary, maxWidth: '480px', lineHeight: TYPOGRAPHY.lineHeight.relaxed }}>
+                      Khung layout (Sidebar Menu Tree, Header, Bottom Action Bar) đã sẵn sàng.
+                    </p>
+                  </div>
+                </div>
               } />
             </Route>
 

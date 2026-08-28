@@ -110,7 +110,7 @@ export function TemplateListScreen({
                       <StatusBadge status={t.status} />
                     </td>
                     <td style={{ padding: '0.75rem 1rem' }}>
-                      {t.criteriaCount || 0} criteria
+                      {t.criteriaCount || t.currentVersion?.criteria?.length || 0} criteria
                     </td>
                     <td style={{ padding: '0.75rem 1rem', color: '#4b5563' }}>
                       {new Date(t.updatedAt).toLocaleDateString()}

@@ -7,8 +7,7 @@ import {
 import {
   ITemplateRepository,
   ITemplateVersionRepository,
-  ITemplateKpiRepository,
-  ITemplateKpiCriterionRepository,
+  ITemplateCriterionRepository,
   IConfigurationAuditRepository,
 } from '../../domain/repositories.interface.js';
 import { NotFound } from '../../../../api/app-error.js';
@@ -17,8 +16,7 @@ export class ConfigurationCloneService {
   constructor(
     private templateRepo: ITemplateRepository,
     private versionRepo: ITemplateVersionRepository,
-    private templateKpiRepo: ITemplateKpiRepository,
-    private templateKpiCriterionRepo: ITemplateKpiCriterionRepository,
+    private templateCriterionRepo: ITemplateCriterionRepository,
     private auditRepo: IConfigurationAuditRepository,
     private pool: Pool
   ) {}
@@ -36,7 +34,7 @@ export class ConfigurationCloneService {
       throw new NotFound('EvaluationTemplateVersion');
     }
 
-    const sourceKpis = await this.templateKpiRepo.findByTemplateVersionId(sourceVersionId);
+    const sourceCriteria = await this.templateCriterionRepo.findByTemplateVersionId(sourceVersionId);
     const existingVersions = await this.versionRepo.findByTemplateId(templateId);
     const nextVersionNo = Math.max(...existingVersions.map((v) => v.version_no)) + 1;
 
@@ -55,31 +53,19 @@ export class ConfigurationCloneService {
         client
       );
 
-      for (const kpi of sourceKpis) {
-        const newKpi = await this.templateKpiRepo.create(
+      for (const item of sourceCriteria) {
+        await this.templateCriterionRepo.create(
           {
             template_version_id: newVersion.id,
-            kpi_id: kpi.kpi_id,
-            weight: kpi.weight,
-            display_order: kpi.display_order,
+            criterion_version_id: item.criterion_version_id,
+            weight: item.weight,
+            display_order: item.display_order,
+            required: item.required,
+            enabled: item.enabled,
+            applicability: item.applicability,
           },
           client
         );
-
-        const sourceCriteria = await this.templateKpiCriterionRepo.findByTemplateKpiId(kpi.id);
-        for (const item of sourceCriteria) {
-          await this.templateKpiCriterionRepo.create(
-            {
-              template_kpi_id: newKpi.id,
-              criterion_version_id: item.criterion_version_id,
-              weight: item.weight,
-              display_order: item.display_order,
-              required: item.required,
-              enabled: item.enabled,
-            },
-            client
-          );
-        }
       }
 
       await this.auditRepo.create(

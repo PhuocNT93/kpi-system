@@ -1,5 +1,4 @@
 import 'dotenv/config';
-import 'express-async-errors';
 import { createApp } from './app.js';
 
 const port = Number(process.env.PORT ?? 3000);

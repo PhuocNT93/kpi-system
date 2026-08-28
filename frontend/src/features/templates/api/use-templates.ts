@@ -8,12 +8,12 @@ import {
   fetchTeams,
   createEvaluationTemplate,
   createTemplateVersion,
-  bulkUpdateTemplateStructure,
+  saveTemplateCriteriaDraft,
   validateTemplateVersionApi,
   publishTemplateVersion,
   archiveEvaluationTemplate,
 } from './template-api';
-import type { TemplateKpi } from '../domain/template-models';
+import type { TemplateCriterion } from '../domain/template-models';
 
 export const templateKeys = {
   all: ['templates'] as const,
@@ -112,20 +112,20 @@ export function useCreateVersionMutation() {
   });
 }
 
-export function useSaveTemplateStructureMutation() {
+export function useSaveCriteriaDraftMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({
       templateId,
       versionId,
-      kpis,
+      criteria,
       expectedVersion,
     }: {
       templateId: string;
       versionId: string;
-      kpis: TemplateKpi[];
+      criteria: TemplateCriterion[];
       expectedVersion: number;
-    }) => bulkUpdateTemplateStructure(templateId, versionId, kpis, expectedVersion),
+    }) => saveTemplateCriteriaDraft(templateId, versionId, criteria, expectedVersion),
     onSuccess: (data, { templateId, versionId }) => {
       queryClient.setQueryData(templateKeys.version(templateId, versionId), data);
       queryClient.invalidateQueries({ queryKey: templateKeys.detail(templateId) });

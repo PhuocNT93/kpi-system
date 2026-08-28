@@ -1,28 +1,26 @@
 import { useState } from 'react';
-import type { TemplateKpi, VersionDiffItem } from '../domain/template-models';
+import type { TemplateCriterion, VersionDiffItem } from '../domain/template-models';
 import { compareTemplateVersions } from '../domain/template-mappers';
 import { Button } from '../../../shared/ui/Button/Button';
 
 interface VersionHistoryDiffModalProps {
   isOpen: boolean;
   onClose: () => void;
-  v1Kpis: TemplateKpi[];
-  v2Kpis: TemplateKpi[];
-  v1Label?: string;
-  v2Label?: string;
+  v1Criteria: TemplateCriterion[];
+  v2Criteria: TemplateCriterion[];
 }
 
 export function VersionHistoryDiffModal({
   isOpen,
   onClose,
-  v1Kpis,
-  v2Kpis,
+  v1Criteria,
+  v2Criteria,
 }: VersionHistoryDiffModalProps) {
   const [activeTab, setActiveTab] = useState<'history' | 'diff'>('diff');
 
   if (!isOpen) return null;
 
-  const diffs: VersionDiffItem[] = compareTemplateVersions(v1Kpis, v2Kpis);
+  const diffs: VersionDiffItem[] = compareTemplateVersions(v1Criteria, v2Criteria);
 
   return (
     <div

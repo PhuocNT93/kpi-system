@@ -2,8 +2,7 @@ import {
   ValidationResult,
   ValidationErrorDetail,
   WeightPolicy,
-  TemplateKpi,
-  TemplateKpiCriterion,
+  TemplateCriterion,
   WorkflowState,
   WorkflowTransition,
   WorkflowStateType,
@@ -13,92 +12,52 @@ export class ConfigurationValidationService {
   /**
    * Validate template criteria weight total against weight policy
    */
-  public static validateTemplateStructure(
-    kpis: TemplateKpi[],
-    criteriaMap: Map<string, TemplateKpiCriterion[]>, // template_kpi_id -> criteria
+  public static validateTemplateCriteria(
+    criteria: TemplateCriterion[],
     policy: WeightPolicy = WeightPolicy.EXACT_100
   ): ValidationResult {
     const errors: ValidationErrorDetail[] = [];
     const warnings: ValidationErrorDetail[] = [];
 
-    if (kpis.length === 0) {
+    const enabledCriteria = criteria.filter((c) => c.enabled);
+
+    if (enabledCriteria.length === 0) {
       errors.push({
         code: 'TEMPLATE_EMPTY',
-        path: 'kpis',
-        message: 'Template must contain at least one KPI.',
+        path: 'criteria',
+        message: 'Template must contain at least one enabled criterion.',
       });
       return { valid: false, errors, warnings };
     }
 
-    // 1. Validate total KPI weight
-    let totalKpiWeight = 0;
-    for (const kpi of kpis) {
-      if (typeof kpi.weight !== 'number' || kpi.weight < 0 || kpi.weight > 100) {
+    let totalWeight = 0;
+    for (const item of enabledCriteria) {
+      if (typeof item.weight !== 'number' || item.weight < 0 || item.weight > 100) {
         errors.push({
           code: 'INVALID_WEIGHT',
-          path: `kpis[${kpi.kpi_id}]`,
-          message: `KPI weight (${kpi.weight}) must be between 0 and 100.`,
+          path: `criteria[${item.criterion_version_id}]`,
+          message: `Criterion weight (${item.weight}) must be between 0 and 100.`,
         });
       }
-      totalKpiWeight += kpi.weight;
-      
-      // 2. Validate criteria within this KPI
-      const kpiCriteria = criteriaMap.get(kpi.id) || [];
-      const enabledCriteria = kpiCriteria.filter(c => c.enabled);
-      
-      if (enabledCriteria.length === 0) {
-        errors.push({
-          code: 'TEMPLATE_KPI_EMPTY',
-          path: `kpis[${kpi.kpi_id}].criteria`,
-          message: 'KPI must contain at least one enabled criterion.',
-        });
-      }
-
-      let totalCritWeight = 0;
-      for (const crit of enabledCriteria) {
-        if (typeof crit.weight !== 'number' || crit.weight < 0 || crit.weight > 100) {
-          errors.push({
-            code: 'INVALID_WEIGHT',
-            path: `kpis[${kpi.kpi_id}].criteria[${crit.criterion_version_id}]`,
-            message: `Criterion weight (${crit.weight}) must be between 0 and 100.`,
-          });
-        }
-        totalCritWeight += crit.weight;
-      }
-      totalCritWeight = Math.round(totalCritWeight * 100) / 100;
-
-      if (policy === WeightPolicy.EXACT_100 && totalCritWeight !== 100) {
-        errors.push({
-          code: 'INVALID_WEIGHT_TOTAL',
-          path: `kpis[${kpi.kpi_id}].criteria`,
-          message: 'Enabled criterion weights within a KPI must total 100%.',
-          details: { kpi_id: kpi.kpi_id, actual: totalCritWeight, expected: 100 },
-        });
-      } else if (policy === WeightPolicy.LE_100 && totalCritWeight > 100) {
-        errors.push({
-          code: 'INVALID_WEIGHT_TOTAL',
-          path: `kpis[${kpi.kpi_id}].criteria`,
-          message: 'Enabled criterion weights within a KPI cannot exceed 100%.',
-          details: { kpi_id: kpi.kpi_id, actual: totalCritWeight, max: 100 },
-        });
-      }
+      totalWeight += item.weight;
     }
 
-    totalKpiWeight = Math.round(totalKpiWeight * 100) / 100;
+    // Round total weight to 2 decimal places to prevent float precision issues
+    totalWeight = Math.round(totalWeight * 100) / 100;
 
-    if (policy === WeightPolicy.EXACT_100 && totalKpiWeight !== 100) {
+    if (policy === WeightPolicy.EXACT_100 && totalWeight !== 100) {
       errors.push({
         code: 'INVALID_WEIGHT_TOTAL',
-        path: 'kpis',
-        message: 'KPI weights must total 100%.',
-        details: { actual: totalKpiWeight, expected: 100 },
+        path: 'criteria',
+        message: 'Enabled criterion weights must total 100%.',
+        details: { actual: totalWeight, expected: 100 },
       });
-    } else if (policy === WeightPolicy.LE_100 && totalKpiWeight > 100) {
+    } else if (policy === WeightPolicy.LE_100 && totalWeight > 100) {
       errors.push({
         code: 'INVALID_WEIGHT_TOTAL',
-        path: 'kpis',
-        message: 'KPI weights cannot exceed 100%.',
-        details: { actual: totalKpiWeight, max: 100 },
+        path: 'criteria',
+        message: 'Enabled criterion weights cannot exceed 100%.',
+        details: { actual: totalWeight, max: 100 },
       });
     }
 

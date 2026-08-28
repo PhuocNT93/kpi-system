@@ -222,23 +222,15 @@ export interface EvaluationTemplateVersion {
   created_by?: string;
 }
 
-export interface TemplateKpi {
+export interface TemplateCriterion {
   id: string;
   template_version_id: string;
-  kpi_id: string;
-  weight: number;
-  display_order: number;
-  created_at: Date;
-}
-
-export interface TemplateKpiCriterion {
-  id: string;
-  template_kpi_id: string;
   criterion_version_id: string;
   weight: number;
   display_order: number;
   required: boolean;
   enabled: boolean;
+  applicability: ApplicabilityRule;
   created_at: Date;
 }
 
@@ -391,15 +383,11 @@ export interface TemplateSnapshot {
     weight_total_policy: WeightPolicy;
   };
   levels: EvaluationLevel[];
-  kpis: Array<{
-    kpi: any; // Ideally we import Kpi but let's keep it simple for snapshot
-    template_kpi: TemplateKpi;
-    criteria: Array<{
-      criterion: Criterion;
-      version: CriterionVersion;
-      template_kpi_criterion: TemplateKpiCriterion;
-      scoring_rule?: ScoringRule;
-    }>;
+  criteria: Array<{
+    criterion: Criterion;
+    version: CriterionVersion;
+    template_criterion: TemplateCriterion;
+    scoring_rule?: ScoringRule;
   }>;
   workflow?: {
     definition: WorkflowDefinition;

@@ -5,117 +5,100 @@ import {
   compareTemplateVersions,
   mapWireTemplateToDomain,
 } from './template-mappers';
-import type { TemplateKpi } from './template-models';
+import type { TemplateCriterion } from './template-models';
 
-const mockKpis: TemplateKpi[] = [
+const mockCriteria: TemplateCriterion[] = [
   {
-    id: 'kpi-1',
+    id: 'tc-1',
     templateVersionId: 'tv-1',
-    kpiId: 'kpi-ref-1',
-    kpiName: 'Performance KPI',
-    weight: 100,
+    criterionVersionId: 'cv-1',
+    criterion: {
+      id: 'c-1',
+      code: 'ON_TIME_COMPLETION',
+      category: 'Performance',
+      name: 'On-time Completion',
+      status: 'ACTIVE',
+      version: 1,
+    },
+    effectiveWeight: 50,
+    applicableRoleIds: [],
+    applicableTeamIds: [],
+    isDisabled: false,
+    isOptional: false,
     displayOrder: 1,
-    criteria: [
-      {
-        id: 'tc-1',
-        templateKpiId: 'kpi-1',
-        criterionVersionId: 'cv-1',
-        criterion: {
-          id: 'c-1',
-          code: 'ON_TIME_COMPLETION',
-          category: 'Performance',
-          name: 'On-time Completion',
-          status: 'ACTIVE',
-          version: 1,
-        },
-        effectiveWeight: 50,
-        applicableRoleIds: [],
-        applicableTeamIds: [],
-        isDisabled: false,
-        isOptional: false,
-        displayOrder: 1,
-      },
-      {
-        id: 'tc-2',
-        templateKpiId: 'kpi-1',
-        criterionVersionId: 'cv-2',
-        criterion: {
-          id: 'c-2',
-          code: 'PLANNING_DISCIPLINE',
-          category: 'Performance',
-          name: 'Planning Discipline',
-          status: 'ACTIVE',
-          version: 1,
-        },
-        effectiveWeight: 50,
-        applicableRoleIds: [],
-        applicableTeamIds: [],
-        isDisabled: false,
-        isOptional: false,
-        displayOrder: 2,
-      }
-    ]
-  }
+  },
+  {
+    id: 'tc-2',
+    templateVersionId: 'tv-1',
+    criterionVersionId: 'cv-2',
+    criterion: {
+      id: 'c-2',
+      code: 'PLANNING_DISCIPLINE',
+      category: 'Performance',
+      name: 'Planning Discipline',
+      status: 'ACTIVE',
+      version: 1,
+    },
+    effectiveWeight: 50,
+    applicableRoleIds: [],
+    applicableTeamIds: [],
+    isDisabled: false,
+    isOptional: false,
+    displayOrder: 2,
+  },
 ];
 
 describe('template-mappers domain logic', () => {
   it('correctly calculates total configured weight', () => {
-    const total = calculateConfiguredWeightTotal(mockKpis);
+    const total = calculateConfiguredWeightTotal(mockCriteria);
     expect(total).toBe(100);
   });
 
   it('validates 100% weight as valid', () => {
-    const result = validateTemplateClientSide(mockKpis);
+    const result = validateTemplateClientSide(mockCriteria);
     expect(result.isValid).toBe(true);
     expect(result.errors).toHaveLength(0);
     expect(result.configuredWeightTotal).toBe(100);
   });
 
   it('returns WEIGHT_TOTAL_NOT_100 error when total weight is 85%', () => {
-    const kpisWith85 = [
-      {
-        ...mockKpis[0],
-        weight: 85,
-      },
+    const criteriaWith85 = [
+      mockCriteria[0],
+      { ...mockCriteria[1], effectiveWeight: 35 },
     ];
-    const result = validateTemplateClientSide(kpisWith85);
+    const result = validateTemplateClientSide(criteriaWith85);
     expect(result.isValid).toBe(false);
-    expect(result.errors.some(e => e.code === 'WEIGHT_TOTAL_NOT_100')).toBe(true);
+    expect(result.errors[0].code).toBe('WEIGHT_TOTAL_NOT_100');
     expect(result.configuredWeightTotal).toBe(85);
   });
 
   it('compares versions and detects weight changes and added criteria', () => {
-    const v1Kpis = mockKpis;
-    const v2Kpis: TemplateKpi[] = [
+    const v1Criteria = mockCriteria;
+    const v2Criteria: TemplateCriterion[] = [
+      { ...mockCriteria[0], effectiveWeight: 60 },
+      { ...mockCriteria[1], effectiveWeight: 20 },
       {
-        ...mockKpis[0],
-        criteria: [
-          { ...mockKpis[0].criteria[0], effectiveWeight: 60 },
-          { ...mockKpis[0].criteria[1], effectiveWeight: 20 },
-          {
-            id: 'tc-3',
-            templateKpiId: 'kpi-1',
-            criterionVersionId: 'cv-3',
-            criterion: {
-              id: 'c-3',
-              code: 'OWNERSHIP',
-              category: 'Capability',
-              name: 'Ownership',
-              status: 'ACTIVE',
-              version: 1,
-            },
-            effectiveWeight: 20,
-            applicableRoleIds: [],
-            applicableTeamIds: [],
-            isDisabled: false,
-            isOptional: false,
-            displayOrder: 3,
-          },
-        ]
-      }
+        id: 'tc-3',
+        templateVersionId: 'tv-2',
+        criterionVersionId: 'cv-3',
+        criterion: {
+          id: 'c-3',
+          code: 'OWNERSHIP',
+          category: 'Capability',
+          name: 'Ownership',
+          status: 'ACTIVE',
+          version: 1,
+        },
+        effectiveWeight: 20,
+        applicableRoleIds: [],
+        applicableTeamIds: [],
+        isDisabled: false,
+        isOptional: false,
+        displayOrder: 3,
+      },
     ];
 
-    const diffs = compareTemplateVersions(v1Kpis, v2Kpis);
+    const diffs = compareTemplateVersions(v1Criteria, v2Criteria);
     expect(diffs).toHaveLength(3);
 
     const onTimeDiff = diffs.find((d) => d.criterionCode === 'ON_TIME_COMPLETION');

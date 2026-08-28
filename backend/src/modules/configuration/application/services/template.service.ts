@@ -2,8 +2,7 @@ import { Pool } from 'pg';
 import {
   EvaluationTemplate,
   EvaluationTemplateVersion,
-  TemplateKpi,
-  TemplateKpiCriterion,
+  TemplateCriterion,
   TemplateStatus,
   VersionStatus,
   WeightPolicy,
@@ -13,8 +12,7 @@ import {
 import {
   ITemplateRepository,
   ITemplateVersionRepository,
-  ITemplateKpiRepository,
-  ITemplateKpiCriterionRepository,
+  ITemplateCriterionRepository,
   ICriterionVersionRepository,
   IConfigurationAuditRepository,
 } from '../../domain/repositories.interface.js';
@@ -25,8 +23,7 @@ export class TemplateService {
   constructor(
     private templateRepo: ITemplateRepository,
     private versionRepo: ITemplateVersionRepository,
-    private templateKpiRepo: ITemplateKpiRepository,
-    private templateKpiCriterionRepo: ITemplateKpiCriterionRepository,
+    private templateCriterionRepo: ITemplateCriterionRepository,
     private criterionVersionRepo: ICriterionVersionRepository,
     private auditRepo: IConfigurationAuditRepository,
     private pool: Pool
@@ -214,151 +211,146 @@ export class TemplateService {
     return updated;
   }
 
-  // ── Template Structure (2-Tier) ───────────────────────────────────────────────
+  // ── Template Criteria ───────────────────────────────────────────────────────
 
-  async getTemplateStructure(templateVersionId: string): Promise<{ kpis: TemplateKpi[]; criteriaMap: Record<string, TemplateKpiCriterion[]> }> {
+  async getTemplateCriteria(templateVersionId: string): Promise<TemplateCriterion[]> {
     await this.getTemplateVersionById(templateVersionId);
-    const kpis = await this.templateKpiRepo.findByTemplateVersionId(templateVersionId);
-    const criteriaMap: Record<string, TemplateKpiCriterion[]> = {};
-    for (const kpi of kpis) {
-      criteriaMap[kpi.id] = await this.templateKpiCriterionRepo.findByTemplateKpiId(kpi.id);
-    }
-    return { kpis, criteriaMap };
+    return this.templateCriterionRepo.findByTemplateVersionId(templateVersionId);
   }
 
-  async getTemplateStructureWithDetails(templateVersionId: string): Promise<any[]> {
+  async getTemplateCriteriaWithDetails(templateVersionId: string): Promise<any[]> {
     await this.getTemplateVersionById(templateVersionId);
-    return this.templateKpiCriterionRepo.findByTemplateVersionIdWithDetails(templateVersionId);
+    return this.templateCriterionRepo.findByTemplateVersionIdWithDetails(templateVersionId);
   }
 
-  async bulkUpdateTemplateStructure(
+  async addTemplateCriterion(
     templateVersionId: string,
-    kpisPayload: Array<{
-      kpi_id: string;
-      weight: number;
-      display_order?: number;
-      criteria: Array<{
-        criterion_version_id: string;
-        weight: number;
-        display_order?: number;
-        required?: boolean;
-        enabled?: boolean;
-      }>;
-    }>,
+    data: { criterion_version_id: string; weight: number; display_order?: number; required?: boolean; enabled?: boolean },
     actorId?: string
-  ): Promise<void> {
+  ): Promise<TemplateCriterion> {
     const version = await this.getTemplateVersionById(templateVersionId);
     if (version.status === VersionStatus.PUBLISHED || version.status === VersionStatus.RETIRED) {
       throw new AppError(409, 'PUBLISHED_CONFIGURATION_IMMUTABLE', 'Published template versions are immutable.');
     }
 
-    // Pre-validate weight total by mapping to temporary objects
-    const mappedKpis = kpisPayload.map((k, idx) => ({
-      id: `temp-kpi-${idx}`, // Temp ID for validation
-      template_version_id: templateVersionId,
-      kpi_id: k.kpi_id,
-      weight: k.weight,
-      display_order: k.display_order ?? (idx + 1),
-      created_at: new Date()
-    }));
+    const cv = await this.criterionVersionRepo.findById(data.criterion_version_id);
+    if (!cv) throw new NotFound('CriterionVersion');
 
-    const mappedCriteriaMap = new Map<string, TemplateKpiCriterion[]>();
-    kpisPayload.forEach((k, idx) => {
-      const tempKpiId = `temp-kpi-${idx}`;
-      const crits = k.criteria.map((c, cIdx) => ({
-        id: `temp-crit-${idx}-${cIdx}`,
-        template_kpi_id: tempKpiId,
-        criterion_version_id: c.criterion_version_id,
-        weight: c.weight,
-        display_order: c.display_order ?? (cIdx + 1),
-        required: c.required ?? true,
-        enabled: c.enabled ?? true,
-        created_at: new Date()
-      }));
-      mappedCriteriaMap.set(tempKpiId, crits as TemplateKpiCriterion[]);
+    const created = await this.templateCriterionRepo.create({
+      template_version_id: templateVersionId,
+      criterion_version_id: data.criterion_version_id,
+      weight: data.weight,
+      display_order: data.display_order ?? 1,
+      required: data.required ?? true,
+      enabled: data.enabled ?? true,
     });
 
-    const validation = ConfigurationValidationService.validateTemplateStructure(
-      mappedKpis as TemplateKpi[],
-      mappedCriteriaMap,
+    await this.auditRepo.create({
+      entity_type: 'TEMPLATE_CRITERION',
+      entity_id: created.id,
+      action: AuditAction.CREATE,
+      performed_by: actorId || 'SYSTEM',
+      changes: { created },
+    });
+
+    return created;
+  }
+
+  async bulkUpdateTemplateCriteria(
+    templateVersionId: string,
+    criteriaItems: Array<{ criterion_version_id: string; weight: number; display_order?: number; required?: boolean; enabled?: boolean }>,
+    actorId?: string
+  ): Promise<TemplateCriterion[]> {
+    const version = await this.getTemplateVersionById(templateVersionId);
+    if (version.status === VersionStatus.PUBLISHED || version.status === VersionStatus.RETIRED) {
+      throw new AppError(409, 'PUBLISHED_CONFIGURATION_IMMUTABLE', 'Published template versions are immutable.');
+    }
+
+    for (const item of criteriaItems) {
+      const cv = await this.criterionVersionRepo.findById(item.criterion_version_id);
+      if (!cv) throw new NotFound(`CriterionVersion '${item.criterion_version_id}'`);
+    }
+
+    const mappedItems: Partial<TemplateCriterion>[] = criteriaItems.map((item: any, idx) => {
+      let applicability = item.applicability;
+      if (!applicability && (item.applicable_role_ids || item.applicable_team_ids)) {
+        const rules = [];
+        if (item.applicable_role_ids?.length) {
+          rules.push({ dimension: 'ROLE', operator: 'IN', values: item.applicable_role_ids });
+        }
+        if (item.applicable_team_ids?.length) {
+          rules.push({ dimension: 'TEAM', operator: 'IN', values: item.applicable_team_ids });
+        }
+        applicability = { rules };
+      }
+      return {
+        criterion_version_id: item.criterion_version_id,
+        weight: item.weight ?? item.effective_weight,
+        display_order: item.display_order ?? idx + 1,
+        required: item.required ?? true,
+        enabled: item.enabled ?? true,
+        applicability: applicability || {},
+      };
+    });
+
+    // Pre-validate weight total
+    const validation = ConfigurationValidationService.validateTemplateCriteria(
+      mappedItems as TemplateCriterion[],
       version.weight_total_policy
     );
-    
     if (!validation.valid) {
-      throw new ValidationError('Template structure validation failed.', validation.errors.map(e => ({ field: e.path, code: e.code, message: e.message })));
+      throw new ValidationError('Template criteria validation failed.', validation.errors.map(e => ({ field: e.path, code: e.code, message: e.message })));
     }
 
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
-      
-      // 1. Delete all existing KPIs (Cascade will delete criteria)
-      await this.templateKpiRepo.replaceAllForVersion(templateVersionId, [], client);
+    const updated = await this.templateCriterionRepo.replaceAllForVersion(templateVersionId, mappedItems);
 
-      // 2. Insert new KPIs and Criteria
-      for (let i = 0; i < kpisPayload.length; i++) {
-        const kPayload = kpisPayload[i]!;
-        const newKpi = await this.templateKpiRepo.create({
-          template_version_id: templateVersionId,
-          kpi_id: kPayload.kpi_id,
-          weight: kPayload.weight,
-          display_order: kPayload.display_order ?? (i + 1),
-        }, client);
+    await this.auditRepo.create({
+      entity_type: 'TEMPLATE_VERSION',
+      entity_id: templateVersionId,
+      action: AuditAction.UPDATE,
+      performed_by: actorId || 'SYSTEM',
+      changes: { bulkCriteria: updated },
+    });
 
-        const criteriaToInsert = kPayload.criteria.map((c, cIdx) => ({
-          template_kpi_id: newKpi.id,
-          criterion_version_id: c.criterion_version_id,
-          weight: c.weight,
-          display_order: c.display_order ?? (cIdx + 1),
-          required: c.required ?? true,
-          enabled: c.enabled ?? true,
-        }));
-        await this.templateKpiCriterionRepo.replaceAllForTemplateKpi(newKpi.id, criteriaToInsert, client);
-      }
+    return updated;
+  }
 
-      await this.auditRepo.create({
-        entity_type: 'TEMPLATE_VERSION',
-        entity_id: templateVersionId,
-        action: AuditAction.UPDATE,
-        performed_by: actorId || 'SYSTEM',
-        changes: { bulkUpdate: 'Template structure updated (KPIs and Criteria)' },
-      }, client);
-
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
+  async deleteTemplateCriterion(templateVersionId: string, criterionId: string, actorId?: string): Promise<void> {
+    const version = await this.getTemplateVersionById(templateVersionId);
+    if (version.status === VersionStatus.PUBLISHED || version.status === VersionStatus.RETIRED) {
+      throw new AppError(409, 'PUBLISHED_CONFIGURATION_IMMUTABLE', 'Published template versions are immutable.');
     }
+
+    await this.templateCriterionRepo.delete(criterionId);
+
+    await this.auditRepo.create({
+      entity_type: 'TEMPLATE_CRITERION',
+      entity_id: criterionId,
+      action: AuditAction.DELETE,
+      performed_by: actorId || 'SYSTEM',
+      changes: { deletedCriterionId: criterionId },
+    });
   }
 
   // ── Validation & Publishing ────────────────────────────────────────────────
 
   async validateTemplateVersion(templateVersionId: string): Promise<ValidationResult> {
     const version = await this.getTemplateVersionById(templateVersionId);
-    const kpis = await this.templateKpiRepo.findByTemplateVersionId(templateVersionId);
-    const criteriaMap = new Map<string, TemplateKpiCriterion[]>();
-    for (const kpi of kpis) {
-      criteriaMap.set(kpi.id, await this.templateKpiCriterionRepo.findByTemplateKpiId(kpi.id));
-    }
+    const criteria = await this.templateCriterionRepo.findByTemplateVersionId(templateVersionId);
 
-    const result = ConfigurationValidationService.validateTemplateStructure(kpis, criteriaMap, version.weight_total_policy);
+    const result = ConfigurationValidationService.validateTemplateCriteria(criteria, version.weight_total_policy);
 
     // Verify each criterion version exists
-    for (const kpi of kpis) {
-      const crits = criteriaMap.get(kpi.id) || [];
-      for (const item of crits) {
-        if (item.enabled) {
-          const cv = await this.criterionVersionRepo.findById(item.criterion_version_id);
-          if (!cv) {
-            result.valid = false;
-            result.errors.push({
-              code: 'CRITERION_VERSION_NOT_FOUND',
-              path: `kpis[${kpi.kpi_id}].criteria[${item.id}]`,
-              message: `Referenced criterion version '${item.criterion_version_id}' not found.`,
-            });
-          }
+    for (const item of criteria) {
+      if (item.enabled) {
+        const cv = await this.criterionVersionRepo.findById(item.criterion_version_id);
+        if (!cv) {
+          result.valid = false;
+          result.errors.push({
+            code: 'CRITERION_VERSION_NOT_FOUND',
+            path: `criteria[${item.id}]`,
+            message: `Referenced criterion version '${item.criterion_version_id}' not found.`,
+          });
         }
       }
     }

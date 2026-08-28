@@ -5,8 +5,7 @@ import {
 } from '../../domain/configuration.types.js';
 import {
   ITemplateVersionRepository,
-  ITemplateKpiRepository,
-  ITemplateKpiCriterionRepository,
+  ITemplateCriterionRepository,
   ICriterionVersionRepository,
   ICriterionRepository,
 } from '../../domain/repositories.interface.js';
@@ -15,8 +14,7 @@ import { NotFound } from '../../../../api/app-error.js';
 export class ConfigurationDiffService {
   constructor(
     private versionRepo: ITemplateVersionRepository,
-    private templateKpiRepo: ITemplateKpiRepository,
-    private templateKpiCriterionRepo: ITemplateKpiCriterionRepository,
+    private templateCriterionRepo: ITemplateCriterionRepository,
     private criterionVersionRepo: ICriterionVersionRepository,
     private criterionRepo: ICriterionRepository
   ) {}
@@ -32,22 +30,26 @@ export class ConfigurationDiffService {
     const toVersion = await this.versionRepo.findByTemplateIdAndVersion(templateId, toVersionNo);
     if (!toVersion) throw new NotFound(`TemplateVersion v${toVersionNo}`);
 
-    const fromCriteria = await this.templateKpiCriterionRepo.findByTemplateVersionIdWithDetails(fromVersion.id);
-    const toCriteria = await this.templateKpiCriterionRepo.findByTemplateVersionIdWithDetails(toVersion.id);
+    const fromCriteria = await this.templateCriterionRepo.findByTemplateVersionId(fromVersion.id);
+    const toCriteria = await this.templateCriterionRepo.findByTemplateVersionId(toVersion.id);
 
-    // Map criterion_code -> item
-    const getCodeMap = (items: any[]) => {
-      const map = new Map<string, { code: string; name: string; tc: any }>();
+    // Map criterion_version_id -> criterion_code
+    const getCodeMap = async (items: typeof fromCriteria) => {
+      const map = new Map<string, { code: string; name: string; tc: typeof items[0] }>();
       for (const item of items) {
-        if (item.criterion) {
-          map.set(item.criterion.code, { code: item.criterion.code, name: item.criterion.name, tc: item });
+        const cv = await this.criterionVersionRepo.findById(item.criterion_version_id);
+        if (cv) {
+          const c = await this.criterionRepo.findById(cv.criterion_id);
+          if (c) {
+            map.set(c.code, { code: c.code, name: c.name, tc: item });
+          }
         }
       }
       return map;
     };
 
-    const fromMap = getCodeMap(fromCriteria);
-    const toMap = getCodeMap(toCriteria);
+    const fromMap = await getCodeMap(fromCriteria);
+    const toMap = await getCodeMap(toCriteria);
 
     const added: CriterionDiffItem[] = [];
     const removed: CriterionDiffItem[] = [];

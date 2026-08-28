@@ -84,7 +84,6 @@ export function createApp(options: AppOptions = {}) {
   const configurationController = configurationModule?.configurationController;
 
   const kpiModule = pool ? createKpiModule(pool) : undefined;
-  const kpiController = kpiModule?.kpiController;
   const kpiRelationshipController = kpiModule?.relationshipController;
 
   const evaluationCycleModule = pool ? createEvaluationCycleModule(pool, auditModule?.auditService) : undefined;
@@ -119,7 +118,6 @@ export function createApp(options: AppOptions = {}) {
         employeeController,
         organizationController,
         configurationController,
-        kpiController,
         kpiRelationshipController,
         auditController: auditModule?.auditController,
         evaluationCycleController,

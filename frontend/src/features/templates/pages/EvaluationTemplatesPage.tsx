@@ -4,14 +4,16 @@ import {
   TemplateBuilderWorkspace,
   useTemplatesQuery,
   useTemplateVersionQuery,
-  useSaveTemplateStructureMutation,
+  useCriterionLibraryQuery,
+  useSaveCriteriaDraftMutation,
   usePublishVersionMutation,
   useCreateVersionMutation,
   useTemplateDetailQuery,
   useCreateTemplateMutation,
 } from '../index';
-import type { TemplateKpi } from '../index';
-import { useCriteriaQuery } from '../../criteria/api/use-criteria';
+import type {
+  TemplateCriterion,
+} from '../index';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
 
@@ -142,9 +144,9 @@ export function EvaluationTemplatesPage() {
   const templatesQuery = useTemplatesQuery();
   const templateDetailQuery = useTemplateDetailQuery(selectedTemplateId);
   const templateVersionQuery = useTemplateVersionQuery(selectedTemplateId, selectedVersionId);
-  const libraryQuery = useCriteriaQuery();
+  const libraryQuery = useCriterionLibraryQuery();
 
-  const saveDraftMutation = useSaveTemplateStructureMutation();
+  const saveDraftMutation = useSaveCriteriaDraftMutation();
   const publishMutation = usePublishVersionMutation();
   const createVersionMutation = useCreateVersionMutation();
   const createTemplateMutation = useCreateTemplateMutation();
@@ -176,12 +178,12 @@ export function EvaluationTemplatesPage() {
     }
   };
 
-  const handleSaveDraft = async (updatedKpis: TemplateKpi[], expectedVersion: number) => {
+  const handleSaveDraft = async (updatedCriteria: TemplateCriterion[], expectedVersion: number) => {
     if (selectedTemplateId && selectedVersionId) {
       await saveDraftMutation.mutateAsync({
         templateId: selectedTemplateId,
         versionId: selectedVersionId,
-        kpis: updatedKpis,
+        criteria: updatedCriteria,
         expectedVersion,
       });
     }
@@ -217,23 +219,19 @@ export function EvaluationTemplatesPage() {
       );
     }
     return (
-      <div style={{ flex: 1, display: 'flex', margin: '0 -32px -24px -32px', overflow: 'hidden' }}>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <TemplateBuilderWorkspace
-            template={templateDetailQuery.data}
-            version={currentVersion}
-            libraryCriteria={libraryQuery.data ?? []}
-            isLoading={libraryQuery.isLoading}
-            error={libraryQuery.error}
-            onSaveDraft={handleSaveDraft}
-            onPublishVersion={handlePublishVersion}
-            onBackToList={() => setActiveView('list')}
-            isSavePending={saveDraftMutation.isPending}
-            isPublishPending={publishMutation.isPending}
-            saveError={saveDraftMutation.error}
-          />
-        </div>
-      </div>
+      <TemplateBuilderWorkspace
+        template={templateDetailQuery.data}
+        version={currentVersion}
+        libraryCriteria={libraryQuery.data ?? []}
+        isLoading={libraryQuery.isLoading}
+        error={libraryQuery.error}
+        onSaveDraft={handleSaveDraft}
+        onPublishVersion={handlePublishVersion}
+        onBackToList={() => setActiveView('list')}
+        isSavePending={saveDraftMutation.isPending}
+        isPublishPending={publishMutation.isPending}
+        saveError={saveDraftMutation.error}
+      />
     );
   }
 

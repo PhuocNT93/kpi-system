@@ -54,7 +54,7 @@ export function ProvenancePopover({
           style={{
             position: 'absolute',
             top: '100%',
-            right: 0,
+            left: 0,
             marginTop: 4,
             width: 280,
             background: '#ffffff',

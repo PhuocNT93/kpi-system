@@ -3,7 +3,7 @@ import type {
   EvaluationTemplate,
   EvaluationTemplateVersion,
   Criterion,
-  TemplateKpi,
+  TemplateCriterion,
   TemplateValidationResult,
 } from '../domain/template-models';
 import {
@@ -102,38 +102,33 @@ export async function createTemplateVersion(
   return mapWireVersionToDomain(data);
 }
 
-export async function bulkUpdateTemplateStructure(
+export async function saveTemplateCriteriaDraft(
   templateId: string,
   versionId: string,
-  kpis: TemplateKpi[],
+  criteria: TemplateCriterion[],
   expectedVersion: number
 ): Promise<EvaluationTemplateVersion> {
   const payload = {
     expected_version: expectedVersion,
-    kpis: kpis.map((kpi) => ({
-      kpi_id: kpi.kpiId,
-      weight: kpi.weight,
-      display_order: kpi.displayOrder,
-      criteria: kpi.criteria.map((c) => ({
-        criterion_version_id: c.criterionVersionId,
-        weight: c.effectiveWeight,
-        applicable_role_ids: c.applicableRoleIds,
-        applicable_team_ids: c.applicableTeamIds,
-        is_disabled: c.isDisabled,
-        is_optional: c.isOptional,
-        display_order: c.displayOrder,
-        custom_scoring_rule: c.customScoringRule
-          ? {
-              rule_type: c.customScoringRule.ruleType,
-              config: c.customScoringRule.config,
-            }
-          : undefined,
-      })),
+    criteria: criteria.map((c) => ({
+      criterion_version_id: c.criterionVersionId,
+      effective_weight: c.effectiveWeight,
+      applicable_role_ids: c.applicableRoleIds,
+      applicable_team_ids: c.applicableTeamIds,
+      is_disabled: c.isDisabled,
+      is_optional: c.isOptional,
+      display_order: c.displayOrder,
+      custom_scoring_rule: c.customScoringRule
+        ? {
+            rule_type: c.customScoringRule.ruleType,
+            config: c.customScoringRule.config,
+          }
+        : undefined,
     })),
   };
 
   const data = await putApi<any>(
-    `/api/v1/configuration/templates/${templateId}/versions/${versionId}/structure`,
+    `/api/v1/configuration/templates/${templateId}/versions/${versionId}/criteria`,
     payload
   );
   return mapWireVersionToDomain(data);
