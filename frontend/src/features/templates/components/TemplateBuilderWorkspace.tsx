@@ -21,6 +21,7 @@ import { VersionHistoryDiffModal } from './VersionHistoryDiffModal';
 import { ConflictResolutionModal } from './ConflictResolutionModal';
 import { StatusBadge, LoadingSpinner, ErrorAlert } from '../../../shared/components/ui';
 import { Button } from '../../../shared/ui/Button/Button';
+import { fetchKpiCriteria } from '../../kpi/api/kpi-api';
 import type { Kpi } from '../../kpi/api/kpi-api';
 import type { TemplateKpi } from '../domain/template-models';
 
@@ -85,7 +86,7 @@ export function TemplateBuilderWorkspace({
     }
   }, [saveError]);
 
-  const configuredTotalWeight = calculateConfiguredWeightTotal(criteria);
+  const configuredTotalWeight = calculateConfiguredWeightTotal(kpis);
 
   // Handlers
   const handleWeightChange = (id: string, newWeight: number) => {
@@ -125,10 +126,11 @@ export function TemplateBuilderWorkspace({
     setHasUnsavedChanges(true);
   };
 
-  const handleAddKpiFromLibrary = (kpi: Kpi) => {
+  const handleAddKpiFromLibrary = async (kpi: Kpi) => {
     if (isReadOnly) return;
+    const kpiId = `tkpi-${Date.now()}`;
     const newKpiItem: TemplateKpi = {
-      id: `tkpi-${Date.now()}`,
+      id: kpiId,
       templateVersionId: version.id,
       kpiId: kpi.kpiId,
       weight: 10,
@@ -136,6 +138,43 @@ export function TemplateBuilderWorkspace({
       kpi,
     };
     setKpis((prev) => [...prev, newKpiItem]);
+    
+    try {
+      // Auto-populate with mapped criteria from global KPI library
+      const mappedCriteria = await fetchKpiCriteria(kpi.kpiId);
+      if (mappedCriteria && mappedCriteria.length > 0) {
+        // We also need to fetch the full criteria details to get the names/codes.
+        // For now, we will add them with the information we have from the mapping.
+        // The mapping returns criterionCode and criterionName in the payload from the DB.
+        const newTemplateCriteria: TemplateCriterion[] = mappedCriteria.map((mapping, idx) => ({
+          id: `tcrit-${Date.now()}-${idx}`,
+          templateVersionId: version.id,
+          templateKpiId: kpiId,
+          criterionVersionId: `cv-${mapping.criterionId}`, // Placeholder for version ID since mapping doesn't have it
+          effectiveWeight: mapping.weight,
+          applicableRoleIds: [],
+          applicableTeamIds: [],
+          isDisabled: false,
+          isOptional: false,
+          displayOrder: criteria.length + idx + 1,
+          criterion: {
+            id: mapping.criterionId,
+            code: (mapping as any).criterionCode || '',
+            name: (mapping as any).criterionName || 'Unknown Criterion',
+            category: 'PERFORMANCE',
+            status: 'ACTIVE',
+            version: 1,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        }));
+        
+        setCriteria((prev) => [...prev, ...newTemplateCriteria]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch KPI criteria:', error);
+    }
+    
     setHasUnsavedChanges(true);
   };
 
@@ -160,7 +199,7 @@ export function TemplateBuilderWorkspace({
   };
 
   const handleRunValidation = () => {
-    const res = validateTemplateClientSide(criteria);
+    const res = validateTemplateClientSide(kpis, criteria);
     setValidationResult(res);
     setIsValidationModalOpen(true);
   };
@@ -173,7 +212,7 @@ export function TemplateBuilderWorkspace({
   };
 
   const handlePublishClick = () => {
-    const res = validateTemplateClientSide(criteria);
+    const res = validateTemplateClientSide(kpis, criteria);
     setValidationResult(res);
     if (!res.isValid) {
       setIsValidationModalOpen(true);

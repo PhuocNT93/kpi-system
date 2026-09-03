@@ -11,17 +11,16 @@ import type {
   TemplateKpi,
 } from './template-models';
 
-export function calculateConfiguredWeightTotal(criteria: TemplateCriterion[]): number {
-  return criteria
-    .filter((c) => !c.isDisabled)
-    .reduce((sum, c) => sum + (Number(c.effectiveWeight) || 0), 0);
+export function calculateConfiguredWeightTotal(kpis: TemplateKpi[]): number {
+  return kpis.reduce((sum, k) => sum + (Number(k.weight) || 0), 0);
 }
 
 export function validateTemplateClientSide(
+  kpis: TemplateKpi[],
   criteria: TemplateCriterion[]
 ): TemplateValidationResult {
   const activeCriteria = criteria.filter((c) => !c.isDisabled);
-  const totalWeight = Math.round(calculateConfiguredWeightTotal(activeCriteria) * 100) / 100;
+  const totalWeight = Math.round(calculateConfiguredWeightTotal(kpis) * 100) / 100;
   const errors: ValidationErrorItem[] = [];
   const warnings: ValidationErrorItem[] = [];
 

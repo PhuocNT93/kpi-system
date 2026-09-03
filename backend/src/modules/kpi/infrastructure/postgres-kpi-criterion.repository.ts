@@ -9,7 +9,7 @@ export class PostgresKpiCriterionRepository {
       SELECT kc.kpi_criterion_id, kc.kpi_id, kc.criterion_id, kc.weight, kc.display_order, kc.created_at, kc.updated_at,
              c.code as criterion_code, c.name as criterion_name
       FROM kpi_criterion kc
-      JOIN criterion c ON kc.criterion_id = c.criterion_id
+      JOIN criteria c ON kc.criterion_id = c.id
       WHERE kc.kpi_id = $1
       ORDER BY kc.display_order ASC, kc.created_at ASC
     `;
