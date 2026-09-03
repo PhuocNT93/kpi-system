@@ -1,4 +1,4 @@
-import { getApi, postApi, putApi } from '../../../shared/api/api-client';
+import { getApi, postApi, putApi, deleteApi } from '../../../shared/api/api-client';
 import type {
   EvaluationTemplate,
   EvaluationTemplateVersion,
@@ -105,11 +105,13 @@ export async function createTemplateVersion(
 export async function saveTemplateCriteriaDraft(
   templateId: string,
   versionId: string,
+  templateKpiId: string,
   criteria: TemplateCriterion[],
   expectedVersion: number
 ): Promise<EvaluationTemplateVersion> {
   const payload = {
     expected_version: expectedVersion,
+    templateKpiId: templateKpiId,
     criteria: criteria.map((c) => ({
       criterion_version_id: c.criterionVersionId,
       effective_weight: c.effectiveWeight,
@@ -132,6 +134,28 @@ export async function saveTemplateCriteriaDraft(
     payload
   );
   return mapWireVersionToDomain(data);
+}
+
+export async function addTemplateKpiApi(
+  templateId: string,
+  versionId: string,
+  kpiId: string,
+  weight: number
+): Promise<any> {
+  return postApi<any>(
+    `/api/v1/configuration/templates/${templateId}/versions/${versionId}/kpis`,
+    { kpi_id: kpiId, weight }
+  );
+}
+
+export async function removeTemplateKpiApi(
+  templateId: string,
+  versionId: string,
+  templateKpiId: string
+): Promise<void> {
+  await deleteApi<void>(
+    `/api/v1/configuration/templates/${templateId}/versions/${versionId}/kpis/${templateKpiId}`
+  );
 }
 
 export async function validateTemplateVersionApi(

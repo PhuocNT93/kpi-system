@@ -225,6 +225,7 @@ export interface EvaluationTemplateVersion {
 export interface TemplateCriterion {
   id: string;
   template_version_id: string;
+  template_kpi_id: string;
   criterion_version_id: string;
   weight: number;
   display_order: number;
@@ -232,6 +233,17 @@ export interface TemplateCriterion {
   enabled: boolean;
   applicability: ApplicabilityRule;
   created_at: Date;
+}
+
+export interface TemplateKpi {
+  id: string;
+  template_version_id: string;
+  kpi_id: string;
+  weight: number;
+  display_order: number;
+  created_at: Date;
+  updated_at: Date;
+  criteria?: TemplateCriterion[];
 }
 
 export interface RoleOverride {

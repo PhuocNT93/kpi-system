@@ -8,6 +8,7 @@ import type {
   TemplateValidationResult,
   ValidationErrorItem,
   VersionDiffItem,
+  TemplateKpi,
 } from './template-models';
 
 export function calculateConfiguredWeightTotal(criteria: TemplateCriterion[]): number {
@@ -205,6 +206,23 @@ export function mapWireVersionToDomain(wire: any): EvaluationTemplateVersion {
     publishedBy: wire.published_by ?? undefined,
     publishedByName: wire.published_by_name ?? undefined,
     version: wire.version ?? 1,
+    kpis: Array.isArray(wire.kpis)
+      ? wire.kpis.map(mapWireTemplateKpiToDomain)
+      : [],
+    criteria: Array.isArray(wire.criteria)
+      ? wire.criteria.map(mapWireTemplateCriterionToDomain)
+      : [],
+  };
+}
+
+export function mapWireTemplateKpiToDomain(wire: any): TemplateKpi {
+  return {
+    id: wire.id || wire.template_kpi_id,
+    templateVersionId: wire.template_version_id,
+    kpiId: wire.kpi_id,
+    weight: Number(wire.weight) || 0,
+    displayOrder: wire.display_order ?? 0,
+    kpi: wire.kpi,
     criteria: Array.isArray(wire.criteria)
       ? wire.criteria.map(mapWireTemplateCriterionToDomain)
       : [],
@@ -215,6 +233,7 @@ export function mapWireTemplateCriterionToDomain(wire: any): TemplateCriterion {
   return {
     id: wire.id,
     templateVersionId: wire.template_version_id,
+    templateKpiId: wire.template_kpi_id,
     criterionVersionId: wire.criterion_version_id,
     criterion: mapWireCriterionToDomain(wire.criterion || {}),
     effectiveWeight: Number(wire.effective_weight) || 0,

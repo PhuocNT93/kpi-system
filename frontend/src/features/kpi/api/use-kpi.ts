@@ -8,12 +8,18 @@ import {
   fetchKpiRelationships,
   createRelationship,
   deleteRelationship,
+  fetchKpiCriteria,
+  addKpiCriterion,
+  updateKpiCriterionWeight,
+  removeKpiCriterion,
 } from './kpi-api';
 import type {
   KpiFilter,
   KpiCreateDTO,
   KpiUpdateDTO,
   RelationshipCreateDTO,
+  KpiCriterionCreateDTO,
+  KpiCriterionUpdateDTO,
 } from './kpi-api';
 
 export const kpiKeys = {
@@ -21,6 +27,7 @@ export const kpiKeys = {
   list: (filter?: KpiFilter) => [...kpiKeys.all, 'list', filter] as const,
   detail: (id: string) => [...kpiKeys.all, 'detail', id] as const,
   relationships: () => [...kpiKeys.all, 'relationships'] as const,
+  criteria: (id: string) => [...kpiKeys.all, 'detail', id, 'criteria'] as const,
 };
 
 export function useKpisQuery(filter?: KpiFilter) {
@@ -91,6 +98,46 @@ export function useDeleteRelationshipMutation() {
     mutationFn: (id: string) => deleteRelationship(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: kpiKeys.relationships() });
+    },
+  });
+}
+
+// --- KPI-Criterion Hooks ---
+
+export function useKpiCriteriaQuery(kpiId: string | undefined) {
+  return useQuery({
+    queryKey: kpiKeys.criteria(kpiId!),
+    queryFn: () => fetchKpiCriteria(kpiId!),
+    enabled: Boolean(kpiId),
+  });
+}
+
+export function useAddKpiCriterionMutation(kpiId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: KpiCriterionCreateDTO) => addKpiCriterion(kpiId, dto),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: kpiKeys.criteria(kpiId) });
+    },
+  });
+}
+
+export function useUpdateKpiCriterionWeightMutation(kpiId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ mappingId, dto }: { mappingId: string; dto: KpiCriterionUpdateDTO }) => updateKpiCriterionWeight(kpiId, mappingId, dto),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: kpiKeys.criteria(kpiId) });
+    },
+  });
+}
+
+export function useRemoveKpiCriterionMutation(kpiId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (mappingId: string) => removeKpiCriterion(kpiId, mappingId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: kpiKeys.criteria(kpiId) });
     },
   });
 }

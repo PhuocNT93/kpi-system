@@ -11,7 +11,8 @@ import {
   validateTemplateClientSide,
 } from '../domain/template-mappers';
 import { CriterionLibraryPanel } from './CriterionLibraryPanel';
-import { SelectedCriteriaCanvas } from './SelectedCriteriaCanvas';
+import { KpiLibraryPanel } from './KpiLibraryPanel';
+import { KpiCanvas } from './KpiCanvas';
 import { WeightStatusBar } from './WeightStatusBar';
 import { CriterionConfigDrawer } from './CriterionConfigDrawer';
 import { ValidationResultsModal } from './ValidationResultsModal';
@@ -20,6 +21,8 @@ import { VersionHistoryDiffModal } from './VersionHistoryDiffModal';
 import { ConflictResolutionModal } from './ConflictResolutionModal';
 import { StatusBadge, LoadingSpinner, ErrorAlert } from '../../../shared/components/ui';
 import { Button } from '../../../shared/ui/Button/Button';
+import type { Kpi } from '../../kpi/api/kpi-api';
+import type { TemplateKpi } from '../domain/template-models';
 
 interface TemplateBuilderWorkspaceProps {
   template: EvaluationTemplate;
@@ -52,9 +55,13 @@ export function TemplateBuilderWorkspace({
   const isReadOnly = isPublished;
 
   const [criteria, setCriteria] = useState<TemplateCriterion[]>(version.criteria || []);
+  const [kpis, setKpis] = useState<TemplateKpi[]>(version.kpis || []);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState<string>('Just now');
   const [validationResult, setValidationResult] = useState<TemplateValidationResult | null>(null);
+
+  const [activeTab, setActiveTab] = useState<'kpi' | 'criterion'>('kpi');
+  const [selectedKpiId, setSelectedKpiId] = useState<string | null>(null);
 
   // Active drawer & modals state
   const [selectedConfigCriterion, setSelectedConfigCriterion] = useState<TemplateCriterion | null>(null);
@@ -67,6 +74,7 @@ export function TemplateBuilderWorkspace({
   // Sync criteria state when version prop updates
   useEffect(() => {
     setCriteria(version.criteria || []);
+    setKpis(version.kpis || []);
     setHasUnsavedChanges(false);
   }, [version]);
 
@@ -96,9 +104,14 @@ export function TemplateBuilderWorkspace({
 
   const handleAddCriterionFromLibrary = (criterion: Criterion) => {
     if (isReadOnly) return;
+    if (!selectedKpiId) {
+      alert("Please select a KPI in the canvas first to map criteria to it.");
+      return;
+    }
     const newCriterionItem: TemplateCriterion = {
       id: `tc-${Date.now()}`,
       templateVersionId: version.id,
+      templateKpiId: selectedKpiId,
       criterionVersionId: criterion.currentVersion?.id || `cv-${criterion.id}`,
       criterion,
       effectiveWeight: 10,
@@ -109,6 +122,34 @@ export function TemplateBuilderWorkspace({
       displayOrder: criteria.length + 1,
     };
     setCriteria((prev) => [...prev, newCriterionItem]);
+    setHasUnsavedChanges(true);
+  };
+
+  const handleAddKpiFromLibrary = (kpi: Kpi) => {
+    if (isReadOnly) return;
+    const newKpiItem: TemplateKpi = {
+      id: `tkpi-${Date.now()}`,
+      templateVersionId: version.id,
+      kpiId: kpi.kpiId,
+      weight: 10,
+      displayOrder: kpis.length + 1,
+      kpi,
+    };
+    setKpis((prev) => [...prev, newKpiItem]);
+    setHasUnsavedChanges(true);
+  };
+
+  const handleRemoveKpi = (kpiId: string) => {
+    if (isReadOnly) return;
+    setKpis((prev) => prev.filter((item) => item.id !== kpiId));
+    setCriteria((prev) => prev.filter((item) => item.templateKpiId !== kpiId));
+    if (selectedKpiId === kpiId) setSelectedKpiId(null);
+    setHasUnsavedChanges(true);
+  };
+
+  const handleKpiWeightChange = (id: string, newWeight: number) => {
+    if (isReadOnly) return;
+    setKpis((prev) => prev.map((item) => (item.id === id ? { ...item, weight: newWeight } : item)));
     setHasUnsavedChanges(true);
   };
 
@@ -146,7 +187,8 @@ export function TemplateBuilderWorkspace({
     setIsPublishModalOpen(false);
   };
 
-  const existingCriterionIds = new Set(criteria.map((c) => c.criterion.id));
+  const existingCriterionIds = new Set(criteria.filter(c => c.templateKpiId === selectedKpiId).map((c) => c.criterion.id));
+  const existingKpiIds = new Set(kpis.map((k) => k.kpi?.id || k.kpiId));
 
   if (isLoading) return <LoadingSpinner label="Loading Template Workspace..." />;
   if (error) return <ErrorAlert error={error} onRetry={onBackToList} />;
@@ -249,13 +291,58 @@ export function TemplateBuilderWorkspace({
 
       {/* ── Main Dual-Pane Workspace Body ───────────────────────────────────── */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* Left-Side Criterion Library */}
-        <CriterionLibraryPanel
-          criteria={libraryCriteria}
-          existingCriterionIds={existingCriterionIds}
-          onAddCriterion={handleAddCriterionFromLibrary}
-          isReadOnly={isReadOnly}
-        />
+        {/* Left-Side Library */}
+        <div style={{ width: 320, display: 'flex', flexDirection: 'column', background: '#ffffff', borderRight: '1px solid #e5e7eb' }}>
+          <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb' }}>
+            <button
+              onClick={() => setActiveTab('kpi')}
+              style={{
+                flex: 1, padding: '0.75rem', border: 'none', background: activeTab === 'kpi' ? '#ffffff' : '#f9fafb',
+                borderBottom: activeTab === 'kpi' ? '2px solid #2563eb' : '2px solid transparent',
+                fontWeight: activeTab === 'kpi' ? 700 : 500, color: activeTab === 'kpi' ? '#2563eb' : '#6b7280',
+                cursor: 'pointer'
+              }}
+            >
+              KPI Library
+            </button>
+            <button
+              onClick={() => setActiveTab('criterion')}
+              style={{
+                flex: 1, padding: '0.75rem', border: 'none', background: activeTab === 'criterion' ? '#ffffff' : '#f9fafb',
+                borderBottom: activeTab === 'criterion' ? '2px solid #2563eb' : '2px solid transparent',
+                fontWeight: activeTab === 'criterion' ? 700 : 500, color: activeTab === 'criterion' ? '#2563eb' : '#6b7280',
+                cursor: 'pointer'
+              }}
+            >
+              Criterion Library
+            </button>
+          </div>
+          
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {activeTab === 'kpi' ? (
+              <KpiLibraryPanel
+                existingKpiIds={existingKpiIds}
+                onAddKpi={handleAddKpiFromLibrary}
+                isReadOnly={isReadOnly}
+              />
+            ) : (
+              <div>
+                {!selectedKpiId ? (
+                  <div style={{ padding: '2rem 1rem', textAlign: 'center', color: '#6b7280', fontSize: '0.875rem' }}>
+                    Select a KPI on the right canvas to add criteria to it.
+                  </div>
+                ) : (
+                  <CriterionLibraryPanel
+                    criteria={libraryCriteria}
+                    existingCriterionIds={existingCriterionIds}
+                    onAddCriterion={handleAddCriterionFromLibrary}
+                    isReadOnly={isReadOnly}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Right-Side Canvas */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', padding: '1.5rem' }}>
@@ -269,7 +356,6 @@ export function TemplateBuilderWorkspace({
             />
           </div>
 
-          {/* Canvas Title Header */}
           <div
             style={{
               display: 'flex',
@@ -279,15 +365,15 @@ export function TemplateBuilderWorkspace({
             }}
           >
             <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#111827' }}>
-              SELECTED CRITERIA ({criteria.length})
+              TEMPLATE KPIs ({kpis.length})
             </h3>
             <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#4b5563' }}>
-              Total Configured Weight: {configuredTotalWeight}%
+              Total Weight: {kpis.reduce((acc, k) => acc + (Number(k.weight) || 0), 0)}%
             </span>
           </div>
 
-          {/* Selected Criteria Draggable List */}
-          <SelectedCriteriaCanvas
+          <KpiCanvas
+            kpis={kpis}
             criteria={criteria}
             onWeightChange={handleWeightChange}
             onRemoveCriterion={handleRemoveCriterion}
@@ -296,12 +382,17 @@ export function TemplateBuilderWorkspace({
               setIsDrawerOpen(true);
             }}
             onReorder={(drag, drop) => {
+              // Note: cross-kpi dragging isn't supported yet, this just reorders flat criteria
               const updated = [...criteria];
               const [moved] = updated.splice(drag, 1);
               updated.splice(drop, 0, moved);
               setCriteria(updated);
               setHasUnsavedChanges(true);
             }}
+            onRemoveKpi={handleRemoveKpi}
+            selectedKpiId={selectedKpiId}
+            onSelectKpi={(id) => setSelectedKpiId(id)}
+            onKpiWeightChange={handleKpiWeightChange}
             isReadOnly={isReadOnly}
           />
         </div>
