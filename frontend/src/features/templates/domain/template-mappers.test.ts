@@ -5,7 +5,17 @@ import {
   compareTemplateVersions,
   mapWireTemplateToDomain,
 } from './template-mappers';
-import type { TemplateCriterion } from './template-models';
+import type { TemplateCriterion, TemplateKpi } from './template-models';
+
+const mockKpis: TemplateKpi[] = [
+  {
+    id: 'k1',
+    templateVersionId: 'v1',
+    kpiId: 'kpi-1',
+    weight: 100,
+    displayOrder: 1,
+  }
+];
 
 const mockCriteria: TemplateCriterion[] = [
   {
@@ -52,12 +62,12 @@ const mockCriteria: TemplateCriterion[] = [
 
 describe('template-mappers domain logic', () => {
   it('correctly calculates total configured weight', () => {
-    const total = calculateConfiguredWeightTotal(mockCriteria);
+    const total = calculateConfiguredWeightTotal(mockKpis);
     expect(total).toBe(100);
   });
 
   it('validates 100% weight as valid', () => {
-    const result = validateTemplateClientSide(mockCriteria);
+    const result = validateTemplateClientSide(mockKpis, mockCriteria);
     expect(result.isValid).toBe(true);
     expect(result.errors).toHaveLength(0);
     expect(result.configuredWeightTotal).toBe(100);
@@ -68,7 +78,8 @@ describe('template-mappers domain logic', () => {
       mockCriteria[0],
       { ...mockCriteria[1], effectiveWeight: 35 },
     ];
-    const result = validateTemplateClientSide(criteriaWith85);
+    const kpisWith85 = [{ ...mockKpis[0], weight: 85 }];
+    const result = validateTemplateClientSide(kpisWith85, criteriaWith85);
     expect(result.isValid).toBe(false);
     expect(result.errors[0].code).toBe('WEIGHT_TOTAL_NOT_100');
     expect(result.configuredWeightTotal).toBe(85);
