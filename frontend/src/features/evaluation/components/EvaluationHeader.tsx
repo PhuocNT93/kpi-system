@@ -23,6 +23,11 @@ interface EvaluationHeaderProps {
   hasUnsavedChanges: boolean;
   onSaveDraft: () => void;
   onSubmit: () => void;
+  backPath?: string;
+  backLabel?: string;
+  submitLabel?: string;
+  submittingLabel?: string;
+  mode?: 'self' | 'manager';
 }
 
 export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
@@ -41,6 +46,11 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
   hasUnsavedChanges,
   onSaveDraft,
   onSubmit,
+  backPath = '/admin/my-evaluations',
+  backLabel = 'My Evaluation',
+  submitLabel = 'Nộp tự đánh giá',
+  submittingLabel = 'Đang gửi...',
+  mode = 'self',
 }) => {
   const navigate = useNavigate();
 
@@ -49,7 +59,7 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
   let readOnlyReason = '';
   if (isLocked || status === EvaluationStatus.LOCKED) {
     readOnlyReason = 'Kỳ đánh giá đã bị KHÓA. Toàn bộ thông tin điểm số và phản hồi là cố định và không thể chỉnh sửa.';
-  } else if (status === EvaluationStatus.SUBMITTED || (status as any) === 'MANAGER_ASSESSMENT') {
+  } else if (mode === 'self' && (status === EvaluationStatus.SUBMITTED || (status as any) === 'MANAGER_ASSESSMENT')) {
     readOnlyReason = 'Bạn đã gửi tự đánh giá thành công. Đánh giá hiện đang ở trạng thái Chờ Quản lý (Manager Review) và ở chế độ Chỉ đọc.';
   } else if ((status as any) === 'APPROVED') {
     readOnlyReason = 'Đánh giá đã được cấp quản lý phê duyệt. Kết quả sẽ được công bố chính thức theo lịch của công ty.';
@@ -75,7 +85,7 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
               <button
                 type="button"
-                onClick={() => navigate('/admin/my-evaluations')}
+                onClick={() => navigate(backPath)}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -89,7 +99,7 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
                   padding: 0,
                 }}
               >
-                <ArrowLeft size={16} /> My Evaluation
+                <ArrowLeft size={16} /> {backLabel}
               </button>
               <span style={{ color: COLORS.neutral[300] }}>/</span>
               <span style={{ fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary }}>
@@ -161,7 +171,7 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
                   }}
                 >
                   <Send size={16} />
-                  <span>{isSubmitting ? 'Đang gửi...' : 'Nộp tự đánh giá'}</span>
+                  <span>{isSubmitting ? submittingLabel : submitLabel}</span>
                 </button>
               </div>
             )}
