@@ -36,7 +36,7 @@ describe('Configuration Module — Unit Tests', () => {
       };
       const errors = ScoringRuleValidator.validate(ScoringRuleType.RANGE_THRESHOLD, config);
       expect(errors.length).toBeGreaterThan(0);
-      expect(errors[0].message).toContain('Overlapping range detected');
+      expect(errors[0].message).toContain('Ranges overlap');
     });
 
     it('should reject range where min > max', () => {
@@ -46,16 +46,16 @@ describe('Configuration Module — Unit Tests', () => {
       };
       const errors = ScoringRuleValidator.validate(ScoringRuleType.RANGE_THRESHOLD, config);
       expect(errors.length).toBeGreaterThan(0);
-      expect(errors[0].message).toContain('cannot be greater than max');
+      expect(errors[0].message).toContain('cannot exceed max');
     });
 
     it('should validate INVERSE_THRESHOLD configuration', () => {
       const config = {
         type: ScoringRuleType.INVERSE_THRESHOLD as const,
-        thresholds: [
-          { max_incidents: 0, level: 5 },
-          { max_incidents: 1, level: 4 },
-          { max_incidents: 2, level: 3 },
+        ranges: [
+          { min: 0, max: 1, level: 5 },
+          { min: 1, max: 3, level: 4 },
+          { min: 3, max: null, level: 3 },
         ],
       };
       const errors = ScoringRuleValidator.validate(ScoringRuleType.INVERSE_THRESHOLD, config);
@@ -65,11 +65,7 @@ describe('Configuration Module — Unit Tests', () => {
     it('should validate COUNT_THRESHOLD configuration', () => {
       const config = {
         type: ScoringRuleType.COUNT_THRESHOLD as const,
-        counts: [
-          { min_count: 0, max_count: 1, level: 1 },
-          { min_count: 2, max_count: 3, level: 2 },
-          { min_count: 4, level: 3 },
-        ],
+        thresholds: [1, 3, 5],
       };
       const errors = ScoringRuleValidator.validate(ScoringRuleType.COUNT_THRESHOLD, config);
       expect(errors).toHaveLength(0);
@@ -78,7 +74,11 @@ describe('Configuration Module — Unit Tests', () => {
     it('should validate ORDINAL_MANUAL configuration', () => {
       const config = {
         type: ScoringRuleType.ORDINAL_MANUAL as const,
-        allowed_levels: [1, 2, 3, 4, 5],
+        level_labels: {
+          '1': 'Developing',
+          '2': 'Proficient',
+          '3': 'Advanced',
+        },
       };
       const errors = ScoringRuleValidator.validate(ScoringRuleType.ORDINAL_MANUAL, config);
       expect(errors).toHaveLength(0);
@@ -87,9 +87,21 @@ describe('Configuration Module — Unit Tests', () => {
     it('should validate ROLE_CONDITIONAL configuration', () => {
       const config = {
         type: ScoringRuleType.ROLE_CONDITIONAL as const,
-        conditions: [
-          { role_code: 'SI', scoring_rule_id: 'rule-1' },
-          { role_code: 'SM', scoring_rule_id: 'rule-2' },
+        branches: [
+          {
+            role_code: 'SI',
+            rule: {
+              type: ScoringRuleType.RANGE_THRESHOLD as const,
+              ranges: [{ min: 0, max: null, level: 1 }],
+            },
+          },
+          {
+            role_code: 'SM',
+            rule: {
+              type: ScoringRuleType.ORDINAL_MANUAL as const,
+              level_labels: { '1': 'Expected' },
+            },
+          },
         ],
       };
       const errors = ScoringRuleValidator.validate(ScoringRuleType.ROLE_CONDITIONAL, config);

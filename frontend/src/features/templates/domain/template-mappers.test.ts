@@ -74,6 +74,58 @@ describe('template-mappers domain logic', () => {
     expect(result.configuredWeightTotal).toBe(85);
   });
 
+  it('validates backend-compatible range scoring rule config', () => {
+    const result = validateTemplateClientSide([
+      {
+        ...mockCriteria[0],
+        effectiveWeight: 100,
+        customScoringRule: {
+          id: 'rule-1',
+          code: 'RULE_1',
+          name: 'Range Rule',
+          ruleType: 'RANGE_THRESHOLD',
+          config: {
+            type: 'RANGE_THRESHOLD',
+            ranges: [
+              { min: 0, max: 80, level: 1 },
+              { min: 70, max: null, level: 2 },
+            ],
+          },
+          status: 'ACTIVE',
+          version: 1,
+        },
+      },
+    ]);
+
+    expect(result.isValid).toBe(false);
+    expect(result.errors).toEqual(
+      expect.arrayContaining([expect.objectContaining({ category: 'SCORING_RULE' })])
+    );
+  });
+
+  it('validates empty role conditional branches', () => {
+    const result = validateTemplateClientSide([
+      {
+        ...mockCriteria[0],
+        effectiveWeight: 100,
+        customScoringRule: {
+          id: 'rule-1',
+          code: 'RULE_1',
+          name: 'Role Rule',
+          ruleType: 'ROLE_CONDITIONAL',
+          config: { type: 'ROLE_CONDITIONAL', branches: [] },
+          status: 'ACTIVE',
+          version: 1,
+        },
+      },
+    ]);
+
+    expect(result.isValid).toBe(false);
+    expect(result.errors).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: 'MISSING_SCORING_BRANCH' })])
+    );
+  });
+
   it('compares versions and detects weight changes and added criteria', () => {
     const v1Criteria = mockCriteria;
     const v2Criteria: TemplateCriterion[] = [

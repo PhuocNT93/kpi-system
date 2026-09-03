@@ -12,13 +12,6 @@ import {
   mapWireCriterionToDomain,
 } from '../domain/template-mappers';
 
-export const MOCK_ROLES = [
-  { id: 'role-si', code: 'role-si', name: 'Software Engineer' },
-  { id: 'role-sm', code: 'role-sm', name: 'Software Manager' },
-  { id: 'role-ba', code: 'role-ba', name: 'Business Analyst' },
-  { id: 'role-qa', code: 'role-qa', name: 'Quality Assurance' },
-];
-
 export const MOCK_TEAMS = [
   { id: 'team-a', code: 'team-a', name: 'Team A (Platform Core)' },
   { id: 'team-b', code: 'team-b', name: 'Team B (Frontend Experience)' },
@@ -26,18 +19,13 @@ export const MOCK_TEAMS = [
 ];
 
 export async function fetchJobRoles(): Promise<Array<{ id: string; code: string; name: string }>> {
-  try {
-    const res = await getApi<any>('/api/iam/roles');
-    const items = Array.isArray(res) ? res : res?.items || res?.data || [];
-    if (!items.length) return MOCK_ROLES;
-    return items.map((r: any) => ({
-      id: r.id || r.role_id || r.code,
-      code: r.code || r.id,
-      name: r.name || r.code,
-    }));
-  } catch {
-    return MOCK_ROLES;
-  }
+  const res = await getApi<any>('/api/org/roles');
+  const items = Array.isArray(res) ? res : res?.items || res?.data || [];
+  return items.map((r: any) => ({
+    id: r.id || r.role_id || r.code,
+    code: r.code || r.id,
+    name: r.name || r.code,
+  }));
 }
 
 export async function fetchTeams(): Promise<Array<{ id: string; code: string; name: string }>> {
@@ -120,12 +108,6 @@ export async function saveTemplateCriteriaDraft(
       is_disabled: c.isDisabled,
       is_optional: c.isOptional,
       display_order: c.displayOrder,
-      custom_scoring_rule: c.customScoringRule
-        ? {
-            rule_type: c.customScoringRule.ruleType,
-            config: c.customScoringRule.config,
-          }
-        : undefined,
     })),
   };
 
