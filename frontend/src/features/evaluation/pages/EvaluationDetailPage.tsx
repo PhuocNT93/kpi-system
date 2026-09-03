@@ -134,7 +134,9 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
       return evaluationApi.submitEvaluation(id!, idempotencyKey);
     },
     onSuccess: () => {
-      showToast('success', 'Đã nộp bản tự đánh giá thành công! Đánh giá đã chuyển sang trạng thái Chờ Quản lý.');
+      showToast('success', isManagerMode
+        ? 'Đã duyệt đánh giá thành công.'
+        : 'Đã nộp bản tự đánh giá thành công! Đánh giá đã chuyển sang trạng thái Chờ Quản lý.');
       setIsSubmitModalOpen(false);
       queryClient.invalidateQueries({ queryKey: ['evaluation-detail', id] });
       queryClient.invalidateQueries({ queryKey: ['my-evaluations'] });
@@ -298,7 +300,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
             <button
-              onClick={() => navigate('/admin/my-evaluations')}
+              onClick={() => navigate(isManagerMode ? '/admin/team-evaluations' : '/admin/my-evaluations')}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -400,8 +402,9 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
 
       {/* Evaluation Header */}
       <EvaluationHeader
-        cycleName="Kỳ Đánh Giá Hiệu Suất"
+        cycleName={isManagerMode ? 'Chi tiết đánh giá nhân viên' : 'Kỳ Đánh Giá Hiệu Suất'}
         status={detail.status}
+        mode={mode}
         isLocked={detail.status === EvaluationStatus.LOCKED}
         isEditable={isEditable}
         totalActiveItems={activeCriteria.length}
@@ -412,6 +415,10 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
         hasUnsavedChanges={hasUnsavedChanges}
         onSaveDraft={handleSaveAll}
         onSubmit={handleOpenSubmit}
+        backPath={isManagerMode ? '/admin/team-evaluations' : '/admin/my-evaluations'}
+        backLabel={isManagerMode ? 'Team Reviews' : 'My Evaluation'}
+        submitLabel={isManagerMode ? 'Duyệt đánh giá' : 'Nộp tự đánh giá'}
+        submittingLabel={isManagerMode ? 'Đang duyệt...' : 'Đang gửi...'}
       />
 
       {/* Summary Score Panel */}
@@ -430,7 +437,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
           </h2>
           {isEditable && (
             <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
-              * Chọn mức độ và nhập giải trình cho từng tiêu chí
+              * {isManagerMode ? 'Chọn mức đánh giá và nhập nhận xét cho từng tiêu chí' : 'Chọn mức độ và nhập giải trình cho từng tiêu chí'}
             </span>
           )}
         </div>
@@ -451,6 +458,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
                 onCommentChange={(cmt) => handleCommentChange(item.evaluation_item_id, cmt)}
                 onSaveSingle={() => handleSaveSingle(item.evaluation_item_id)}
                 isSavingSingle={savingItemId === item.evaluation_item_id}
+                mode={mode}
               />
             );
           })}
@@ -464,6 +472,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
         isSubmitting={submitMutation.isPending || approveMutation.isPending || saveBatchMutation.isPending}
         onConfirm={handleConfirmSubmit}
         onClose={() => setIsSubmitModalOpen(false)}
+        mode={mode}
       />
     </div>
   );
@@ -472,4 +481,3 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
 export function EvaluationDetailPage() {
   return <EvaluationDetailContent mode="self" />;
 }
-

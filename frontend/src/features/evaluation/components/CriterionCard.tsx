@@ -25,6 +25,7 @@ interface CriterionCardProps {
   onCommentChange: (comment: string) => void;
   onSaveSingle?: () => void;
   isSavingSingle?: boolean;
+  mode?: 'self' | 'manager';
 }
 
 export const CriterionCard: React.FC<CriterionCardProps> = ({
@@ -38,6 +39,7 @@ export const CriterionCard: React.FC<CriterionCardProps> = ({
   isSavingSingle = false,
   onLevelChange,
   onCommentChange,
+  mode = 'self',
 }) => {
   const [isExpanded, setIsExpanded] = useState<boolean>(true);
 
@@ -252,7 +254,7 @@ export const CriterionCard: React.FC<CriterionCardProps> = ({
                     color: COLORS.neutral.textPrimary,
                   }}
                 >
-                  Chọn mức độ tự đánh giá <span style={{ color: '#ef4444' }}>*</span>
+                  {mode === 'manager' ? 'Chọn mức đánh giá quản lý' : 'Chọn mức độ tự đánh giá'} <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <LevelSelector
                   levels={levels}
@@ -275,7 +277,7 @@ export const CriterionCard: React.FC<CriterionCardProps> = ({
                       gap: '6px',
                     }}
                   >
-                    <FileText size={16} /> Ý kiến / Giải trình tự đánh giá
+                    <FileText size={16} /> {mode === 'manager' ? 'Nhận xét của quản lý' : 'Ý kiến / Giải trình tự đánh giá'}
                   </label>
                   <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral[400] }}>
                     {comment.length} ký tự
@@ -285,7 +287,9 @@ export const CriterionCard: React.FC<CriterionCardProps> = ({
                   disabled={!isEditable}
                   value={comment}
                   onChange={(e) => onCommentChange(e.target.value)}
-                  placeholder="Nhập mô tả kết quả công việc, dẫn chứng số liệu hoặc lý do bạn chọn mức đánh giá trên..."
+                  placeholder={mode === 'manager'
+                    ? 'Nhập nhận xét và phản hồi cho nhân viên...'
+                    : 'Nhập mô tả kết quả công việc, dẫn chứng số liệu hoặc lý do bạn chọn mức đánh giá trên...'}
                   rows={3}
                   style={{
                     width: '100%',

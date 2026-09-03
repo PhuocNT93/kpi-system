@@ -15,6 +15,7 @@ interface SubmitConfirmModalProps {
   isSubmitting: boolean;
   onConfirm: () => void;
   onClose: () => void;
+  mode?: 'self' | 'manager';
 }
 
 export const SubmitConfirmModal: React.FC<SubmitConfirmModalProps> = ({
@@ -23,6 +24,7 @@ export const SubmitConfirmModal: React.FC<SubmitConfirmModalProps> = ({
   isSubmitting,
   onConfirm,
   onClose,
+  mode = 'self',
 }) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -37,6 +39,7 @@ export const SubmitConfirmModal: React.FC<SubmitConfirmModalProps> = ({
   if (!isOpen) return null;
 
   const hasMissing = missingItems.length > 0;
+  const isManager = mode === 'manager';
 
   return (
     <div
@@ -105,7 +108,9 @@ export const SubmitConfirmModal: React.FC<SubmitConfirmModalProps> = ({
                 color: COLORS.neutral.textPrimary,
               }}
             >
-              {hasMissing ? 'Chưa hoàn thành tự đánh giá' : 'Xác nhận Nộp Tự Đánh Giá'}
+              {hasMissing
+                ? (isManager ? 'Chưa hoàn thành đánh giá' : 'Chưa hoàn thành tự đánh giá')
+                : (isManager ? 'Xác nhận duyệt đánh giá' : 'Xác nhận Nộp Tự Đánh Giá')}
             </h3>
           </div>
 
@@ -130,7 +135,7 @@ export const SubmitConfirmModal: React.FC<SubmitConfirmModalProps> = ({
           {hasMissing ? (
             <>
               <p style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary, lineHeight: 1.5 }}>
-                Bạn vẫn còn <strong>{missingItems.length} tiêu chí</strong> chưa chọn mức tự đánh giá. Theo quy định, bạn phải hoàn thành tất cả các tiêu chí bắt buộc trước khi nộp:
+                Bạn vẫn còn <strong>{missingItems.length} tiêu chí</strong> chưa chọn mức đánh giá. Theo quy định, bạn phải hoàn thành tất cả các tiêu chí bắt buộc trước khi gửi:
               </p>
 
               <div
@@ -161,7 +166,9 @@ export const SubmitConfirmModal: React.FC<SubmitConfirmModalProps> = ({
           ) : (
             <>
               <p style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary, lineHeight: 1.5 }}>
-                Bạn đã hoàn thành việc tự đánh giá cho tất cả các tiêu chí trong kỳ đánh giá này.
+                {isManager
+                  ? 'Bạn đã hoàn thành đánh giá cho tất cả các tiêu chí trong kỳ đánh giá này.'
+                  : 'Bạn đã hoàn thành việc tự đánh giá cho tất cả các tiêu chí trong kỳ đánh giá này.'}
               </p>
 
               <div
@@ -177,12 +184,14 @@ export const SubmitConfirmModal: React.FC<SubmitConfirmModalProps> = ({
               >
                 <AlertTriangle size={18} color="#b45309" style={{ flexShrink: 0, marginTop: '2px' }} />
                 <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#92400e', lineHeight: 1.4 }}>
-                  <strong>Lưu ý quan trọng:</strong> Nộp đánh giá là bước workflow chính thức. Sau khi gửi, bảng đánh giá sẽ chuyển sang trạng thái <strong>Chờ Quản lý (Manager Review)</strong> và bạn sẽ không thể chỉnh sửa điểm hay ý kiến giải trình của mình nữa.
+                  <strong>Lưu ý quan trọng:</strong> {isManager
+                    ? 'Duyệt đánh giá là bước workflow chính thức. Sau khi duyệt, đánh giá sẽ chuyển sang trạng thái đã duyệt và không còn chỉnh sửa được.'
+                    : <>Nộp đánh giá là bước workflow chính thức. Sau khi gửi, bảng đánh giá sẽ chuyển sang trạng thái <strong>Chờ Quản lý (Manager Review)</strong> và bạn sẽ không thể chỉnh sửa điểm hay ý kiến giải trình của mình nữa.</>}
                 </div>
               </div>
 
               <p style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textPrimary, fontWeight: 500 }}>
-                Bạn có chắc chắn muốn nộp bản tự đánh giá này ngay bây giờ?
+                {isManager ? 'Bạn có chắc chắn muốn duyệt đánh giá này ngay bây giờ?' : 'Bạn có chắc chắn muốn nộp bản tự đánh giá này ngay bây giờ?'}
               </p>
             </>
           )}
@@ -237,7 +246,7 @@ export const SubmitConfirmModal: React.FC<SubmitConfirmModalProps> = ({
               }}
             >
               <Send size={15} />
-              <span>{isSubmitting ? 'Đang nộp...' : 'Xác nhận nộp'}</span>
+              <span>{isSubmitting ? (isManager ? 'Đang duyệt...' : 'Đang nộp...') : (isManager ? 'Xác nhận duyệt' : 'Xác nhận nộp')}</span>
             </button>
           )}
         </div>
