@@ -392,6 +392,7 @@ export function TemplateBuilderWorkspace({
             onRemoveKpi={handleRemoveKpi}
             selectedKpiId={selectedKpiId}
             onSelectKpi={(id) => setSelectedKpiId(id)}
+            onKpiWeightChange={handleKpiWeightChange}
             isReadOnly={isReadOnly}
           />
         </div>

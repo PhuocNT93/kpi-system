@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import type { TemplateKpi, TemplateCriterion, Criterion } from '../domain/template-models';
+import { useState } from 'react';
+import type { TemplateKpi, TemplateCriterion } from '../domain/template-models';
 import { SelectedCriteriaCanvas } from './SelectedCriteriaCanvas';
 import { Button } from '../../../shared/ui/Button/Button';
 
@@ -13,6 +13,7 @@ interface KpiCanvasProps {
   onRemoveKpi: (kpiId: string) => void;
   selectedKpiId?: string | null;
   onSelectKpi?: (kpiId: string) => void;
+  onKpiWeightChange?: (kpiId: string, newWeight: number) => void;
   isReadOnly?: boolean;
 }
 
@@ -26,6 +27,7 @@ export function KpiCanvas({
   onRemoveKpi,
   selectedKpiId,
   onSelectKpi,
+  onKpiWeightChange,
   isReadOnly = false,
 }: KpiCanvasProps) {
   const [expandedKpiIds, setExpandedKpiIds] = useState<Set<string>>(new Set(kpis.map(k => k.id)));
@@ -134,6 +136,28 @@ export function KpiCanvas({
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }} onClick={e => e.stopPropagation()}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <input
+                    type="number"
+                    value={kpi.weight}
+                    disabled={isReadOnly}
+                    onChange={(e) => {
+                      if (onKpiWeightChange) {
+                        onKpiWeightChange(kpi.id, parseFloat(e.target.value) || 0);
+                      }
+                    }}
+                    style={{
+                      width: 64,
+                      padding: '0.35rem 0.5rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: 6,
+                      fontSize: '0.9375rem',
+                      fontWeight: 700,
+                      textAlign: 'right',
+                    }}
+                  />
+                  <span style={{ fontWeight: 700, fontSize: '0.875rem', color: '#374151' }}>%</span>
+                </div>
                 {!isReadOnly && (
                   <Button variant="secondary" size="sm" onClick={() => onRemoveKpi(kpi.id)}>
                     Remove KPI
