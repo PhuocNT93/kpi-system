@@ -28,6 +28,7 @@ import {
   EvaluationCycleEditPage,
 } from './features/evaluation-cycles';
 import { AppLayout } from '@/shared/layout';
+import { KpiPage } from './features/kpi/pages/KpiPage';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
 import { LayoutTemplate } from 'lucide-react';
@@ -141,6 +142,11 @@ export default function App() {
               <Route path="/admin/criteria" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
                   <CriteriaPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/kpis" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
+                  <KpiPage />
                 </ProtectedRoute>
               } />
               <Route path="/admin/cycles" element={
