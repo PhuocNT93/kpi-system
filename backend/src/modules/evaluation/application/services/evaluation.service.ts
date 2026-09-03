@@ -55,6 +55,35 @@ export class EvaluationService {
     };
   }
 
+  async saveItemDraft(
+    evaluationId: string,
+    itemId: string,
+    actor: Actor,
+    data: { resolved_level?: number; comment?: string }
+  ): Promise<void> {
+    const evaluation = await this.evaluationRepo.findById(evaluationId);
+    if (!evaluation) throw new NotFound('Evaluation');
+
+    const isSelf = evaluation.employee_id === actor.employeeId || evaluation.employee_id === actor.userId;
+    const isManager = evaluation.manager_id_snapshot === actor.employeeId || evaluation.manager_id_snapshot === actor.userId;
+    const isSuperAdminOrHr = actor.role === 'SYSTEM_ADMIN' || actor.role === 'HR_ADMIN';
+
+    if (!isSelf && !isManager && !isSuperAdminOrHr) {
+      throw new AppError(403, 'FORBIDDEN', 'Access denied.');
+    }
+
+    // Self can only edit when OPEN
+    if (isSelf && !isManager && !isSuperAdminOrHr && evaluation.status !== EvaluationStatus.OPEN) {
+      throw new AppError(400, 'INVALID_STATUS', 'Can only save draft when evaluation is OPEN.');
+    }
+
+    await this.evaluationItemRepo.update(itemId, {
+      resolved_level: data.resolved_level,
+      comment: data.comment,
+      updated_by: actor.userId,
+    });
+  }
+
   async saveDraft(
     evaluationId: string,
     actor: Actor,

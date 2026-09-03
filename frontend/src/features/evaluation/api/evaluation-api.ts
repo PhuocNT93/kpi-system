@@ -20,8 +20,12 @@ export const evaluationApi = {
     return putApi(`${EVALUATIONS_BASE}/${id}/items`, { items });
   },
 
-  submitEvaluation: async (id: string): Promise<void> => {
-    return postApi(`${EVALUATIONS_BASE}/${id}/submit`, {});
+  saveItemDraft: async (id: string, itemId: string, item: { resolved_level?: number; comment?: string }): Promise<void> => {
+    return putApi(`${EVALUATIONS_BASE}/${id}/items/${itemId}`, item);
+  },
+
+  submitEvaluation: async (id: string, idempotencyKey?: string): Promise<void> => {
+    return postApi(`${EVALUATIONS_BASE}/${id}/self-submit`, {}, idempotencyKey);
   },
 
   approveEvaluation: async (id: string): Promise<void> => {

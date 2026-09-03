@@ -49,11 +49,27 @@ export class EvaluationController {
     sendSuccess(res, 200, 'Draft saved successfully.', null);
   };
 
+  saveItemDraft = async (req: Request, res: Response): Promise<void> => {
+    const actor = this.getActor(req);
+    const id = req.params.id as string;
+    const itemId = req.params.itemId as string;
+    const { resolved_level, comment } = req.body;
+    await this.evaluationService.saveItemDraft(id, itemId, actor, { resolved_level, comment });
+    sendSuccess(res, 200, 'Item draft saved successfully.', null);
+  };
+
   submitEvaluation = async (req: Request, res: Response): Promise<void> => {
     const actor = this.getActor(req);
     const id = req.params.id as string;
     const result = await this.evaluationService.submitEvaluation(id, actor);
     sendSuccess(res, 200, 'Evaluation submitted successfully.', result);
+  };
+
+  selfSubmitEvaluation = async (req: Request, res: Response): Promise<void> => {
+    const actor = this.getActor(req);
+    const id = req.params.id as string;
+    const result = await this.evaluationService.submitEvaluation(id, actor);
+    sendSuccess(res, 200, 'Self-assessment submitted successfully.', result);
   };
 
   approveEvaluation = async (req: Request, res: Response): Promise<void> => {
