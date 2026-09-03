@@ -12,7 +12,8 @@ import {
   ShieldCheck,
   Shield,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  GitFork
 } from 'lucide-react';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY, SHADOWS } from '@/shared/theme';
@@ -90,6 +91,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           id: 'criteria',
           label: 'Criteria & Rules',
           icon: <SlidersHorizontal size={18} />
+        },
+        {
+          id: 'kpis',
+          label: 'KPI Library',
+          icon: <GitFork size={18} />
         },
         {
           id: 'templates',
