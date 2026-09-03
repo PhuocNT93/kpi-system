@@ -1,3 +1,4 @@
+import { NotFound, BadRequest } from '../../../api/app-error.js';
 import { PostgresKpiCriterionRepository } from '../infrastructure/postgres-kpi-criterion.repository.js';
 import { CreateKpiCriterionMappingDTO, UpdateKpiCriterionMappingDTO, KpiCriterionMapping } from '../domain/kpi.model.js';
 import { PostgresKpiRepository } from '../infrastructure/postgres-kpi.repository.js';
@@ -12,9 +13,13 @@ export class KpiCriterionService {
     // Validate KPI exists
     const kpi = await this.kpiRepo.findById(kpiId);
     if (!kpi) {
-      throw new Error('KPI not found');
+      throw new NotFound('KPI');
     }
-    return this.criterionRepo.findByKpiId(kpiId);
+    try {
+      return await this.criterionRepo.findByKpiId(kpiId);
+    } catch (err: any) {
+      throw new BadRequest(`getMappings DB error: ${err.message}`);
+    }
   }
 
   async addCriterion(kpiId: string, dto: CreateKpiCriterionMappingDTO): Promise<KpiCriterionMapping> {

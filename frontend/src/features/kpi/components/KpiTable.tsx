@@ -7,15 +7,24 @@ interface Props {
   onEdit: (kpi: Kpi) => void;
   onSelect?: (kpi: Kpi) => void;
   selectedKpiId?: string | null;
+  onDeleteSuccess?: (id: string) => void;
 }
 
-export function KpiTable({ kpis, onEdit, onSelect, selectedKpiId }: Props) {
+export function KpiTable({ kpis, onEdit, onSelect, selectedKpiId, onDeleteSuccess }: Props) {
   const deleteMutation = useDeleteKpiMutation();
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const handleDelete = async (id: string) => {
-    await deleteMutation.mutateAsync(id);
-    setConfirmDeleteId(null);
+    try {
+      await deleteMutation.mutateAsync(id);
+      if (onDeleteSuccess) {
+        onDeleteSuccess(id);
+      }
+    } catch (err: any) {
+      alert(err instanceof Error ? err.message : 'Failed to delete KPI');
+    } finally {
+      setConfirmDeleteId(null);
+    }
   };
 
   return (

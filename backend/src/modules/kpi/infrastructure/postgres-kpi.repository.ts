@@ -142,4 +142,13 @@ export class PostgresKpiRepository {
     );
     return res.rowCount !== null && res.rowCount > 0;
   }
+
+  async isUsedInTemplates(id: string, client?: PoolClient): Promise<boolean> {
+    const runner = client || this.pool;
+    const res = await runner.query(
+      `SELECT 1 FROM template_kpi WHERE kpi_id = $1 LIMIT 1`,
+      [id]
+    );
+    return res.rowCount !== null && res.rowCount > 0;
+  }
 }

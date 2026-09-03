@@ -42,7 +42,7 @@ export class KpiService {
   async deleteKpi(id: string): Promise<void> {
     const kpi = await this.kpiRepo.findById(id);
     if (!kpi) {
-      throw new NotFound(`KPI with id "${id}" not found`);
+      throw new NotFound(`KPI with id "${id}"`);
     }
     const hasRelationships = await this.kpiRepo.hasActiveRelationships(id);
     if (hasRelationships) {
@@ -50,6 +50,14 @@ export class KpiService {
         `KPI "${kpi.code}" has active relationships. Remove all relationships before deleting.`
       );
     }
+    
+    const isUsed = await this.kpiRepo.isUsedInTemplates(id);
+    if (isUsed) {
+      throw new BadRequest(
+        `KPI "${kpi.code}" is used in one or more evaluation templates and cannot be deleted.`
+      );
+    }
+
     await this.kpiRepo.delete(id);
   }
 }
