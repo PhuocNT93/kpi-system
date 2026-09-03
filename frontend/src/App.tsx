@@ -21,6 +21,9 @@ import { OrgRolesPage } from './features/organization/pages/OrgRolesPage';
 import { JobLevelsPage } from './features/organization/pages/JobLevelsPage';
 import { EmployeesPage } from './features/organization/pages/EmployeesPage';
 import { EvaluationDetailPage } from './features/evaluation/pages/EvaluationDetailPage';
+import { TeamEvaluationDetailPage } from './features/evaluation/pages/TeamEvaluationDetailPage';
+import { MyEvaluationPage } from './features/evaluation/pages/MyEvaluationPage';
+import { TeamEvaluationsPage } from './features/evaluation/pages/TeamEvaluationsPage';
 import {
   EvaluationCycleListPage,
   EvaluationCycleCreatePage,
@@ -153,9 +156,24 @@ export default function App() {
                   <EvaluationCycleCreatePage />
                 </ProtectedRoute>
               } />
+              <Route path="/admin/my-evaluations" element={
+                <ProtectedRoute allowedRoles={['EMPLOYEE', 'MANAGER', 'SYSTEM_ADMIN']}>
+                  <MyEvaluationPage />
+                </ProtectedRoute>
+              } />
               <Route path="/admin/my-evaluations/:id" element={
                 <ProtectedRoute allowedRoles={['EMPLOYEE', 'MANAGER', 'SYSTEM_ADMIN']}>
                   <EvaluationDetailPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/team-evaluations/:id" element={
+                <ProtectedRoute allowedRoles={['MANAGER', 'HR_ADMIN', 'SYSTEM_ADMIN']}>
+                  <TeamEvaluationDetailPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/team-evaluations" element={
+                <ProtectedRoute allowedRoles={['MANAGER', 'HR_ADMIN', 'SYSTEM_ADMIN']}>
+                  <TeamEvaluationsPage />
                 </ProtectedRoute>
               } />
               <Route path="/admin/cycles/:id" element={

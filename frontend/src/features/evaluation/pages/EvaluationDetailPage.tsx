@@ -13,7 +13,9 @@ const toast = {
   error: (msg: string) => alert(`Error: ${msg}`),
 };
 
-export function EvaluationDetailPage() {
+type EvaluationDetailMode = 'self' | 'manager';
+
+export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -54,13 +56,27 @@ export function EvaluationDetailPage() {
       toast.success('Evaluation submitted successfully');
       queryClient.invalidateQueries({ queryKey: ['evaluation-detail', id] });
       queryClient.invalidateQueries({ queryKey: ['my-evaluations'] });
+      queryClient.invalidateQueries({ queryKey: ['team-evaluations'] });
     },
     onError: (err: any) => toast.error(err.message || 'Failed to submit evaluation'),
   });
 
+  const approveMutation = useMutation({
+    mutationFn: () => evaluationApi.approveEvaluation(id!),
+    onSuccess: () => {
+      toast.success('Evaluation approved successfully');
+      queryClient.invalidateQueries({ queryKey: ['evaluation-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['team-evaluations'] });
+    },
+    onError: (err: any) => toast.error(err.message || 'Failed to approve evaluation'),
+  });
+
   if (isLoading || !detail) return <div style={{ padding: '24px' }}>Loading...</div>;
 
-  const isEditable = detail.status === EvaluationStatus.OPEN;
+  const isManagerMode = mode === 'manager';
+  const isEditable = isManagerMode
+    ? detail.status === EvaluationStatus.SUBMITTED || detail.status === EvaluationStatus.MANAGER_REVIEW
+    : detail.status === EvaluationStatus.OPEN;
 
   const handleLevelSelect = (itemId: string, level: number) => {
     if (!isEditable) return;
@@ -103,7 +119,13 @@ export function EvaluationDetailPage() {
     }));
     
     saveMutation.mutate(itemsToSave, {
-      onSuccess: () => submitMutation.mutate()
+      onSuccess: () => {
+        if (isManagerMode) {
+          approveMutation.mutate();
+        } else {
+          submitMutation.mutate();
+        }
+      }
     });
   };
 
@@ -123,7 +145,7 @@ export function EvaluationDetailPage() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <button 
-            onClick={() => navigate('/admin/my-evaluations')}
+            onClick={() => navigate(isManagerMode ? '/admin/team-evaluations' : '/admin/my-evaluations')}
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '8px', borderRadius: RADII.full, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             onMouseEnter={e => e.currentTarget.style.backgroundColor = COLORS.neutral[100]}
             onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
@@ -132,7 +154,7 @@ export function EvaluationDetailPage() {
           </button>
           <div>
             <h1 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
-              Evaluation Form
+              {isManagerMode ? 'Manager Review & Scoring' : 'Evaluation Form'}
             </h1>
             <div style={{ fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary, marginTop: '4px' }}>
               Status: <span style={{ fontWeight: 600, color: isEditable ? (COLORS.semantic as any).success.DEFAULT : (COLORS.semantic as any).warning.DEFAULT }}>{detail.status}</span>
@@ -156,7 +178,7 @@ export function EvaluationDetailPage() {
             </button>
             <button
               onClick={handleSubmit}
-              disabled={submitMutation.isPending || saveMutation.isPending}
+              disabled={submitMutation.isPending || approveMutation.isPending || saveMutation.isPending}
               style={{
                 display: 'flex', alignItems: 'center', gap: '8px',
                 padding: '8px 16px', borderRadius: RADII.md,
@@ -164,7 +186,7 @@ export function EvaluationDetailPage() {
                 color: COLORS.neutral.white, fontWeight: 500, cursor: 'pointer'
               }}
             >
-              <Send size={16} /> Submit Evaluation
+              <Send size={16} /> {isManagerMode ? 'Approve & Finalize' : 'Submit Evaluation'}
             </button>
           </div>
         )}
@@ -283,4 +305,8 @@ export function EvaluationDetailPage() {
       </div>
     </div>
   );
+}
+
+export function EvaluationDetailPage() {
+  return <EvaluationDetailContent mode="self" />;
 }

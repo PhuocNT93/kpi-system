@@ -11,6 +11,7 @@ import {
 import { seedOrganizationModule } from '../../organization/infrastructure/seed/organization.seed.js';
 import { seedConfigurationModule } from '../../configuration/infrastructure/seed/configuration.seed.js';
 import { seedEvaluationCycleModule } from '../../evaluation-cycle/infrastructure/seed/evaluation-cycle.seed.js';
+import { seedTeamReviewsModule } from '../../evaluation/infrastructure/seed/team-reviews.seed.js';
 
 async function main() {
   console.log('Starting seed data process...');
@@ -36,6 +37,9 @@ async function main() {
 
     await seedEvaluationCycleModule(pool);
     console.log('Evaluation Cycle seed data successfully populated.');
+
+    await seedTeamReviewsModule(pool);
+    console.log('Team Reviews seed data successfully populated.');
   } catch (error) {
     console.error('Error seeding data:', error);
     process.exitCode = 1;

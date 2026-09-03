@@ -10,9 +10,11 @@ export function createEvaluationRouter(
   router.use(jwtMiddleware);
 
   router.get('/my', controller.getMyEvaluations);
+  router.get('/team', controller.getTeamEvaluations);
   router.get('/:id', controller.getEvaluationDetail);
   router.put('/:id/items', controller.saveDraft);
   router.post('/:id/submit', controller.submitEvaluation);
+  router.post('/:id/approve', controller.approveEvaluation);
 
   return router;
 }

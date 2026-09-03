@@ -1,5 +1,6 @@
 import { Pool } from 'pg';
 import { createEvaluationCycleModule } from '../../evaluation-cycle.module.js';
+import { EvaluationCycleStatus } from '../../domain/evaluation-cycle.types.js';
 
 export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
   const cycleModule = createEvaluationCycleModule(pool);
@@ -249,6 +250,9 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
     );
     await cycleModule.openingService.openCycle(created.evaluationCycleId, managerId);
     console.log('Seeded evaluation cycle: 2026-Q2 (OPEN)');
+  } else if (q2Cycle.status === EvaluationCycleStatus.DRAFT) {
+    await cycleModule.openingService.openCycle(q2Cycle.evaluationCycleId, managerId);
+    console.log('Opened existing evaluation cycle: 2026-Q2 (OPEN)');
   }
 
   let q1Cycle = await cycleModule.cycleRepo.findByCode('2026-Q1');

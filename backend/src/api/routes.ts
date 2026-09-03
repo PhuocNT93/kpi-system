@@ -16,6 +16,8 @@ import { AuditController } from '../modules/audit/api/audit.controller.js';
 import { createAuditRouter } from '../modules/audit/api/audit.router.js';
 import { EvaluationCycleController } from '../modules/evaluation-cycle/api/evaluation-cycle.controller.js';
 import { createEvaluationCycleRouter } from '../modules/evaluation-cycle/api/evaluation-cycle.router.js';
+import { EvaluationController } from '../modules/evaluation/api/evaluation.controller.js';
+import { createEvaluationRouter } from '../modules/evaluation/api/evaluation.router.js';
 
 export interface RegisterRoutesOptions {
   authController: AuthController;
@@ -28,6 +30,7 @@ export interface RegisterRoutesOptions {
   kpiRelationshipController?: KpiRelationshipController;
   auditController?: AuditController;
   evaluationCycleController?: EvaluationCycleController;
+  evaluationController?: EvaluationController;
 }
 
 export function createApiRouter(options: RegisterRoutesOptions): Router {
@@ -69,6 +72,13 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
     const cycleRouter = createEvaluationCycleRouter(options.evaluationCycleController, options.jwtMiddleware);
     router.use('/v1', cycleRouter);
     router.use('/', cycleRouter);
+  }
+
+  // ── Evaluation Module Routes ──────────────────────────────────────────────
+  if (options.evaluationController) {
+    const evalRouter = createEvaluationRouter(options.evaluationController, options.jwtMiddleware);
+    router.use('/v1/evaluations', evalRouter);
+    router.use('/evaluations', evalRouter);
   }
 
   // ── Sample: single-resource response ──────────────────────────────────────
