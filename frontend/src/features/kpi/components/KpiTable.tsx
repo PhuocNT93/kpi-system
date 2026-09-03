@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import type { Kpi } from '../api/kpi-api';
 import { useDeleteKpiMutation } from '../api/use-kpi';
-import { Button } from '../../../shared/ui/Button/Button';
 
 interface Props {
   kpis: Kpi[];
