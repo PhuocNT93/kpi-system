@@ -306,6 +306,16 @@ export async function seedConfigurationModule(pool: Pool): Promise<void> {
       template = createdTemplate.template;
       const versionId = createdTemplate.initialVersion.id;
 
+      let legacyKpiRes = await pool.query(`SELECT kpi_id FROM "kpi" WHERE code = 'LEGACY_KPI'`);
+      let legacyKpiId = legacyKpiRes.rows[0]?.kpi_id;
+      if (!legacyKpiId) {
+        const insertRes = await pool.query(`INSERT INTO "kpi" (code, name, description) VALUES ('LEGACY_KPI', 'Legacy Migration KPI', 'Auto-generated KPI for legacy 1-level templates') RETURNING kpi_id`);
+        legacyKpiId = insertRes.rows[0].kpi_id;
+      }
+      
+      const tk = await configModule.templateService.addKpiToTemplate(versionId, { kpi_id: legacyKpiId, weight: 100 });
+      const templateKpiId = tk.id;
+
       const criteriaPayload = tplDef.criteriaItems.map((cItem, idx) => {
         const item = criterionVersionMap.get(cItem.code)!;
         const applicabilityRules = [];
@@ -326,7 +336,7 @@ export async function seedConfigurationModule(pool: Pool): Promise<void> {
         };
       });
 
-      await configModule.templateService.bulkUpdateTemplateCriteria(versionId, criteriaPayload);
+      await configModule.templateService.bulkUpdateTemplateCriteria(versionId, templateKpiId, criteriaPayload);
     }
   }
 }

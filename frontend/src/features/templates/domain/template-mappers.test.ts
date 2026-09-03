@@ -9,9 +9,10 @@ import type { TemplateCriterion } from './template-models';
 
 const mockCriteria: TemplateCriterion[] = [
   {
-    id: 'tc-1',
-    templateVersionId: 'tv-1',
-    criterionVersionId: 'cv-1',
+    id: '1',
+    templateVersionId: 'v1',
+    templateKpiId: 'k1',
+    criterionVersionId: 'cv1',
     criterion: {
       id: 'c-1',
       code: 'ON_TIME_COMPLETION',
@@ -28,9 +29,10 @@ const mockCriteria: TemplateCriterion[] = [
     displayOrder: 1,
   },
   {
-    id: 'tc-2',
-    templateVersionId: 'tv-1',
-    criterionVersionId: 'cv-2',
+    id: '2',
+    templateVersionId: 'v1',
+    templateKpiId: 'k1',
+    criterionVersionId: 'cv2',
     criterion: {
       id: 'c-2',
       code: 'PLANNING_DISCIPLINE',
@@ -78,9 +80,10 @@ describe('template-mappers domain logic', () => {
       { ...mockCriteria[0], effectiveWeight: 60 },
       { ...mockCriteria[1], effectiveWeight: 20 },
       {
-        id: 'tc-3',
-        templateVersionId: 'tv-2',
-        criterionVersionId: 'cv-3',
+        id: '2',
+        templateVersionId: 'v1',
+        templateKpiId: 'k1',
+        criterionVersionId: 'cv2',
         criterion: {
           id: 'c-3',
           code: 'OWNERSHIP',

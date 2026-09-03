@@ -12,6 +12,8 @@ import {
   validateTemplateVersionApi,
   publishTemplateVersion,
   archiveEvaluationTemplate,
+  addTemplateKpiApi,
+  removeTemplateKpiApi,
 } from './template-api';
 import type { TemplateCriterion } from '../domain/template-models';
 
@@ -118,14 +120,16 @@ export function useSaveCriteriaDraftMutation() {
     mutationFn: ({
       templateId,
       versionId,
+      templateKpiId,
       criteria,
       expectedVersion,
     }: {
       templateId: string;
       versionId: string;
+      templateKpiId: string;
       criteria: TemplateCriterion[];
       expectedVersion: number;
-    }) => saveTemplateCriteriaDraft(templateId, versionId, criteria, expectedVersion),
+    }) => saveTemplateCriteriaDraft(templateId, versionId, templateKpiId, criteria, expectedVersion),
     onSuccess: (data, { templateId, versionId }) => {
       queryClient.setQueryData(templateKeys.version(templateId, versionId), data);
       queryClient.invalidateQueries({ queryKey: templateKeys.detail(templateId) });
@@ -159,6 +163,44 @@ export function useArchiveTemplateMutation() {
     mutationFn: archiveEvaluationTemplate,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: templateKeys.list() });
+    },
+  });
+}
+
+export function useAddTemplateKpiMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      templateId,
+      versionId,
+      kpiId,
+      weight,
+    }: {
+      templateId: string;
+      versionId: string;
+      kpiId: string;
+      weight: number;
+    }) => addTemplateKpiApi(templateId, versionId, kpiId, weight),
+    onSuccess: (_, { templateId, versionId }) => {
+      queryClient.invalidateQueries({ queryKey: templateKeys.version(templateId, versionId) });
+    },
+  });
+}
+
+export function useRemoveTemplateKpiMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      templateId,
+      versionId,
+      templateKpiId,
+    }: {
+      templateId: string;
+      versionId: string;
+      templateKpiId: string;
+    }) => removeTemplateKpiApi(templateId, versionId, templateKpiId),
+    onSuccess: (_, { templateId, versionId }) => {
+      queryClient.invalidateQueries({ queryKey: templateKeys.version(templateId, versionId) });
     },
   });
 }

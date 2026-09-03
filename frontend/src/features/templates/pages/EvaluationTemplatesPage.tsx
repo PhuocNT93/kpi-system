@@ -183,6 +183,7 @@ export function EvaluationTemplatesPage() {
       await saveDraftMutation.mutateAsync({
         templateId: selectedTemplateId,
         versionId: selectedVersionId,
+        templateKpiId: updatedCriteria[0]?.templateKpiId || '', // Dummy for now
         criteria: updatedCriteria,
         expectedVersion,
       });

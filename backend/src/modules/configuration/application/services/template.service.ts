@@ -8,10 +8,12 @@ import {
   WeightPolicy,
   ValidationResult,
   AuditAction,
+  TemplateKpi,
 } from '../../domain/configuration.types.js';
 import {
   ITemplateRepository,
   ITemplateVersionRepository,
+  ITemplateKpiRepository,
   ITemplateCriterionRepository,
   ICriterionVersionRepository,
   IConfigurationAuditRepository,
@@ -23,6 +25,7 @@ export class TemplateService {
   constructor(
     private templateRepo: ITemplateRepository,
     private versionRepo: ITemplateVersionRepository,
+    private templateKpiRepo: ITemplateKpiRepository,
     private templateCriterionRepo: ITemplateCriterionRepository,
     private criterionVersionRepo: ICriterionVersionRepository,
     private auditRepo: IConfigurationAuditRepository,
@@ -211,6 +214,58 @@ export class TemplateService {
     return updated;
   }
 
+  // ── Template KPIs ───────────────────────────────────────────────────────────
+
+  async getTemplateKpis(templateVersionId: string): Promise<TemplateKpi[]> {
+    await this.getTemplateVersionById(templateVersionId);
+    return this.templateKpiRepo.findByTemplateVersionId(templateVersionId);
+  }
+
+  async addKpiToTemplate(
+    templateVersionId: string,
+    data: { kpi_id: string; weight: number; display_order?: number },
+    actorId?: string
+  ): Promise<TemplateKpi> {
+    const version = await this.getTemplateVersionById(templateVersionId);
+    if (version.status === VersionStatus.PUBLISHED || version.status === VersionStatus.RETIRED) {
+      throw new AppError(409, 'PUBLISHED_CONFIGURATION_IMMUTABLE', 'Published template versions are immutable.');
+    }
+
+    const created = await this.templateKpiRepo.create({
+      template_version_id: templateVersionId,
+      kpi_id: data.kpi_id,
+      weight: data.weight,
+      display_order: data.display_order ?? 1,
+    });
+
+    await this.auditRepo.create({
+      entity_type: 'TEMPLATE_KPI',
+      entity_id: created.id,
+      action: AuditAction.CREATE,
+      performed_by: actorId || 'SYSTEM',
+      changes: { created },
+    });
+
+    return created;
+  }
+
+  async removeKpiFromTemplate(templateVersionId: string, templateKpiId: string, actorId?: string): Promise<void> {
+    const version = await this.getTemplateVersionById(templateVersionId);
+    if (version.status === VersionStatus.PUBLISHED || version.status === VersionStatus.RETIRED) {
+      throw new AppError(409, 'PUBLISHED_CONFIGURATION_IMMUTABLE', 'Published template versions are immutable.');
+    }
+
+    await this.templateKpiRepo.delete(templateKpiId);
+
+    await this.auditRepo.create({
+      entity_type: 'TEMPLATE_KPI',
+      entity_id: templateKpiId,
+      action: AuditAction.DELETE,
+      performed_by: actorId || 'SYSTEM',
+      changes: { deletedTemplateKpiId: templateKpiId },
+    });
+  }
+
   // ── Template Criteria ───────────────────────────────────────────────────────
 
   async getTemplateCriteria(templateVersionId: string): Promise<TemplateCriterion[]> {
@@ -225,7 +280,7 @@ export class TemplateService {
 
   async addTemplateCriterion(
     templateVersionId: string,
-    data: { criterion_version_id: string; weight: number; display_order?: number; required?: boolean; enabled?: boolean },
+    data: { template_kpi_id: string; criterion_version_id: string; weight: number; display_order?: number; required?: boolean; enabled?: boolean },
     actorId?: string
   ): Promise<TemplateCriterion> {
     const version = await this.getTemplateVersionById(templateVersionId);
@@ -238,6 +293,7 @@ export class TemplateService {
 
     const created = await this.templateCriterionRepo.create({
       template_version_id: templateVersionId,
+      template_kpi_id: data.template_kpi_id,
       criterion_version_id: data.criterion_version_id,
       weight: data.weight,
       display_order: data.display_order ?? 1,
@@ -258,6 +314,7 @@ export class TemplateService {
 
   async bulkUpdateTemplateCriteria(
     templateVersionId: string,
+    templateKpiId: string,
     criteriaItems: Array<{ criterion_version_id: string; weight: number; display_order?: number; required?: boolean; enabled?: boolean }>,
     actorId?: string
   ): Promise<TemplateCriterion[]> {
@@ -284,6 +341,7 @@ export class TemplateService {
         applicability = { rules };
       }
       return {
+        template_kpi_id: templateKpiId,
         criterion_version_id: item.criterion_version_id,
         weight: item.weight ?? item.effective_weight,
         display_order: item.display_order ?? idx + 1,
@@ -336,10 +394,37 @@ export class TemplateService {
 
   async validateTemplateVersion(templateVersionId: string): Promise<ValidationResult> {
     const version = await this.getTemplateVersionById(templateVersionId);
+    const kpis = await this.templateKpiRepo.findByTemplateVersionId(templateVersionId);
+    
+    const result: ValidationResult = { valid: true, errors: [], warnings: [] };
+
+    // Validate KPI weights
+    if (kpis.length === 0) {
+      result.valid = false;
+      result.errors.push({
+        code: 'TEMPLATE_EMPTY',
+        path: 'kpis',
+        message: 'Template must contain at least one KPI.',
+      });
+    } else {
+      let totalWeight = kpis.reduce((sum, kpi) => sum + kpi.weight, 0);
+      totalWeight = Math.round(totalWeight * 100) / 100;
+      if (version.weight_total_policy === WeightPolicy.EXACT_100 && totalWeight !== 100) {
+        result.valid = false;
+        result.errors.push({
+          code: 'INVALID_WEIGHT_TOTAL',
+          path: 'kpis',
+          message: 'Template KPI weights must total 100%.',
+          details: { actual: totalWeight, expected: 100 },
+        });
+      }
+    }
+
     const criteria = await this.templateCriterionRepo.findByTemplateVersionId(templateVersionId);
 
-    const result = ConfigurationValidationService.validateTemplateCriteria(criteria, version.weight_total_policy);
-
+    // Criteria are no longer validated for weight total globally, they are per KPI.
+    // For now we just validate that each criterion version exists
+    
     // Verify each criterion version exists
     for (const item of criteria) {
       if (item.enabled) {

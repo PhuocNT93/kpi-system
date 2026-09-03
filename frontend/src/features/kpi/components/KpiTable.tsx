@@ -5,9 +5,11 @@ import { useDeleteKpiMutation } from '../api/use-kpi';
 interface Props {
   kpis: Kpi[];
   onEdit: (kpi: Kpi) => void;
+  onSelect?: (kpi: Kpi) => void;
+  selectedKpiId?: string | null;
 }
 
-export function KpiTable({ kpis, onEdit }: Props) {
+export function KpiTable({ kpis, onEdit, onSelect, selectedKpiId }: Props) {
   const deleteMutation = useDeleteKpiMutation();
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -36,7 +38,16 @@ export function KpiTable({ kpis, onEdit }: Props) {
             </tr>
           )}
           {kpis.map((kpi) => (
-            <tr key={kpi.kpiId} style={{ borderBottom: '1px solid #e5e7eb' }}>
+            <tr 
+              key={kpi.kpiId} 
+              style={{ 
+                borderBottom: '1px solid #e5e7eb',
+                backgroundColor: selectedKpiId === kpi.kpiId ? '#eff6ff' : 'transparent',
+                cursor: onSelect ? 'pointer' : 'default',
+                transition: 'background-color 0.2s'
+              }}
+              onClick={() => onSelect && onSelect(kpi)}
+            >
               <td style={{ padding: '1rem', fontWeight: 600, fontFamily: 'monospace', color: '#4f46e5' }}>{kpi.code}</td>
               <td style={{ padding: '1rem', fontWeight: 500 }}>{kpi.name}</td>
               <td style={{ padding: '1rem', color: '#6b7280', maxWidth: 300 }}>
@@ -47,14 +58,14 @@ export function KpiTable({ kpis, onEdit }: Props) {
                   <div style={{ display: 'flex', gap: 8 }}>
                     <span style={{ fontSize: '0.8rem', color: '#dc2626', alignSelf: 'center' }}>Delete?</span>
                     <button
-                      onClick={() => handleDelete(kpi.kpiId)}
+                      onClick={(e) => { e.stopPropagation(); handleDelete(kpi.kpiId); }}
                       disabled={deleteMutation.isPending}
                       style={{ padding: '4px 10px', borderRadius: 4, border: 'none', backgroundColor: '#dc2626', color: '#fff', cursor: 'pointer', fontSize: '0.8rem' }}
                     >
                       {deleteMutation.isPending ? '...' : 'Yes'}
                     </button>
                     <button
-                      onClick={() => setConfirmDeleteId(null)}
+                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(null); }}
                       style={{ padding: '4px 10px', borderRadius: 4, border: '1px solid #d1d5db', backgroundColor: '#fff', cursor: 'pointer', fontSize: '0.8rem' }}
                     >
                       No
@@ -63,13 +74,13 @@ export function KpiTable({ kpis, onEdit }: Props) {
                 ) : (
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
-                      onClick={() => onEdit(kpi)}
+                      onClick={(e) => { e.stopPropagation(); onEdit(kpi); }}
                       style={{ padding: '4px 12px', borderRadius: 4, border: '1px solid #d1d5db', backgroundColor: '#fff', cursor: 'pointer', fontSize: '0.8rem' }}
                     >
                       Edit
                     </button>
                     <button
-                      onClick={() => setConfirmDeleteId(kpi.kpiId)}
+                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(kpi.kpiId); }}
                       style={{ padding: '4px 12px', borderRadius: 4, border: '1px solid #fecaca', backgroundColor: '#fff', color: '#dc2626', cursor: 'pointer', fontSize: '0.8rem' }}
                     >
                       Delete

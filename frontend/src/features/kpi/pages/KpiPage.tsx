@@ -3,6 +3,7 @@ import { useKpisQuery, useKpiRelationshipsQuery } from '../api/use-kpi';
 import type { Kpi } from '../api/kpi-api';
 import { KpiTable } from '../components/KpiTable';
 import { KpiFormModal } from '../components/KpiFormModal';
+import { KpiCriteriaPanel } from '../components/KpiCriteriaPanel';
 import { KpiRelationshipTable } from '../components/KpiRelationshipTable';
 import { AddRelationshipModal } from '../components/AddRelationshipModal';
 import { LoadingSpinner, ErrorAlert } from '../../../shared/components/ui';
@@ -15,6 +16,7 @@ export function KpiPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingKpi, setEditingKpi] = useState<Kpi | null>(null);
+  const [selectedKpi, setSelectedKpi] = useState<Kpi | null>(null);
   const [isRelationshipModalOpen, setIsRelationshipModalOpen] = useState(false);
 
   const kpisQuery = useKpisQuery(searchTerm ? { search: searchTerm } : undefined);
@@ -86,10 +88,19 @@ export function KpiPage() {
           {kpisQuery.isLoading && <LoadingSpinner label="Loading KPIs..." />}
           {kpisQuery.error && <ErrorAlert error={kpisQuery.error} />}
           {!kpisQuery.isLoading && !kpisQuery.error && (
-            <KpiTable
-              kpis={kpis}
-              onEdit={(kpi) => setEditingKpi(kpi)}
-            />
+            <>
+              <KpiTable
+                kpis={kpis}
+                onEdit={(kpi) => setEditingKpi(kpi)}
+                onSelect={(kpi) => setSelectedKpi(kpi)}
+                selectedKpiId={selectedKpi?.kpiId}
+              />
+              {selectedKpi && (
+                <div style={{ marginTop: '1.5rem', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)' }}>
+                  <KpiCriteriaPanel kpi={selectedKpi} />
+                </div>
+              )}
+            </>
           )}
         </>
       )}

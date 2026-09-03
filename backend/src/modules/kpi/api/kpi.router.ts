@@ -46,5 +46,11 @@ export function createKpiRouter(
   router.put('/:id', requirePermission('CONFIGURATION_UPDATE'), kpiController.update);
   router.delete('/:id', requirePermission('CONFIGURATION_UPDATE'), kpiController.delete);
 
+  // KPI Criterion Mapping
+  router.get('/:id/criteria', requirePermission('CONFIGURATION_READ'), kpiController.getCriteria);
+  router.post('/:id/criteria', requirePermission('CONFIGURATION_CREATE'), kpiController.addCriterion);
+  router.patch('/:id/criteria/:mappingId', requirePermission('CONFIGURATION_UPDATE'), kpiController.updateCriterion);
+  router.delete('/:id/criteria/:mappingId', requirePermission('CONFIGURATION_UPDATE'), kpiController.removeCriterion);
+
   return router;
 }

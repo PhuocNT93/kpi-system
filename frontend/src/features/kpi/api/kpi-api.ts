@@ -1,4 +1,4 @@
-import { getApi, postApi, putApi, deleteApi } from '@/shared/api/api-client';
+import { getApi, postApi, putApi, deleteApi, patchApi } from '@/shared/api/api-client';
 
 export interface Kpi {
   kpiId: string;
@@ -48,6 +48,30 @@ export interface RelationshipCreateDTO {
   relationshipType: KpiRelationship['relationshipType'];
 }
 
+// --- KPI-Criterion Mapping Types ---
+
+export interface KpiCriterionMapping {
+  kpiCriterionId: string;
+  kpiId: string;
+  criterionId: string;
+  weight: number;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  criterionCode: string;
+  criterionName: string;
+}
+
+export interface KpiCriterionCreateDTO {
+  criterionId: string;
+  weight: number;
+}
+
+export interface KpiCriterionUpdateDTO {
+  weight?: number;
+  displayOrder?: number;
+}
+
 export async function fetchKpis(filter?: KpiFilter): Promise<KpiListResponse> {
   const params = new URLSearchParams();
   if (filter?.search) params.set('search', filter.search);
@@ -83,4 +107,22 @@ export async function createRelationship(dto: RelationshipCreateDTO): Promise<Kp
 
 export async function deleteRelationship(id: string): Promise<void> {
   return deleteApi<void>(`/api/kpis/relationships/${id}`);
+}
+
+// --- KPI-Criterion Mapping APIs ---
+
+export async function fetchKpiCriteria(kpiId: string): Promise<KpiCriterionMapping[]> {
+  return getApi<KpiCriterionMapping[]>(`/api/kpis/${kpiId}/criteria`);
+}
+
+export async function addKpiCriterion(kpiId: string, dto: KpiCriterionCreateDTO): Promise<KpiCriterionMapping> {
+  return postApi<KpiCriterionMapping>(`/api/kpis/${kpiId}/criteria`, dto);
+}
+
+export async function updateKpiCriterionWeight(kpiId: string, mappingId: string, dto: KpiCriterionUpdateDTO): Promise<KpiCriterionMapping> {
+  return patchApi<KpiCriterionMapping>(`/api/kpis/${kpiId}/criteria/${mappingId}`, dto);
+}
+
+export async function removeKpiCriterion(kpiId: string, mappingId: string): Promise<void> {
+  return deleteApi<void>(`/api/kpis/${kpiId}/criteria/${mappingId}`);
 }

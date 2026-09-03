@@ -17,6 +17,7 @@ import {
   VersionStatus,
   TemplateStatus,
   ScoringRuleType,
+  TemplateKpi,
 } from './configuration.types.js';
 import { PoolClient } from 'pg';
 
@@ -101,9 +102,19 @@ export interface ITemplateVersionRepository {
   update(id: string, version: Partial<EvaluationTemplateVersion>, expectedVersion?: number, client?: PoolClient): Promise<EvaluationTemplateVersion>;
 }
 
+export interface ITemplateKpiRepository {
+  findById(id: string, client?: PoolClient): Promise<TemplateKpi | null>;
+  findByTemplateVersionId(templateVersionId: string, client?: PoolClient): Promise<TemplateKpi[]>;
+  create(tk: Partial<TemplateKpi>, client?: PoolClient): Promise<TemplateKpi>;
+  update(id: string, tk: Partial<TemplateKpi>, client?: PoolClient): Promise<TemplateKpi>;
+  delete(id: string, client?: PoolClient): Promise<void>;
+  replaceAllForVersion(templateVersionId: string, items: Partial<TemplateKpi>[], client?: PoolClient): Promise<TemplateKpi[]>;
+}
+
 export interface ITemplateCriterionRepository {
   findById(id: string, client?: PoolClient): Promise<TemplateCriterion | null>;
   findByTemplateVersionId(templateVersionId: string, client?: PoolClient): Promise<TemplateCriterion[]>;
+  findByTemplateKpiId(templateKpiId: string, client?: PoolClient): Promise<TemplateCriterion[]>;
   findByTemplateVersionIdWithDetails(templateVersionId: string, client?: PoolClient): Promise<any[]>;
   create(tc: Partial<TemplateCriterion>, client?: PoolClient): Promise<TemplateCriterion>;
   update(id: string, tc: Partial<TemplateCriterion>, client?: PoolClient): Promise<TemplateCriterion>;

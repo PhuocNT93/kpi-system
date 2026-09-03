@@ -81,6 +81,9 @@ export function createConfigurationRouter(
   router.post('/templates/:templateId/versions/:versionId/clone', requirePermission('CONFIGURATION_CREATE'), controller.cloneTemplateVersion);
   router.get('/templates/:templateId/versions/:versionId/snapshot', requirePermission('CONFIGURATION_READ'), controller.getTemplateSnapshot);
   router.get('/templates/:templateId/versions/:fromVersion/diff/:toVersion', requirePermission('CONFIGURATION_READ'), controller.diffTemplateVersions);
+  router.get('/templates/:templateId/versions/:versionId/kpis', requirePermission('CONFIGURATION_READ'), controller.getTemplateKpis);
+  router.post('/templates/:templateId/versions/:versionId/kpis', requirePermission('CONFIGURATION_CREATE'), controller.addTemplateKpi);
+  router.delete('/templates/:templateId/versions/:versionId/kpis/:id', requirePermission('CONFIGURATION_UPDATE'), controller.removeTemplateKpi);
 
   router.get('/templates/:templateId/versions/:versionId/criteria', requirePermission('CONFIGURATION_READ'), controller.getTemplateCriteria);
   router.post('/templates/:templateId/versions/:versionId/criteria', requirePermission('CONFIGURATION_CREATE'), controller.addTemplateCriterion);

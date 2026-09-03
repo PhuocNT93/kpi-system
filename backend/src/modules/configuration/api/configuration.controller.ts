@@ -253,6 +253,7 @@ export class ConfigurationController {
   getTemplateVersionById = async (req: Request, res: Response): Promise<void> => {
     const versionId = req.params.versionId as string;
     const version = await this.templateService.getTemplateVersionById(versionId);
+    const kpis = await this.templateService.getTemplateKpis(versionId);
     const enrichedCriteria = await this.templateService.getTemplateCriteriaWithDetails(versionId);
     
     // Format the result to match the existing response structure
@@ -263,6 +264,7 @@ export class ConfigurationController {
       return {
         id: tc.id,
         template_version_id: tc.template_version_id,
+        template_kpi_id: tc.template_kpi_id,
         criterion_version_id: tc.criterion_version_id,
         criterion: tc.criterion,
         effective_weight: tc.weight,
@@ -276,6 +278,7 @@ export class ConfigurationController {
 
     sendSuccess(res, 200, 'Template version retrieved successfully.', {
       ...version,
+      kpis,
       criteria: formattedCriteria,
     });
   };
@@ -329,6 +332,25 @@ export class ConfigurationController {
 
   // ── Template Criteria ───────────────────────────────────────────────────────
 
+  getTemplateKpis = async (req: Request, res: Response): Promise<void> => {
+    const versionId = req.params.versionId as string;
+    const kpis = await this.templateService.getTemplateKpis(versionId);
+    sendSuccess(res, 200, 'Template KPIs retrieved successfully.', kpis);
+  };
+
+  addTemplateKpi = async (req: Request, res: Response): Promise<void> => {
+    const versionId = req.params.versionId as string;
+    const created = await this.templateService.addKpiToTemplate(versionId, req.body, this.getActorId(req));
+    sendSuccess(res, 201, 'Template KPI added successfully.', created);
+  };
+
+  removeTemplateKpi = async (req: Request, res: Response): Promise<void> => {
+    const versionId = req.params.versionId as string;
+    const id = req.params.id as string;
+    await this.templateService.removeKpiFromTemplate(versionId, id, this.getActorId(req));
+    sendSuccess(res, 204, 'Template KPI removed successfully.', null);
+  };
+
   getTemplateCriteria = async (req: Request, res: Response): Promise<void> => {
     const versionId = req.params.versionId as string;
     const criteria = await this.templateService.getTemplateCriteria(versionId);
@@ -343,8 +365,9 @@ export class ConfigurationController {
 
   bulkUpdateTemplateCriteria = async (req: Request, res: Response): Promise<void> => {
     const versionId = req.params.versionId as string;
-    const items = req.body.criteria || req.body;
-    const updated = await this.templateService.bulkUpdateTemplateCriteria(versionId, items, this.getActorId(req));
+    const templateKpiId = req.body.templateKpiId as string;
+    const criteriaItems = req.body.criteria as any[];
+    const updated = await this.templateService.bulkUpdateTemplateCriteria(versionId, templateKpiId, criteriaItems, this.getActorId(req));
     sendSuccess(res, 200, 'Template criteria updated in bulk successfully.', updated);
   };
 

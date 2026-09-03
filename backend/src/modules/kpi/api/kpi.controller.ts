@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { KpiService } from '../services/kpi.service.js';
+import { KpiCriterionService } from '../services/kpi-criterion.service.js';
 import { sendSuccess } from '../../../api/http-response.js';
 
 const createKpiSchema = z.object({
@@ -20,8 +21,21 @@ const listKpiSchema = z.object({
   size: z.coerce.number().int().positive().max(100).optional(),
 });
 
+const createKpiCriterionSchema = z.object({
+  criterionId: z.string().uuid(),
+  weight: z.coerce.number().min(0).max(100),
+});
+
+const updateKpiCriterionSchema = z.object({
+  weight: z.coerce.number().min(0).max(100).optional(),
+  displayOrder: z.coerce.number().int().optional(),
+});
+
 export class KpiController {
-  constructor(private service: KpiService) {}
+  constructor(
+    private service: KpiService,
+    private criterionService: KpiCriterionService
+  ) {}
 
   create = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -69,6 +83,52 @@ export class KpiController {
       const id = req.params.id as string;
       await this.service.deleteKpi(id);
       sendSuccess(res, 200, 'KPI deleted successfully', null);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  // --- KPI Criterion Mapping ---
+
+  getCriteria = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const kpiId = req.params.id as string;
+      const result = await this.criterionService.getMappings(kpiId);
+      sendSuccess(res, 200, 'KPI criteria retrieved successfully', result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  addCriterion = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const kpiId = req.params.id as string;
+      const data = createKpiCriterionSchema.parse(req.body);
+      const result = await this.criterionService.addCriterion(kpiId, data);
+      sendSuccess(res, 201, 'Criterion mapped to KPI successfully', result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateCriterion = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const kpiId = req.params.id as string;
+      const mappingId = req.params.mappingId as string;
+      const data = updateKpiCriterionSchema.parse(req.body);
+      const result = await this.criterionService.updateWeight(kpiId, mappingId, data);
+      sendSuccess(res, 200, 'KPI criterion mapping updated successfully', result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  removeCriterion = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const kpiId = req.params.id as string;
+      const mappingId = req.params.mappingId as string;
+      await this.criterionService.removeCriterion(kpiId, mappingId);
+      sendSuccess(res, 200, 'Criterion removed from KPI successfully', null);
     } catch (error) {
       next(error);
     }

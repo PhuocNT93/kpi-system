@@ -10,6 +10,7 @@ export class PostgresTemplateCriterionRepository implements ITemplateCriterionRe
     return {
       id: row.id as string,
       template_version_id: row.template_version_id as string,
+      template_kpi_id: row.template_kpi_id as string,
       criterion_version_id: row.criterion_version_id as string,
       weight: Number(row.weight),
       display_order: Number(row.display_order),
@@ -32,6 +33,15 @@ export class PostgresTemplateCriterionRepository implements ITemplateCriterionRe
     const res = await runner.query(
       'SELECT * FROM template_criteria WHERE template_version_id = $1 ORDER BY display_order ASC',
       [templateVersionId]
+    );
+    return res.rows.map((r) => this.mapRow(r));
+  }
+
+  async findByTemplateKpiId(templateKpiId: string, client?: PoolClient): Promise<TemplateCriterion[]> {
+    const runner = client || this.pool;
+    const res = await runner.query(
+      'SELECT * FROM template_criteria WHERE template_kpi_id = $1 ORDER BY display_order ASC',
+      [templateKpiId]
     );
     return res.rows.map((r) => this.mapRow(r));
   }
@@ -94,11 +104,12 @@ export class PostgresTemplateCriterionRepository implements ITemplateCriterionRe
     const runner = client || this.pool;
     const res = await runner.query(
       `INSERT INTO template_criteria
-       (template_version_id, criterion_version_id, weight, display_order, required, enabled, applicability)
-       VALUES ($1, $2, COALESCE($3, 0), COALESCE($4, 1), COALESCE($5, true), COALESCE($6, true), $7)
+       (template_version_id, template_kpi_id, criterion_version_id, weight, display_order, required, enabled, applicability)
+       VALUES ($1, $2, $3, COALESCE($4, 0), COALESCE($5, 1), COALESCE($6, true), COALESCE($7, true), $8)
        RETURNING *`,
       [
         tc.template_version_id,
+        tc.template_kpi_id,
         tc.criterion_version_id,
         tc.weight ?? 0,
         tc.display_order ?? 1,
