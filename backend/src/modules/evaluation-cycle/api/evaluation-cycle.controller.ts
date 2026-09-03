@@ -9,6 +9,7 @@ import {
   CreateEvaluationCycleSchema,
   UpdateEvaluationCycleSchema,
   ListEvaluationCycleQuerySchema,
+  TransitionEvaluationCycleSchema,
   EvaluationCycleResponse,
 } from './evaluation-cycle.dto.js';
 import { EvaluationCycle, EvaluationCycleStatus } from '../domain/evaluation-cycle.types.js';
@@ -124,6 +125,31 @@ export class EvaluationCycleController {
         status: result.status,
         evaluation_count: result.evaluationCount,
       });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  public transitionCycle = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = req.params.id as string;
+      const parsed = TransitionEvaluationCycleSchema.safeParse(req.body);
+      if (!parsed.success) {
+        throw new ValidationError(
+          'Invalid transition evaluation cycle payload',
+          parsed.error.issues.map((e) => ({
+            field: e.path.join('.'),
+            code: e.code.toUpperCase(),
+            message: e.message,
+          }))
+        );
+      }
+
+      const actor = getActorFromContext(req);
+      const actorEmployeeId = actor?.employeeId || actor?.userId || null;
+
+      const transitioned = await this.cycleService.transitionCycle(id, parsed.data.target_status, actorEmployeeId);
+      sendSuccess(res, 200, 'Evaluation cycle status transitioned successfully', this.mapToResponse(transitioned));
     } catch (err) {
       next(err);
     }

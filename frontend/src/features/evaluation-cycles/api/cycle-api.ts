@@ -164,6 +164,13 @@ export const evaluationCycleApi = {
     }
   },
 
+  transitionCycle: async (id: string, targetStatus: EvaluationCycleDTO['status']): Promise<EvaluationCycleDTO> => {
+    const raw = await postApi<BackendEvaluationCycleResponse>(`/api/evaluation-cycles/${id}/transition`, {
+      target_status: targetStatus,
+    });
+    return mapBackendToCycleDTO(raw);
+  },
+
   lockCycle: async (id: string): Promise<EvaluationCycleDTO> => {
     await postApi<{ id: string; status: EvaluationCycleDTO['status']; locked_at: string }>(
       `/api/evaluation-cycles/${id}/lock`,

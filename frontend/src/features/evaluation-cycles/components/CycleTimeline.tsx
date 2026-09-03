@@ -11,20 +11,16 @@ const CYCLE_STEPS: { status: CycleStatus; label: string }[] = [
   { status: 'DRAFT', label: 'Draft' },
   { status: 'OPEN', label: 'Open' },
   { status: 'IN_PROGRESS', label: 'In Progress' },
+  { status: 'SUBMITTED', label: 'Submitted' },
   { status: 'REVIEWING', label: 'Reviewing' },
+  { status: 'CALIBRATION', label: 'Calibration' },
   { status: 'APPROVED', label: 'Approved' },
   { status: 'PUBLISHED', label: 'Published' },
   { status: 'LOCKED', label: 'Locked' },
 ];
 
 export const CycleTimeline: React.FC<CycleTimelineProps> = ({ currentStatus }) => {
-  const getStepIndex = (status: CycleStatus): number => {
-    if (status === 'SUBMITTED') return 2;
-    if (status === 'CALIBRATION') return 3;
-    return CYCLE_STEPS.findIndex((step) => step.status === status);
-  };
-
-  const activeIndex = getStepIndex(currentStatus);
+  const activeIndex = CYCLE_STEPS.findIndex((step) => step.status === currentStatus);
 
   return (
     <div

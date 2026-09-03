@@ -28,6 +28,30 @@ describe('EvaluationCycleTransitionService', () => {
     }
   });
 
+  it('allows valid sequence: OPEN -> IN_PROGRESS -> SUBMITTED -> REVIEWING -> CALIBRATION -> APPROVED -> PUBLISHED -> LOCKED', () => {
+    expect(() =>
+      transitionService.validateTransition(EvaluationCycleStatus.OPEN, EvaluationCycleStatus.IN_PROGRESS)
+    ).not.toThrow();
+    expect(() =>
+      transitionService.validateTransition(EvaluationCycleStatus.IN_PROGRESS, EvaluationCycleStatus.SUBMITTED)
+    ).not.toThrow();
+    expect(() =>
+      transitionService.validateTransition(EvaluationCycleStatus.SUBMITTED, EvaluationCycleStatus.REVIEWING)
+    ).not.toThrow();
+    expect(() =>
+      transitionService.validateTransition(EvaluationCycleStatus.REVIEWING, EvaluationCycleStatus.CALIBRATION)
+    ).not.toThrow();
+    expect(() =>
+      transitionService.validateTransition(EvaluationCycleStatus.CALIBRATION, EvaluationCycleStatus.APPROVED)
+    ).not.toThrow();
+    expect(() =>
+      transitionService.validateTransition(EvaluationCycleStatus.APPROVED, EvaluationCycleStatus.PUBLISHED)
+    ).not.toThrow();
+    expect(() =>
+      transitionService.validateTransition(EvaluationCycleStatus.PUBLISHED, EvaluationCycleStatus.LOCKED)
+    ).not.toThrow();
+  });
+
   it('rejects invalid LOCKED -> DRAFT or LOCKED -> OPEN transition', () => {
     expect(() =>
       transitionService.validateTransition(EvaluationCycleStatus.LOCKED, EvaluationCycleStatus.DRAFT)

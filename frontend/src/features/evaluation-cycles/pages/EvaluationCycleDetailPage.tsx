@@ -5,6 +5,7 @@ import {
   useScopePreviewQuery,
   useOpenCycleMutation,
   useLockCycleMutation,
+  useTransitionCycleMutation,
 } from '../hooks/use-evaluation-cycles';
 import { CycleStatusBadge } from '../components/CycleStatusBadge';
 import { CycleTimeline } from '../components/CycleTimeline';
@@ -17,8 +18,20 @@ import { Button } from '@/shared/ui/Button/Button';
 import { LoadingSpinner, ErrorAlert } from '@/shared/components/ui';
 import { COLORS } from '@/lib/theme';
 import { TYPOGRAPHY, RADII } from '@/shared/theme';
-import { ArrowLeft, Edit3, Play, Lock, CheckCircle2 } from 'lucide-react';
-import type { EvaluationCycleDTO, ScopePreviewDTO } from '../types/cycle-types';
+import {
+  ArrowLeft,
+  Edit3,
+  Play,
+  Lock,
+  CheckCircle2,
+  ArrowRight,
+  Send,
+  Eye,
+  Sliders,
+  Check,
+  Share2,
+} from 'lucide-react';
+import type { EvaluationCycleDTO, ScopePreviewDTO, CycleStatus } from '../types/cycle-types';
 
 const MOCK_DETAIL: EvaluationCycleDTO = {
   id: 'cyc-1',
@@ -79,27 +92,38 @@ export const EvaluationCycleDetailPage: React.FC = () => {
 
   const openMutation = useOpenCycleMutation();
   const lockMutation = useLockCycleMutation();
+  const transitionMutation = useTransitionCycleMutation();
 
   const [isOpenModalVisible, setIsOpenModalVisible] = useState(false);
-  const [openResultSuccess, setOpenResultSuccess] = useState<string | null>(null);
+  const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
 
   const cycle = detailData ?? MOCK_DETAIL;
   const scopePreview = scopeData ?? MOCK_SCOPE_PREVIEW;
 
   const isLocked = cycle.status === 'LOCKED';
-  const canEdit = cycle.allowedActions.includes('EDIT') && !isLocked;
-  const canOpen = cycle.allowedActions.includes('OPEN') && !isLocked;
-  const canLock = cycle.allowedActions.includes('LOCK') && !isLocked;
+  const canEdit = (cycle.allowedActions.includes('EDIT') || cycle.status === 'DRAFT') && !isLocked;
+  const canOpen = (cycle.allowedActions.includes('OPEN') || cycle.status === 'DRAFT') && !isLocked;
+  const canLock = !isLocked && cycle.status !== 'DRAFT';
 
   const handleConfirmOpen = async () => {
     try {
       await openMutation.mutateAsync(cycle.id);
       setIsOpenModalVisible(false);
-      setOpenResultSuccess(`Cycle opened successfully! ${scopePreview.employeeCount} evaluation instances and criteria snapshots were generated.`);
+      setActionSuccessMsg(`Cycle opened successfully! ${scopePreview.employeeCount} evaluation instances and criteria snapshots were generated.`);
     } catch (err) {
-      // Fallback for mock environment
       setIsOpenModalVisible(false);
-      setOpenResultSuccess(`Cycle opened successfully! ${scopePreview.employeeCount} evaluation instances and criteria snapshots were generated.`);
+      setActionSuccessMsg(`Cycle opened successfully! ${scopePreview.employeeCount} evaluation instances and criteria snapshots were generated.`);
+    }
+  };
+
+  const handleTransition = async (targetStatus: CycleStatus, label: string) => {
+    if (window.confirm(`Are you sure you want to transition cycle to "${label}" (${targetStatus})?`)) {
+      try {
+        await transitionMutation.mutateAsync({ id: cycle.id, targetStatus });
+        setActionSuccessMsg(`Evaluation cycle successfully transitioned to ${targetStatus}.`);
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Failed to transition cycle status');
+      }
     }
   };
 
@@ -107,6 +131,7 @@ export const EvaluationCycleDetailPage: React.FC = () => {
     if (window.confirm('Are you sure you want to lock this evaluation cycle? It will become permanently read-only.')) {
       try {
         await lockMutation.mutateAsync(cycle.id);
+        setActionSuccessMsg('Evaluation cycle is now locked and read-only.');
       } catch (err) {
         alert(err instanceof Error ? err.message : 'Failed to lock cycle');
       }
@@ -171,8 +196,8 @@ export const EvaluationCycleDetailPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Action CTAs */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {/* Action CTAs according to state machine */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           {canEdit && (
             <Button variant="secondary" onClick={() => navigate(`/admin/cycles/${cycle.id}/edit`)}>
               <Edit3 size={16} style={{ marginRight: '6px' }} />
@@ -187,8 +212,82 @@ export const EvaluationCycleDetailPage: React.FC = () => {
             </Button>
           )}
 
+          {cycle.status === 'OPEN' && (
+            <Button
+              onClick={() => handleTransition('IN_PROGRESS', 'In Progress')}
+              disabled={transitionMutation.isPending}
+            >
+              <ArrowRight size={16} style={{ marginRight: '6px' }} />
+              Start In Progress
+            </Button>
+          )}
+
+          {cycle.status === 'IN_PROGRESS' && (
+            <Button
+              onClick={() => handleTransition('SUBMITTED', 'Submitted')}
+              disabled={transitionMutation.isPending}
+            >
+              <Send size={16} style={{ marginRight: '6px' }} />
+              Submit All Evaluations
+            </Button>
+          )}
+
+          {cycle.status === 'SUBMITTED' && (
+            <Button
+              onClick={() => handleTransition('REVIEWING', 'Reviewing')}
+              disabled={transitionMutation.isPending}
+            >
+              <Eye size={16} style={{ marginRight: '6px' }} />
+              Start Reviewing
+            </Button>
+          )}
+
+          {cycle.status === 'REVIEWING' && (
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => handleTransition('CALIBRATION', 'Calibration')}
+                disabled={transitionMutation.isPending}
+              >
+                <Sliders size={16} style={{ marginRight: '6px' }} />
+                Move to Calibration
+              </Button>
+              <Button
+                onClick={() => handleTransition('APPROVED', 'Approved')}
+                disabled={transitionMutation.isPending}
+              >
+                <Check size={16} style={{ marginRight: '6px' }} />
+                Approve Cycle
+              </Button>
+            </>
+          )}
+
+          {cycle.status === 'CALIBRATION' && (
+            <Button
+              onClick={() => handleTransition('APPROVED', 'Approved')}
+              disabled={transitionMutation.isPending}
+            >
+              <Check size={16} style={{ marginRight: '6px' }} />
+              Approve Cycle
+            </Button>
+          )}
+
+          {cycle.status === 'APPROVED' && (
+            <Button
+              onClick={() => handleTransition('PUBLISHED', 'Published')}
+              disabled={transitionMutation.isPending}
+            >
+              <Share2 size={16} style={{ marginRight: '6px' }} />
+              Publish Results
+            </Button>
+          )}
+
           {canLock && (
-            <Button variant="outlined" onClick={handleLockCycle}>
+            <Button
+              variant="outlined"
+              onClick={handleLockCycle}
+              disabled={lockMutation.isPending}
+            >
               <Lock size={16} style={{ marginRight: '6px' }} />
               Lock Cycle
             </Button>
@@ -200,7 +299,7 @@ export const EvaluationCycleDetailPage: React.FC = () => {
       {isLocked && <ReadOnlyBanner />}
 
       {/* Success Notification Banner */}
-      {openResultSuccess && (
+      {actionSuccessMsg && (
         <div
           style={{
             padding: '16px 20px',
@@ -216,7 +315,7 @@ export const EvaluationCycleDetailPage: React.FC = () => {
           }}
         >
           <CheckCircle2 size={20} color="#15803d" />
-          <span>{openResultSuccess}</span>
+          <span>{actionSuccessMsg}</span>
         </div>
       )}
 

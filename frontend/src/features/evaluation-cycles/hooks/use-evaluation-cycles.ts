@@ -80,3 +80,15 @@ export function useLockCycleMutation() {
     },
   });
 }
+
+export function useTransitionCycleMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, targetStatus }: { id: string; targetStatus: import('../types/cycle-types').CycleStatus }) =>
+      evaluationCycleApi.transitionCycle(id, targetStatus),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: CYCLE_QUERY_KEYS.all });
+      queryClient.invalidateQueries({ queryKey: CYCLE_QUERY_KEYS.detail(id) });
+    },
+  });
+}
