@@ -86,7 +86,7 @@ describe('template-mappers domain logic', () => {
   });
 
   it('validates backend-compatible range scoring rule config', () => {
-    const result = validateTemplateClientSide([
+    const result = validateTemplateClientSide(mockKpis, [
       {
         ...mockCriteria[0],
         effectiveWeight: 100,
@@ -115,7 +115,7 @@ describe('template-mappers domain logic', () => {
   });
 
   it('validates empty role conditional branches', () => {
-    const result = validateTemplateClientSide([
+    const result = validateTemplateClientSide(mockKpis, [
       {
         ...mockCriteria[0],
         effectiveWeight: 100,
