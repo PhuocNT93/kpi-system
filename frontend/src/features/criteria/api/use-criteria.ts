@@ -55,6 +55,7 @@ export function useCreateCriterionMutation() {
     mutationFn: createCriterion,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: criteriaKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['templates', 'criteria-library'] });
     },
   });
 }
@@ -67,6 +68,7 @@ export function useUpdateCriterionVersionMutation() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: criteriaKeys.versions(variables.criterionId) });
       queryClient.invalidateQueries({ queryKey: criteriaKeys.list() });
+      queryClient.invalidateQueries({ queryKey: ['templates', 'criteria-library'] });
     },
   });
 }
@@ -79,6 +81,7 @@ export function usePublishCriterionVersionMutation() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: criteriaKeys.versions(variables.criterionId) });
       queryClient.invalidateQueries({ queryKey: criteriaKeys.list() });
+      queryClient.invalidateQueries({ queryKey: ['templates', 'criteria-library'] });
     },
   });
 }

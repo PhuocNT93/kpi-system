@@ -74,6 +74,15 @@ async function parseResponse<T>(response: Response): Promise<T> {
     throw err;
   }
 
+  // Handle 401 Unauthorized globally by clearing auth state and redirecting to login
+  if (response.status === 401) {
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
+      localStorage.removeItem('kpi_auth_user');
+      window.location.href = '/login';
+    }
+  }
+
   // Per FE Rule §5: on 401 callers handle sign-in flow via thrown error code
   if (!response.ok || !payload.success) {
     throw new ApiClientError(
