@@ -94,6 +94,9 @@ export function KpiPage() {
                 onEdit={(kpi) => setEditingKpi(kpi)}
                 onSelect={(kpi) => setSelectedKpi(kpi)}
                 selectedKpiId={selectedKpi?.kpiId}
+                onDeleteSuccess={(id) => {
+                  if (selectedKpi?.kpiId === id) setSelectedKpi(null);
+                }}
               />
               {selectedKpi && (
                 <div style={{ marginTop: '1.5rem', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)' }}>
