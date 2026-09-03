@@ -9,6 +9,7 @@ import type {
   ValidationErrorItem,
   VersionDiffItem,
 } from './template-models';
+import { normalizeRuleConfig, validateRuleConfig } from './rule-config';
 
 export function calculateConfiguredWeightTotal(criteria: TemplateCriterion[]): number {
   return criteria
@@ -58,39 +59,19 @@ export function validateTemplateClientSide(
       });
     }
 
-    // Scoring rule validation for RANGE_THRESHOLD
     const rule = tc.customScoringRule || tc.criterion.currentVersion?.scoringRule;
-    if (rule && rule.ruleType === 'RANGE_THRESHOLD' && rule.config) {
-      const config = rule.config as { ranges?: { minScore: number; maxScore: number }[] };
-      if (config.ranges && config.ranges.length > 1) {
-        for (let i = 0; i < config.ranges.length - 1; i++) {
-          const curr = config.ranges[i];
-          const next = config.ranges[i + 1];
-          if (curr.maxScore >= next.minScore) {
-            errors.push({
-              code: 'INVALID_RANGE',
-              category: 'SCORING_RULE',
-              criterionCode: tc.criterion.code,
-              criterionName: tc.criterion.name,
-              message: `Scoring range overlap detected between level ${i + 1} and ${i + 2} in "${tc.criterion.name}".`,
-            });
-          }
-        }
-      }
-    }
-
-    // ROLE_CONDITIONAL check
-    if (rule && rule.ruleType === 'ROLE_CONDITIONAL' && rule.config) {
-      const config = rule.config as { branches?: { roleId: string; roleName: string }[] };
-      if (!config.branches || config.branches.length === 0) {
+    if (rule) {
+      const ruleIssues = validateRuleConfig(rule.config);
+      ruleIssues.forEach((issue) => {
         errors.push({
-          code: 'MISSING_SCORING_BRANCH',
-          category: 'APPLICABILITY',
+          code: issue.code === 'EMPTY_BRANCHES' || issue.code === 'MISSING_NESTED_RULE' ? 'MISSING_SCORING_BRANCH' : 'INVALID_RANGE',
+          category: rule.ruleType === 'ROLE_CONDITIONAL' ? 'APPLICABILITY' : 'SCORING_RULE',
           criterionCode: tc.criterion.code,
           criterionName: tc.criterion.name,
-          message: `Role conditional rule in "${tc.criterion.name}" has no configured role branches.`,
+          field: issue.field,
+          message: `${tc.criterion.name}: ${issue.message}`,
         });
-      }
+      });
     }
   });
 
@@ -256,12 +237,13 @@ export function mapWireCriterionVersionToDomain(wire: any): CriterionVersion {
 }
 
 export function mapWireScoringRuleToDomain(wire: any): ScoringRule {
+  const ruleType = wire.rule_type as ScoringRule['ruleType'];
   return {
     id: wire.id,
     code: wire.code || '',
     name: wire.name || '',
-    ruleType: wire.rule_type,
-    config: wire.config || {},
+    ruleType,
+    config: normalizeRuleConfig(ruleType, wire.config),
     status: wire.status || 'ACTIVE',
     version: wire.version ?? 1,
   };

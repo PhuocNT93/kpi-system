@@ -1,3 +1,12 @@
+import type {
+  CountThresholdRuleConfig,
+  InverseThresholdRuleConfig,
+  OrdinalManualRuleConfig,
+  RangeThresholdRuleConfig,
+  RoleConditionalRuleConfig,
+  RuleConfig,
+} from './rule-config';
+
 export type TemplateStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 export type RuleType =
   | 'RANGE_THRESHOLD'
@@ -17,65 +26,18 @@ export interface EvaluationLevel {
   scoreValue: number;
 }
 
-export interface RangeThresholdConfig {
-  ranges: {
-    minScore: number;
-    maxScore: number;
-    levelId: string;
-    levelName: string;
-  }[];
-}
-
-export interface InverseThresholdConfig {
-  thresholds: {
-    maxDays: number;
-    levelId: string;
-    levelName: string;
-    label: string;
-  }[];
-}
-
-export interface CountThresholdConfig {
-  counts: {
-    minCount: number;
-    maxCount: number | null; // null means unbounded (e.g. 11+)
-    levelId: string;
-    levelName: string;
-  }[];
-}
-
-export interface OrdinalManualConfig {
-  levels: {
-    levelId: string;
-    levelName: string;
-    description: string;
-    scoreValue: number;
-  }[];
-}
-
-export interface RoleConditionalConfig {
-  branches: {
-    roleId: string;
-    roleName: string;
-    ruleType: RuleType;
-    config: RangeThresholdConfig | OrdinalManualConfig | Record<string, unknown>;
-  }[];
-  defaultRuleType?: RuleType;
-  defaultConfig?: Record<string, unknown>;
-}
+export type RangeThresholdConfig = RangeThresholdRuleConfig;
+export type InverseThresholdConfig = InverseThresholdRuleConfig;
+export type CountThresholdConfig = CountThresholdRuleConfig;
+export type OrdinalManualConfig = OrdinalManualRuleConfig;
+export type RoleConditionalConfig = RoleConditionalRuleConfig;
 
 export interface ScoringRule {
   id: string;
   code: string;
   name: string;
   ruleType: RuleType;
-  config:
-    | RangeThresholdConfig
-    | InverseThresholdConfig
-    | CountThresholdConfig
-    | OrdinalManualConfig
-    | RoleConditionalConfig
-    | Record<string, unknown>;
+  config: RuleConfig;
   status: string;
   version: number;
 }

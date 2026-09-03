@@ -1,6 +1,6 @@
 # LLD — Employee Performance Evaluation Management System
 
-> **Trạng thái tài liệu:** v1.2 — đã cập nhật theo quyết định chính thức từ HR/Manager (xem changelog cuối tài liệu) và bổ sung Google Workspace SSO.
+> **Trạng thái tài liệu:** v1.3 — bổ sung tính năng Review Cadence & Scheduling (chu kỳ đánh giá riêng theo từng nhân viên). Xem changelog cuối tài liệu.
 > **18 tiêu chí hiện tại (Performance / Capability / Contribution) chỉ được coi là *seed data / sample configuration*.** Toàn bộ hệ thống được thiết kế theo hướng **Configurable, Rule-driven Evaluation Framework** — không hard-code criterion, weight, level, hay tool phụ thuộc vào application code.
 
 ---
@@ -73,8 +73,9 @@ Insight quan trọng rút ra từ dữ liệu mẫu để đưa vào rule engine
 - CSV Import (template versioned, validate, preview, partial import, import history)
 - Scoring Engine (raw score → weighted score → overall score)
 - Basic evaluation workflow (configurable steps, tối thiểu: Self-assessment **bắt buộc** → Manager Assessment → Approval → Publish **tự động** → Lock — ✅ đã chốt, xem mục 14)
+- **Review Cadence & Scheduling** *(mới)* — chu kỳ đánh giá riêng theo từng nhân viên (2 tháng/6 tháng/1 năm...), Review Due Dashboard, tạo evaluation riêng bán tự động (xem mục 14.1)
 - Immutable historical evaluation (snapshot)
-- Audit log (mọi thay đổi weight/score/level)
+- Audit log (mọi thay đổi weight/score/level/cadence)
 - RBAC (4 role nhóm)
 - Basic dashboard: employee score, team average, completion rate
 
@@ -83,7 +84,8 @@ Insight quan trọng rút ra từ dữ liệu mẫu để đưa vào rule engine
 - Peer review
 - Advanced reporting/BI, trend analysis nhiều cycle
 - Score normalization giữa các team
-- Notification/Email integration
+- Notification/Email integration (**bao gồm nhắc lịch review due tự động** — MVP chỉ có dashboard, chưa gửi email/notification chủ động)
+- **Auto-tạo evaluation hoàn toàn tự động khi đến due date** (MVP vẫn cần HR/Manager bấm xác nhận, xem mục 14.1)
 - Jira/Git integration (tự động lấy measurement)
 - Goal tracking, performance trend, promotion recommendation
 
@@ -93,54 +95,10 @@ Insight quan trọng rút ra từ dữ liệu mẫu để đưa vào rule engine
 
 ## 6. User Roles & Employee Model
 
-### Employee entity & Bounded Context
-`employee_code (business code), full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status (enum: ACTIVE/ON_LEAVE/INACTIVE/TERMINATED), join_date, version`
+### Employee entity (tối thiểu)
+`employee_code (business code), full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status (enum: ACTIVE/INACTIVE/ON_LEAVE/TERMINATED), join_date`
 
-Source of truth: Current assignment fields (`department_id`, `team_id`, `role_id`, `job_level_id`, `manager_id`) are maintained on `employee` for quick querying, while historical assignment snapshots are immutably captured in `employee_assignment` with `effective_from` and `effective_to` range constraints. Evaluation cycles fetch historical assignment context via `getAssignmentAt(employeeId, cycleStartDate)` and snapshot it into evaluation records.
-
-`role` and `job_level` are maintained as reference tables (`role`, `job_level`) to decouple organizational job roles from RBAC security permissions. Optimistic locking on `employee` is enforced via the `version` column. Hard deletion of employees is prohibited; employment status transitions (e.g. `TERMINATED`) close active assignments.
-
-### ERD Detail — Employee Module & Assignment
-```mermaid
-erDiagram
-    DEPARTMENT ||--o{ TEAM : contains
-    EMPLOYEE ||--o{ EMPLOYEE_ASSIGNMENT : has
-    DEPARTMENT ||--o{ EMPLOYEE_ASSIGNMENT : assigned
-    TEAM ||--o{ EMPLOYEE_ASSIGNMENT : assigned
-    ROLE ||--o{ EMPLOYEE_ASSIGNMENT : assigned
-    JOB_LEVEL ||--o{ EMPLOYEE_ASSIGNMENT : assigned
-    EMPLOYEE ||--o{ EMPLOYEE_ASSIGNMENT : manages
-
-    EMPLOYEE {
-        uuid employee_id PK
-        string employee_code UK
-        string full_name
-        string email
-        uuid department_id FK
-        uuid team_id FK
-        uuid role_id FK
-        uuid job_level_id FK
-        uuid manager_id FK
-        string employment_status
-        date join_date
-        date termination_date
-        int version
-    }
-
-    EMPLOYEE_ASSIGNMENT {
-        uuid employee_assignment_id PK
-        uuid employee_id FK
-        uuid department_id FK
-        uuid team_id FK
-        uuid role_id FK
-        uuid job_level_id FK
-        uuid manager_id FK
-        date effective_from
-        date effective_to
-        string change_reason
-        string change_note
-    }
-```
+`role` và `job_level` **không hard-code enum cứng** trong code — thiết kế thành bảng reference (`role`, `job_level`) để mở rộng (SI, SM, BA, QA, DevOps... ; Junior/Middle/Senior/Lead/Principal...).
 
 ### RBAC — 4 nhóm
 1. **Employee** — xem evaluation của mình, nhập self-assessment (**bắt buộc mọi cycle** — ✅ đã chốt), submit self-assessment, xem lịch sử.
@@ -262,6 +220,8 @@ erDiagram
     JOB_LEVEL ||--o{ EMPLOYEE : "assigned to"
     EMPLOYEE ||--o{ EMPLOYEE : "manages (manager_id)"
     EMPLOYEE ||--o| USER_ACCOUNT : "login qua Google (mục 10.8)"
+    REVIEW_CADENCE ||--o{ JOB_LEVEL : "default cadence cho job level"
+    REVIEW_CADENCE ||--o{ EMPLOYEE : "override cá nhân (mục 14.1)"
 
     EVALUATION_CYCLE ||--o{ EVALUATION_TEMPLATE_VERSION : uses
     EVALUATION_TEMPLATE ||--o{ EVALUATION_TEMPLATE_VERSION : "versioned by"
@@ -322,7 +282,21 @@ erDiagram
 | role_id uuid PK | code varchar UNIQUE | name varchar | description text | active boolean |
 
 **job_level**
-| job_level_id uuid PK | code varchar UNIQUE (JUNIOR, MIDDLE...) | name varchar | rank int (thứ tự sắp xếp) | active boolean |
+| job_level_id uuid PK | code varchar UNIQUE (JUNIOR, MIDDLE...) | name varchar | rank int (thứ tự sắp xếp) | default_review_cadence_id uuid FK → review_cadence, null | active boolean |
+
+> `default_review_cadence_id` — **mới**: chu kỳ đánh giá mặc định theo job level (vd Junior/Probation mặc định 2 tháng, Senior mặc định 12 tháng). Xem mục 14.1.
+
+**review_cadence** *(mới — danh mục chu kỳ đánh giá, configurable, không hard-code)*
+| Column | Type | Null | Note |
+|---|---|---|---|
+| review_cadence_id | uuid | N | PK |
+| code | varchar(30) | N | UNIQUE, vd `EVERY_2_MONTHS`, `EVERY_6_MONTHS`, `ANNUALLY` |
+| name | varchar(100) | N | vd "2 tháng/lần" |
+| interval_months | int | N | số tháng giữa 2 lần đánh giá |
+| is_system_default | boolean | N | default true cho đúng 1 dòng — dùng khi employee không có override và job_level không có default riêng |
+| active | boolean | N | |
+
+> HR tự thêm/sửa cadence mới qua UI (vd "3 tháng/lần" cho 1 nhóm đặc thù) — **không hard-code danh sách cố định**, đúng nguyên tắc configurable xuyên suốt hệ thống.
 
 **employee**
 | Column | Type | Null | Note |
@@ -338,8 +312,11 @@ erDiagram
 | manager_id | uuid | Y | FK → employee.employee_id (self) |
 | employment_status | varchar(20) | N | ENUM ACTIVE/INACTIVE/ON_LEAVE/TERMINATED |
 | join_date | date | N | |
+| review_cadence_override_id | uuid | Y | **Mới** — FK → review_cadence; override cấp cá nhân, cao nhất trong precedence (mục 14.1) |
+| last_evaluation_completed_at | timestamptz | Y | **Mới** — cập nhật tự động khi 1 evaluation của employee này đạt PUBLISHED/LOCKED |
+| next_review_due_date | date | Y | **Mới** — tính tự động = `last_evaluation_completed_at + effective_cadence.interval_months`; null nếu chưa từng được đánh giá lần nào (coi như due ngay) |
 
-Index: `(team_id)`, `(manager_id)`, `(employment_status)`.
+Index: `(team_id)`, `(manager_id)`, `(employment_status)`, `(next_review_due_date)` — **mới**, phục vụ query "Review Due Dashboard" (mục 14.1).
 
 **employee_team_history** *(giải quyết Q5 mục 23 — chuyển team giữa cycle)*
 | employee_team_history_id uuid PK | employee_id FK | team_id FK | role_id FK | effective_from date | effective_to date null |
@@ -400,7 +377,7 @@ Unique: `(evaluation_template_id, version_no)`.
 ### 10.3 Evaluation Cycle & Evaluation
 
 **evaluation_cycle**
-| evaluation_cycle_id uuid PK | code varchar UNIQUE | name varchar | start_date date | end_date date | status varchar(20) — DRAFT/OPEN/IN_PROGRESS/SUBMITTED/REVIEWING/CALIBRATION/APPROVED/PUBLISHED/LOCKED | evaluation_template_version_id FK | applicable_team_ids uuid[] | applicable_role_ids uuid[] | created_by uuid | approved_by uuid | locked_at timestamptz null |
+| evaluation_cycle_id uuid PK | code varchar UNIQUE | name varchar | cycle_type varchar(20) — **mới**, ENUM `BATCH` (cycle đặt tên, mở hàng loạt như "2026 H2") / `INDIVIDUAL_SCHEDULED` (tự sinh cho đúng 1 employee theo review cadence, mục 14.1) | start_date date | end_date date | status varchar(20) — DRAFT/OPEN/IN_PROGRESS/SUBMITTED/REVIEWING/CALIBRATION/APPROVED/PUBLISHED/LOCKED | evaluation_template_version_id FK | applicable_team_ids uuid[] (null nếu `cycle_type=INDIVIDUAL_SCHEDULED`) | applicable_role_ids uuid[] (null nếu `cycle_type=INDIVIDUAL_SCHEDULED`) | triggered_by_employee_id uuid FK null — **mới**, chỉ set khi `cycle_type=INDIVIDUAL_SCHEDULED` | created_by uuid | approved_by uuid | locked_at timestamptz null |
 
 **evaluation** *(1 employee × 1 cycle)*
 | Column | Type | Note |
@@ -421,6 +398,8 @@ Unique: `(evaluation_template_id, version_no)`.
 | is_locked | boolean | default false |
 
 Unique: `(evaluation_cycle_id, employee_id)`.
+
+> **Mới:** khi `evaluation.status` chuyển sang `PUBLISHED` (mục 14, auto-publish), hệ thống **đồng thời** cập nhật `employee.last_evaluation_completed_at = now()` và tính lại `employee.next_review_due_date` theo effective cadence (mục 14.1) — cùng transaction, cùng audit_log entry.
 
 **evaluation_item** *(1 dòng / 1 criterion, snapshot toàn bộ config cần thiết để tính điểm)*
 | Column | Type | Note |
@@ -757,6 +736,81 @@ stateDiagram-v2
 
 ---
 
+## 14.1 Review Cadence & Scheduling (✅ tính năng mới)
+
+> **Vấn đề đang giải quyết:** trước đây, hệ thống chỉ có 1 cách tạo evaluation — HR tạo 1 `evaluation_cycle` đặt tên (vd "2026 H2"), áp dụng hàng loạt cho 1 nhóm team/role, **cùng 1 nhịp độ cho tất cả mọi người**. Thực tế nhiều công ty cần đánh giá **tần suất khác nhau theo từng nhân viên** — vd nhân viên thử việc/mới vào cần review mỗi **2 tháng**, nhân viên thường **6 tháng**, nhân viên senior ổn định **1 năm**. Mục này bổ sung cơ chế đó **mà không phá vỡ** kiến trúc batch-cycle đã có.
+
+### Nguyên tắc thiết kế
+- **Không tạo luồng tạo-evaluation hoàn toàn mới.** Review Cadence chỉ quyết định **KHI NÀO** 1 employee cần được đánh giá; việc **tạo evaluation instance thực tế vẫn tái sử dụng 100%** logic "Open Cycle" đã có (mục 3 trong Sequence Diagrams, mục 10.3) — chỉ khác ở **cách chọn danh sách employee đưa vào cycle**.
+- **Cadence là configurable**, không hard-code danh sách "2/6/12 tháng" — HR tự thêm cadence mới qua bảng `review_cadence` (mục 10.1).
+- **MVP: bán tự động** (system tính due date + hiển thị dashboard, HR/Manager bấm nút để tạo evaluation) — **chưa** tự động tạo evaluation không cần con người xác nhận, để tránh review "từ trên trời rơi xuống" gây bất ngờ cho nhân viên/manager. Full-auto (system tự tạo, tự thông báo) để Phase 2.
+
+### Precedence xác định cadence hiệu lực cho 1 employee (3 tầng — đơn giản hơn precedence Criterion vì đây là thuộc tính lịch, không phải công thức tính điểm)
+```
+1. employee.review_cadence_override_id       (cao nhất — HR set riêng cho 1 người, vd đang performance-improvement-plan cần review sát hơn)
+2. job_level.default_review_cadence_id        (theo job level, vd Junior mặc định 2 tháng)
+3. review_cadence.is_system_default = true    (fallback toàn hệ thống, vd 12 tháng)
+```
+`effective_cadence = employee.review_cadence_override_id ?? job_level.default_review_cadence_id ?? system_default`. Resolve **runtime** (không denormalize như weight Criterion) vì đây chỉ là tính toán ngày, chi phí rẻ, và cần phản ánh thay đổi job_level/override ngay lập tức — khác với weight vốn phải bất biến sau publish.
+
+### Tính `next_review_due_date`
+```
+next_review_due_date = last_evaluation_completed_at + effective_cadence.interval_months
+```
+- Nếu `last_evaluation_completed_at IS NULL` (nhân viên mới, chưa từng được đánh giá) → coi như **due ngay** (hiển thị ở dashboard từ ngày đầu join, hoặc `join_date + probation_grace_period` tùy cấu hình — xem Open Question).
+- Cập nhật **tự động** ngay khi 1 evaluation của employee đó đạt `PUBLISHED` (mục 14) — không đợi HR tính tay.
+- Nếu employee đổi `job_level` hoặc HR đổi `review_cadence_override_id` → `next_review_due_date` **tính lại ngay** theo cadence mới, dựa trên `last_evaluation_completed_at` cũ (không reset về hôm nay) — xem Open Question về "grandfathering".
+
+### Review Due Dashboard & trigger tạo evaluation
+```mermaid
+sequenceDiagram
+    actor HR as HR/Admin hoặc Manager
+    participant FE as Frontend (Review Due Dashboard)
+    participant SchedSvc as Scheduling Service
+    participant EvalSvc as Evaluation Service
+    participant DB
+
+    Note over SchedSvc,DB: Scheduled job (daily) — KHÔNG tự tạo evaluation, chỉ tính due date
+    SchedSvc->>DB: query employee WHERE next_review_due_date <= today + lead_time_days
+    SchedSvc->>DB: cập nhật flag "is_due"/"is_overdue" cho dashboard (read-model)
+
+    HR->>FE: Mở "Review Due Dashboard"
+    FE->>SchedSvc: GET /reviews/due?status=due|overdue|upcoming
+    SchedSvc-->>FE: danh sách employee kèm effective_cadence, next_review_due_date, số ngày quá hạn
+
+    HR->>FE: Chọn 1 hoặc nhiều employee đang due, click "Tạo Evaluation"
+    FE->>EvalSvc: POST /evaluation-cycles/individual { employee_ids[], template_version_id }
+    EvalSvc->>DB: kiểm tra employee có evaluation nào đang OPEN/IN_PROGRESS không (chống trùng)
+    alt Đã có evaluation đang mở cho employee này
+        EvalSvc-->>FE: 409 EVALUATION_ALREADY_OPEN (bỏ qua employee đó, báo rõ)
+    else Chưa có
+        EvalSvc->>DB: tạo evaluation_cycle (cycle_type=INDIVIDUAL_SCHEDULED, applicable = đúng 1 employee)
+        Note over EvalSvc,DB: Tái sử dụng 100% logic "Open Cycle" (mục 3) — snapshot template, sinh evaluation + evaluation_item
+        EvalSvc->>DB: audit_log(action=INDIVIDUAL_CYCLE_CREATED, triggered_by=HR/Manager)
+        EvalSvc-->>FE: evaluation mới tạo, status=OPEN
+    end
+```
+
+### Chống trùng lặp (dedup) với Batch Cycle
+- Trước khi tạo `INDIVIDUAL_SCHEDULED` cycle cho 1 employee, hệ thống kiểm tra: **có Batch Cycle nào sắp mở (trong vòng N tuần tới, N configurable) đã bao gồm employee này không?** Nếu có → cảnh báo HR "Nhân viên này sẽ được đánh giá trong cycle {code} vào {ngày}, có chắc muốn tạo review riêng không?" thay vì tự động chặn — quyết định cuối vẫn thuộc HR.
+- Ràng buộc DB: `evaluation` unique theo `(evaluation_cycle_id, employee_id)` (đã có) — nhưng **không** ràng buộc unique toàn cục "1 employee chỉ có 1 evaluation đang mở tại 1 thời điểm" ở mức DB, vì có thể có nhu cầu hợp lệ hiếm gặp (vd vừa có review định kỳ vừa có review đột xuất do sự kiện đặc biệt) — validate ở service layer (soft warning), không chặn cứng bằng DB constraint.
+
+### API bổ sung (mục 16)
+| Method | Endpoint | Auth | Note |
+|---|---|---|---|
+| GET/POST | `/review-cadences` | HR/Admin | quản lý danh mục cadence |
+| PATCH | `/job-levels/{id}/default-review-cadence` | HR/Admin | set cadence mặc định theo job level |
+| PATCH | `/employees/{id}/review-cadence-override` | HR/Admin | override cá nhân, reason khuyến nghị (audit) |
+| GET | `/reviews/due` | HR/Admin, Manager (scope team) | dashboard: due / overdue / upcoming, filter theo team/cadence |
+| POST | `/evaluation-cycles/individual` | HR/Admin, Manager (team mình) | tạo evaluation riêng cho 1+ employee đang due, tái sử dụng logic Open Cycle |
+
+### Business rules bổ sung
+- **Rule 9:** `next_review_due_date` **luôn** tính lại từ `last_evaluation_completed_at` thực tế (không phải ngày dự kiến ban đầu) — tránh trôi lịch (schedule drift) nếu 1 kỳ review bị trễ hoặc làm sớm hơn dự kiến.
+- **Rule 10:** Đổi `review_cadence_override_id` hoặc `job_level` của 1 employee **phải ghi audit_log** (old/new cadence, reason nếu có) — cùng cơ chế audit đã có (mục 18).
+- **Rule 11:** Employee với `employment_status ∈ {INACTIVE, TERMINATED}` **loại khỏi** Review Due Dashboard — không tính due date cho nhân viên đã nghỉ.
+
+---
+
 ## 15. CSV Import Design
 
 ### Đánh giá CSV template đề xuất trong prompt gốc
@@ -865,6 +919,15 @@ sequenceDiagram
 | POST | `/calibration-sessions/{id}/adjustments` | HR/Admin (reason bắt buộc) |
 | POST | `/calibration-sessions/{id}/finalize` | HR/Admin |
 
+### Review Cadence & Scheduling (✅ mới — chi tiết ở mục 14.1)
+| Method | Endpoint | Auth | Note |
+|---|---|---|---|
+| GET/POST | `/review-cadences` | HR/Admin | quản lý danh mục cadence (2 tháng/6 tháng/1 năm...) |
+| PATCH | `/job-levels/{id}/default-review-cadence` | HR/Admin | cadence mặc định theo job level |
+| PATCH | `/employees/{id}/review-cadence-override` | HR/Admin | override cá nhân |
+| GET | `/reviews/due` | HR/Admin, Manager (scope team) | dashboard due/overdue/upcoming |
+| POST | `/evaluation-cycles/individual` | HR/Admin, Manager (team mình) | tạo evaluation riêng cho 1+ employee đang due |
+
 ### CSV Import
 | Method | Endpoint | Auth |
 |---|---|---|
@@ -915,6 +978,10 @@ sequenceDiagram
 | CSV Import | ❌ | ❌ | ✅ | ❌ |
 | Calibration | ❌ | ❌ | ✅ | ❌ |
 | Adjust score (override) | ❌ | ✅ (team mình, có reason) | ✅ | ❌ |
+| Cấu hình Review Cadence (danh mục, job level default) | ❌ | ❌ | ✅ | ❌ |
+| Override cadence cá nhân 1 nhân viên | ❌ | ❌ | ✅ | ❌ |
+| Xem Review Due Dashboard | ❌ | ✅ (team mình) | ✅ (toàn org) | ❌ |
+| Tạo Individual Evaluation (từ dashboard) | ❌ | ✅ (team mình) | ✅ | ❌ |
 | Xem report team | ❌ | ✅ (team mình) | ✅ | ✅ |
 | Xem report toàn org | ❌ | ❌ | ✅ | ✅ |
 | Xem audit log | ❌ | ❌ | ✅ (business scope) | ✅ (toàn bộ) |
@@ -943,7 +1010,7 @@ flowchart LR
 ## 18. Audit & Versioning
 
 ### Audit event model
-Mọi hành động **thay đổi weight, score, level, rule, hoặc quyết định approve/reject/adjust** đều ghi vào `audit_log` (mục 10.7), **được trigger tự động từ application layer (transactional cùng với write nghiệp vụ)**, không phụ thuộc client gọi API audit riêng — tránh trường hợp quên ghi log.
+Mọi hành động **thay đổi weight, score, level, rule, review cadence, hoặc quyết định approve/reject/adjust** đều ghi vào `audit_log` (mục 10.7), **được trigger tự động từ application layer (transactional cùng với write nghiệp vụ)**, không phụ thuộc client gọi API audit riêng — tránh trường hợp quên ghi log.
 
 `audit_log` **không có API update/delete** — chỉ có `POST` (nội bộ) và `GET` (System Admin/HR). Ở DB, revoke quyền `UPDATE`/`DELETE` trên bảng này khỏi application role, chỉ cấp `INSERT`/`SELECT`.
 
@@ -1006,6 +1073,8 @@ Mọi hành động **thay đổi weight, score, level, rule, hoặc quyết đ�
 | Evaluation Cycle Management | Tạo cycle, chọn template, mở/đóng/lock | Open/Lock cycle | HR/Admin |
 | CSV Template Management | Xem/tạo version CSV template | Publish version | HR/Admin |
 | Import Center | Upload, xem preview lỗi, confirm import, lịch sử | Upload/Confirm | HR/Admin |
+| **Review Cadence Management** *(mới)* | Quản lý danh mục cadence (2/6/12 tháng...), set default theo job level | Create/edit cadence, gán default job level | HR/Admin |
+| **Review Due Dashboard** *(mới)* | Danh sách nhân viên due/overdue/upcoming review | Filter, tạo Individual Evaluation hàng loạt | HR/Admin, Manager (team mình) |
 | Audit Log | Tìm kiếm log theo entity/user/thời gian | View (read-only) | HR/Admin, System Admin |
 
 ### Manager
@@ -1016,6 +1085,7 @@ Mọi hành động **thay đổi weight, score, level, rule, hoặc quyết đ�
 | Evidence Review | Xem evidence, link PR/report | Manager |
 | Calibration (view) | Xem distribution team mình trong phiên calibration | Manager (read) |
 | Submit/Approve | Submit sau khi hoàn tất | Manager |
+| **Review Due (team mình)** *(mới)* | Xem nhân viên trong team sắp/đã đến hạn review, tạo review riêng | Manager (team mình) |
 
 ### Employee
 | Screen | Purpose | Permission |
@@ -1228,6 +1298,8 @@ flowchart LR
 8. **Employee đổi team/role giữa cycle** — snapshot tại thời điểm tạo evaluation (đầu cycle). **Đã chốt với HR** (xem mục 30, Q1) — rủi ro còn lại chỉ là communication: cần thông báo rõ cho Manager mới biết họ **không** đánh giá nhân viên vừa chuyển đến giữa chừng cycle hiện tại.
 9. **Import file lớn (>10,000 rows)** có thể cần streaming parser thay vì load toàn bộ vào memory — cần benchmark thực tế trước khi go-live.
 10. **Audit log & evaluation lịch sử — ✅ đã chốt retention = 2 năm.** Cần implement archive job (chuyển dữ liệu >2 năm sang cold storage, không xóa hẳn — vẫn giữ được cho mục đích tuân thủ nếu cần) chạy định kỳ; cân nhắc partition bảng `audit_log` theo tháng/quý để archive job không phải quét full table.
+11. **[MỚI] Review Cadence trùng lịch với Batch Cycle** — nếu HR vừa mở batch cycle "2026 H2" vừa có nhiều employee đến hạn individual review cùng lúc, có thể tạo ra 2 evaluation gần nhau cho cùng 1 người gây khó chịu cho nhân viên/manager. Đã có cảnh báo dedup (mục 14.1) nhưng vẫn phụ thuộc HR chủ động xử lý đúng, không tự động ngăn hoàn toàn.
+12. **[MỚI] `next_review_due_date` tính sai nếu quên cập nhật `last_evaluation_completed_at`** khi có luồng ghi điểm ngoài quy trình chuẩn (vd import CSV tạo thẳng evaluation đã PUBLISHED cho dữ liệu lịch sử/migration) — cần đảm bảo mọi đường dẫn khiến evaluation đạt PUBLISHED đều chạy qua cùng 1 hàm cập nhật due-date, không rải rác nhiều nơi.
 
 ---
 
@@ -1243,6 +1315,9 @@ flowchart LR
 8. Evidence bắt buộc hay optional — mức độ enforce khác nhau theo criterion nào?
 9. Ai có quyền approve cuối cùng — Manager cấp trên hay luôn là HR? (ảnh hưởng trực tiếp `workflow_definition`)
 10. Thời gian retention của audit log & evaluation lịch sử (bao nhiêu năm) — ảnh hưởng chiến lược archive (Risk #10).
+11. **[MỚI] Review cadence mặc định theo job level cụ thể là gì?** — vd Junior/Probation = 2 tháng, Middle/Senior = 6 tháng, Lead/Principal = 12 tháng? Cần HR xác nhận bảng mapping cụ thể trước khi seed data.
+12. **[MỚI] Nhân viên mới join (chưa từng được đánh giá) — due ngay từ ngày join, hay có grace period (vd sau 1 tháng thử việc mới tính due)?**
+13. **[MỚI] Khi đổi cadence (vd thăng chức đổi job level), `next_review_due_date` có nên "grandfather" (giữ nguyên lịch cũ đến hết chu kỳ hiện tại) hay tính lại ngay theo cadence mới?**
 
 ---
 
@@ -1260,6 +1335,10 @@ flowchart LR
 | 8 | Approval cuối cùng do ai? | Configurable theo `workflow_definition`, mặc định HR | HR |
 | 9 | Retention audit log bao lâu? | **✅ Đã chốt: 2 năm**, sau đó archive (cold storage, không xóa hẳn) | Compliance/HR |
 | 10 | Ranking có hiển thị không? | **✅ Đã chốt: Không**, cho bất kỳ role nào, kể cả ẩn danh | HR |
+| 11 | **[MỚI]** Cadence mặc định cụ thể theo từng job level? | Đề xuất tạm: Probation/Junior=2 tháng, Middle/Senior=6 tháng, Lead+=12 tháng — **cần HR xác nhận** | HR |
+| 12 | **[MỚI]** Nhân viên mới có grace period trước khi tính due không? | Đề xuất tạm: due ngay từ `join_date`, chưa có grace period riêng | HR |
+| 13 | **[MỚI]** Đổi cadence giữa chừng — grandfather hay tính lại ngay? | Đề xuất tạm: tính lại ngay (đơn giản hơn, nhất quán logic snapshot-driven-by-actual-completion) | HR |
+| 14 | **[MỚI]** MVP có tự động tạo evaluation khi due, hay bắt buộc HR/Manager bấm xác nhận? | Đề xuất tạm: bán tự động — chỉ dashboard + nút xác nhận, auto-create để Phase 2 | Product Owner |
 
 ---
 
@@ -1330,8 +1409,19 @@ Security review, performance test (import lớn, concurrent), UAT với 18 KPI m
 | 7 | Retention audit log & evaluation lịch sử: **2 năm**, sau đó archive | Mục 18 (mới: Retention Policy), 28 (Risk #10), 30 (Q9) |
 | 8 | **[MỚI] Google Workspace SSO** — login/register giới hạn theo domain công ty, không còn email+password | Mục 9 (ERD), 10.8 (mới: `user_account`), 16 (auth endpoints), 21 (Security), 27 (Tech stack) |
 
-> **Lưu ý:** thay đổi #2 (weight = 100% mới publish template, mục 11/16/20) **vẫn giữ nguyên như bản gốc** — câu trả lời ban đầu về "publish ngay tại lúc tính" thực chất áp dụng cho **luồng publish kết quả evaluation cho nhân viên** (workflow APPROVED→PUBLISHED, mục 14), không phải cho luồng publish Template. Business Decision #2 (mục 29) và Open Question #4 (mục 30) về weight validation **vẫn còn open**, chưa có xác nhận riêng.
+## Changelog v1.2 → v1.3
+
+| # | Thay đổi | Vị trí |
+|---|---|---|
+| 9 | **[MỚI] Review Cadence & Scheduling** — chu kỳ đánh giá riêng theo từng nhân viên (vd 2 tháng/6 tháng/1 năm), thay vì chỉ có 1 nhịp batch cycle chung cho tất cả | Mục 5 (Feature Breakdown), 6, 9 (ERD), 10.1 (bảng `review_cadence` + cột mới trên `employee`/`job_level`), 10.3 (`cycle_type` trên `evaluation_cycle`), **14.1 (mới — thiết kế đầy đủ)**, 16 (API), 17 (RBAC), 18 (audit), 20 (2 màn hình mới: Review Cadence Management, Review Due Dashboard), 28 (Risk #11-12), 29 (Decision #11-13), 30 (Open Question #11-14) |
+
+**Thiết kế cốt lõi của tính năng mới (tóm tắt):**
+- **Precedence 3 tầng** xác định cadence hiệu lực: `employee override` → `job_level default` → `system default` — resolve runtime (không denormalize như weight Criterion, vì đây là phép tính ngày rẻ và cần phản ánh thay đổi ngay).
+- **`next_review_due_date`** tự động tính lại mỗi khi 1 evaluation đạt `PUBLISHED`, dựa trên `last_evaluation_completed_at` thực tế (chống schedule drift).
+- **Tái sử dụng 100%** logic "Open Cycle" đã có — chỉ thêm `cycle_type = INDIVIDUAL_SCHEDULED` để phân biệt cycle cá nhân (1 employee) với batch cycle (nhiều employee).
+- **MVP = bán tự động:** hệ thống chỉ tính due-date + hiển thị Review Due Dashboard; HR/Manager phải chủ động bấm "Tạo Evaluation". Full-auto (tự tạo, tự gửi thông báo) để Phase 2 — tránh review "từ trên trời rơi xuống" gây bất ngờ cho nhân viên.
+- **4 câu hỏi mở quan trọng cần HR chốt trước khi implement:** cadence mặc định cụ thể theo job level, grace period cho nhân viên mới, grandfather hay recalculate khi đổi cadence, và mức độ tự động hóa ở MVP (xem mục 29 #11-13, mục 30 #11-14).
 
 ---
 
-*Hết tài liệu — v1.2.*
+*Hết tài liệu — v1.3.*

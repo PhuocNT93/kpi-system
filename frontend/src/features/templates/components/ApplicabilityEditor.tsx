@@ -1,5 +1,5 @@
 import { useJobRolesQuery, useTeamsQuery } from '../api/use-templates';
-import { MOCK_ROLES, MOCK_TEAMS } from '../api/template-api';
+import { MOCK_TEAMS } from '../api/template-api';
 
 interface ApplicabilityEditorProps {
   applicableRoleIds: string[];
@@ -17,7 +17,7 @@ export function ApplicabilityEditor({
   const rolesQuery = useJobRolesQuery();
   const teamsQuery = useTeamsQuery();
 
-  const roles = rolesQuery.data?.length ? rolesQuery.data : MOCK_ROLES;
+  const roles = rolesQuery.data || [];
   const teams = teamsQuery.data?.length ? teamsQuery.data : MOCK_TEAMS;
 
   const toggleRole = (roleId: string) => {
@@ -96,6 +96,11 @@ export function ApplicabilityEditor({
           )}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+          {rolesQuery.isLoading && <div style={{ fontSize: '0.8125rem', color: '#6b7280' }}>Loading roles...</div>}
+          {rolesQuery.isError && <div role="alert" style={{ fontSize: '0.8125rem', color: '#b91c1c' }}>Unable to load job roles.</div>}
+          {!rolesQuery.isLoading && !rolesQuery.isError && roles.length === 0 && (
+            <div style={{ fontSize: '0.8125rem', color: '#6b7280' }}>No job roles configured.</div>
+          )}
           {roles.map((r) => {
             const isChecked = applicableRoleIds.includes(r.id) || applicableRoleIds.includes(r.code);
             return (

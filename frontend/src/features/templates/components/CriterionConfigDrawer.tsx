@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { TemplateCriterion, EvaluationLevel, ScoringRule } from '../domain/template-models';
+import { createDefaultRuleConfig } from '../domain/rule-config';
+import { useJobRolesQuery } from '../api/use-templates';
 import { ApplicabilityEditor } from './ApplicabilityEditor';
 import { LevelEditor } from './LevelEditor';
 import { ScoringRuleEditors } from './ScoringRuleEditors';
@@ -21,25 +23,25 @@ export function CriterionConfigDrawer({
   onSave,
   isReadOnly = false,
 }: CriterionConfigDrawerProps) {
-  if (!isOpen || !criterionItem) return null;
+  const rolesQuery = useJobRolesQuery();
 
-  const [weight, setWeight] = useState<number>(criterionItem.effectiveWeight);
-  const [isOptional, setIsOptional] = useState<boolean>(criterionItem.isOptional);
+  const [weight, setWeight] = useState<number>(criterionItem?.effectiveWeight ?? 0);
+  const [isOptional, setIsOptional] = useState<boolean>(criterionItem?.isOptional ?? false);
   const [applicableRoleIds, setApplicableRoleIds] = useState<string[]>(
-    criterionItem.applicableRoleIds || []
+    criterionItem?.applicableRoleIds || []
   );
   const [applicableTeamIds, setApplicableTeamIds] = useState<string[]>(
-    criterionItem.applicableTeamIds || []
+    criterionItem?.applicableTeamIds || []
   );
 
   const [customRule, setCustomRule] = useState<ScoringRule>(
-    criterionItem.customScoringRule ||
-      criterionItem.criterion.currentVersion?.scoringRule || {
+    criterionItem?.customScoringRule ||
+      criterionItem?.criterion.currentVersion?.scoringRule || {
         id: `rule-${Date.now()}`,
         code: 'RANGE_RULE',
         name: 'Range Threshold',
         ruleType: 'RANGE_THRESHOLD',
-        config: {},
+        config: createDefaultRuleConfig('RANGE_THRESHOLD'),
         status: 'ACTIVE',
         version: 1,
       }
@@ -56,6 +58,28 @@ export function CriterionConfigDrawer({
   const [activeTab, setActiveTab] = useState<'general' | 'applicability' | 'scoring' | 'levels'>(
     'general'
   );
+
+  useEffect(() => {
+    if (!criterionItem) return;
+    setWeight(criterionItem.effectiveWeight);
+    setIsOptional(criterionItem.isOptional);
+    setApplicableRoleIds(criterionItem.applicableRoleIds || []);
+    setApplicableTeamIds(criterionItem.applicableTeamIds || []);
+    setCustomRule(
+      criterionItem.customScoringRule ||
+        criterionItem.criterion.currentVersion?.scoringRule || {
+          id: `rule-${Date.now()}`,
+          code: 'RANGE_RULE',
+          name: 'Range Threshold',
+          ruleType: 'RANGE_THRESHOLD',
+          config: createDefaultRuleConfig('RANGE_THRESHOLD'),
+          status: 'ACTIVE',
+          version: 1,
+        }
+    );
+  }, [criterionItem]);
+
+  if (!isOpen || !criterionItem) return null;
 
   const handleSave = () => {
     if (isReadOnly) return;
@@ -251,11 +275,19 @@ export function CriterionConfigDrawer({
           )}
 
           {activeTab === 'scoring' && (
-            <ScoringRuleEditors
-              rule={customRule}
-              onChange={setCustomRule}
-              isReadOnly={isReadOnly}
-            />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div role="status" style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, color: '#92400e', fontSize: '0.8125rem', padding: '0.625rem 0.75rem' }}>
+                Inline template scoring-rule overrides are configurable in this editor but require backend schema support before they can persist through template draft save.
+              </div>
+              <ScoringRuleEditors
+                rule={customRule}
+                onChange={setCustomRule}
+                isReadOnly={isReadOnly}
+                roleOptions={rolesQuery.data || []}
+                isRoleOptionsLoading={rolesQuery.isLoading}
+                roleOptionsError={rolesQuery.error}
+              />
+            </div>
           )}
 
           {activeTab === 'levels' && (

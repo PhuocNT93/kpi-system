@@ -61,7 +61,7 @@ export enum AuditAction {
 
 export interface RangeThresholdBucket {
   min: number;
-  max: number;
+  max: number | null;
   level: number;
 }
 
@@ -70,41 +70,29 @@ export interface RangeThresholdConfig {
   ranges: RangeThresholdBucket[];
 }
 
-export interface InverseThresholdBucket {
-  max_incidents: number;
-  level: number;
-}
-
 export interface InverseThresholdConfig {
   type: ScoringRuleType.INVERSE_THRESHOLD;
-  thresholds: InverseThresholdBucket[];
-}
-
-export interface CountThresholdBucket {
-  min_count: number;
-  max_count?: number;
-  level: number;
+  ranges: RangeThresholdBucket[];
 }
 
 export interface CountThresholdConfig {
   type: ScoringRuleType.COUNT_THRESHOLD;
-  counts: CountThresholdBucket[];
+  thresholds: number[];
 }
 
 export interface OrdinalManualConfig {
   type: ScoringRuleType.ORDINAL_MANUAL;
-  allowed_levels: number[];
+  level_labels?: Record<string, string>;
 }
 
 export interface RoleConditionalRuleMapping {
   role_code: string;
-  scoring_rule_id: string;
+  rule: RangeThresholdConfig | InverseThresholdConfig | CountThresholdConfig | OrdinalManualConfig;
 }
 
 export interface RoleConditionalConfig {
   type: ScoringRuleType.ROLE_CONDITIONAL;
-  conditions: RoleConditionalRuleMapping[];
-  default_scoring_rule_id?: string;
+  branches: RoleConditionalRuleMapping[];
 }
 
 export type ScoringRuleConfig =
