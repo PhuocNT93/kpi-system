@@ -181,6 +181,56 @@ export class EvaluationCycleService {
     });
   }
 
+  public async transitionCycle(
+    id: string,
+    targetStatus: EvaluationCycleStatus,
+    actorEmployeeId: string | null
+  ): Promise<EvaluationCycle> {
+    if (targetStatus === EvaluationCycleStatus.LOCKED) {
+      return this.lockCycle(id, actorEmployeeId);
+    }
+
+    return withTransaction(this.pool, async (client: any) => {
+      const dbClient = client as PoolClient;
+      const validActorEmployeeId = await this.resolveValidEmployeeId(dbClient, actorEmployeeId);
+
+      const cycle = await this.cycleRepo.findByIdForUpdate(id, dbClient);
+      if (!cycle) {
+        throw new NotFound('EvaluationCycle');
+      }
+
+      if (cycle.status === EvaluationCycleStatus.LOCKED) {
+        throw new Conflict(
+          'Evaluation cycle is already locked and cannot be transitioned.',
+          EvaluationCycleErrorCodes.INVALID_CYCLE_STATE_TRANSITION
+        );
+      }
+
+      this.transitionService.validateTransition(cycle.status, targetStatus);
+
+      cycle.status = targetStatus;
+      cycle.updatedBy = validActorEmployeeId;
+      if (targetStatus === EvaluationCycleStatus.APPROVED) {
+        cycle.approvedBy = validActorEmployeeId;
+      }
+
+      const updated = await this.cycleRepo.update(cycle, client);
+
+      if (this.auditService) {
+        await this.auditService.record(client as any, {
+          entityType: 'EVALUATION_CYCLE',
+          entityId: updated.evaluationCycleId,
+          action: 'TRANSITION',
+          newValue: JSON.stringify({ status: targetStatus, updated_by: validActorEmployeeId }),
+          performedBy: validActorEmployeeId,
+          source: 'API',
+        });
+      }
+
+      return updated;
+    });
+  }
+
   public async lockCycle(id: string, actorEmployeeId: string | null): Promise<EvaluationCycle> {
     return withTransaction(this.pool, async (client: any) => {
       const dbClient = client as PoolClient;

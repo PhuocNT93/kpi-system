@@ -60,6 +60,57 @@ export class PostgresEvaluationRepository implements IEvaluationRepository {
     }));
   }
 
+  async findTeamEvaluations(params: { managerEmployeeId?: string; isSuperAdminOrHr?: boolean }, client?: PoolClient): Promise<any[]> {
+    const runner = client || this.pool;
+    let query = `
+      SELECT e.*,
+             c.name as cycle_name,
+             c.start_date as cycle_start_date,
+             c.end_date as cycle_end_date,
+             c.status as cycle_status,
+             emp.full_name as employee_name,
+             emp.employee_code as employee_code,
+             emp.email as employee_email,
+             t.name as team_name,
+             r.name as role_name
+      FROM evaluation e
+      JOIN evaluation_cycle c ON e.evaluation_cycle_id = c.evaluation_cycle_id
+      JOIN employee emp ON e.employee_id = emp.employee_id
+      LEFT JOIN team t ON e.team_id_snapshot = t.team_id
+      LEFT JOIN role r ON e.role_id_snapshot = r.role_id
+    `;
+    const queryParams: any[] = [];
+
+    if (!params.isSuperAdminOrHr) {
+      if (!params.managerEmployeeId) {
+        return [];
+      }
+      query += ` WHERE (e.manager_id_snapshot = $1 OR emp.manager_id = $1)`;
+      queryParams.push(params.managerEmployeeId);
+    }
+
+    query += ` ORDER BY c.end_date DESC, emp.full_name ASC`;
+
+    const res = await runner.query(query, queryParams);
+    return res.rows.map(row => ({
+      evaluation: this.mapRow(row),
+      employee: {
+        employee_id: row.employee_id,
+        full_name: row.employee_name,
+        employee_code: row.employee_code,
+        email: row.employee_email,
+        team_name: row.team_name,
+        role_name: row.role_name,
+      },
+      cycle: {
+        name: row.cycle_name,
+        start_date: row.cycle_start_date,
+        end_date: row.cycle_end_date,
+        status: row.cycle_status,
+      }
+    }));
+  }
+
   async update(id: string, evaluation: Partial<Evaluation>, client?: PoolClient): Promise<Evaluation> {
     const runner = client || this.pool;
     const fields: string[] = [];

@@ -47,6 +47,12 @@ export const ListEvaluationCycleQuerySchema = z.object({
 
 export type ListEvaluationCycleQueryInput = z.infer<typeof ListEvaluationCycleQuerySchema>;
 
+export const TransitionEvaluationCycleSchema = z.object({
+  target_status: z.nativeEnum(EvaluationCycleStatus),
+});
+
+export type TransitionEvaluationCycleInput = z.infer<typeof TransitionEvaluationCycleSchema>;
+
 export interface EvaluationCycleResponse {
   id: string;
   code: string;

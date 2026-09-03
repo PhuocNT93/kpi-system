@@ -1,111 +1,197 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 import { evaluationApi } from '../api/evaluation-api';
+import { EvaluationStatus } from '../domain/evaluation-models';
+import { ActiveEvaluationCard } from '../components/ActiveEvaluationCard';
+import { EvaluationHistoryTable } from '../components/EvaluationHistoryTable';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
-import { LayoutTemplate, Calendar, ArrowRight } from 'lucide-react';
-import type { MyEvaluation } from '../domain/evaluation-models';
-import { EvaluationStatus } from '../domain/evaluation-models';
+import { LayoutTemplate, AlertCircle, RefreshCw, History } from 'lucide-react';
 
 export function MyEvaluationPage() {
-  const navigate = useNavigate();
-  const { data: evaluations = [], isLoading } = useQuery({
+  const {
+    data: evaluations = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['my-evaluations'],
     queryFn: evaluationApi.getMyEvaluations,
   });
 
+  // Split into active evaluation and past/history evaluations
+  const { activeEvaluation, pastEvaluations } = useMemo(() => {
+    if (!evaluations || evaluations.length === 0) {
+      return { activeEvaluation: null, pastEvaluations: [] };
+    }
+
+    // Find the first open/active evaluation, or the latest evaluation
+    const active = evaluations.find(
+      (e) =>
+        e.evaluation.status === EvaluationStatus.OPEN ||
+        (e.evaluation.status as any) === 'SELF_ASSESSMENT'
+    ) || evaluations[0];
+
+    const past = evaluations.filter(
+      (e) => e.evaluation.evaluation_id !== active?.evaluation.evaluation_id
+    );
+
+    return { activeEvaluation: active, pastEvaluations: past };
+  }, [evaluations]);
+
+  // Loading State
   if (isLoading) {
-    return <div style={{ padding: '24px' }}>Loading evaluations...</div>;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', padding: '24px' }}>
+        <div>
+          <div style={{ width: '240px', height: '32px', backgroundColor: COLORS.neutral[200], borderRadius: RADII.md, marginBottom: '8px' }} />
+          <div style={{ width: '380px', height: '18px', backgroundColor: COLORS.neutral[200], borderRadius: RADII.sm }} />
+        </div>
+
+        <div
+          style={{
+            height: '220px',
+            backgroundColor: COLORS.neutral.white,
+            borderRadius: RADII['2xl'],
+            border: `1px solid ${COLORS.neutral[200]}`,
+            padding: '24px',
+          }}
+        >
+          <div style={{ width: '180px', height: '24px', backgroundColor: COLORS.neutral[200], borderRadius: RADII.sm, marginBottom: '16px' }} />
+          <div style={{ width: '100%', height: '40px', backgroundColor: COLORS.neutral[100], borderRadius: RADII.md, marginBottom: '16px' }} />
+          <div style={{ width: '120px', height: '36px', backgroundColor: COLORS.neutral[200], borderRadius: RADII.md, marginLeft: 'auto' }} />
+        </div>
+      </div>
+    );
   }
 
-  const getStatusColor = (status: EvaluationStatus) => {
-    switch (status) {
-      case EvaluationStatus.OPEN: return (COLORS.semantic as any).success.DEFAULT;
-      case EvaluationStatus.SUBMITTED: return (COLORS.semantic as any).warning.DEFAULT;
-      case EvaluationStatus.MANAGER_REVIEW: return COLORS.primary.DEFAULT;
-      case EvaluationStatus.APPROVED: return (COLORS.semantic as any).success[700];
-      default: return COLORS.neutral[500];
-    }
-  };
+  // Error State
+  if (isError) {
+    return (
+      <div style={{ padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '300px' }}>
+        <div
+          style={{
+            maxWidth: '480px',
+            width: '100%',
+            backgroundColor: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: RADII.xl,
+            padding: '24px',
+            textAlign: 'center',
+          }}
+        >
+          <AlertCircle size={40} color="#dc2626" style={{ margin: '0 auto 12px' }} />
+          <h3 style={{ margin: '0 0 8px', fontSize: TYPOGRAPHY.fontSize.lg, fontWeight: TYPOGRAPHY.fontWeight.bold, color: '#991b1b' }}>
+            Không thể tải dữ liệu đánh giá
+          </h3>
+          <p style={{ margin: '0 0 16px', fontSize: TYPOGRAPHY.fontSize.sm, color: '#7f1d1d' }}>
+            {(error as any)?.message || 'Đã có lỗi xảy ra khi kết nối máy chủ. Vui lòng thử lại.'}
+          </p>
+          <button
+            onClick={() => refetch()}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 16px',
+              borderRadius: RADII.lg,
+              backgroundColor: '#dc2626',
+              color: COLORS.neutral.white,
+              border: 'none',
+              fontSize: TYPOGRAPHY.fontSize.sm,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            <RefreshCw size={15} /> Thử lại
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Empty State
+  if (evaluations.length === 0) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', padding: '24px' }}>
+        <div>
+          <h1 style={{ margin: '0 0 8px 0', fontSize: TYPOGRAPHY.fontSize['2xl'], fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
+            My Evaluation
+          </h1>
+          <p style={{ margin: 0, color: COLORS.neutral.textSecondary, fontSize: TYPOGRAPHY.fontSize.sm }}>
+            Theo dõi và thực hiện tự đánh giá hiệu suất của bạn theo từng kỳ đánh giá.
+          </p>
+        </div>
+
+        <div
+          style={{
+            padding: '48px 24px',
+            textAlign: 'center',
+            backgroundColor: COLORS.neutral.white,
+            borderRadius: RADII['2xl'],
+            border: `1.5px dashed ${COLORS.neutral[300]}`,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '12px',
+          }}
+        >
+          <div
+            style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: RADII.full,
+              backgroundColor: COLORS.neutral[100],
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: COLORS.neutral[400],
+            }}
+          >
+            <LayoutTemplate size={28} />
+          </div>
+          <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.lg, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
+            Chưa có kỳ đánh giá nào
+          </h3>
+          <p style={{ margin: 0, color: COLORS.neutral.textSecondary, fontSize: TYPOGRAPHY.fontSize.sm, maxWidth: '420px', lineHeight: 1.5 }}>
+            Hiện tại bạn chưa được gán kỳ đánh giá nào. Khi Phòng Nhân sự (HR) hoặc Quản lý mở kỳ đánh giá mới, thông tin sẽ xuất hiện tại đây.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', padding: '24px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '28px', padding: '24px', maxWidth: '1200px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+      {/* Page Header */}
       <div>
-        <h1 style={{ margin: '0 0 8px 0', fontSize: TYPOGRAPHY.fontSize['2xl'], fontWeight: TYPOGRAPHY.fontWeight.bold }}>My Evaluations</h1>
-        <p style={{ margin: 0, color: COLORS.neutral.textSecondary }}>View and complete your self-evaluations for active cycles.</p>
+        <h1 style={{ margin: '0 0 8px 0', fontSize: TYPOGRAPHY.fontSize['2xl'], fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
+          My Evaluation
+        </h1>
+        <p style={{ margin: 0, color: COLORS.neutral.textSecondary, fontSize: TYPOGRAPHY.fontSize.sm }}>
+          Quản lý quá trình tự đánh giá hiệu suất, theo dõi tiến độ và xem kết quả chính thức của bạn.
+        </p>
       </div>
 
-      {evaluations.length === 0 ? (
-        <div style={{ padding: '48px', textAlign: 'center', backgroundColor: COLORS.neutral.white, borderRadius: RADII.xl, border: `1px solid ${COLORS.neutral[200]}` }}>
-          <LayoutTemplate size={48} color={COLORS.neutral[400]} style={{ margin: '0 auto 16px' }} />
-          <h3 style={{ margin: '0 0 8px', fontSize: TYPOGRAPHY.fontSize.lg, fontWeight: TYPOGRAPHY.fontWeight.semibold }}>No evaluations found</h3>
-          <p style={{ margin: 0, color: COLORS.neutral.textSecondary }}>You don't have any evaluations assigned to you at the moment.</p>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
-          {evaluations.map((item: MyEvaluation) => (
-            <div
-              key={item.evaluation.evaluation_id}
-              onClick={() => navigate(`/admin/my-evaluations/${item.evaluation.evaluation_id}`)}
-              style={{
-                backgroundColor: COLORS.neutral.white,
-                borderRadius: RADII.xl,
-                border: `1px solid ${COLORS.neutral[200]}`,
-                padding: '20px',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '16px',
-                position: 'relative',
-                overflow: 'hidden'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = COLORS.primary[300];
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = COLORS.neutral[200];
-                e.currentTarget.style.transform = 'none';
-                e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
-              }}
-            >
-              <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', backgroundColor: getStatusColor(item.evaluation.status) }} />
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <h3 style={{ margin: '0 0 4px 0', fontSize: TYPOGRAPHY.fontSize.lg, fontWeight: TYPOGRAPHY.fontWeight.semibold, color: COLORS.neutral.textPrimary }}>
-                    {item.cycle.name}
-                  </h3>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: COLORS.neutral.textSecondary, fontSize: TYPOGRAPHY.fontSize.sm }}>
-                    <Calendar size={14} />
-                    <span>{new Date(item.cycle.start_date).toLocaleDateString()} - {new Date(item.cycle.end_date).toLocaleDateString()}</span>
-                  </div>
-                </div>
-                <div style={{ 
-                  padding: '4px 10px', 
-                  borderRadius: RADII.full, 
-                  fontSize: TYPOGRAPHY.fontSize.xs, 
-                  fontWeight: TYPOGRAPHY.fontWeight.medium,
-                  backgroundColor: `${getStatusColor(item.evaluation.status)}15`,
-                  color: getStatusColor(item.evaluation.status)
-                }}>
-                  {item.evaluation.status}
-                </div>
-              </div>
-
-              <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: `1px solid ${COLORS.neutral[100]}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary }}>
-                  {item.evaluation.status === EvaluationStatus.OPEN ? 'Action required' : 'View details'}
-                </span>
-                <ArrowRight size={16} color={COLORS.primary.DEFAULT} />
-              </div>
-            </div>
-          ))}
-        </div>
+      {/* Active Evaluation Section */}
+      {activeEvaluation && (
+        <section>
+          <ActiveEvaluationCard evaluation={activeEvaluation} />
+        </section>
       )}
+
+      {/* Past Cycles & Evaluation History Section */}
+      <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <History size={18} color={COLORS.neutral[600]} />
+          <h2 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.lg, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
+            Lịch sử các kỳ đánh giá
+          </h2>
+        </div>
+
+        <EvaluationHistoryTable evaluations={pastEvaluations.length > 0 ? pastEvaluations : evaluations} />
+      </section>
     </div>
   );
 }

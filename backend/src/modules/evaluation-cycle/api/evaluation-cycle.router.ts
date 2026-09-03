@@ -38,6 +38,7 @@ export function createEvaluationCycleRouter(
   router.get('/evaluation-cycles/:id', requireAuthenticated, controller.getCycleById);
   router.patch('/evaluation-cycles/:id', requireHrAdmin, controller.updateDraftCycle);
   router.post('/evaluation-cycles/:id/open', requireHrAdmin, controller.openCycle);
+  router.post('/evaluation-cycles/:id/transition', requireHrAdmin, controller.transitionCycle);
   router.post('/evaluation-cycles/:id/lock', requireHrAdmin, controller.lockCycle);
   router.get('/evaluation-cycles/:id/opening-status', requireAuthenticated, controller.getOpeningStatus);
   router.get('/evaluation-cycles/:id/scope-preview', requireAuthenticated, controller.getScopePreview);

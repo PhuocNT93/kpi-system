@@ -46,6 +46,37 @@ export interface EvaluationItem {
   comment?: string;
 }
 
+export interface EmployeeSummary {
+  employee_id: string;
+  full_name: string;
+  employee_code: string;
+  email: string;
+  team_name?: string;
+  role_name?: string;
+}
+
+export interface TeamEvaluation {
+  evaluation: {
+    evaluation_id: string;
+    evaluation_cycle_id: string;
+    employee_id: string;
+    team_id_snapshot?: string;
+    role_id_snapshot?: string;
+    job_level_snapshot?: string;
+    manager_id_snapshot?: string;
+    status: EvaluationStatus;
+    self_score?: number;
+    manager_score?: number;
+    final_score?: number;
+    submitted_at?: string;
+    approved_at?: string;
+    is_locked: boolean;
+    created_at?: string;
+  };
+  employee: EmployeeSummary;
+  cycle: EvaluationCycle;
+}
+
 export interface EvaluationDetail {
   evaluation_id: string;
   evaluation_cycle_id: string;
@@ -55,5 +86,6 @@ export interface EvaluationDetail {
   manager_score?: number;
   final_score?: number;
   submitted_at?: string;
+  is_manager_reviewer?: boolean;
   items: EvaluationItem[];
 }
