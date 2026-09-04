@@ -161,6 +161,17 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
     },
   });
 
+  const recalculateMutation = useMutation({
+    mutationFn: () => evaluationApi.recalculateEvaluation(id!),
+    onSuccess: () => {
+      showToast('success', 'Đã tính lại điểm đánh giá thành công.');
+      queryClient.invalidateQueries({ queryKey: ['evaluation-detail', id] });
+    },
+    onError: (err: any) => {
+      showToast('error', err.message || 'Không thể tính lại điểm đánh giá.');
+    },
+  });
+
   // Level selection handler
   const handleLevelChange = (itemId: string, level: number) => {
     if (!isEditable) return;
@@ -428,6 +439,98 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
         managerScore={detail.manager_score}
         finalScore={detail.final_score}
       />
+
+      {isManagerMode && isEditable && !detail.is_locked && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            type="button"
+            onClick={() => recalculateMutation.mutate()}
+            disabled={recalculateMutation.isPending}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              borderRadius: RADII.lg,
+              backgroundColor: COLORS.primary[600],
+              color: COLORS.neutral.white,
+              border: 'none',
+              cursor: recalculateMutation.isPending ? 'wait' : 'pointer',
+              opacity: recalculateMutation.isPending ? 0.7 : 1,
+            }}
+          >
+            <RefreshCw size={15} />
+            {recalculateMutation.isPending ? 'Đang tính điểm...' : 'Tính lại điểm'}
+          </button>
+        </div>
+      )}
+
+      {detail.scoring_breakdown && (
+        <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} aria-label="Scoring breakdown">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <h2 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.lg, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
+              Kết quả tính điểm
+            </h2>
+            <div style={{ display: 'flex', gap: '20px', color: COLORS.neutral.textPrimary }}>
+              <strong>Overall: {detail.scoring_breakdown.overall_weighted_score}</strong>
+              <strong>Official: {detail.scoring_breakdown.official_score}</strong>
+            </div>
+          </div>
+
+          {detail.scoring_breakdown.kpi_results.map((kpiResult) => (
+            <article
+              key={kpiResult.kpi_id}
+              style={{
+                border: `1px solid ${COLORS.neutral[200]}`,
+                borderRadius: RADII.lg,
+                padding: '16px',
+                backgroundColor: COLORS.neutral.white,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <strong>{kpiResult.kpi_name}</strong>
+                <span>{kpiResult.is_na ? 'N/A' : `KPI score: ${kpiResult.normalized_score}`}</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '8px', fontSize: TYPOGRAPHY.fontSize.sm }}>
+                <span>KPI weight: {kpiResult.effective_weight}</span>
+                <span>Contribution: {kpiResult.weighted_contribution ?? 'N/A'}</span>
+                <span>Applicable weight: {kpiResult.applicable_weight}</span>
+              </div>
+              <div style={{ overflowX: 'auto', marginTop: '12px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: TYPOGRAPHY.fontSize.sm }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: 'left', padding: '6px' }}>Criterion</th>
+                      <th style={{ textAlign: 'left', padding: '6px' }}>Level</th>
+                      <th style={{ textAlign: 'left', padding: '6px' }}>Raw / max</th>
+                      <th style={{ textAlign: 'left', padding: '6px' }}>Normalized</th>
+                      <th style={{ textAlign: 'left', padding: '6px' }}>Weight</th>
+                      <th style={{ textAlign: 'left', padding: '6px' }}>Contribution</th>
+                      <th style={{ textAlign: 'left', padding: '6px' }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {kpiResult.criterion_results.map((criterionResult) => {
+                      const item = detail.items.find((candidate) => candidate.evaluation_item_id === criterionResult.criterion_id);
+                      return (
+                        <tr key={criterionResult.criterion_id}>
+                          <td style={{ padding: '6px' }}>{item?.criterion_name_snapshot ?? criterionResult.criterion_id}</td>
+                          <td style={{ padding: '6px' }}>{criterionResult.is_na ? 'N/A' : criterionResult.resolved_level ?? 'N/A'}</td>
+                          <td style={{ padding: '6px' }}>{criterionResult.is_na ? 'N/A' : `${criterionResult.raw_score} / ${criterionResult.max_score}`}</td>
+                          <td style={{ padding: '6px' }}>{criterionResult.normalized_score ?? 'N/A'}</td>
+                          <td style={{ padding: '6px' }}>{criterionResult.effective_weight}</td>
+                          <td style={{ padding: '6px' }}>{criterionResult.weighted_contribution ?? 'N/A'}</td>
+                          <td style={{ padding: '6px' }}>{criterionResult.is_disabled ? 'Not applicable' : criterionResult.is_na ? 'N/A' : 'Scored'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
 
       {/* Criteria Section */}
       <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>

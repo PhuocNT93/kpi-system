@@ -18,6 +18,7 @@ export class PostgresEvaluationRepository implements IEvaluationRepository {
       self_score: row.self_score ? Number(row.self_score) : undefined,
       manager_score: row.manager_score ? Number(row.manager_score) : undefined,
       final_score: row.final_score ? Number(row.final_score) : undefined,
+      scoring_breakdown: typeof row.scoring_breakdown === 'string' ? JSON.parse(row.scoring_breakdown) : row.scoring_breakdown,
       submitted_at: row.submitted_at ? new Date(row.submitted_at as string) : undefined,
       approved_at: row.approved_at ? new Date(row.approved_at as string) : undefined,
       is_locked: Boolean(row.is_locked),
@@ -25,12 +26,19 @@ export class PostgresEvaluationRepository implements IEvaluationRepository {
       updated_at: new Date(row.updated_at as string),
       created_by: row.created_by as string,
       updated_by: row.updated_by as string,
+      version: Number(row.version ?? 1),
     };
   }
 
   async findById(id: string, client?: PoolClient): Promise<Evaluation | null> {
     const runner = client || this.pool;
     const res = await runner.query('SELECT * FROM evaluation WHERE evaluation_id = $1', [id]);
+    if (res.rows.length === 0) return null;
+    return this.mapRow(res.rows[0]);
+  }
+
+  async findByIdForUpdate(id: string, client: PoolClient): Promise<Evaluation | null> {
+    const res = await client.query('SELECT * FROM evaluation WHERE evaluation_id = $1 FOR UPDATE', [id]);
     if (res.rows.length === 0) return null;
     return this.mapRow(res.rows[0]);
   }

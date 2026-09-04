@@ -76,6 +76,7 @@ export class EvaluationCycleOpeningService {
       // 4. Load template criteria & defensive weight check
       const tcRes = await client.query(
         `SELECT tc.template_criterion_id,
+          tc.template_kpi_id,
                 tc.evaluation_template_version_id,
                 tc.criterion_version_id,
                 tc.effective_weight,
@@ -83,11 +84,17 @@ export class EvaluationCycleOpeningService {
                 tc.applicable_team_ids,
                 tc.is_disabled,
                 tc.display_order,
+                tk.kpi_id,
+                tk.weight AS kpi_weight,
+                k.code AS kpi_code,
+                k.name AS kpi_name,
                 c.code AS criterion_code,
                 c.name AS criterion_name,
                 sr.rule_type,
                 sr.rule_config
          FROM template_criterion tc
+         JOIN template_kpi tk ON tc.template_kpi_id = tk.template_kpi_id
+         JOIN kpi k ON tk.kpi_id = k.kpi_id
          JOIN criterion_version cv ON tc.criterion_version_id = cv.criterion_version_id
          JOIN criterion c ON cv.criterion_id = c.criterion_id
          JOIN scoring_rule sr ON cv.scoring_rule_id = sr.scoring_rule_id
@@ -258,6 +265,10 @@ export class EvaluationCycleOpeningService {
             criterionCodeSnapshot: tc.criterion_code,
             criterionNameSnapshot: tc.criterion_name,
             weightSnapshot: parseFloat(tc.effective_weight),
+            kpiIdSnapshot: tc.kpi_id,
+            kpiCodeSnapshot: tc.kpi_code,
+            kpiNameSnapshot: tc.kpi_name,
+            kpiWeightSnapshot: parseFloat(tc.kpi_weight),
             scoringRuleSnapshot: {
               rule_type: tc.rule_type,
               rule_config: typeof tc.rule_config === 'string' ? JSON.parse(tc.rule_config) : tc.rule_config,
