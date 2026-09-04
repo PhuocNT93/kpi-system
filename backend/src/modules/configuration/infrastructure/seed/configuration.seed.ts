@@ -69,11 +69,12 @@ export async function seedConfigurationModule(pool: Pool): Promise<void> {
       rule_type: ScoringRuleType.INVERSE_THRESHOLD,
       config: {
         type: ScoringRuleType.INVERSE_THRESHOLD,
-        thresholds: [
-          { max_incidents: 0, level: 5 },
-          { max_incidents: 1, level: 4 },
-          { max_incidents: 2, level: 3 },
-          { max_incidents: 3, level: 2 },
+        // INVERSE_THRESHOLD uses the same 'ranges' shape as RANGE_THRESHOLD
+        ranges: [
+          { min: 0, max: 0, level: 5 },
+          { min: 1, max: 1, level: 4 },
+          { min: 2, max: 2, level: 3 },
+          { min: 3, max: null, level: 2 },
         ],
       },
     },
@@ -83,12 +84,9 @@ export async function seedConfigurationModule(pool: Pool): Promise<void> {
       rule_type: ScoringRuleType.COUNT_THRESHOLD,
       config: {
         type: ScoringRuleType.COUNT_THRESHOLD,
-        counts: [
-          { min_count: 0, max_count: 1, level: 1 },
-          { min_count: 2, max_count: 3, level: 2 },
-          { min_count: 4, max_count: 5, level: 3 },
-          { min_count: 6, level: 4 },
-        ],
+        // COUNT_THRESHOLD expects a numeric thresholds array (level boundaries)
+        // Buckets: 0-1 => level1, 2-3 => level2, 4-5 => level3, 6+ => level4
+        thresholds: [2, 4, 6],
       },
     },
     {
