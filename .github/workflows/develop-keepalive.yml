@@ -29,7 +29,9 @@ jobs:
             echo "DEVELOP_API_BASE_URL is not configured in GitHub Environment develop."
             exit 1
           fi
+          # Extract the base origin (e.g. https://api.example.com) from the URL
+          BASE_ORIGIN=$(echo "$DEVELOP_API_BASE_URL" | sed -E 's|(https?://[^/]+).*|\1|')
           curl --fail --silent --show-error --output /dev/null \
             --max-time 90 --retry 2 --retry-delay 15 --retry-connrefused \
-            "${DEVELOP_API_BASE_URL%/}/health/db"
+            "${BASE_ORIGIN}/health/db"
           echo "Develop API responded to the keep-alive probe."
