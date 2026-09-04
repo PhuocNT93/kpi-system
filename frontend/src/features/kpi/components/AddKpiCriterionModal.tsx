@@ -14,8 +14,7 @@ export function AddKpiCriterionModal({ kpiId, onClose }: Props) {
   const [weight, setWeight] = useState('10');
   
   const { data: criteriaResponse, isLoading, error } = useCriteriaQuery();
-  // @ts-ignore - criteria keys returns an array from api directly depending on how it's typed
-  const criteria = Array.isArray(criteriaResponse) ? criteriaResponse : (criteriaResponse?.items ?? []);
+  const criteria = criteriaResponse ?? [];
 
   const addMutation = useAddKpiCriterionMutation(kpiId);
 
