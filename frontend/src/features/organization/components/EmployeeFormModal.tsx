@@ -7,6 +7,7 @@ import { ErrorAlert } from '../../../shared/components/ui';
 import { Button } from '../../../shared/ui/Button/Button';
 import type { OrgEmployee } from '../domain/organization-models';
 import { useDepartments } from '../hooks/useDepartments';
+import { useTeams } from '../hooks/useTeams';
 import { useJobRoles } from '../hooks/useJobRoles';
 import { useJobLevels } from '../hooks/useJobLevels';
 
@@ -52,6 +53,7 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
   const updateMutation = useUpdateEmployee();
   
   const { data: departments } = useDepartments();
+  const { data: teams } = useTeams();
   const { data: roles } = useJobRoles();
   const { data: levels } = useJobLevels();
 
@@ -132,7 +134,7 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
 
   const selectedDeptId = watch('department_id');
   const teamsInDept = selectedDeptId 
-    ? departments?.find(d => d.id === selectedDeptId)?.teams ?? [] 
+    ? teams?.filter(t => t.departmentId === selectedDeptId) ?? [] 
     : [];
 
   if (!isOpen) return null;
@@ -302,7 +304,7 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
                   disabled={!selectedDeptId}
                 >
                   <option value="">-- No Team --</option>
-                  {teamsInDept.map(t => (
+                  {teamsInDept.map((t: any) => (
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
