@@ -59,7 +59,7 @@ export function AddKpiCriterionModal({ kpiId, onClose }: Props) {
                 style={{ padding: '0.5rem', borderRadius: 4, border: '1px solid #d1d5db' }}
               >
                 <option value="" disabled>-- Select a criterion --</option>
-                {criteria.map((c: any) => (
+                {criteria.map((c: { id: string; name: string }) => (
                   <option key={c.id} value={c.id}>{c.code} - {c.name}</option>
                 ))}
               </select>

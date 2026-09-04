@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '@/shared/auth/AuthContext';
+import { useAuth } from '@/shared/auth/auth-context';
 import {
   LayoutDashboard,
   Users,
@@ -338,3 +338,4 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </aside>
   );
 };
+

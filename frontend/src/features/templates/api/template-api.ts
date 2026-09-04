@@ -21,7 +21,7 @@ export const MOCK_TEAMS = [
 export async function fetchJobRoles(): Promise<Array<{ id: string; code: string; name: string }>> {
   const res = await getApi<unknown>('/api/org/roles');
   const items = Array.isArray(res) ? res : (res as { items?: unknown[] })?.items || (res as { data?: unknown[] })?.data || [];
-  return items.map((r: any) => {
+  return items.map((r: unknown) => {
     const role = r as { id?: string; role_id?: string; code?: string; name?: string };
     return {
       id: role.id || role.role_id || role.code || '',
@@ -36,7 +36,7 @@ export async function fetchTeams(): Promise<Array<{ id: string; code: string; na
     const res = await getApi<unknown>('/api/teams');
     const items = Array.isArray(res) ? res : (res as { teams?: unknown[] })?.teams || (res as { items?: unknown[] })?.items || (res as { data?: unknown[] })?.data || [];
     if (!items.length) return MOCK_TEAMS;
-    return items.map((t: any) => {
+    return items.map((t: unknown) => {
       const team = t as { id?: string; teamId?: string; team_id?: string; code?: string; name?: string };
       return {
         id: team.id || team.teamId || team.team_id || team.code || '',

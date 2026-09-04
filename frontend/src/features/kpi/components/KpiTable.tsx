@@ -20,7 +20,7 @@ export function KpiTable({ kpis, onEdit, onSelect, selectedKpiId, onDeleteSucces
       if (onDeleteSuccess) {
         onDeleteSuccess(id);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Failed to delete KPI');
     } finally {
       setConfirmDeleteId(null);

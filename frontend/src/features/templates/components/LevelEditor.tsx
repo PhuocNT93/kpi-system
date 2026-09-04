@@ -8,7 +8,7 @@ interface LevelEditorProps {
 }
 
 export function LevelEditor({ levels, onChange, isReadOnly = false }: LevelEditorProps) {
-  const handleUpdate = (index: number, field: keyof EvaluationLevel, value: any) => {
+  const handleUpdate = (index: number, field: keyof EvaluationLevel, value: string | number) => {
     if (isReadOnly) return;
     const updated = [...levels];
     updated[index] = { ...updated[index], [field]: value };

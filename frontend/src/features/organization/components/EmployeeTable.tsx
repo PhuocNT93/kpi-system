@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useEmployees } from '../hooks/useEmployees';
-import { useAuth } from '../../../shared/auth/AuthContext';
+import { useAuth } from '../../../shared/auth/auth-context';
 import { ErrorAlert, LoadingSpinner, EmptyState, StatusBadge } from '../../../shared/components/ui';
 import { Button } from '../../../shared/ui/Button/Button';
 import type { OrgEmployee } from '../domain/organization-models';
@@ -90,3 +90,4 @@ export function EmployeeTable() {
     </div>
   );
 }
+

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useDepartments } from '../hooks/useDepartments';
-import { useAuth } from '../../../shared/auth/AuthContext';
+import { useAuth } from '../../../shared/auth/auth-context';
 import { DepartmentFormModal } from './DepartmentFormModal';
 import { ErrorAlert, LoadingSpinner, EmptyState, StatusBadge } from '../../../shared/components/ui';
 import { Button } from '../../../shared/ui/Button/Button';
@@ -88,3 +88,4 @@ export function DepartmentTable() {
     </div>
   );
 }
+

@@ -108,7 +108,7 @@ export interface TemplateKpi {
   kpiId: string;
   weight: number;
   displayOrder: number;
-  kpi?: any; // To store KPI details if populated
+  kpi?: unknown; // To store KPI details if populated
   criteria?: TemplateCriterion[];
 }
 

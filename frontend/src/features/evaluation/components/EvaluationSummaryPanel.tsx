@@ -25,7 +25,7 @@ export const EvaluationSummaryPanel: React.FC<EvaluationSummaryPanelProps> = ({
   approvedAt,
   categoryBreakdown,
 }) => {
-  const isPublished = (status as any) === 'PUBLISHED';
+  const isPublished = (status as string) === 'PUBLISHED';
   const hasSelfScore = selfScore !== undefined && selfScore !== null;
   const hasManagerScore = isPublished && managerScore !== undefined && managerScore !== null;
   const hasFinalScore = isPublished && finalScore !== undefined && finalScore !== null;

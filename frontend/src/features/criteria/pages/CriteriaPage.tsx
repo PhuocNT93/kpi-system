@@ -13,7 +13,7 @@ export function CriteriaPage() {
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  const handleCreateSubmit = async (data: any) => {
+  const handleCreateSubmit = async (data: Record<string, unknown>) => {
     await createMutation.mutateAsync(data);
     setIsCreateModalOpen(false);
   };
