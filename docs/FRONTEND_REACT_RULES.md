@@ -94,3 +94,8 @@ Before merge, run TypeScript checking, linting, relevant tests, and a responsive
 Before editing frontend code, identify the user role, API contract, evaluation/workflow state, and error states affected. Reuse the typed API client and existing feature patterns.
 
 Never hard-code configurable business data, bypass backend actions with local state changes, expose data based only on hidden UI, or make historical snapshots look editable. Keep mutations narrow, invalidation deliberate, and visible behavior aligned with server responses.
+
+## 10. Code Quality & Linting
+- **No explicit `any`**: Do not use `any`. Use real types at API/domain boundaries, and `unknown` + narrowing elsewhere.
+- **No `eslint-disable`**: Do not use `eslint-disable` comments to bypass rules. Fix the underlying typing issues.
+- **Unused parameters**: Prefix intentionally unused parameters with `_`.
