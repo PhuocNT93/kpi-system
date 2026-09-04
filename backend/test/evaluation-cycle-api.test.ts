@@ -3,7 +3,7 @@ import { Pool } from 'pg';
 import { createDatabasePool } from '../src/shared/database/database.js';
 import { createEvaluationCycleModule, EvaluationCycleModule } from '../src/modules/evaluation-cycle/evaluation-cycle.module.js';
 import { createAuditModule, AuditModule } from '../src/modules/audit/audit.module.js';
-import { EvaluationCycleStatus, EvaluationStatus, EvaluationCycleErrorCodes } from '../src/modules/evaluation-cycle/domain/evaluation-cycle.types.js';
+import { EvaluationCycleStatus, EvaluationStatus } from '../src/modules/evaluation-cycle/domain/evaluation-cycle.types.js';
 import { AppError, Conflict } from '../src/api/app-error.js';
 
 const isDbAvailable = Boolean(process.env.DATABASE_URL);

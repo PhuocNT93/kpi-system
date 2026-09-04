@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { EvaluationService } from '../src/modules/evaluation/application/services/evaluation.service.js';
 import { EvaluationStatus } from '../src/modules/evaluation/domain/evaluation.types.js';
-import { AppError, NotFound } from '../src/api/app-error.js';
+import { AppError } from '../src/api/app-error.js';
 import { Actor } from '../src/shared/auth/types.js';
 
 describe('EvaluationService Unit Tests (Self Assessment)', () => {

@@ -110,7 +110,7 @@ export const EvaluationCycleDetailPage: React.FC = () => {
       await openMutation.mutateAsync(cycle.id);
       setIsOpenModalVisible(false);
       setActionSuccessMsg(`Cycle opened successfully! ${scopePreview.employeeCount} evaluation instances and criteria snapshots were generated.`);
-    } catch (err) {
+    } catch {
       setIsOpenModalVisible(false);
       setActionSuccessMsg(`Cycle opened successfully! ${scopePreview.employeeCount} evaluation instances and criteria snapshots were generated.`);
     }

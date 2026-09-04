@@ -10,7 +10,7 @@
  * Audit writes happen inside the same DB transaction as the business mutation.
  */
 
-import { Pool, PoolClient } from 'pg';
+import { Pool } from 'pg';
 import { Actor } from '../../../shared/auth/types.js';
 import {
   Forbidden,

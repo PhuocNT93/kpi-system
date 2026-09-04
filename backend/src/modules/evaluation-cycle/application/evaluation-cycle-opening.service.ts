@@ -1,6 +1,6 @@
 import { Pool, PoolClient } from 'pg';
 import { withTransaction } from '../../../shared/database/transaction.js';
-import { NotFound, Conflict, BadRequest, AppError } from '../../../api/app-error.js';
+import { NotFound, Conflict, AppError } from '../../../api/app-error.js';
 import {
   EvaluationCycleStatus,
   EvaluationStatus,

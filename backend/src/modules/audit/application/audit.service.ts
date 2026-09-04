@@ -1,5 +1,5 @@
 import { TransactionClient } from '../../../shared/database/transaction.js';
-import { AuditRecordParams, AuditRecordParamsSchema, AuditLogQuery, AuditLogQuerySchema, PaginatedAuditLogs } from '../domain/audit.domain.js';
+import { AuditRecordParams, AuditRecordParamsSchema, AuditLogQuerySchema, PaginatedAuditLogs } from '../domain/audit.domain.js';
 import { AuditRepository } from '../domain/audit.repository.js';
 
 export class AuditService {

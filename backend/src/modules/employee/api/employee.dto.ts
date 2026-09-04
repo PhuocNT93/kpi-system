@@ -1,4 +1,4 @@
-import { BaseResourceResponse, DateRangeFilter } from '../../../api/dto-types.js';
+import { BaseResourceResponse } from '../../../api/dto-types.js';
 
 export interface EmployeeResponse extends BaseResourceResponse {
   employee_code: string;

@@ -55,7 +55,7 @@ export const EvaluationCycleEditPage: React.FC = () => {
         await updateMutation.mutateAsync(payload);
         navigate(`/admin/cycles/${id}`);
       }
-    } catch (err) {
+    } catch {
       navigate(`/admin/cycles/${id}`);
     }
   };

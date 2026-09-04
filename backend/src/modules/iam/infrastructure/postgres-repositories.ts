@@ -332,10 +332,6 @@ export class PostgresAuditWriter implements AuditWriter {
   constructor(private readonly pool: Pool) {}
 
   async record(event: AuditEvent): Promise<void> {
-    const query = `
-      INSERT INTO audit_event (id, type, actor_id, target_id, details, timestamp)
-      VALUES (COALESCE(TRY_CAST_UUID($1), gen_random_uuid()), $2, $3, $4, $5, $6)
-    `;
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(event.id);
     const eventId = isUuid ? event.id : crypto.randomUUID();
 

@@ -558,7 +558,7 @@ export class EmployeeController {
   async getTeams(req: Request, res: Response): Promise<void> {
     const actor = getActorFromContext(req);
     if (!actor) throw new Forbidden();
-    const { limit, offset, buildPageMeta } = parsePaginationQuery(req.query as Record<string, unknown>);
+    const { limit, buildPageMeta } = parsePaginationQuery(req.query as Record<string, unknown>);
 
     if (this.teamService && this.hasDb()) {
       const page = parseInt((req.query.page as string) ?? '1', 10) || 1;
@@ -958,4 +958,4 @@ export class EmployeeController {
       active_member_count: team.activeMemberCount,
     };
   };
-}
+}

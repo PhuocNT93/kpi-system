@@ -29,7 +29,7 @@ export function AddKpiCriterionModal({ kpiId, onClose }: Props) {
         weight: parseFloat(weight)
       });
       onClose();
-    } catch (err) {
+    } catch {
       // Error is handled by mutation/ErrorBoundary or could be displayed here
     }
   };

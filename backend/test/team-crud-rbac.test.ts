@@ -117,7 +117,7 @@ function buildMockPool(deptRow?: { active: boolean }, userRow?: { access_role: s
       query: vi.fn().mockResolvedValue({ rows: [] }),
       release: vi.fn(),
     }),
-    query: vi.fn().mockImplementation((sql: string, params: any[]) => {
+    query: vi.fn().mockImplementation((sql: string, _params: any[]) => {
       if (sql.includes('FROM department')) {
         return Promise.resolve({ rows: deptRow ? [deptRow] : [] });
       }

@@ -46,7 +46,7 @@ export const EvaluationCycleCreatePage: React.FC = () => {
     try {
       const created = await createMutation.mutateAsync(payload);
       navigate(`/admin/cycles/${created.id ?? 'cyc-1'}`);
-    } catch (err) {
+    } catch {
       // Mock navigation if API is unmounted in local dev
       navigate('/admin/cycles');
     }

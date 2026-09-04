@@ -5,12 +5,10 @@ import { createConfigurationModule, ConfigurationModule } from '../src/modules/c
 import { seedConfigurationModule } from '../src/modules/configuration/infrastructure/seed/configuration.seed.js';
 import {
   CriterionCategory,
-  ScoringRuleType,
   VersionStatus,
-  TemplateStatus,
   WeightPolicy,
 } from '../src/modules/configuration/domain/configuration.types.js';
-import { Conflict, AppError } from '../src/api/app-error.js';
+import { AppError } from '../src/api/app-error.js';
 
 const isDbAvailable = Boolean(process.env.DATABASE_URL);
 
