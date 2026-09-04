@@ -120,6 +120,7 @@ export const COLORS = {
     locked: '#0F172A',
     error: '#DC2626',
     success: '#16A34A',
+    warning: '#D97706',
   }
 } as const;
 

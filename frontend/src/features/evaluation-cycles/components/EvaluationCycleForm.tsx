@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type {
   CreateEvaluationCyclePayload,
   EvaluationCycleDTO,
   TemplateReferenceDTO,
 } from '../types/cycle-types';
+import type { OrgEmployee } from '@/features/organization/domain/organization-models';
 import { Button } from '@/shared/ui/Button/Button';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
@@ -18,6 +19,17 @@ interface EvaluationCycleFormProps {
   templatesOptions: TemplateReferenceDTO[];
   teamsOptions: OptionItem[];
   rolesOptions: OptionItem[];
+  /**
+   * Optional mapping from teamId -> roles available for that team.
+   * If provided, Applicable Job Roles will be filtered to the union
+   * of roles for the selected teams. If omitted, all roles are shown.
+   */
+  teamsToRolesMap?: Record<string, OptionItem[]>;
+  /**
+   * Optional list of organization employees. If provided, Applicable Job Roles
+   * will be derived from employees assigned to the selected teams (using their `roleId`).
+   */
+  employeesOptions?: OrgEmployee[];
   onSubmit: (payload: CreateEvaluationCyclePayload) => void;
   onCancel: () => void;
   isPending?: boolean;
@@ -28,6 +40,8 @@ export const EvaluationCycleForm: React.FC<EvaluationCycleFormProps> = ({
   templatesOptions,
   teamsOptions,
   rolesOptions,
+  teamsToRolesMap,
+  employeesOptions,
   onSubmit,
   onCancel,
   isPending = false,
@@ -52,6 +66,8 @@ export const EvaluationCycleForm: React.FC<EvaluationCycleFormProps> = ({
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const [availableRoles, setAvailableRoles] = useState<OptionItem[]>(rolesOptions);
+
   const toggleTeam = (teamId: string) => {
     setSelectedTeamIds((prev) =>
       prev.includes(teamId) ? prev.filter((id) => id !== teamId) : [...prev, teamId]
@@ -63,6 +79,40 @@ export const EvaluationCycleForm: React.FC<EvaluationCycleFormProps> = ({
       prev.includes(roleId) ? prev.filter((id) => id !== roleId) : [...prev, roleId]
     );
   };
+
+  useEffect(() => {
+    // If no teams selected, show no roles (roles must come from selected teams)
+    if (!selectedTeamIds || selectedTeamIds.length === 0) {
+      setAvailableRoles([]);
+      setSelectedRoleIds([]);
+      return;
+    }
+    
+    // If employeesOptions provided, derive role ids from employees in selected teams
+    if (employeesOptions && employeesOptions.length > 0) {
+      const roleIdSet = new Set<string>();
+      employeesOptions.forEach((emp) => {
+        if (emp.teamId && selectedTeamIds.includes(emp.teamId) && emp.roleId) roleIdSet.add(emp.roleId);
+      });
+
+      const union = rolesOptions.filter((r) => roleIdSet.has(r.id));
+      setAvailableRoles(union.length > 0 ? union : []);
+      setSelectedRoleIds((prev) => prev.filter((id) => union.some((r) => r.id === id)));
+      return;
+    }
+
+    // Fallback: Build union of roles for selected teams using the provided map
+    const rolesSet = new Map<string, OptionItem>();
+    selectedTeamIds.forEach((teamId) => {
+      const list = (teamsToRolesMap && teamsToRolesMap[teamId]) ?? [];
+      list.forEach((r) => rolesSet.set(r.id, r));
+    });
+
+    const union = Array.from(rolesSet.values());
+    // If union empty, show none (explicit) else show mapped union
+    setAvailableRoles(union.length > 0 ? union : []);
+    setSelectedRoleIds((prev) => prev.filter((id) => union.some((r) => r.id === id)));
+  }, [selectedTeamIds, rolesOptions, employeesOptions, teamsToRolesMap]);
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -269,10 +319,12 @@ export const EvaluationCycleForm: React.FC<EvaluationCycleFormProps> = ({
                 backgroundColor: COLORS.neutral[50],
               }}
             >
-              {rolesOptions.length === 0 ? (
-                <span style={{ fontSize: '0.8125rem', color: COLORS.neutral.textSecondary }}>No roles configured</span>
+              {availableRoles.length === 0 ? (
+                <span style={{ fontSize: '0.8125rem', color: COLORS.neutral.textSecondary }}>
+                  {rolesOptions.length === 0 ? 'No roles configured' : 'No roles available for selected teams'}
+                </span>
               ) : (
-                rolesOptions.map((role) => (
+                availableRoles.map((role) => (
                   <label key={role.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.875rem', cursor: 'pointer' }}>
                     <input
                       type="checkbox"
@@ -285,7 +337,11 @@ export const EvaluationCycleForm: React.FC<EvaluationCycleFormProps> = ({
               )}
             </div>
             <span style={{ fontSize: '0.75rem', color: COLORS.neutral.textSecondary, marginTop: '4px', display: 'block' }}>
-              {selectedRoleIds.length === 0 ? 'All job roles apply by default' : `${selectedRoleIds.length} role(s) selected`}
+              {selectedTeamIds.length === 0
+                ? 'Select team(s) to view applicable roles'
+                : selectedRoleIds.length === 0
+                ? 'All roles in selected teams apply by default'
+                : `${selectedRoleIds.length} role(s) selected`}
             </span>
           </div>
         </div>

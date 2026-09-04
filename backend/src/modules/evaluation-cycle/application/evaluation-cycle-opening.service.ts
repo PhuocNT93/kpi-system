@@ -74,34 +74,77 @@ export class EvaluationCycleOpeningService {
       }
 
       // 4. Load template criteria & defensive weight check
-      const tcRes = await client.query(
-        `SELECT tc.template_criterion_id,
-          tc.template_kpi_id,
-                tc.evaluation_template_version_id,
-                tc.criterion_version_id,
-                tc.effective_weight,
-                tc.applicable_role_ids,
-                tc.applicable_team_ids,
-                tc.is_disabled,
-                tc.display_order,
-                tk.kpi_id,
-                tk.weight AS kpi_weight,
-                k.code AS kpi_code,
-                k.name AS kpi_name,
-                c.code AS criterion_code,
-                c.name AS criterion_name,
-                sr.rule_type,
-                sr.rule_config
-         FROM template_criterion tc
-         JOIN template_kpi tk ON tc.template_kpi_id = tk.template_kpi_id
-         JOIN kpi k ON tk.kpi_id = k.kpi_id
-         JOIN criterion_version cv ON tc.criterion_version_id = cv.criterion_version_id
-         JOIN criterion c ON cv.criterion_id = c.criterion_id
-         JOIN scoring_rule sr ON cv.scoring_rule_id = sr.scoring_rule_id
-         WHERE tc.evaluation_template_version_id = $1
-         ORDER BY tc.display_order ASC`,
-        [cycle.evaluationTemplateVersionId]
+      // Some databases may not have the `template_kpi_id` column due to migration name mismatches.
+      // Detect column presence and run a compatible query.
+      const colCheck = await client.query(
+        `SELECT 1 FROM information_schema.columns WHERE table_name = $1 AND column_name = $2`,
+        ['template_criterion', 'template_kpi_id']
       );
+
+      let tcRes;
+      if (colCheck.rows.length > 0) {
+        // Column exists — run original query joining by template_kpi_id
+        tcRes = await client.query(
+          `SELECT tc.template_criterion_id,
+                  tc.template_kpi_id,
+                  tc.evaluation_template_version_id,
+                  tc.criterion_version_id,
+                  tc.effective_weight,
+                  tc.applicable_role_ids,
+                  tc.applicable_team_ids,
+                  tc.is_disabled,
+                  tc.display_order,
+                  tk.kpi_id,
+                  tk.weight AS kpi_weight,
+                  k.code AS kpi_code,
+                  k.name AS kpi_name,
+                  c.code AS criterion_code,
+                  c.name AS criterion_name,
+                  sr.rule_type,
+                  sr.rule_config
+           FROM template_criterion tc
+           JOIN template_kpi tk ON tc.template_kpi_id = tk.template_kpi_id
+           JOIN kpi k ON tk.kpi_id = k.kpi_id
+           JOIN criterion_version cv ON tc.criterion_version_id = cv.criterion_version_id
+           JOIN criterion c ON cv.criterion_id = c.criterion_id
+           JOIN scoring_rule sr ON cv.scoring_rule_id = sr.scoring_rule_id
+           WHERE tc.evaluation_template_version_id = $1
+           ORDER BY tc.display_order ASC`,
+          [cycle.evaluationTemplateVersionId]
+        );
+      } else {
+        // Column missing — fallback: pick the first template_kpi for the template version (legacy templates)
+        tcRes = await client.query(
+          `SELECT tc.template_criterion_id,
+                  NULL::uuid AS template_kpi_id,
+                  tc.evaluation_template_version_id,
+                  tc.criterion_version_id,
+                  tc.effective_weight,
+                  tc.applicable_role_ids,
+                  tc.applicable_team_ids,
+                  tc.is_disabled,
+                  tc.display_order,
+                  tk.kpi_id,
+                  tk.weight AS kpi_weight,
+                  k.code AS kpi_code,
+                  k.name AS kpi_name,
+                  c.code AS criterion_code,
+                  c.name AS criterion_name,
+                  sr.rule_type,
+                  sr.rule_config
+           FROM template_criterion tc
+           LEFT JOIN LATERAL (
+             SELECT * FROM template_kpi tk WHERE tk.template_version_id = tc.evaluation_template_version_id ORDER BY tk.display_order ASC LIMIT 1
+           ) tk ON true
+           LEFT JOIN kpi k ON tk.kpi_id = k.kpi_id
+           JOIN criterion_version cv ON tc.criterion_version_id = cv.criterion_version_id
+           JOIN criterion c ON cv.criterion_id = c.criterion_id
+           JOIN scoring_rule sr ON cv.scoring_rule_id = sr.scoring_rule_id
+           WHERE tc.evaluation_template_version_id = $1
+           ORDER BY tc.display_order ASC`,
+          [cycle.evaluationTemplateVersionId]
+        );
+      }
 
       const templateCriteria = tcRes.rows;
       if (templateCriteria.length === 0) {
@@ -172,6 +215,24 @@ export class EvaluationCycleOpeningService {
       );
 
       const activeEmployees = empRes.rows;
+      // Defensive: filter out employees missing required snapshot fields (team_id or role_id)
+      const filteredEmployees = activeEmployees.filter((e: any) => e.team_id && e.role_id);
+      if (filteredEmployees.length !== activeEmployees.length) {
+        // Log a warning — some employees lack team/role and will be skipped when opening cycle
+        // (This prevents NOT NULL violations when seeding in inconsistent dev DBs.)
+        // eslint-disable-next-line no-console
+        console.warn('Skipping employees without team_id or role_id when opening cycle:',
+          activeEmployees.filter((e: any) => !e.team_id || !e.role_id).map((e: any) => e.employee_id)
+        );
+      }
+
+      if (filteredEmployees.length === 0) {
+        throw new AppError(
+          422,
+          EvaluationCycleErrorCodes.INVALID_TEMPLATE_CONFIGURATION,
+          'No eligible active employees found for this evaluation cycle configuration.'
+        );
+      }
       if (activeEmployees.length === 0) {
         throw new AppError(
           422,
@@ -180,7 +241,7 @@ export class EvaluationCycleOpeningService {
         );
       }
 
-      const empIds = activeEmployees.map((e: any) => e.employee_id);
+      const empIds = filteredEmployees.map((e: any) => e.employee_id);
 
       // 7. Load historical employee assignment as of cycle start date
       const assignRes = await client.query(
@@ -199,7 +260,7 @@ export class EvaluationCycleOpeningService {
       }
 
       // Build evaluation snapshots
-      const evaluationInserts = activeEmployees.map((emp: any) => {
+      const evaluationInserts = filteredEmployees.map((emp: any) => {
         const histAssignment = assignmentMap[emp.employee_id];
         const teamId = histAssignment?.team_id || emp.team_id;
         const roleId = histAssignment?.role_id || emp.role_id;
