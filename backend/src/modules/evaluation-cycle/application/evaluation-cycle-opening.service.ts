@@ -5,6 +5,7 @@ import {
   EvaluationCycleStatus,
   EvaluationStatus,
   EvaluationCycleErrorCodes,
+  EvaluationItem,
 } from '../domain/evaluation-cycle.types.js';
 import {
   IEvaluationCycleRepository,
@@ -21,6 +22,24 @@ export interface OpenCycleResult {
   evaluationCount: number;
 }
 
+interface CriterionLevelSnapshot {
+  level_no: number;
+  label_en: string;
+  label_vn: string;
+  score_value: number;
+  [key: string]: unknown;
+}
+
+interface EmployeeAssignmentSnapshot {
+  employee_id: string;
+  team_id: string | null;
+  role_id: string | null;
+  job_level_id: string | null;
+  manager_id: string | null;
+}
+
+type EvaluationItemInsert = Omit<EvaluationItem, 'evaluationItemId' | 'createdAt' | 'updatedAt'>;
+
 export class EvaluationCycleOpeningService {
   constructor(
     private pool: Pool,
@@ -32,8 +51,8 @@ export class EvaluationCycleOpeningService {
   ) {}
 
   public async  openCycle(cycleId: string, actorEmployeeId: string | null): Promise<OpenCycleResult> {
-    return withTransaction(this.pool, async (client: any) => {
-      const dbClient = client as PoolClient;
+    return withTransaction(this.pool, async (client) => {
+      const dbClient = client as unknown as PoolClient;
       const validActorEmployeeId = await this.resolveValidEmployeeId(dbClient, actorEmployeeId);
 
       // 1. Lock cycle row for update
@@ -53,7 +72,7 @@ export class EvaluationCycleOpeningService {
       this.transitionService.validateTransition(cycle.status, EvaluationCycleStatus.OPEN);
 
       // 3. Load & validate template version
-      const templateVersionRes = await client.query(
+      const templateVersionRes = await dbClient.query(
         `SELECT evaluation_template_version_id, status
          FROM evaluation_template_version
          WHERE evaluation_template_version_id = $1`,
@@ -74,7 +93,7 @@ export class EvaluationCycleOpeningService {
       }
 
       // 4. Load template criteria & defensive weight check
-      const tcRes = await client.query(
+      const tcRes = await dbClient.query(
         `SELECT tc.template_criterion_id,
           tc.template_kpi_id,
                 tc.evaluation_template_version_id,
@@ -113,8 +132,8 @@ export class EvaluationCycleOpeningService {
       }
 
       // Sum effective weight of enabled criteria
-      const enabledCriteria = templateCriteria.filter((tc: any) => !tc.is_disabled);
-      const totalWeight = enabledCriteria.reduce((sum: number, tc: any) => sum + parseFloat(tc.effective_weight), 0);
+      const enabledCriteria = templateCriteria.filter((tc) => !tc.is_disabled);
+      const totalWeight = enabledCriteria.reduce((sum: number, tc) => sum + Number(tc.effective_weight), 0);
 
       // Defensive validation: weight sum must be 100%
       if (Math.abs(totalWeight - 100) > 0.01) {
@@ -126,8 +145,8 @@ export class EvaluationCycleOpeningService {
       }
 
       // 5. Load levels for criterion versions
-      const criterionVersionIds = templateCriteria.map((tc: any) => tc.criterion_version_id);
-      const levelsRes = await client.query(
+      const criterionVersionIds = templateCriteria.map((tc) => tc.criterion_version_id);
+      const levelsRes = await dbClient.query(
         `SELECT criterion_level_id, criterion_version_id, level_no, label_en, label_vn, score_value
          FROM criterion_level
          WHERE criterion_version_id = ANY($1::uuid[])
@@ -135,22 +154,22 @@ export class EvaluationCycleOpeningService {
         [criterionVersionIds]
       );
 
-      const levelsByCvId: Record<string, any[]> = {};
+      const levelsByCvId: Record<string, CriterionLevelSnapshot[]> = {};
       for (const lvl of levelsRes.rows) {
         if (!levelsByCvId[lvl.criterion_version_id]) {
           levelsByCvId[lvl.criterion_version_id] = [];
         }
         levelsByCvId[lvl.criterion_version_id]!.push({
-          level_no: parseInt(lvl.level_no, 10),
+          level_no: Number(lvl.level_no),
           label_en: lvl.label_en,
           label_vn: lvl.label_vn,
-          score_value: parseFloat(lvl.score_value),
+          score_value: Number(lvl.score_value),
         });
       }
 
       // 6. Query eligible active employees
       const empConditions: string[] = ["employment_status = 'ACTIVE'"];
-      const empValues: any[] = [];
+      const empValues: unknown[] = [];
       let idx = 1;
 
       if (cycle.applicableTeamIds && cycle.applicableTeamIds.length > 0) {
@@ -164,7 +183,7 @@ export class EvaluationCycleOpeningService {
       }
 
       const empWhere = `WHERE ${empConditions.join(' AND ')}`;
-      const empRes = await client.query(
+      const empRes = await dbClient.query(
         `SELECT employee_id, team_id, role_id, job_level_id, manager_id
          FROM employee
          ${empWhere}`,
@@ -180,10 +199,10 @@ export class EvaluationCycleOpeningService {
         );
       }
 
-      const empIds = activeEmployees.map((e: any) => e.employee_id);
+      const empIds = activeEmployees.map((e) => e.employee_id);
 
       // 7. Load historical employee assignment as of cycle start date
-      const assignRes = await client.query(
+      const assignRes = await dbClient.query(
         `SELECT DISTINCT ON (employee_id) employee_id, team_id, role_id, job_level_id, manager_id
          FROM employee_assignment
          WHERE employee_id = ANY($1::uuid[])
@@ -193,13 +212,13 @@ export class EvaluationCycleOpeningService {
         [empIds, cycle.startDate]
       );
 
-      const assignmentMap: Record<string, any> = {};
+      const assignmentMap: Record<string, EmployeeAssignmentSnapshot> = {};
       for (const a of assignRes.rows) {
         assignmentMap[a.employee_id] = a;
       }
 
       // Build evaluation snapshots
-      const evaluationInserts = activeEmployees.map((emp: any) => {
+      const evaluationInserts = activeEmployees.map((emp) => {
         const histAssignment = assignmentMap[emp.employee_id];
         const teamId = histAssignment?.team_id || emp.team_id;
         const roleId = histAssignment?.role_id || emp.role_id;
@@ -226,7 +245,7 @@ export class EvaluationCycleOpeningService {
       });
 
       // 8. Batch insert evaluations
-      const createdEvaluations = await this.evaluationRepo.batchCreate(evaluationInserts, client);
+      const createdEvaluations = await this.evaluationRepo.batchCreate(evaluationInserts, dbClient);
 
       // Map generated evaluation IDs by employee ID
       const evalMapByEmp: Record<string, string> = {};
@@ -235,9 +254,14 @@ export class EvaluationCycleOpeningService {
       }
 
       // 9. Build evaluation item snapshots
-      const itemInserts: any[] = [];
+      const itemInserts: EvaluationItemInsert[] = [];
       for (const ev of evaluationInserts) {
         const evalId = evalMapByEmp[ev.employeeId];
+        if (!evalId) {
+          throw new Error(
+            `EvaluationCycleOpeningService: batchCreate did not return an ID for employee ${ev.employeeId}`,
+          );
+        }
         const empSnapshot = {
           employeeId: ev.employeeId,
           teamId: ev.teamIdSnapshot,
@@ -264,11 +288,11 @@ export class EvaluationCycleOpeningService {
             templateCriterionId: tc.template_criterion_id,
             criterionCodeSnapshot: tc.criterion_code,
             criterionNameSnapshot: tc.criterion_name,
-            weightSnapshot: parseFloat(tc.effective_weight),
+            weightSnapshot: Number(tc.effective_weight),
             kpiIdSnapshot: tc.kpi_id,
             kpiCodeSnapshot: tc.kpi_code,
             kpiNameSnapshot: tc.kpi_name,
-            kpiWeightSnapshot: parseFloat(tc.kpi_weight),
+            kpiWeightSnapshot: Number(tc.kpi_weight),
             scoringRuleSnapshot: {
               rule_type: tc.rule_type,
               rule_config: typeof tc.rule_config === 'string' ? JSON.parse(tc.rule_config) : tc.rule_config,
@@ -289,16 +313,16 @@ export class EvaluationCycleOpeningService {
       }
 
       // 10. Batch insert evaluation items
-      await this.evaluationItemRepo.batchCreate(itemInserts, client);
+      await this.evaluationItemRepo.batchCreate(itemInserts, dbClient);
 
       // 11. Update cycle status to OPEN
       cycle.status = EvaluationCycleStatus.OPEN;
       cycle.updatedBy = validActorEmployeeId;
-      await this.cycleRepo.update(cycle, client);
+      await this.cycleRepo.update(cycle, dbClient);
 
       // 12. Record audit log inside transaction
       if (this.auditService) {
-        await this.auditService.record(client as any, {
+        await this.auditService.record(client, {
           entityType: 'EVALUATION_CYCLE',
           entityId: cycle.evaluationCycleId,
           action: 'CYCLE_OPENED',

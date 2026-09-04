@@ -320,10 +320,10 @@ export async function seedConfigurationModule(pool: Pool): Promise<void> {
         const item = criterionVersionMap.get(cItem.code)!;
         const applicabilityRules = [];
         if (item.applicableRoleIds.length) {
-          applicabilityRules.push({ dimension: 'ROLE', operator: 'IN', values: item.applicableRoleIds });
+          applicabilityRules.push({ dimension: 'ROLE' as const, operator: 'IN' as const, values: item.applicableRoleIds });
         }
         if (item.applicableTeamIds.length) {
-          applicabilityRules.push({ dimension: 'TEAM', operator: 'IN', values: item.applicableTeamIds });
+          applicabilityRules.push({ dimension: 'TEAM' as const, operator: 'IN' as const, values: item.applicableTeamIds });
         }
 
         return {
@@ -332,7 +332,7 @@ export async function seedConfigurationModule(pool: Pool): Promise<void> {
           display_order: idx + 1,
           required: true,
           enabled: true,
-          applicability: applicabilityRules.length ? { rules: applicabilityRules } : {},
+          applicability: applicabilityRules.length ? { rules: applicabilityRules } : { rules: [] },
         };
       });
 

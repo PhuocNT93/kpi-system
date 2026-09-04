@@ -70,8 +70,8 @@ export class EvaluationCycleService {
       }
     }
 
-    const newCycle = await withTransaction(this.pool, async (client: any) => {
-      const dbClient = client as PoolClient;
+    const newCycle = await withTransaction(this.pool, async (client) => {
+      const dbClient = client as unknown as PoolClient;
       const validActorEmployeeId = await this.resolveValidEmployeeId(dbClient, actorEmployeeId);
 
       const created = await this.cycleRepo.create(
@@ -89,11 +89,11 @@ export class EvaluationCycleService {
           createdBy: validActorEmployeeId,
           updatedBy: validActorEmployeeId,
         },
-        client
+        dbClient
       );
 
       if (this.auditService) {
-        await this.auditService.record(client as any, {
+        await this.auditService.record(client, {
           entityType: 'EVALUATION_CYCLE',
           entityId: created.evaluationCycleId,
           action: 'CREATE',
@@ -126,8 +126,8 @@ export class EvaluationCycleService {
     input: UpdateEvaluationCycleInput,
     actorEmployeeId: string | null
   ): Promise<EvaluationCycle> {
-    return withTransaction(this.pool, async (client: any) => {
-      const dbClient = client as PoolClient;
+    return withTransaction(this.pool, async (client) => {
+      const dbClient = client as unknown as PoolClient;
       const validActorEmployeeId = await this.resolveValidEmployeeId(dbClient, actorEmployeeId);
 
       const cycle = await this.cycleRepo.findByIdForUpdate(id, dbClient);
@@ -143,7 +143,7 @@ export class EvaluationCycleService {
       }
 
       if (input.code && input.code !== cycle.code) {
-        const existingCode = await this.cycleRepo.findByCode(input.code, client);
+        const existingCode = await this.cycleRepo.findByCode(input.code, dbClient);
         if (existingCode && existingCode.evaluationCycleId !== id) {
           throw new Conflict(
             `Evaluation cycle code '${input.code}' already exists`,
@@ -164,10 +164,10 @@ export class EvaluationCycleService {
 
       cycle.updatedBy = validActorEmployeeId;
 
-      const updated = await this.cycleRepo.update(cycle, client);
+      const updated = await this.cycleRepo.update(cycle, dbClient);
 
       if (this.auditService) {
-        await this.auditService.record(client as any, {
+        await this.auditService.record(client, {
           entityType: 'EVALUATION_CYCLE',
           entityId: updated.evaluationCycleId,
           action: 'UPDATE',
@@ -190,8 +190,8 @@ export class EvaluationCycleService {
       return this.lockCycle(id, actorEmployeeId);
     }
 
-    return withTransaction(this.pool, async (client: any) => {
-      const dbClient = client as PoolClient;
+    return withTransaction(this.pool, async (client) => {
+      const dbClient = client as unknown as PoolClient;
       const validActorEmployeeId = await this.resolveValidEmployeeId(dbClient, actorEmployeeId);
 
       const cycle = await this.cycleRepo.findByIdForUpdate(id, dbClient);
@@ -214,10 +214,10 @@ export class EvaluationCycleService {
         cycle.approvedBy = validActorEmployeeId;
       }
 
-      const updated = await this.cycleRepo.update(cycle, client);
+      const updated = await this.cycleRepo.update(cycle, dbClient);
 
       if (this.auditService) {
-        await this.auditService.record(client as any, {
+        await this.auditService.record(client, {
           entityType: 'EVALUATION_CYCLE',
           entityId: updated.evaluationCycleId,
           action: 'TRANSITION',
@@ -232,8 +232,8 @@ export class EvaluationCycleService {
   }
 
   public async lockCycle(id: string, actorEmployeeId: string | null): Promise<EvaluationCycle> {
-    return withTransaction(this.pool, async (client: any) => {
-      const dbClient = client as PoolClient;
+    return withTransaction(this.pool, async (client) => {
+      const dbClient = client as unknown as PoolClient;
       const validActorEmployeeId = await this.resolveValidEmployeeId(dbClient, actorEmployeeId);
 
       const cycle = await this.cycleRepo.findByIdForUpdate(id, dbClient);
@@ -260,13 +260,13 @@ export class EvaluationCycleService {
       const lockedAt = new Date().toISOString();
 
       // Lock cycle status
-      const lockedCycle = await this.cycleRepo.lockCycle(id, lockedAt, client);
+      const lockedCycle = await this.cycleRepo.lockCycle(id, lockedAt, dbClient);
 
       // Lock child evaluations
-      await this.evaluationRepo.lockEvaluationsByCycleId(id, client);
+      await this.evaluationRepo.lockEvaluationsByCycleId(id, dbClient);
 
       if (this.auditService) {
-        await this.auditService.record(client as any, {
+        await this.auditService.record(client, {
           entityType: 'EVALUATION_CYCLE',
           entityId: id,
           action: 'LOCK',
@@ -295,7 +295,7 @@ export class EvaluationCycleService {
     }
 
     const conditions: string[] = ["e.employment_status = 'ACTIVE'"];
-    const params: any[] = [];
+    const params: unknown[] = [];
     let idx = 1;
 
     if (cycle.applicableTeamIds && cycle.applicableTeamIds.length > 0) {

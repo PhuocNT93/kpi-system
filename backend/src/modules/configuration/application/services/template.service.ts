@@ -3,12 +3,14 @@ import {
   EvaluationTemplate,
   EvaluationTemplateVersion,
   TemplateCriterion,
+  TemplateCriterionWithDetails,
   TemplateStatus,
   VersionStatus,
   WeightPolicy,
   ValidationResult,
   AuditAction,
   TemplateKpi,
+  ApplicabilityRule,
 } from '../../domain/configuration.types.js';
 import {
   ITemplateRepository,
@@ -273,7 +275,7 @@ export class TemplateService {
     return this.templateCriterionRepo.findByTemplateVersionId(templateVersionId);
   }
 
-  async getTemplateCriteriaWithDetails(templateVersionId: string): Promise<any[]> {
+  async getTemplateCriteriaWithDetails(templateVersionId: string): Promise<TemplateCriterionWithDetails[]> {
     await this.getTemplateVersionById(templateVersionId);
     return this.templateCriterionRepo.findByTemplateVersionIdWithDetails(templateVersionId);
   }
@@ -315,7 +317,17 @@ export class TemplateService {
   async bulkUpdateTemplateCriteria(
     templateVersionId: string,
     templateKpiId: string,
-    criteriaItems: Array<{ criterion_version_id: string; weight: number; display_order?: number; required?: boolean; enabled?: boolean }>,
+    criteriaItems: Array<{
+      criterion_version_id: string;
+      weight?: number;
+      effective_weight?: number;
+      display_order?: number;
+      required?: boolean;
+      enabled?: boolean;
+      applicability?: ApplicabilityRule;
+      applicable_role_ids?: string[];
+      applicable_team_ids?: string[];
+    }>,
     actorId?: string
   ): Promise<TemplateCriterion[]> {
     const version = await this.getTemplateVersionById(templateVersionId);
@@ -328,15 +340,15 @@ export class TemplateService {
       if (!cv) throw new NotFound(`CriterionVersion '${item.criterion_version_id}'`);
     }
 
-    const mappedItems: Partial<TemplateCriterion>[] = criteriaItems.map((item: any, idx) => {
+    const mappedItems: Partial<TemplateCriterion>[] = criteriaItems.map((item, idx) => {
       let applicability = item.applicability;
       if (!applicability && (item.applicable_role_ids || item.applicable_team_ids)) {
         const rules = [];
         if (item.applicable_role_ids?.length) {
-          rules.push({ dimension: 'ROLE', operator: 'IN', values: item.applicable_role_ids });
+          rules.push({ dimension: 'ROLE' as const, operator: 'IN' as const, values: item.applicable_role_ids });
         }
         if (item.applicable_team_ids?.length) {
-          rules.push({ dimension: 'TEAM', operator: 'IN', values: item.applicable_team_ids });
+          rules.push({ dimension: 'TEAM' as const, operator: 'IN' as const, values: item.applicable_team_ids });
         }
         applicability = { rules };
       }
@@ -347,7 +359,7 @@ export class TemplateService {
         display_order: item.display_order ?? idx + 1,
         required: item.required ?? true,
         enabled: item.enabled ?? true,
-        applicability: applicability || {},
+        applicability: applicability ?? { rules: [] },
       };
     });
 

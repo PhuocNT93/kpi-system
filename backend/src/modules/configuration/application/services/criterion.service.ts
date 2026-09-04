@@ -13,6 +13,7 @@ import {
   IScoringRuleRepository,
   IConfigurationAuditRepository,
   CriteriaFilter,
+  CriterionWithVersion,
 } from '../../domain/repositories.interface.js';
 import { Conflict, NotFound, ValidationError, AppError } from '../../../../api/app-error.js';
 
@@ -88,7 +89,7 @@ export class CriterionService {
     return this.criterionRepo.findAll(filter);
   }
 
-  async getCriteriaWithCurrentVersion(filter: CriteriaFilter): Promise<{ items: any[]; total: number }> {
+  async getCriteriaWithCurrentVersion(filter: CriteriaFilter): Promise<{ items: CriterionWithVersion[]; total: number }> {
     return this.criterionRepo.findAllWithCurrentVersion(filter);
   }
 

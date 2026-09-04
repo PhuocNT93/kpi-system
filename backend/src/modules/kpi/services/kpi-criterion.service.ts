@@ -17,8 +17,8 @@ export class KpiCriterionService {
     }
     try {
       return await this.criterionRepo.findByKpiId(kpiId);
-    } catch (err: any) {
-      throw new BadRequest(`getMappings DB error: ${err.message}`);
+    } catch (err) {
+      throw new BadRequest(`getMappings DB error: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -34,8 +34,8 @@ export class KpiCriterionService {
 
     try {
       return await this.criterionRepo.create(kpiId, dto);
-    } catch (err: any) {
-      if (err.message && err.message.includes('uq_kpi_criterion_mapping')) {
+    } catch (err) {
+      if (err instanceof Error && err.message && err.message.includes('uq_kpi_criterion_mapping')) {
         throw new Error('This criterion is already mapped to the KPI');
       }
       throw err;

@@ -41,8 +41,8 @@ export interface EvaluationItem {
   kpi_code_snapshot?: string;
   kpi_name_snapshot?: string;
   kpi_weight_snapshot?: number;
-  scoring_rule_snapshot: any;
-  level_definition_snapshot: any;
+  scoring_rule_snapshot: Record<string, unknown>;
+  level_definition_snapshot: Record<string, unknown>[];
   measurement_value?: number;
   resolved_level?: number | null;
   raw_score?: number | null;

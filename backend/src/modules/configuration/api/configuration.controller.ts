@@ -12,6 +12,7 @@ import { ConfigurationCloneService } from '../application/services/configuration
 import { ConfigurationSnapshotService } from '../application/services/configuration-snapshot.service.js';
 import { WorkflowConfigurationService } from '../application/services/workflow-configuration.service.js';
 import { ConfigurationAuditService } from '../application/services/configuration-audit.service.js';
+import { CriterionStatus, VersionStatus, ScoringRuleType, TemplateStatus, ApplicabilityRule } from '../domain/configuration.types.js';
 
 export class ConfigurationController {
   constructor(
@@ -48,7 +49,7 @@ export class ConfigurationController {
     const result = await this.criterionService.getCriteriaWithCurrentVersion({
       page,
       size: limit,
-      status: status as any,
+      status: status as CriterionStatus | undefined,
       category: category as string,
       search: search as string,
     });
@@ -158,8 +159,8 @@ export class ConfigurationController {
     const result = await this.scoringRuleService.getScoringRules({
       page,
       size: limit,
-      status: status as any,
-      rule_type: rule_type as any,
+      status: status as VersionStatus | undefined,
+      rule_type: rule_type as ScoringRuleType | undefined,
       code: code as string,
       search: search as string,
     });
@@ -202,7 +203,7 @@ export class ConfigurationController {
     const { offset, limit, buildPageMeta } = parsePaginationQuery(req.query as Record<string, unknown>);
     const page = Math.floor(offset / limit) + 1;
     const { status, search } = req.query;
-    const result = await this.templateService.getTemplates(page, limit, status as any, search as string);
+    const result = await this.templateService.getTemplates(page, limit, status as TemplateStatus | undefined, search as string);
     sendCollection(res, 'Templates retrieved successfully.', result.items, buildPageMeta(result.total));
   };
 
@@ -258,8 +259,8 @@ export class ConfigurationController {
     
     // Format the result to match the existing response structure
     const formattedCriteria = enrichedCriteria.map(tc => {
-      const roleRule = tc.applicability?.rules?.find((r: any) => r.dimension === 'ROLE');
-      const teamRule = tc.applicability?.rules?.find((r: any) => r.dimension === 'TEAM');
+      const roleRule = tc.applicability?.rules?.find((r) => r.dimension === 'ROLE');
+      const teamRule = tc.applicability?.rules?.find((r) => r.dimension === 'TEAM');
 
       return {
         id: tc.id,
@@ -366,7 +367,16 @@ export class ConfigurationController {
   bulkUpdateTemplateCriteria = async (req: Request, res: Response): Promise<void> => {
     const versionId = req.params.versionId as string;
     const templateKpiId = req.body.templateKpiId as string;
-    const criteriaItems = req.body.criteria as any[];
+    const criteriaItems = req.body.criteria as Array<{
+      criterion_version_id: string;
+      weight: number;
+      display_order?: number;
+      required?: boolean;
+      enabled?: boolean;
+      applicability?: ApplicabilityRule;
+      applicable_role_ids?: string[];
+      applicable_team_ids?: string[];
+    }>;
     const updated = await this.templateService.bulkUpdateTemplateCriteria(versionId, templateKpiId, criteriaItems, this.getActorId(req));
     sendSuccess(res, 200, 'Template criteria updated in bulk successfully.', updated);
   };

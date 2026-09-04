@@ -389,7 +389,7 @@ export class EmployeeController {
         throw new NotFound(`Employee with ID ${employeeId}`);
       }
 
-      const chain: any[] = [];
+      const chain: ReturnType<typeof this.mapEmployeeToResponse>[] = [];
       let currentId: string | null = startEmp.managerId;
       const visited = new Set<string>([employeeId]);
 

@@ -64,7 +64,7 @@ export function resolveServices(
             };
           }
           const roles = await userRoleRepository.findRolesByUserId(user.id);
-          let highestRole: any = 'EMPLOYEE';
+          let highestRole: import('../shared/auth/types.js').UserRole = 'EMPLOYEE';
           for (const ur of roles) {
             const r = await roleRepository.findById(ur.roleId);
             if (r) {
