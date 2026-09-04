@@ -154,7 +154,107 @@ export function compareTemplateVersions(
 }
 
 // ── Snake Case Wire Mappers ──────────────────────────────────────────────────
-export function mapWireTemplateToDomain(wire: any): EvaluationTemplate {
+export interface WireTemplate {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  status: EvaluationTemplate['status'];
+  current_version_id?: string;
+  current_version?: WireVersion;
+  criteria_count?: number;
+  version?: number;
+  created_at: string;
+  created_by?: string;
+  updated_at: string;
+  updated_by?: string;
+  updated_by_name?: string;
+}
+
+export interface WireVersion {
+  id: string;
+  template_id: string;
+  version_no: number;
+  status: EvaluationTemplateVersion['status'];
+  weight_total_policy?: EvaluationTemplateVersion['weightTotalPolicy'];
+  effective_from?: string;
+  effective_to?: string;
+  published_at?: string;
+  published_by?: string;
+  published_by_name?: string;
+  version?: number;
+  kpis?: WireTemplateKpi[];
+  criteria?: WireTemplateCriterion[];
+}
+
+export interface WireTemplateKpi {
+  id?: string;
+  template_kpi_id?: string;
+  template_version_id: string;
+  kpi_id: string;
+  weight: number;
+  display_order?: number;
+  kpi?: unknown;
+  criteria?: WireTemplateCriterion[];
+}
+
+export interface WireTemplateCriterion {
+  id: string;
+  template_version_id: string;
+  template_kpi_id: string;
+  criterion_version_id: string;
+  criterion?: WireCriterion;
+  effective_weight: number;
+  applicable_role_ids?: string[];
+  applicable_team_ids?: string[];
+  is_disabled?: boolean;
+  is_optional?: boolean;
+  display_order?: number;
+  custom_scoring_rule?: WireScoringRule;
+  provenance?: WireProvenance;
+}
+
+export interface WireCriterion {
+  id?: string;
+  code?: string;
+  category?: string;
+  name?: string;
+  description?: string;
+  status?: Criterion['status'];
+  version?: number;
+  current_version?: WireCriterionVersion;
+}
+
+export interface WireCriterionVersion {
+  id: string;
+  criterion_id: string;
+  version_no: number;
+  default_weight: number;
+  measurement_unit?: string;
+  measurement_source_label?: string;
+  scoring_rule_id?: string;
+  scoring_rule?: WireScoringRule;
+  status?: CriterionVersion['status'];
+}
+
+export interface WireScoringRule {
+  id: string;
+  code?: string;
+  name?: string;
+  rule_type: ScoringRule['ruleType'];
+  config: unknown;
+  status?: ScoringRule['status'];
+  version?: number;
+}
+
+export interface WireProvenance {
+  effective_weight?: number;
+  effective_source?: TemplateCriterion['provenance'] extends { effectiveSource: infer S } ? S : never;
+  effective_source_label?: string;
+  tiers?: { scope: string; scope_label?: string; weight: number }[];
+}
+
+export function mapWireTemplateToDomain(wire: WireTemplate): EvaluationTemplate {
   return {
     id: wire.id,
     code: wire.code,
@@ -173,7 +273,7 @@ export function mapWireTemplateToDomain(wire: any): EvaluationTemplate {
   };
 }
 
-export function mapWireVersionToDomain(wire: any): EvaluationTemplateVersion {
+export function mapWireVersionToDomain(wire: WireVersion): EvaluationTemplateVersion {
   return {
     id: wire.id,
     templateId: wire.template_id,
@@ -195,7 +295,7 @@ export function mapWireVersionToDomain(wire: any): EvaluationTemplateVersion {
   };
 }
 
-export function mapWireTemplateKpiToDomain(wire: any): TemplateKpi {
+export function mapWireTemplateKpiToDomain(wire: WireTemplateKpi): TemplateKpi {
   return {
     id: wire.id || wire.template_kpi_id,
     templateVersionId: wire.template_version_id,
@@ -209,7 +309,7 @@ export function mapWireTemplateKpiToDomain(wire: any): TemplateKpi {
   };
 }
 
-export function mapWireTemplateCriterionToDomain(wire: any): TemplateCriterion {
+export function mapWireTemplateCriterionToDomain(wire: WireTemplateCriterion): TemplateCriterion {
   return {
     id: wire.id,
     templateVersionId: wire.template_version_id,
@@ -227,7 +327,7 @@ export function mapWireTemplateCriterionToDomain(wire: any): TemplateCriterion {
   };
 }
 
-export function mapWireCriterionToDomain(wire: any): Criterion {
+export function mapWireCriterionToDomain(wire: WireCriterion): Criterion {
   return {
     id: wire.id || '',
     code: wire.code || '',
@@ -240,7 +340,7 @@ export function mapWireCriterionToDomain(wire: any): Criterion {
   };
 }
 
-export function mapWireCriterionVersionToDomain(wire: any): CriterionVersion {
+export function mapWireCriterionVersionToDomain(wire: WireCriterionVersion): CriterionVersion {
   return {
     id: wire.id,
     criterionId: wire.criterion_id,
@@ -254,7 +354,7 @@ export function mapWireCriterionVersionToDomain(wire: any): CriterionVersion {
   };
 }
 
-export function mapWireScoringRuleToDomain(wire: any): ScoringRule {
+export function mapWireScoringRuleToDomain(wire: WireScoringRule): ScoringRule {
   const ruleType = wire.rule_type as ScoringRule['ruleType'];
   return {
     id: wire.id,
@@ -267,14 +367,14 @@ export function mapWireScoringRuleToDomain(wire: any): ScoringRule {
   };
 }
 
-export function mapWireProvenanceToDomain(wire: any): TemplateCriterion['provenance'] {
+export function mapWireProvenanceToDomain(wire: WireProvenance): TemplateCriterion['provenance'] {
   if (!wire) return undefined;
   return {
     effectiveWeight: Number(wire.effective_weight) || 0,
     effectiveSource: wire.effective_source || 'TEMPLATE',
     effectiveSourceLabel: wire.effective_source_label || 'Template',
     tiers: Array.isArray(wire.tiers)
-      ? wire.tiers.map((t: any) => ({
+      ? wire.tiers.map(t => ({
           scope: t.scope,
           scopeLabel: t.scope_label || t.scope,
           weight: Number(t.weight) || 0,
@@ -283,3 +383,4 @@ export function mapWireProvenanceToDomain(wire: any): TemplateCriterion['provena
       : [],
   };
 }
+

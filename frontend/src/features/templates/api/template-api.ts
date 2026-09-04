@@ -19,37 +19,43 @@ export const MOCK_TEAMS = [
 ];
 
 export async function fetchJobRoles(): Promise<Array<{ id: string; code: string; name: string }>> {
-  const res = await getApi<any>('/api/org/roles');
-  const items = Array.isArray(res) ? res : res?.items || res?.data || [];
-  return items.map((r: any) => ({
-    id: r.id || r.role_id || r.code,
-    code: r.code || r.id,
-    name: r.name || r.code,
-  }));
+  const res = await getApi<unknown>('/api/org/roles');
+  const items = Array.isArray(res) ? res : (res as { items?: unknown[] })?.items || (res as { data?: unknown[] })?.data || [];
+  return items.map((r: any) => {
+    const role = r as { id?: string; role_id?: string; code?: string; name?: string };
+    return {
+      id: role.id || role.role_id || role.code || '',
+      code: role.code || role.id || '',
+      name: role.name || role.code || '',
+    };
+  });
 }
 
 export async function fetchTeams(): Promise<Array<{ id: string; code: string; name: string }>> {
   try {
-    const res = await getApi<any>('/api/teams');
-    const items = Array.isArray(res) ? res : res?.teams || res?.items || res?.data || [];
+    const res = await getApi<unknown>('/api/teams');
+    const items = Array.isArray(res) ? res : (res as { teams?: unknown[] })?.teams || (res as { items?: unknown[] })?.items || (res as { data?: unknown[] })?.data || [];
     if (!items.length) return MOCK_TEAMS;
-    return items.map((t: any) => ({
-      id: t.id || t.teamId || t.team_id || t.code,
-      code: t.code || t.id,
-      name: t.name || t.code,
-    }));
+    return items.map((t: any) => {
+      const team = t as { id?: string; teamId?: string; team_id?: string; code?: string; name?: string };
+      return {
+        id: team.id || team.teamId || team.team_id || team.code || '',
+        code: team.code || team.id || '',
+        name: team.name || team.code || '',
+      };
+    });
   } catch {
     return MOCK_TEAMS;
   }
 }
 
 export async function fetchEvaluationTemplates(): Promise<EvaluationTemplate[]> {
-  const data = await getApi<any[]>('/api/v1/configuration/templates');
+  const data = await getApi<Record<string, unknown>[]>('/api/v1/configuration/templates');
   return (data || []).map(mapWireTemplateToDomain);
 }
 
 export async function fetchEvaluationTemplateById(id: string): Promise<EvaluationTemplate> {
-  const data = await getApi<any>(`/api/v1/configuration/templates/${id}`);
+  const data = await getApi<Record<string, unknown>>(`/api/v1/configuration/templates/${id}`);
   return mapWireTemplateToDomain(data);
 }
 
@@ -57,14 +63,14 @@ export async function fetchTemplateVersionById(
   templateId: string,
   versionId: string
 ): Promise<EvaluationTemplateVersion> {
-  const data = await getApi<any>(
+  const data = await getApi<Record<string, unknown>>(
     `/api/v1/configuration/templates/${templateId}/versions/${versionId}`
   );
   return mapWireVersionToDomain(data);
 }
 
 export async function fetchCriterionLibrary(): Promise<Criterion[]> {
-  const data = await getApi<any[]>('/api/v1/configuration/criteria');
+  const data = await getApi<Record<string, unknown>[]>('/api/v1/configuration/criteria');
   return (data || []).map(mapWireCriterionToDomain);
 }
 
@@ -73,7 +79,7 @@ export async function createEvaluationTemplate(payload: {
   name: string;
   description?: string;
 }): Promise<EvaluationTemplate> {
-  const data = await postApi<any>('/api/v1/configuration/templates', payload);
+  const data = await postApi<Record<string, unknown>>('/api/v1/configuration/templates', payload);
   return mapWireTemplateToDomain(data);
 }
 
@@ -81,7 +87,7 @@ export async function createTemplateVersion(
   templateId: string,
   fromVersionId?: string
 ): Promise<EvaluationTemplateVersion> {
-  const data = await postApi<any>(
+  const data = await postApi<Record<string, unknown>>(
     `/api/v1/configuration/templates/${templateId}/versions`,
     {
       from_version_id: fromVersionId,
@@ -111,7 +117,7 @@ export async function saveTemplateCriteriaDraft(
     })),
   };
 
-  const data = await putApi<any>(
+  const data = await putApi<Record<string, unknown>>(
     `/api/v1/configuration/templates/${templateId}/versions/${versionId}/criteria`,
     payload
   );
@@ -123,8 +129,8 @@ export async function addTemplateKpiApi(
   versionId: string,
   kpiId: string,
   weight: number
-): Promise<any> {
-  return postApi<any>(
+): Promise<unknown> {
+  return postApi<unknown>(
     `/api/v1/configuration/templates/${templateId}/versions/${versionId}/kpis`,
     { kpi_id: kpiId, weight }
   );
@@ -145,7 +151,7 @@ export async function validateTemplateVersionApi(
   versionId: string
 ): Promise<TemplateValidationResult> {
   try {
-    const data = await postApi<any>(
+    const data = await postApi<{ valid: boolean; errors?: TemplateValidationResult['errors']; warnings?: TemplateValidationResult['warnings']; actual_weight?: number }>(
       `/api/v1/configuration/templates/${templateId}/versions/${versionId}/validate`,
       {}
     );
@@ -155,7 +161,7 @@ export async function validateTemplateVersionApi(
       warnings: data.warnings || [],
       configuredWeightTotal: data.actual_weight || 100,
     };
-  } catch (err: any) {
+  } catch (err) {
     // Client-side fallback if backend route unavailable in mock dev environment
     return {
       isValid: false,
@@ -163,7 +169,7 @@ export async function validateTemplateVersionApi(
         {
           code: 'WEIGHT_TOTAL_NOT_100',
           category: 'WEIGHT',
-          message: err.message || 'Validation failed on server',
+          message: err instanceof Error ? err.message : 'Validation failed on server',
         },
       ],
       warnings: [],
@@ -177,7 +183,7 @@ export async function publishTemplateVersion(
   versionId: string,
   expectedVersion: number
 ): Promise<EvaluationTemplateVersion> {
-  const data = await postApi<any>(
+  const data = await postApi<Record<string, unknown>>(
     `/api/v1/configuration/templates/${templateId}/versions/${versionId}/publish`,
     { expected_version: expectedVersion }
   );
