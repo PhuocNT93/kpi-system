@@ -1,0 +1,35 @@
+name: Keep Develop Awake
+
+# Render Free suspends a web service after ~15 minutes without inbound traffic and
+# Neon Free suspends compute after ~5 minutes idle. Pinging every 12 minutes during
+# working hours (Mon-Fri, ~08:00-18:48 GMT+7) keeps both awake without burning the
+# monthly free instance-hours quota.
+on:
+  schedule:
+    - cron: '0,12,24,36,48 1-11 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: develop-keepalive
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    environment: develop
+    steps:
+      - name: Ping develop API deep health endpoint
+        env:
+          DEVELOP_API_BASE_URL: ${{ secrets.DEVELOP_API_BASE_URL }}
+        run: |
+          if [ -z "$DEVELOP_API_BASE_URL" ]; then
+            echo "DEVELOP_API_BASE_URL is not configured in GitHub Environment develop."
+            exit 1
+          fi
+          curl --fail --silent --show-error --output /dev/null \
+            --max-time 90 --retry 2 --retry-delay 15 --retry-connrefused \
+            "${DEVELOP_API_BASE_URL%/}/health/db"
+          echo "Develop API responded to the keep-alive probe."

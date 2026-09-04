@@ -559,6 +559,48 @@ export const swaggerOptions: swaggerJsdoc.Options = {
           },
         },
       },
+      '/health/db': {
+        get: {
+          summary: 'Deep health check',
+          description:
+            'Verifies database connectivity with a single lightweight query. Also used by the develop keep-alive job to prevent free-tier suspension.',
+          tags: ['Health'],
+          responses: {
+            200: {
+              description: 'Service and database are healthy',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: {
+                            type: 'object',
+                            properties: {
+                              status: { type: 'string', example: 'healthy' },
+                              database: { type: 'string', example: 'up' },
+                            },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            503: {
+              description: 'Database is not reachable',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/ApiErrorResponse' },
+                },
+              },
+            },
+          },
+        },
+      },
       '/api/auth/signup': {
         post: {
           summary: 'User registration',

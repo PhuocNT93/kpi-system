@@ -224,3 +224,43 @@ To manage the develop database manually, open **Actions -> Deploy Develop -> Run
 | `true` | `true` | Run migration, then seed; skip application deployment. |
 
 Both database jobs use `DEVELOP_DATABASE_URL`. The seed job does not depend on the migration job, so seed-only mode remains available.
+
+## 10. Develop free-tier cold start
+
+Render Free suspends a web service after about 15 minutes without inbound traffic, and Neon Free suspends database compute after about 5 minutes idle. The next request then waits roughly 30-60 seconds while the container and the database wake up.
+
+The develop environment mitigates this in two layers.
+
+### Keep-alive workflow
+
+```text
+.github/workflows/develop-keepalive.yml
+```
+
+It runs on the schedule `0,12,24,36,48 1-11 * * 1-5` (UTC), which is Monday to Friday, roughly 08:00-18:48 GMT+7, and can also be started manually from **Actions -> Keep Develop Awake -> Run workflow**. Each run sends one request:
+
+```text
+GET <DEVELOP_API_BASE_URL>/health/db
+```
+
+`GET /health/db` is a public read-only endpoint that runs a single `SELECT 1`. It returns `200` when the database answers and `503` otherwise, without exposing connection details. It keeps both the Render instance and the Neon compute awake. The Render health check keeps pointing at the shallow `/health`, so a slow database never triggers an instance restart.
+
+The workflow reads the API URL from the existing `DEVELOP_API_BASE_URL` secret in the GitHub Environment `develop`. Nothing new must be configured.
+
+To change the window, edit the `cron` expression. Keep the interval below 15 minutes, otherwise Render suspends the service between pings.
+
+Limitations to be aware of:
+
+- Render Free grants 750 instance-hours per month across the whole account. The working-hours schedule consumes roughly 50 hours per month; a 24/7 schedule would consume about 730 hours and can exhaust the quota.
+- GitHub disables scheduled workflows after 60 days without repository activity, and scheduled runs can be delayed during peak load. A cold start is therefore still possible.
+- Keeping a free instance awake is a workaround for the develop environment only. Do not apply it to production.
+
+### Frontend cold-start handling
+
+`frontend/src/shared/api/api-client.ts` allows up to 90 seconds for the first call of a session, then 20 seconds for later calls. Failed `GET` requests are retried twice with backoff; write requests are never retried, so a cold start cannot duplicate a write. When the server is still unavailable, the client raises the `SERVER_WAKING_UP` error code and `ErrorAlert` tells the user that the server is starting up instead of showing a generic network error.
+
+### Common problems
+
+- The keep-alive job fails with an empty URL: `DEVELOP_API_BASE_URL` is missing from the GitHub Environment `develop`.
+- The keep-alive job returns `503`: the API is up but Neon is unreachable. Check the Neon project state and the `DATABASE_URL` value configured on Render.
+- The first request of the day is still slow: check whether the scheduled workflow was disabled by GitHub or delayed, and re-enable it from the Actions tab.

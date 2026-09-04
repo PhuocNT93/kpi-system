@@ -3,7 +3,7 @@ import express from 'express';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './config/swagger.js';
 import { errorHandler, notFoundHandler } from './api/error-handler.js';
-import { sendSuccess } from './api/http-response.js';
+import { sendFailure, sendSuccess } from './api/http-response.js';
 import { createApiRouter } from './api/routes.js';
 import { getJwtConfig } from './config/jwt.config.js';
 import { resolveDatabasePool } from './config/database.config.js';
@@ -111,6 +111,24 @@ export function createApp(options: AppOptions = {}) {
   // ── Health Check ──────────────────────────────────────────────────────────
   app.get('/health', (_request, response) => {
     sendSuccess(response, 200, 'Service is healthy.', { status: 'healthy' });
+  });
+
+  // Deep health check: also keeps the free-tier database compute awake.
+  app.get('/health/db', async (_request, response) => {
+    if (!pool) {
+      sendFailure(response, 503, 'Database is not reachable.', 'DATABASE_UNAVAILABLE');
+      return;
+    }
+
+    try {
+      await pool.query('SELECT 1');
+      sendSuccess(response, 200, 'Service and database are healthy.', {
+        status: 'healthy',
+        database: 'up',
+      });
+    } catch {
+      sendFailure(response, 503, 'Database is not reachable.', 'DATABASE_UNAVAILABLE');
+    }
   });
 
   // ── API Routes ────────────────────────────────────────────────────────────

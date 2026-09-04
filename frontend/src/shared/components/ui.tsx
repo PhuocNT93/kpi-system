@@ -28,8 +28,11 @@ interface ErrorAlertProps {
 }
 
 export function ErrorAlert({ error, onRetry }: ErrorAlertProps) {
-  const message =
-    error instanceof ApiClientError
+  const isServerWakingUp = error instanceof ApiClientError && error.code === 'SERVER_WAKING_UP';
+
+  const message = isServerWakingUp
+    ? 'The server is starting up after a period of inactivity. Please wait a moment and try again.'
+    : error instanceof ApiClientError
       ? error.message  // safe display text from backend envelope
       : 'An unexpected error occurred. Please try again.';
 
