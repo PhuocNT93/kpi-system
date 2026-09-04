@@ -29,7 +29,7 @@ class InMemoryTeamRepository implements TeamRepository {
   async findByCode(code: string) {
     return [...this.teams.values()].find(t => t.code.toLowerCase() === code.toLowerCase()) ?? null;
   }
-  async findMany(params: any) {
+  async findMany(params: { departmentId?: string; active?: boolean; teamIds?: string[]; search?: string }) {
     let list = [...this.teams.values()];
     if (params.departmentId) list = list.filter(t => t.departmentId === params.departmentId);
     if (params.active !== undefined) list = list.filter(t => t.active === params.active);
@@ -45,7 +45,7 @@ class InMemoryTeamRepository implements TeamRepository {
     if (!t) return null;
     return { ...t };
   }
-  async create(params: any, _actorId: string | null) {
+  async create(params: Partial<Team>, _actorId: string | null) {
     const id = `team-${++this.idCounter}`;
     const team: Team & { memberCount: number; activeMemberCount: number } = {
       teamId: id,
@@ -62,7 +62,7 @@ class InMemoryTeamRepository implements TeamRepository {
     this.teams.set(id, team);
     return team;
   }
-  async update(teamId: string, params: any, _actorId: string | null) {
+  async update(teamId: string, params: Partial<Team>, _actorId: string | null) {
     const t = this.teams.get(teamId);
     if (!t) throw new Error('NOT_FOUND');
     const updated = {
@@ -92,21 +92,21 @@ class InMemoryTeamRepository implements TeamRepository {
       memberCount: 0,
       activeMemberCount: team.activeMemberCount ?? 0,
       ...team,
-    } as any);
+    } as Team & { memberCount: number; activeMemberCount: number });
   }
 }
 
 // ── In-memory Employee Repository (partial) ─────────────────────────────────
 
 class InMemoryEmployeeRepository implements Partial<EmployeeRepository> {
-  private employees = new Map<string, any>();
+  private employees = new Map<string, Record<string, unknown>>();
 
   async findById(id: string) {
     return this.employees.get(id) ?? null;
   }
-  async findMany(_params: any) { return { employees: [], total: 0 }; }
+  async findMany(_params: Record<string, unknown>) { return { employees: [], total: 0 }; }
 
-  seed(emp: any) { this.employees.set(emp.employeeId, emp); }
+  seed(emp: { employeeId: string; [key: string]: unknown }) { this.employees.set(emp.employeeId, emp); }
 }
 
 // ── Mock Pool ────────────────────────────────────────────────────────────────
@@ -117,7 +117,7 @@ function buildMockPool(deptRow?: { active: boolean }, userRow?: { access_role: s
       query: vi.fn().mockResolvedValue({ rows: [] }),
       release: vi.fn(),
     }),
-    query: vi.fn().mockImplementation((sql: string, _params: any[]) => {
+    query: vi.fn().mockImplementation((sql: string, _params: unknown[]) => {
       if (sql.includes('FROM department')) {
         return Promise.resolve({ rows: deptRow ? [deptRow] : [] });
       }
@@ -126,7 +126,7 @@ function buildMockPool(deptRow?: { active: boolean }, userRow?: { access_role: s
       }
       return Promise.resolve({ rows: [] });
     }),
-  } as any;
+  } as unknown as import('pg').Pool;
 }
 
 // ── Actors ───────────────────────────────────────────────────────────────────
@@ -148,7 +148,7 @@ describe('TeamService — CRUD RBAC', () => {
     teamRepo = new InMemoryTeamRepository();
     employeeRepo = new InMemoryEmployeeRepository();
     pool = buildMockPool({ active: true });
-    svc = new TeamService(teamRepo, employeeRepo as any, pool, { record: vi.fn() } as any);
+    svc = new TeamService(teamRepo, employeeRepo as unknown as EmployeeRepository, pool as unknown as import('pg').Pool, { record: vi.fn() } as unknown as import('../src/modules/audit/application/audit.service.js').AuditService);
   });
 
   // ── CREATE ──────────────────────────────────────────────────────────────
@@ -199,7 +199,7 @@ describe('TeamService — CRUD RBAC', () => {
 
     it('rejects non-existent department (404)', async () => {
       const poolNoDept = buildMockPool(undefined); // returns empty row
-      const svcNoDept = new TeamService(teamRepo, employeeRepo as any, poolNoDept);
+      const svcNoDept = new TeamService(teamRepo, employeeRepo as unknown as EmployeeRepository, poolNoDept as unknown as import('pg').Pool, { record: vi.fn() } as unknown as import('../src/modules/audit/application/audit.service.js').AuditService);
       await expect(
         svcNoDept.createTeam(HR_ADMIN, { code: 'FE', name: 'FE Team', departmentId: 'no-dept' })
       ).rejects.toMatchObject({ status: 404 });
@@ -207,7 +207,7 @@ describe('TeamService — CRUD RBAC', () => {
 
     it('rejects inactive department (422)', async () => {
       const poolInactiveDept = buildMockPool({ active: false });
-      const svcInactive = new TeamService(teamRepo, employeeRepo as any, poolInactiveDept);
+      const svcInactive = new TeamService(teamRepo, employeeRepo as unknown as EmployeeRepository, poolInactiveDept as unknown as import('pg').Pool, { record: vi.fn() } as unknown as import('../src/modules/audit/application/audit.service.js').AuditService);
       await expect(
         svcInactive.createTeam(HR_ADMIN, { code: 'FE', name: 'FE Team', departmentId: 'dept-inactive' })
       ).rejects.toMatchObject({ status: 422, code: 'DEPARTMENT_INACTIVE' });
@@ -297,7 +297,7 @@ describe('TeamService — CRUD RBAC', () => {
 
     it('rejects code change (422 TEAM_CODE_IMMUTABLE)', async () => {
       await expect(
-        svc.updateTeam(HR_ADMIN, 'team-1', { code: 'BE' } as any)
+        svc.updateTeam(HR_ADMIN, 'team-1', { code: 'BE' } as unknown as import('../src/modules/employee/domain/employee.domain.js').UpdateTeamParams)
       ).rejects.toMatchObject({ status: 422, code: 'TEAM_CODE_IMMUTABLE' });
     });
 
@@ -351,7 +351,7 @@ describe('TeamService — validateManagerAssignment', () => {
     teamRepo = new InMemoryTeamRepository();
     employeeRepo = new InMemoryEmployeeRepository();
     pool = buildMockPool({ active: true }, { access_role: 'MANAGER' });
-    svc = new TeamService(teamRepo, employeeRepo as any, pool);
+    svc = new TeamService(teamRepo, employeeRepo as unknown as EmployeeRepository, pool as unknown as import('pg').Pool, { record: vi.fn() } as unknown as import('../src/modules/audit/application/audit.service.js').AuditService);
 
     // Seed a MANAGER employee
     employeeRepo.seed({
@@ -395,7 +395,7 @@ describe('TeamService — validateManagerAssignment', () => {
 
   it('rejects manager without MANAGER role (422 MANAGER_ROLE_REQUIRED)', async () => {
     const poolNoRole = buildMockPool({ active: true }, { access_role: 'EMPLOYEE' });
-    const svcNoRole = new TeamService(teamRepo, employeeRepo as any, poolNoRole);
+    const svcNoRole = new TeamService(teamRepo, employeeRepo as unknown as EmployeeRepository, poolNoRole as unknown as import('pg').Pool, { record: vi.fn() } as unknown as import('../src/modules/audit/application/audit.service.js').AuditService);
     await expect(
       svcNoRole.validateManagerAssignment('emp-1', 'mgr-1', 'team-1')
     ).rejects.toMatchObject({ status: 422, code: 'MANAGER_ROLE_REQUIRED' });

@@ -39,7 +39,7 @@ describe('EmployeeContextService Unit Tests', () => {
       effectiveFrom: '2026-01-01',
       effectiveTo: '2026-06-30',
     };
-    (assignmentRepo.findAssignmentAt as any).mockResolvedValue(mockAssignment);
+    vi.mocked(assignmentRepo.findAssignmentAt).mockResolvedValue(mockAssignment);
 
     const res = await contextService.getAssignmentAt('emp-1', '2026-03-15');
     expect(res).toEqual(mockAssignment);
@@ -54,7 +54,7 @@ describe('EmployeeContextService Unit Tests', () => {
 
   it('TC-EMP-03: should throw error when circular manager relationship is detected', async () => {
     // emp-1 -> mgr-2 -> mgr-3 -> emp-1
-    (employeeRepo.findById as any)
+    vi.mocked(employeeRepo.findById)
       .mockResolvedValueOnce({
         employeeId: 'mgr-2',
         managerId: 'mgr-3',
@@ -72,14 +72,14 @@ describe('EmployeeContextService Unit Tests', () => {
   });
 
   it('TC-ORG-03: should throw error when effectiveFrom >= effectiveTo', async () => {
-    (assignmentRepo.findAssignmentHistory as any).mockResolvedValue([]);
+    vi.mocked(assignmentRepo.findAssignmentHistory).mockResolvedValue([]);
     await expect(
       contextService.validateAssignmentDates('emp-1', '2026-06-30', '2026-01-01')
     ).rejects.toThrow('effective_from must be before effective_to');
   });
 
   it('TC-ORG-04: should throw error when assignment date ranges overlap', async () => {
-    (assignmentRepo.findAssignmentHistory as any).mockResolvedValue([
+    vi.mocked(assignmentRepo.findAssignmentHistory).mockResolvedValue([
       {
         employeeAssignmentId: 'a-1',
         employeeId: 'emp-1',

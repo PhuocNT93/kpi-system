@@ -79,13 +79,13 @@ export async function seedTeamReviewsModule(pool: Pool): Promise<void> {
   );
   const templateCriteria = tcRes.rows;
 
-  const criterionVersionIds = templateCriteria.map((tc: any) => tc.criterion_version_id);
+  const criterionVersionIds = templateCriteria.map((tc: Record<string, unknown>) => tc.criterion_version_id);
   const levelsRes = await pool.query(
     `SELECT criterion_version_id, level_no, label_en, label_vn, score_value
      FROM criterion_level WHERE criterion_version_id = ANY($1::uuid[]) ORDER BY level_no ASC;`,
     [criterionVersionIds]
   );
-  const levelsByCvId: Record<string, any[]> = {};
+  const levelsByCvId: Record<string, Record<string, unknown>[]> = {};
   for (const lvl of levelsRes.rows) {
     if (!levelsByCvId[lvl.criterion_version_id]) levelsByCvId[lvl.criterion_version_id] = [];
     levelsByCvId[lvl.criterion_version_id]!.push({

@@ -306,7 +306,7 @@ describe.runIf(isDbAvailable)('Evaluation Cycle API & Integration Tests', () => 
     const evalRes = await pool.query('SELECT is_locked, status FROM evaluation WHERE evaluation_cycle_id = $1;', [
       cycle.evaluationCycleId,
     ]);
-    expect(evalRes.rows.every((row: any) => row.is_locked === true && row.status === EvaluationStatus.LOCKED)).toBe(true);
+    expect(evalRes.rows.every((row: Record<string, unknown>) => row.is_locked === true && row.status === EvaluationStatus.LOCKED)).toBe(true);
 
     // Reject locking again
     await expect(

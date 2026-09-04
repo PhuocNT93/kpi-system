@@ -16,7 +16,7 @@ describe('IAM API & Security Integration Tests', () => {
   const jwtConfig = { secret: 'test-secret' };
   const tokenService = new JWTTokenService(jwtConfig);
 
-  let app: any;
+  let app: import('express').Application;
   let userRoleRepo: InMemoryUserRoleRepository;
   let roleRepo: InMemoryRoleRepository;
   let permRepo: InMemoryPermissionRepository;

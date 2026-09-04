@@ -16,13 +16,13 @@ describe('Employee API Routes (MVP Scaffolding)', () => {
   const jwtConfig = { secret: 'test-secret' };
   const tokenService = new JWTTokenService(jwtConfig);
 
-  let app: any;
+  let app: import('express').Application;
 
   beforeEach(async () => {
     // create a fake pool object for testing
     const fakePool = {
       query: vi.fn().mockResolvedValue({ rows: [{ full_count: '0' }] })
-    } as any;
+    } as unknown as import('pg').Pool;
     const userRoleRepo = new InMemoryUserRoleRepository();
     const roleRepo = new InMemoryRoleRepository();
     const permRepo = new InMemoryPermissionRepository();
