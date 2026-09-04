@@ -46,11 +46,12 @@ export class PostgresKpiRelationshipRepository implements KpiRelationshipReposit
     try {
       const result = await this.getClient(client).query(query, values);
       return this.mapToModel(result.rows[0]);
-    } catch (error: any) {
-      if (error.code === '23505') {
+    } catch (error) {
+      const code = (error as { code?: string }).code;
+      if (code === '23505') {
         throw new Conflict('KPI Relationship already exists');
       }
-      if (error.code === '23503') {
+      if (code === '23503') {
         throw new NotFound('Referenced KPI does not exist');
       }
       throw error;

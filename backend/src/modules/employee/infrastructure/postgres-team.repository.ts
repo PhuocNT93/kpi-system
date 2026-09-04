@@ -1,11 +1,25 @@
 import { Pool } from 'pg';
 import { Team, TeamWithContext, CreateTeamParams, UpdateTeamParams } from '../domain/employee.domain.js';
 import { TeamRepository } from '../domain/employee.repository.js';
+import { QueryExecutor } from '../../../shared/database/query-executor.js';
+
+interface TeamRow extends Record<string, unknown> {
+  team_id: string;
+  department_id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  active: boolean;
+  created_at?: string;
+  updated_at?: string;
+  created_by?: string | null;
+  updated_by?: string | null;
+}
 
 export class PostgresTeamRepository implements TeamRepository {
   constructor(private pool: Pool) {}
 
-  private hasQuery(executor?: any): boolean {
+  private hasQuery(executor?: QueryExecutor): boolean {
     const p = executor || this.pool;
     return !!(p && typeof p.query === 'function');
   }
@@ -100,7 +114,7 @@ export class PostgresTeamRepository implements TeamRepository {
     };
   }
 
-  async create(params: CreateTeamParams, actorEmployeeId: string | null, client?: any): Promise<Team> {
+  async create(params: CreateTeamParams, actorEmployeeId: string | null, client?: QueryExecutor): Promise<Team> {
     const executor = client || this.pool;
     if (!this.hasQuery(executor)) {
       return {
@@ -112,21 +126,25 @@ export class PostgresTeamRepository implements TeamRepository {
         active: true,
       };
     }
-    const res = await executor.query(
+    const res = await executor.query<TeamRow>(
       `INSERT INTO team (code, name, department_id, description, created_by, updated_by)
        VALUES ($1, $2, $3, $4, $5, $5)
        RETURNING team_id, department_id, code, name, description, active, created_at, updated_at, created_by, updated_by`,
       [params.code, params.name, params.departmentId, params.description ?? null, actorEmployeeId]
     );
-    return this.mapRowToTeam(res.rows[0]);
+    const [insertedRow] = res.rows;
+    if (!insertedRow) {
+      throw new Error('TEAM_INSERT_RETURNED_NO_ROW');
+    }
+    return this.mapRowToTeam(insertedRow);
   }
 
-  async update(teamId: string, params: UpdateTeamParams, actorEmployeeId: string | null, client?: any): Promise<Team> {
+  async update(teamId: string, params: UpdateTeamParams, actorEmployeeId: string | null, client?: QueryExecutor): Promise<Team> {
     const executor = client || this.pool;
     if (!this.hasQuery(executor)) {
       return { teamId, departmentId: '', code: '', name: '', active: true };
     }
-    const res = await executor.query(
+    const res = await executor.query<TeamRow>(
       `UPDATE team
        SET name        = COALESCE($1, name),
            department_id = COALESCE($2, department_id),
@@ -144,11 +162,12 @@ export class PostgresTeamRepository implements TeamRepository {
         teamId,
       ]
     );
-    if (res.rows.length === 0) {
+    const [updatedRow] = res.rows;
+    if (!updatedRow) {
       const { NotFound } = await import('../../../api/app-error.js');
       throw new NotFound(`Team with ID ${teamId}`);
     }
-    return this.mapRowToTeam(res.rows[0]);
+    return this.mapRowToTeam(updatedRow);
   }
 
   async countActiveMembers(teamId: string): Promise<number> {
@@ -160,7 +179,7 @@ export class PostgresTeamRepository implements TeamRepository {
     return parseInt(res.rows[0].total, 10);
   }
 
-  private mapRowToTeam(row: any): Team {
+  private mapRowToTeam(row: TeamRow): Team {
     return {
       teamId: row.team_id,
       departmentId: row.department_id,

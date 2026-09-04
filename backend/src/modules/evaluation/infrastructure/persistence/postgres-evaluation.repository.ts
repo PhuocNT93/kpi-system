@@ -87,7 +87,7 @@ export class PostgresEvaluationRepository implements IEvaluationRepository {
       LEFT JOIN team t ON e.team_id_snapshot = t.team_id
       LEFT JOIN role r ON e.role_id_snapshot = r.role_id
     `;
-    const queryParams: any[] = [];
+    const queryParams: unknown[] = [];
 
     if (!params.isSuperAdminOrHr) {
       if (!params.managerEmployeeId) {

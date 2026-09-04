@@ -49,7 +49,7 @@ export class PostgresTemplateKpiRepository implements ITemplateKpiRepository {
 
   async update(id: string, tk: Partial<TemplateKpi>, client?: PoolClient): Promise<TemplateKpi> {
     const fields: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
     let idx = 1;
 
     if (tk.weight !== undefined) {

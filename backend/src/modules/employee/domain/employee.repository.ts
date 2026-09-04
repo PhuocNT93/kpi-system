@@ -1,4 +1,5 @@
 import { Employee, EmployeeAssignment, Team, TeamWithContext, CreateTeamParams, UpdateTeamParams } from './employee.domain.js';
+import { QueryExecutor } from '../../../shared/database/query-executor.js';
 
 
 export interface EmployeeRepository {
@@ -16,16 +17,16 @@ export interface EmployeeRepository {
     limit?: number;
     offset?: number;
   }): Promise<{ employees: Employee[]; total: number }>;
-  create(employee: Omit<Employee, 'employeeId' | 'version'>, client?: any): Promise<Employee>;
-  update(employee: Employee, client?: any): Promise<Employee>;
+  create(employee: Omit<Employee, 'employeeId' | 'version'>, client?: QueryExecutor): Promise<Employee>;
+  update(employee: Employee, client?: QueryExecutor): Promise<Employee>;
 }
 
 export interface EmployeeAssignmentRepository {
-  create(assignment: Omit<EmployeeAssignment, 'employeeAssignmentId'>, client?: any): Promise<EmployeeAssignment>;
-  findCurrentAssignment(employeeId: string, client?: any): Promise<EmployeeAssignment | null>;
-  findAssignmentAt(employeeId: string, effectiveDate: string, client?: any): Promise<EmployeeAssignment | null>;
+  create(assignment: Omit<EmployeeAssignment, 'employeeAssignmentId'>, client?: QueryExecutor): Promise<EmployeeAssignment>;
+  findCurrentAssignment(employeeId: string, client?: QueryExecutor): Promise<EmployeeAssignment | null>;
+  findAssignmentAt(employeeId: string, effectiveDate: string, client?: QueryExecutor): Promise<EmployeeAssignment | null>;
   findAssignmentHistory(employeeId: string): Promise<EmployeeAssignment[]>;
-  closeActiveAssignment(employeeId: string, closeDate: string, client?: any): Promise<void>;
+  closeActiveAssignment(employeeId: string, closeDate: string, client?: QueryExecutor): Promise<void>;
 }
 
 export interface TeamRepository {
@@ -40,8 +41,8 @@ export interface TeamRepository {
     offset?: number;
   }): Promise<{ teams: Team[]; total: number }>;
   findWithContext(teamId: string): Promise<TeamWithContext | null>;
-  create(params: CreateTeamParams, actorEmployeeId: string | null, client?: any): Promise<Team>;
-  update(teamId: string, params: UpdateTeamParams, actorEmployeeId: string | null, client?: any): Promise<Team>;
+  create(params: CreateTeamParams, actorEmployeeId: string | null, client?: QueryExecutor): Promise<Team>;
+  update(teamId: string, params: UpdateTeamParams, actorEmployeeId: string | null, client?: QueryExecutor): Promise<Team>;
   countActiveMembers(teamId: string): Promise<number>;
 }
 

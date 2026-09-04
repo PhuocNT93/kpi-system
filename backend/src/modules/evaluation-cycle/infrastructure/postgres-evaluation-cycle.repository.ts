@@ -80,7 +80,7 @@ export class PostgresEvaluationCycleRepository implements IEvaluationCycleReposi
     if (!this.hasQuery(executor)) return { items: [], total: 0 };
 
     const conditions: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
     let idx = 1;
 
     if (query.status) {
@@ -241,7 +241,7 @@ export class PostgresEvaluationRepository implements IEvaluationRepository {
     for (let i = 0; i < evaluations.length; i += chunkSize) {
       const chunk = evaluations.slice(i, i + chunkSize);
       const valueTuples: string[] = [];
-      const values: any[] = [];
+      const values: unknown[] = [];
       let paramIdx = 1;
 
       for (const item of chunk) {
@@ -345,7 +345,7 @@ export class PostgresEvaluationItemRepository implements IEvaluationItemReposito
     for (let i = 0; i < items.length; i += chunkSize) {
       const chunk = items.slice(i, i + chunkSize);
       const valueTuples: string[] = [];
-      const values: any[] = [];
+      const values: unknown[] = [];
       let paramIdx = 1;
 
       for (const item of chunk) {

@@ -48,7 +48,7 @@ export class PostgresKpiCriterionRepository {
 
   async update(kpiCriterionId: string, dto: UpdateKpiCriterionMappingDTO): Promise<KpiCriterionMapping> {
     const fields: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
     let paramIndex = 1;
 
     if (dto.weight !== undefined) {

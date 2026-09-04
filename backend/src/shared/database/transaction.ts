@@ -1,5 +1,7 @@
+import { QueryResultLike } from './query-executor.js';
+
 export interface TransactionClient {
-  query(queryText: string, values?: any[]): Promise<unknown>;
+  query(queryText: string, values?: unknown[]): Promise<QueryResultLike<Record<string, unknown>>>;
   release(): void;
 }
 
