@@ -13,6 +13,15 @@ interface UserRow {
   updated_at: Date;
 }
 
+interface UserRoleSummary {
+  roleCode: string;
+  roleName: string;
+}
+
+interface UserWithRolesRow extends UserRow {
+  roles: UserRoleSummary[];
+}
+
 export class PostgresUserRepository implements UserRepository {
   constructor(private readonly pool: Pool) {}
 
@@ -168,8 +177,8 @@ export class PostgresUserRepository implements UserRepository {
       LEFT JOIN role r ON ur.role_id = r.role_id
       GROUP BY u.id
     `;
-    const result = await this.pool.query(query);
-    return result.rows.map((row: any) => ({
+    const result = await this.pool.query<UserWithRolesRow>(query);
+    return result.rows.map((row) => ({
       ...this.mapToUser(row),
       roles: row.roles,
     }));

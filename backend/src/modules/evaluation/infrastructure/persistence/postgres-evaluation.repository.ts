@@ -1,6 +1,6 @@
 import { Pool, PoolClient } from 'pg';
 import { Evaluation, EvaluationStatus } from '../../domain/evaluation.types.js';
-import { IEvaluationRepository } from '../../domain/repositories.interface.js';
+import { IEvaluationRepository, MyEvaluationListItem, TeamEvaluationListItem } from '../../domain/repositories.interface.js';
 
 export class PostgresEvaluationRepository implements IEvaluationRepository {
   constructor(private pool: Pool) {}
@@ -43,7 +43,7 @@ export class PostgresEvaluationRepository implements IEvaluationRepository {
     return this.mapRow(res.rows[0]);
   }
 
-  async findMyEvaluations(userId: string, client?: PoolClient): Promise<any[]> {
+  async findMyEvaluations(userId: string, client?: PoolClient): Promise<MyEvaluationListItem[]> {
     const runner = client || this.pool;
     const res = await runner.query(
       `SELECT e.*,
@@ -68,7 +68,7 @@ export class PostgresEvaluationRepository implements IEvaluationRepository {
     }));
   }
 
-  async findTeamEvaluations(params: { managerEmployeeId?: string; isSuperAdminOrHr?: boolean }, client?: PoolClient): Promise<any[]> {
+  async findTeamEvaluations(params: { managerEmployeeId?: string; isSuperAdminOrHr?: boolean }, client?: PoolClient): Promise<TeamEvaluationListItem[]> {
     const runner = client || this.pool;
     let query = `
       SELECT e.*,

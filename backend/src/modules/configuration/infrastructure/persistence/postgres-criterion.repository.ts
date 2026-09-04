@@ -1,5 +1,5 @@
 import { Pool, PoolClient } from 'pg';
-import { Criterion, CriterionCategory, CriterionStatus } from '../../domain/configuration.types.js';
+import { Criterion, CriterionCategory, CriterionStatus, CriterionWithCurrentVersion } from '../../domain/configuration.types.js';
 import { ICriterionRepository, CriteriaFilter } from '../../domain/repositories.interface.js';
 import { VersionMismatch, NotFound } from '../../../../api/app-error.js';
 
@@ -80,7 +80,7 @@ export class PostgresCriterionRepository implements ICriterionRepository {
   async findAllWithCurrentVersion(
     filter: CriteriaFilter,
     client?: PoolClient
-  ): Promise<{ items: any[]; total: number }> {
+  ): Promise<{ items: CriterionWithCurrentVersion[]; total: number }> {
     const runner = client || this.pool;
     const page = filter.page || 1;
     const size = filter.size || 20;

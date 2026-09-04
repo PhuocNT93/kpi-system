@@ -1,6 +1,17 @@
 import { Pool, PoolClient } from 'pg';
 import { Conflict, NotFound } from '../../../api/app-error.js';
-import { KpiRelationship, KpiRelationshipCreateDTO } from '../domain/kpi-relationship.model.js';
+import { KpiRelationship, KpiRelationshipCreateDTO, KpiRelationshipType } from '../domain/kpi-relationship.model.js';
+
+interface KpiRelationshipRow {
+  relationship_id: string;
+  source_kpi_id: string;
+  target_kpi_id: string;
+  relationship_type: KpiRelationshipType;
+  effective_from: Date;
+  effective_to: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
 
 export interface KpiRelationshipRepository {
   create(data: KpiRelationshipCreateDTO, client?: PoolClient): Promise<KpiRelationship>;
@@ -16,7 +27,7 @@ export class PostgresKpiRelationshipRepository implements KpiRelationshipReposit
     return client || this.pool;
   }
 
-  private mapToModel(row: any): KpiRelationship {
+  private mapToModel(row: KpiRelationshipRow): KpiRelationship {
     return {
       relationshipId: row.relationship_id,
       sourceKpiId: row.source_kpi_id,
