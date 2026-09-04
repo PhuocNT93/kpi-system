@@ -6,6 +6,7 @@ import type {
   TemplateCriterion,
   TemplateValidationResult,
 } from '../domain/template-models';
+import type { WireTemplate, WireVersion, WireCriterion } from '../domain/template-mappers';
 import {
   mapWireTemplateToDomain,
   mapWireVersionToDomain,
@@ -50,12 +51,12 @@ export async function fetchTeams(): Promise<Array<{ id: string; code: string; na
 }
 
 export async function fetchEvaluationTemplates(): Promise<EvaluationTemplate[]> {
-  const data = await getApi<Record<string, unknown>[]>('/api/v1/configuration/templates');
+  const data = await getApi<WireTemplate[]>('/api/v1/configuration/templates');
   return (data || []).map(mapWireTemplateToDomain);
 }
 
 export async function fetchEvaluationTemplateById(id: string): Promise<EvaluationTemplate> {
-  const data = await getApi<Record<string, unknown>>(`/api/v1/configuration/templates/${id}`);
+  const data = await getApi<WireTemplate>(`/api/v1/configuration/templates/${id}`);
   return mapWireTemplateToDomain(data);
 }
 
@@ -63,14 +64,14 @@ export async function fetchTemplateVersionById(
   templateId: string,
   versionId: string
 ): Promise<EvaluationTemplateVersion> {
-  const data = await getApi<Record<string, unknown>>(
+  const data = await getApi<WireVersion>(
     `/api/v1/configuration/templates/${templateId}/versions/${versionId}`
   );
   return mapWireVersionToDomain(data);
 }
 
 export async function fetchCriterionLibrary(): Promise<Criterion[]> {
-  const data = await getApi<Record<string, unknown>[]>('/api/v1/configuration/criteria');
+  const data = await getApi<WireCriterion[]>('/api/v1/configuration/criteria');
   return (data || []).map(mapWireCriterionToDomain);
 }
 
@@ -79,7 +80,7 @@ export async function createEvaluationTemplate(payload: {
   name: string;
   description?: string;
 }): Promise<EvaluationTemplate> {
-  const data = await postApi<Record<string, unknown>>('/api/v1/configuration/templates', payload);
+  const data = await postApi<WireTemplate>('/api/v1/configuration/templates', payload);
   return mapWireTemplateToDomain(data);
 }
 
@@ -87,7 +88,7 @@ export async function createTemplateVersion(
   templateId: string,
   fromVersionId?: string
 ): Promise<EvaluationTemplateVersion> {
-  const data = await postApi<Record<string, unknown>>(
+  const data = await postApi<WireVersion>(
     `/api/v1/configuration/templates/${templateId}/versions`,
     {
       from_version_id: fromVersionId,
@@ -117,7 +118,7 @@ export async function saveTemplateCriteriaDraft(
     })),
   };
 
-  const data = await putApi<Record<string, unknown>>(
+  const data = await putApi<WireVersion>(
     `/api/v1/configuration/templates/${templateId}/versions/${versionId}/criteria`,
     payload
   );
@@ -183,7 +184,7 @@ export async function publishTemplateVersion(
   versionId: string,
   expectedVersion: number
 ): Promise<EvaluationTemplateVersion> {
-  const data = await postApi<Record<string, unknown>>(
+  const data = await postApi<WireVersion>(
     `/api/v1/configuration/templates/${templateId}/versions/${versionId}/publish`,
     { expected_version: expectedVersion }
   );

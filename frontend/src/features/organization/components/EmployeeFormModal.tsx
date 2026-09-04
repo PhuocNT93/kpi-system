@@ -304,7 +304,7 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
                   disabled={!selectedDeptId}
                 >
                   <option value="">-- No Team --</option>
-                  {teamsInDept.map((t: unknown) => (
+                  {teamsInDept.map((t: { id: string; name: string }) => (
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>

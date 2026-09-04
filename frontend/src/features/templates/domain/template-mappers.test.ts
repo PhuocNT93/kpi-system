@@ -179,10 +179,11 @@ describe('template-mappers domain logic', () => {
       id: 'tpl-123',
       code: 'ENG_2026',
       name: 'Engineering 2026',
-      status: 'DRAFT',
+      status: 'DRAFT' as const,
       current_version_id: 'tv-1',
-      version: 2,
-      created_at: '2026-08-27T00:00:00Z',
+      version: 1,
+      created_at: '2023-05-12T10:00:00Z',
+      updated_at: '2023-05-12T10:00:00Z',
     };
 
     const domain = mapWireTemplateToDomain(wireData);

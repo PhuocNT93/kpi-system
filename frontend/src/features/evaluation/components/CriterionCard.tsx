@@ -44,13 +44,14 @@ export const CriterionCard: React.FC<CriterionCardProps> = ({
   const [isExpanded, setIsExpanded] = useState<boolean>(true);
 
   const isDisabled = item.is_disabled_for_employee;
-  const levels: LevelItem[] = Array.isArray(item.level_definition_snapshot?.levels)
-    ? item.level_definition_snapshot.levels
-    : Array.isArray(item.level_definition_snapshot)
-    ? item.level_definition_snapshot
+  const levelSnapshot = item.level_definition_snapshot as { levels?: LevelItem[] } | LevelItem[] | null;
+  const levels: LevelItem[] = levelSnapshot && 'levels' in levelSnapshot && Array.isArray(levelSnapshot.levels)
+    ? levelSnapshot.levels
+    : Array.isArray(levelSnapshot)
+    ? levelSnapshot
     : [];
 
-  const ruleSnapshot = item.scoring_rule_snapshot;
+  const ruleSnapshot = item.scoring_rule_snapshot as { rule_type?: string; name?: string } | null;
   const ruleType = ruleSnapshot?.rule_type || ruleSnapshot?.name || 'Chuẩn';
 
   const isCompleted = isDisabled || (resolvedLevel !== null && resolvedLevel !== undefined);

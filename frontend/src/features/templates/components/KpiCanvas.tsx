@@ -127,7 +127,7 @@ export function KpiCanvas({
                 </span>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: '1rem', color: '#111827' }}>
-                    {kpi.kpi?.name || 'Unknown KPI'}
+                    {(kpi.kpi as { name?: string })?.name || 'Unknown KPI'}
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
                     {kpiCriteria.length} Criteria · Weight: {kpi.weight}%

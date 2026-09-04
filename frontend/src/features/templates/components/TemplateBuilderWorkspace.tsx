@@ -227,7 +227,7 @@ export function TemplateBuilderWorkspace({
   };
 
   const existingCriterionIds = new Set(criteria.filter(c => c.templateKpiId === selectedKpiId).map((c) => c.criterion.id));
-  const existingKpiIds = new Set(kpis.map((k) => k.kpi?.id || k.kpiId));
+  const existingKpiIds = new Set(kpis.map((k) => (k.kpi as { id?: string })?.id || k.kpiId));
 
   if (isLoading) return <LoadingSpinner label="Loading Template Workspace..." />;
   if (error) return <ErrorAlert error={error} onRetry={onBackToList} />;

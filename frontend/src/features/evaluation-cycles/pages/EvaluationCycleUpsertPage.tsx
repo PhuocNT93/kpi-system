@@ -45,7 +45,7 @@ export const EvaluationCycleUpsertPage: React.FC = () => {
     }
   };
 
-  const templatesOptions: TemplateReferenceDTO[] = (templatesQuery.data || []).map((t: unknown) => ({
+  const templatesOptions: TemplateReferenceDTO[] = (templatesQuery.data || []).map((t: { id: string; name: string; currentVersionId?: string; currentVersion?: { id?: string; versionNo?: number; criteria?: unknown[] }; version?: number; status?: string; criteriaCount?: number }) => ({
     id: t.currentVersionId ?? t.currentVersion?.id ?? t.id,
     name: t.name,
     version: t.currentVersion?.versionNo ? `v${t.currentVersion.versionNo}` : `v${t.version}`,
@@ -53,8 +53,8 @@ export const EvaluationCycleUpsertPage: React.FC = () => {
     criteriaCount: t.criteriaCount ?? t.currentVersion?.criteria?.length,
   }));
 
-  const teamsOptions = (teamsQuery.data || []).map((team: unknown) => ({ id: team.id, name: team.name }));
-  const rolesOptions = (rolesQuery.data || []).map((role: unknown) => ({ id: role.id, name: role.name }));
+  const teamsOptions = (teamsQuery.data || []).map((team: { id: string; name: string }) => ({ id: team.id, name: team.name }));
+  const rolesOptions = (rolesQuery.data || []).map((role: { id: string; name: string }) => ({ id: role.id, name: role.name }));
   const isAnyFetching =
     templatesQuery.isFetching || teamsQuery.isFetching || rolesQuery.isFetching || employeesQuery.isFetching || createMutation.isPending || updateMutation.isPending;
     

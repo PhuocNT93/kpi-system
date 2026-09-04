@@ -3,7 +3,8 @@ import { authApi } from '../api/auth-api';
 import { setAccessToken } from '../api/api-client';
 import type { AuthUser, UserRole } from './auth-models';
 import { LoadingSpinner } from '../components/ui';
-import { AuthContext, AuthContextValue } from './auth-context';
+import { AuthContext } from './auth-context';
+import type { AuthContextValue } from './auth-context';
 
 export { ApiClientError } from '../api/api-client';
 

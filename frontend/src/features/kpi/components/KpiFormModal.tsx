@@ -46,7 +46,7 @@ export function KpiFormModal({ isOpen, onClose, editingKpi }: Props) {
       }
       onClose();
     } catch (err: unknown) {
-      setError(err?.message || 'An error occurred');
+      setError((err as Error).message || 'Failed to save KPI');
     }
   };
 

@@ -13,7 +13,7 @@ export function CriteriaPage() {
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  const handleCreateSubmit = async (data: Record<string, unknown>) => {
+  const handleCreate = async (data: Parameters<typeof createMutation.mutateAsync>[0]) => {
     await createMutation.mutateAsync(data);
     setIsCreateModalOpen(false);
   };
@@ -121,7 +121,7 @@ export function CriteriaPage() {
       <CreateCriterionModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onSubmit={handleCreateSubmit}
+        onSubmit={handleCreate}
         isSubmitting={createMutation.isPending}
       />
     </div>

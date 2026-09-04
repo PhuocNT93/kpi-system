@@ -9,6 +9,7 @@ import type {
   ValidationErrorItem,
   VersionDiffItem,
   TemplateKpi,
+  ScopeType,
 } from './template-models';
 import { normalizeRuleConfig, validateRuleConfig } from './rule-config';
 
@@ -251,7 +252,7 @@ export interface WireProvenance {
   effective_weight?: number;
   effective_source?: TemplateCriterion['provenance'] extends { effectiveSource: infer S } ? S : never;
   effective_source_label?: string;
-  tiers?: { scope: string; scope_label?: string; weight: number }[];
+  tiers?: { scope: string; scope_label?: string; weight: number; is_applied?: boolean }[];
 }
 
 export function mapWireTemplateToDomain(wire: WireTemplate): EvaluationTemplate {
@@ -297,7 +298,7 @@ export function mapWireVersionToDomain(wire: WireVersion): EvaluationTemplateVer
 
 export function mapWireTemplateKpiToDomain(wire: WireTemplateKpi): TemplateKpi {
   return {
-    id: wire.id || wire.template_kpi_id,
+    id: wire.id || wire.template_kpi_id || '',
     templateVersionId: wire.template_version_id,
     kpiId: wire.kpi_id,
     weight: Number(wire.weight) || 0,
@@ -375,7 +376,7 @@ export function mapWireProvenanceToDomain(wire: WireProvenance): TemplateCriteri
     effectiveSourceLabel: wire.effective_source_label || 'Template',
     tiers: Array.isArray(wire.tiers)
       ? wire.tiers.map(t => ({
-          scope: t.scope,
+          scope: t.scope as ScopeType,
           scopeLabel: t.scope_label || t.scope,
           weight: Number(t.weight) || 0,
           isApplied: Boolean(t.is_applied),
