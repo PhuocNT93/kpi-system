@@ -57,7 +57,7 @@ export const EvaluationHistoryTable: React.FC<EvaluationHistoryTableProps> = ({ 
               const { evaluation: evalData, cycle } = item;
               const startDate = new Date(cycle.start_date).toLocaleDateString('vi-VN');
               const endDate = new Date(cycle.end_date).toLocaleDateString('vi-VN');
-              const isPublished = (evalData.status as any) === 'PUBLISHED';
+              const isPublished = (evalData.status as string) === 'PUBLISHED';
               const hasScore = isPublished && evalData.final_score !== undefined;
 
               return (

@@ -157,6 +157,42 @@ export interface CriterionVersion {
   created_by?: string;
 }
 
+/** Read model returned by the JOIN queries that hydrate a criterion with its current version. */
+export interface CriterionVersionDetail {
+  id: string;
+  criterion_id: string;
+  version_no: number;
+  default_weight: number;
+  measurement_unit: string | null;
+  measurement_source_label?: string | null;
+  status: string;
+  scoring_rule_id?: string | null;
+  scoring_rule?: {
+    id: string;
+    code: string;
+    name: string;
+    rule_type: string;
+    config: unknown;
+    status: string;
+    version?: number;
+  } | null;
+}
+
+export interface CriterionWithCurrentVersion extends Criterion {
+  current_version?: CriterionVersionDetail | null;
+}
+
+export interface CriterionDetail {
+  id: string;
+  code: string;
+  category: string;
+  name: string;
+  description?: string | null;
+  status: string;
+  version: number;
+  current_version: CriterionVersionDetail;
+}
+
 export interface EvaluationLevel {
   id: string;
   code: string;
@@ -221,6 +257,10 @@ export interface TemplateCriterion {
   enabled: boolean;
   applicability: ApplicabilityRule;
   created_at: Date;
+}
+
+export interface TemplateCriterionWithDetails extends TemplateCriterion {
+  criterion: CriterionDetail | null;
 }
 
 export interface TemplateKpi {

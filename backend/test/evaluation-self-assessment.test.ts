@@ -1,13 +1,15 @@
 import { describe, it, expect, vi } from 'vitest';
+import { Pool } from 'pg';
 import { EvaluationService } from '../src/modules/evaluation/application/services/evaluation.service.js';
 import { EvaluationStatus } from '../src/modules/evaluation/domain/evaluation.types.js';
-import { AppError, NotFound } from '../src/api/app-error.js';
+import { IEvaluationRepository, IEvaluationItemRepository } from '../src/modules/evaluation/domain/repositories.interface.js';
+import { AppError } from '../src/api/app-error.js';
 import { Actor } from '../src/shared/auth/types.js';
 
 describe('EvaluationService Unit Tests (Self Assessment)', () => {
   const mockPool = {
     query: vi.fn(),
-  } as any;
+  } as unknown as Pool;
 
   const mockEvaluationRepo = {
     findById: vi.fn(),
@@ -25,8 +27,8 @@ describe('EvaluationService Unit Tests (Self Assessment)', () => {
   };
 
   const service = new EvaluationService(
-    mockEvaluationRepo as any,
-    mockEvaluationItemRepo as any,
+    mockEvaluationRepo as unknown as IEvaluationRepository,
+    mockEvaluationItemRepo as unknown as IEvaluationItemRepository,
     mockPool
   );
 

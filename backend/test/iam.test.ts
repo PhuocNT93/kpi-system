@@ -3,7 +3,6 @@ import {
   seedIamData,
   AuthorizationService,
   RoleService,
-  PermissionService,
   RoleAssignmentService,
 } from '../src/modules/iam/index.js';
 import {
@@ -23,7 +22,6 @@ describe('IAM & RBAC Unit Tests', () => {
 
   let authzService: AuthorizationService;
   let roleService: RoleService;
-  let permService: PermissionService;
   let roleAssignService: RoleAssignmentService;
 
   beforeEach(async () => {
@@ -37,7 +35,6 @@ describe('IAM & RBAC Unit Tests', () => {
 
     authzService = new AuthorizationService(roleRepo, permRepo, userRoleRepo, rolePermRepo);
     roleService = new RoleService(roleRepo, auditWriter);
-    permService = new PermissionService(permRepo);
     roleAssignService = new RoleAssignmentService(
       roleRepo,
       permRepo,

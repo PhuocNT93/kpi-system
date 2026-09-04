@@ -33,8 +33,8 @@ export function AddRelationshipModal({ isOpen, onClose, kpis }: Props) {
       setTargetKpiId('');
       setRelationshipType('DEPENDS_ON');
       onClose();
-    } catch (err: any) {
-      setError(err?.message || 'Failed to create relationship. A circular dependency may have been detected.');
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Failed to create relationship. A circular dependency may have been detected.');
     }
   };
 

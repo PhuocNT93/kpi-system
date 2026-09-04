@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTeams } from '../hooks/useTeams';
-import { useAuth } from '../../../shared/auth/AuthContext';
+import { useAuth } from '../../../shared/auth/auth-context';
 import { TeamFormModal } from './TeamFormModal';
 import { TeamDeactivateDialog } from './TeamDeactivateDialog';
 import { ErrorAlert, LoadingSpinner, EmptyState, StatusBadge } from '../../../shared/components/ui';
@@ -111,3 +111,4 @@ export function TeamTable({ departmentId }: { departmentId?: string }) {
     </div>
   );
 }
+

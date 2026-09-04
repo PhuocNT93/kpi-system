@@ -2,7 +2,7 @@
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './app/query-client';
-import { AuthProvider } from './shared/auth/AuthContext';
+import { AuthProvider } from './shared/auth/AuthProvider';
 import { ProtectedRoute } from './shared/auth/ProtectedRoute';
 import { LoginPage } from './features/auth/pages/LoginPage';
 import {
@@ -31,7 +31,7 @@ import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
 import { LayoutTemplate } from 'lucide-react';
 
-import { useAuth } from './shared/auth/AuthContext';
+import { useAuth } from './shared/auth/auth-context';
 import { LogOut } from 'lucide-react';
 
 function ProtectedLayout() {
@@ -219,3 +219,4 @@ export default function App() {
     </QueryClientProvider>
   );
 }
+

@@ -40,12 +40,12 @@ export const EvaluationCycleUpsertPage: React.FC = () => {
         const created = await createMutation.mutateAsync(payload);
         navigate(`/admin/cycles/${created.id ?? 'cyc-1'}`);
       }
-    } catch (err) {
+    } catch (_err) {
       navigate(isEdit ? `/admin/cycles/${id}` : '/admin/cycles');
     }
   };
 
-  const templatesOptions: TemplateReferenceDTO[] = (templatesQuery.data || []).map((t: any) => ({
+  const templatesOptions: TemplateReferenceDTO[] = (templatesQuery.data || []).map((t: { id: string; name: string; currentVersionId?: string; currentVersion?: { id?: string; versionNo?: number; criteria?: unknown[] }; version?: number; status?: string; criteriaCount?: number }) => ({
     id: t.currentVersionId ?? t.currentVersion?.id ?? t.id,
     name: t.name,
     version: t.currentVersion?.versionNo ? `v${t.currentVersion.versionNo}` : `v${t.version}`,
@@ -53,8 +53,8 @@ export const EvaluationCycleUpsertPage: React.FC = () => {
     criteriaCount: t.criteriaCount ?? t.currentVersion?.criteria?.length,
   }));
 
-  const teamsOptions = (teamsQuery.data || []).map((team: any) => ({ id: team.id, name: team.name }));
-  const rolesOptions = (rolesQuery.data || []).map((role: any) => ({ id: role.id, name: role.name }));
+  const teamsOptions = (teamsQuery.data || []).map((team: { id: string; name: string }) => ({ id: team.id, name: team.name }));
+  const rolesOptions = (rolesQuery.data || []).map((role: { id: string; name: string }) => ({ id: role.id, name: role.name }));
   const isAnyFetching =
     templatesQuery.isFetching || teamsQuery.isFetching || rolesQuery.isFetching || employeesQuery.isFetching || createMutation.isPending || updateMutation.isPending;
     

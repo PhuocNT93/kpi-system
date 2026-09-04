@@ -51,7 +51,7 @@ export interface Evaluation {
   selfScore: number | null;
   managerScore: number | null;
   finalScore: number | null;
-  scoringBreakdown?: Record<string, any> | null;
+  scoringBreakdown?: Record<string, unknown> | null;
   submittedAt: string | null;
   approvedAt: string | null;
   isLocked: boolean;
@@ -72,8 +72,8 @@ export interface EvaluationItem {
   kpiCodeSnapshot?: string;
   kpiNameSnapshot?: string;
   kpiWeightSnapshot?: number;
-  scoringRuleSnapshot: Record<string, any>;
-  levelDefinitionSnapshot: Record<string, any>[];
+  scoringRuleSnapshot: Record<string, unknown>;
+  levelDefinitionSnapshot: Record<string, unknown>[];
   resolvedLevel: number | null;
   rawScore: number | null;
   normalizedScore?: number | null;

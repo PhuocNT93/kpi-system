@@ -1,6 +1,6 @@
 import { Pool, PoolClient } from 'pg';
 import { Evaluation, EvaluationStatus } from '../../domain/evaluation.types.js';
-import { IEvaluationRepository } from '../../domain/repositories.interface.js';
+import { IEvaluationRepository, MyEvaluationListItem, TeamEvaluationListItem } from '../../domain/repositories.interface.js';
 
 export class PostgresEvaluationRepository implements IEvaluationRepository {
   constructor(private pool: Pool) {}
@@ -43,7 +43,7 @@ export class PostgresEvaluationRepository implements IEvaluationRepository {
     return this.mapRow(res.rows[0]);
   }
 
-  async findMyEvaluations(userId: string, client?: PoolClient): Promise<any[]> {
+  async findMyEvaluations(userId: string, client?: PoolClient): Promise<MyEvaluationListItem[]> {
     const runner = client || this.pool;
     const res = await runner.query(
       `SELECT e.*,
@@ -68,7 +68,7 @@ export class PostgresEvaluationRepository implements IEvaluationRepository {
     }));
   }
 
-  async findTeamEvaluations(params: { managerEmployeeId?: string; isSuperAdminOrHr?: boolean }, client?: PoolClient): Promise<any[]> {
+  async findTeamEvaluations(params: { managerEmployeeId?: string; isSuperAdminOrHr?: boolean }, client?: PoolClient): Promise<TeamEvaluationListItem[]> {
     const runner = client || this.pool;
     let query = `
       SELECT e.*,
@@ -87,7 +87,7 @@ export class PostgresEvaluationRepository implements IEvaluationRepository {
       LEFT JOIN team t ON e.team_id_snapshot = t.team_id
       LEFT JOIN role r ON e.role_id_snapshot = r.role_id
     `;
-    const queryParams: any[] = [];
+    const queryParams: unknown[] = [];
 
     if (!params.isSuperAdminOrHr) {
       if (!params.managerEmployeeId) {

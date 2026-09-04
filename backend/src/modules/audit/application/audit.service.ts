@@ -1,5 +1,5 @@
 import { TransactionClient } from '../../../shared/database/transaction.js';
-import { AuditRecordParams, AuditRecordParamsSchema, AuditLogQuery, AuditLogQuerySchema, PaginatedAuditLogs } from '../domain/audit.domain.js';
+import { AuditRecordParams, AuditRecordParamsSchema, AuditLogQuerySchema, PaginatedAuditLogs } from '../domain/audit.domain.js';
 import { AuditRepository } from '../domain/audit.repository.js';
 
 export class AuditService {
@@ -19,12 +19,12 @@ export class AuditService {
     await this.auditRepo.insert(validParams, tx);
   }
 
-  async getLogs(query: Record<string, any>): Promise<PaginatedAuditLogs> {
+  async getLogs(query: Record<string, unknown>): Promise<PaginatedAuditLogs> {
     try {
       const validated = AuditLogQuerySchema.parse(query);
       return await this.auditRepo.findMany(validated);
-    } catch (error: any) {
-      if (error?.name === 'ZodError') {
+    } catch (error) {
+      if (error instanceof Error && error.name === 'ZodError') {
         const { BadRequest } = await import('../../../api/app-error.js');
         throw new BadRequest('Invalid query parameters for audit logs');
       }

@@ -11,13 +11,17 @@ export class EvaluationController {
     try {
       return getActorOrThrow(req);
     } catch {
-      const user = (req as any).user;
+      const user = (req as unknown as { user?: { id?: string; userId?: string; role?: string; employeeId?: string; managedTeamIds?: string[] } }).user;
       if (!user) throw new Error('Unauthorized');
+      const userId = user.id ?? user.userId;
+      if (!userId) throw new Error('Unauthorized: no user id');
+      const rawRole = user.role ?? 'EMPLOYEE';
+      const validRoles: string[] = ['EMPLOYEE', 'MANAGER', 'HR_ADMIN', 'SYSTEM_ADMIN'];
       return {
-        userId: user.id || user.userId,
-        role: user.role || 'EMPLOYEE',
-        employeeId: user.employeeId || user.id,
-        managedTeamIds: user.managedTeamIds || [],
+        userId,
+        role: (validRoles.includes(rawRole) ? rawRole : 'EMPLOYEE') as import('../../../shared/auth/types.js').UserRole,
+        employeeId: user.employeeId ?? user.id,
+        managedTeamIds: user.managedTeamIds ?? [],
       };
     }
   }

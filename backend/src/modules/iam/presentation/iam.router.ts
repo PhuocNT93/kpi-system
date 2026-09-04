@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction, Router, RequestHandler } from 'express';
-import { sendCollection, sendSuccess } from '../../../api/http-response.js';
+import { sendSuccess } from '../../../api/http-response.js';
 import { AuthorizationService, PermissionService, RoleAssignmentService, RoleService } from '../application/services.js';
 import { authorize } from './authorize.middleware.js';
 import { AuthorizationScope } from '../domain/types.js';

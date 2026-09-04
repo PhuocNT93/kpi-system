@@ -106,7 +106,7 @@ export const evaluationCycleApi = {
   },
 
   updateCycle: async (id: string, payload: UpdateEvaluationCyclePayload): Promise<EvaluationCycleDTO> => {
-    const body: Record<string, any> = {};
+    const body: Record<string, unknown> = {};
     if (payload.code !== undefined) body.code = payload.code;
     if (payload.name !== undefined) body.name = payload.name;
     if (payload.startDate !== undefined) body.start_date = payload.startDate;

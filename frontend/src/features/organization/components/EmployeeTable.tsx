@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useEmployees } from '../hooks/useEmployees';
 import { useJobRoles } from '../hooks/useJobRoles';
 import { useJobLevels } from '../hooks/useJobLevels';
-import { useAuth } from '../../../shared/auth/AuthContext';
+import { useAuth } from '../../../shared/auth/auth-context';
 import { ErrorAlert, LoadingSpinner, EmptyState, StatusBadge } from '../../../shared/components/ui';
 import { Button } from '../../../shared/ui/Button/Button';
 import type { OrgEmployee } from '../domain/organization-models';
@@ -143,3 +143,4 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
     </div>
   );
 }
+

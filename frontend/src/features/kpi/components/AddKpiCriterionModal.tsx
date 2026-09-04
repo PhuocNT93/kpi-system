@@ -14,8 +14,7 @@ export function AddKpiCriterionModal({ kpiId, onClose }: Props) {
   const [weight, setWeight] = useState('10');
   
   const { data: criteriaResponse, isLoading, error } = useCriteriaQuery();
-  // @ts-ignore - criteria keys returns an array from api directly depending on how it's typed
-  const criteria = Array.isArray(criteriaResponse) ? criteriaResponse : (criteriaResponse?.items ?? []);
+  const criteria = criteriaResponse ?? [];
 
   const addMutation = useAddKpiCriterionMutation(kpiId);
 
@@ -29,7 +28,7 @@ export function AddKpiCriterionModal({ kpiId, onClose }: Props) {
         weight: parseFloat(weight)
       });
       onClose();
-    } catch (err) {
+    } catch {
       // Error is handled by mutation/ErrorBoundary or could be displayed here
     }
   };
@@ -60,7 +59,7 @@ export function AddKpiCriterionModal({ kpiId, onClose }: Props) {
                 style={{ padding: '0.5rem', borderRadius: 4, border: '1px solid #d1d5db' }}
               >
                 <option value="" disabled>-- Select a criterion --</option>
-                {criteria.map((c: any) => (
+                {criteria.map((c: { id: string; name: string; code?: string }) => (
                   <option key={c.id} value={c.id}>{c.code} - {c.name}</option>
                 ))}
               </select>

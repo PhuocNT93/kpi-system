@@ -65,7 +65,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
   const isManagerMode = mode === 'manager';
   const isEditable = isManagerMode
     ? detail?.status === EvaluationStatus.SUBMITTED || detail?.status === EvaluationStatus.MANAGER_REVIEW
-    : detail?.status === EvaluationStatus.OPEN || (detail?.status as any) === 'SELF_ASSESSMENT';
+    : detail?.status === EvaluationStatus.OPEN || (detail?.status as string) === 'SELF_ASSESSMENT';
 
   // Check if there are unsaved changes
   const hasUnsavedChanges = useMemo(() => {
@@ -100,7 +100,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
       });
       queryClient.invalidateQueries({ queryKey: ['evaluation-detail', id] });
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       showToast('error', err.message || 'Lỗi khi lưu bản nháp.');
     },
   });
@@ -121,7 +121,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
       queryClient.invalidateQueries({ queryKey: ['evaluation-detail', id] });
       setSavingItemId(null);
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       showToast('error', err.message || 'Lỗi khi lưu tiêu chí.');
       setSavingItemId(null);
     },
@@ -142,7 +142,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
       queryClient.invalidateQueries({ queryKey: ['my-evaluations'] });
       queryClient.invalidateQueries({ queryKey: ['team-evaluations'] });
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       showToast('error', err.message || 'Không thể nộp tự đánh giá. Vui lòng kiểm tra lại.');
       setIsSubmitModalOpen(false);
     },
@@ -156,7 +156,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
       queryClient.invalidateQueries({ queryKey: ['evaluation-detail', id] });
       queryClient.invalidateQueries({ queryKey: ['team-evaluations'] });
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       showToast('error', err.message || 'Không thể duyệt đánh giá.');
     },
   });
@@ -167,7 +167,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
       showToast('success', 'Đã tính lại điểm đánh giá thành công.');
       queryClient.invalidateQueries({ queryKey: ['evaluation-detail', id] });
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       showToast('error', err.message || 'Không thể tính lại điểm đánh giá.');
     },
   });
@@ -307,7 +307,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
             Không tìm thấy bản đánh giá
           </h3>
           <p style={{ margin: '0 0 16px', fontSize: TYPOGRAPHY.fontSize.sm, color: '#7f1d1d' }}>
-            {(error as any)?.message || 'Bạn không có quyền truy cập hoặc bản đánh giá không tồn tại.'}
+            {(error as Error)?.message || 'Bạn không có quyền truy cập hoặc bản đánh giá không tồn tại.'}
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
             <button

@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { type TransactionClient, withTransaction } from './transaction.js';
 
-function createClient(query = vi.fn<(queryText: string) => Promise<unknown>>().mockResolvedValue(undefined)) {
+function createClient(
+  query = vi
+    .fn<TransactionClient['query']>()
+    .mockResolvedValue({ rows: [], rowCount: 0 })
+) {
   return {
     query,
     release: vi.fn()

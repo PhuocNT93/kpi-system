@@ -1,6 +1,6 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from './AuthContext';
+import { useAuth } from './auth-context';
 import type { UserRole } from './auth-models';
 
 interface ProtectedRouteProps {
@@ -44,3 +44,4 @@ function ForbiddenPage() {
     </main>
   );
 }
+

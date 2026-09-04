@@ -81,7 +81,7 @@ export function TemplateBuilderWorkspace({
 
   // Handle Optimistic Concurrency Lock error (409)
   useEffect(() => {
-    if (saveError && (saveError as any).status === 409) {
+    if (saveError && (saveError as { status?: number }).status === 409) {
       setIsConflictModalOpen(true);
     }
   }, [saveError]);
@@ -159,8 +159,8 @@ export function TemplateBuilderWorkspace({
           displayOrder: criteria.length + idx + 1,
           criterion: {
             id: mapping.criterionId,
-            code: (mapping as any).criterionCode || '',
-            name: (mapping as any).criterionName || 'Unknown Criterion',
+            code: (mapping as { criterionCode?: string }).criterionCode || '',
+            name: (mapping as { criterionName?: string }).criterionName || 'Unknown Criterion',
             category: 'PERFORMANCE',
             status: 'ACTIVE',
             version: 1,
@@ -227,7 +227,7 @@ export function TemplateBuilderWorkspace({
   };
 
   const existingCriterionIds = new Set(criteria.filter(c => c.templateKpiId === selectedKpiId).map((c) => c.criterion.id));
-  const existingKpiIds = new Set(kpis.map((k) => k.kpi?.id || k.kpiId));
+  const existingKpiIds = new Set(kpis.map((k) => (k.kpi as { id?: string })?.id || k.kpiId));
 
   if (isLoading) return <LoadingSpinner label="Loading Template Workspace..." />;
   if (error) return <ErrorAlert error={error} onRetry={onBackToList} />;

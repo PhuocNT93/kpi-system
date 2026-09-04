@@ -43,8 +43,8 @@ export function CreateCriterionModal({
       setName('');
       setDescription('');
       setCategory('PERFORMANCE');
-    } catch (err: any) {
-      setError(err.message || 'Failed to create criterion');
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Failed to create criterion');
     }
   };
 
@@ -114,7 +114,7 @@ export function CreateCriterionModal({
             </label>
             <select
               value={category}
-              onChange={(e) => setCategory(e.target.value as any)}
+              onChange={(e) => setCategory(e.target.value as 'PERFORMANCE' | 'BEHAVIOR' | 'CONTRIBUTION')}
               style={{
                 width: '100%', padding: '0.5rem 0.75rem',
                 borderRadius: 6, border: '1px solid #d1d5db', outline: 'none',

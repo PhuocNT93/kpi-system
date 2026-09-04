@@ -83,7 +83,7 @@ export interface CreateEvaluationCyclePayload {
   gracePeriodDays: number;
 }
 
-export interface UpdateEvaluationCyclePayload extends Partial<CreateEvaluationCyclePayload> {}
+export type UpdateEvaluationCyclePayload = Partial<CreateEvaluationCyclePayload>;
 
 export interface ScopePreviewDTO {
   employeeCount: number;

@@ -40,8 +40,8 @@ export interface EvaluationItem {
   kpi_code_snapshot?: string;
   kpi_name_snapshot?: string;
   kpi_weight_snapshot?: number;
-  scoring_rule_snapshot: any;
-  level_definition_snapshot: any;
+  scoring_rule_snapshot: unknown;
+  level_definition_snapshot: unknown;
   resolved_level?: number;
   raw_score?: number;
   normalized_score?: number;

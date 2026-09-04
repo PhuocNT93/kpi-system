@@ -36,12 +36,12 @@ export class PostgresAuditRepository implements AuditRepository {
       [cutoffDate, batchSize]
     );
     
-    return (result as any).rowCount ?? 0;
+    return result.rowCount ?? 0;
   }
 
   async findMany(filters: AuditLogQuery): Promise<PaginatedAuditLogs> {
     const conditions: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
     let paramIndex = 1;
 
     if (filters.entityType) {

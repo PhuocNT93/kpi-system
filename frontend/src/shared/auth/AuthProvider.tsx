@@ -1,22 +1,25 @@
-import React, { createContext, useCallback, useContext, useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { authApi } from '../api/auth-api';
 import { setAccessToken } from '../api/api-client';
-import { ApiClientError } from '../api/api-client';
 import type { AuthUser, UserRole } from './auth-models';
 import { LoadingSpinner } from '../components/ui';
+import { AuthContext } from './auth-context';
+import type { AuthContextValue } from './auth-context';
 
-interface AuthContextValue {
-  user: AuthUser | null;
-  isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  loginWithGoogle: (idToken: string) => Promise<void>;
-  logout: () => void;
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null);
+export { ApiClientError } from '../api/api-client';
 
 const AUTH_STORAGE_KEY = 'kpi_auth_user';
 const TOKEN_STORAGE_KEY = 'kpi_auth_token';
+
+// Lightweight JWT payload decode (no verification — backend is authoritative)
+function extractRoleFromToken(token: string): UserRole | null {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return (payload.role as UserRole) ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => {
@@ -87,24 +90,3 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     </AuthContext.Provider>
   );
 }
-
-export function useAuth(): AuthContextValue {
-  const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error('useAuth must be used inside <AuthProvider>');
-  }
-  return ctx;
-}
-
-// Lightweight JWT payload decode (no verification — backend is authoritative)
-function extractRoleFromToken(token: string): UserRole | null {
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return (payload.role as UserRole) ?? null;
-  } catch {
-    return null;
-  }
-}
-
-// Re-export error class so callers can check 401/403 codes without importing api-client
-export { ApiClientError };

@@ -32,8 +32,8 @@ export const ActiveEvaluationCard: React.FC<ActiveEvaluationCardProps> = ({
   const isNearDeadline = diffDays >= 0 && diffDays <= 3;
   const isOverdue = diffDays < 0;
 
-  const isOpen = evalData.status === EvaluationStatus.OPEN || (evalData.status as any) === 'SELF_ASSESSMENT';
-  const isPublished = (evalData.status as any) === 'PUBLISHED';
+  const isOpen = evalData.status === EvaluationStatus.OPEN || (evalData.status as string) === 'SELF_ASSESSMENT';
+  const isPublished = (evalData.status as string) === 'PUBLISHED';
 
   let ctaText = 'Xem chi tiết';
   if (isOpen) {

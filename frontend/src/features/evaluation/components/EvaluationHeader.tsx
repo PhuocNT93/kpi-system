@@ -59,11 +59,11 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
   let readOnlyReason = '';
   if (isLocked || status === EvaluationStatus.LOCKED) {
     readOnlyReason = 'Kỳ đánh giá đã bị KHÓA. Toàn bộ thông tin điểm số và phản hồi là cố định và không thể chỉnh sửa.';
-  } else if (mode === 'self' && (status === EvaluationStatus.SUBMITTED || (status as any) === 'MANAGER_ASSESSMENT')) {
+  } else if (mode === 'self' && (status === EvaluationStatus.SUBMITTED || (status as string) === 'MANAGER_ASSESSMENT')) {
     readOnlyReason = 'Bạn đã gửi tự đánh giá thành công. Đánh giá hiện đang ở trạng thái Chờ Quản lý (Manager Review) và ở chế độ Chỉ đọc.';
-  } else if ((status as any) === 'APPROVED') {
+  } else if ((status as string) === 'APPROVED') {
     readOnlyReason = 'Đánh giá đã được cấp quản lý phê duyệt. Kết quả sẽ được công bố chính thức theo lịch của công ty.';
-  } else if ((status as any) === 'PUBLISHED') {
+  } else if ((status as string) === 'PUBLISHED') {
     readOnlyReason = 'Đánh giá đã được công bố chính thức. Bạn có thể xem toàn bộ điểm số, nhận xét và kết quả cuối cùng bên dưới.';
   }
 

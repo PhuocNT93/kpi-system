@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useJobLevels } from '../hooks/useJobLevels';
-import { useAuth } from '../../../shared/auth/AuthContext';
+import { useAuth } from '../../../shared/auth/auth-context';
 import { JobLevelFormModal } from './JobLevelFormModal';
 import { ErrorAlert, LoadingSpinner, EmptyState, StatusBadge } from '../../../shared/components/ui';
 import { Button } from '../../../shared/ui/Button/Button';
@@ -90,3 +90,4 @@ export function JobLevelTable() {
     </div>
   );
 }
+

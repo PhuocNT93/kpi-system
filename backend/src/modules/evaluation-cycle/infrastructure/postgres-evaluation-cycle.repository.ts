@@ -12,6 +12,74 @@ import {
   IEvaluationRepository,
   IEvaluationItemRepository,
 } from '../domain/evaluation-cycle.repository.js';
+import { QueryExecutor } from '../../../shared/database/query-executor.js';
+
+interface EvaluationCycleRow {
+  evaluation_cycle_id: string;
+  code: string;
+  name: string;
+  start_date: Date | string;
+  end_date: Date | string;
+  status: string;
+  evaluation_template_version_id: string;
+  applicable_team_ids: string[] | null;
+  applicable_role_ids: string[] | null;
+  approved_by: string | null;
+  locked_at: Date | string | null;
+  created_at: Date | string;
+  updated_at: Date | string;
+  created_by: string | null;
+  updated_by: string | null;
+}
+
+interface EvaluationRow {
+  evaluation_id: string;
+  evaluation_cycle_id: string;
+  employee_id: string;
+  team_id_snapshot: string;
+  role_id_snapshot: string;
+  job_level_snapshot: string | null;
+  manager_id_snapshot: string | null;
+  status: string;
+  self_score: string | number | null;
+  manager_score: string | number | null;
+  final_score: string | number | null;
+  submitted_at: Date | string | null;
+  approved_at: Date | string | null;
+  is_locked: boolean;
+  created_at: Date | string;
+  updated_at: Date | string;
+  created_by: string | null;
+  updated_by: string | null;
+}
+
+interface EvaluationItemRow {
+  evaluation_item_id: string;
+  evaluation_id: string;
+  template_criterion_id: string;
+  criterion_code_snapshot: string;
+  criterion_name_snapshot: string;
+  weight_snapshot: string | number;
+  kpi_id_snapshot?: string;
+  kpi_code_snapshot?: string;
+  kpi_name_snapshot?: string;
+  kpi_weight_snapshot?: string | number | null;
+  scoring_rule_snapshot: string | Record<string, unknown>;
+  level_definition_snapshot: string | Record<string, unknown>[];
+  resolved_level: string | number | null;
+  raw_score: string | number | null;
+  normalized_score: string | number | null;
+  weighted_score: string | number | null;
+  is_disabled_for_employee: boolean;
+  is_missing_score: boolean;
+  comment: string | null;
+  reviewer_id: string | null;
+  review_date: Date | string | null;
+  created_at: Date | string;
+  updated_at: Date | string;
+  created_by: string | null;
+  updated_by: string | null;
+}
 
 export class PostgresEvaluationCycleRepository implements IEvaluationCycleRepository {
   constructor(private pool: Pool) {}
@@ -20,7 +88,7 @@ export class PostgresEvaluationCycleRepository implements IEvaluationCycleReposi
     return client || this.pool;
   }
 
-  private hasQuery(executor: any): boolean {
+  private hasQuery(executor: QueryExecutor): boolean {
     return !!(executor && typeof executor.query === 'function');
   }
 
@@ -80,7 +148,7 @@ export class PostgresEvaluationCycleRepository implements IEvaluationCycleReposi
     if (!this.hasQuery(executor)) return { items: [], total: 0 };
 
     const conditions: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
     let idx = 1;
 
     if (query.status) {
@@ -205,13 +273,13 @@ export class PostgresEvaluationCycleRepository implements IEvaluationCycleReposi
     return this.mapRowToCycle(res.rows[0]);
   }
 
-  private mapRowToCycle(row: any): EvaluationCycle {
+  private mapRowToCycle(row: EvaluationCycleRow): EvaluationCycle {
     return {
       evaluationCycleId: row.evaluation_cycle_id,
       code: row.code,
       name: row.name,
-      startDate: row.start_date instanceof Date ? row.start_date.toISOString().split('T')[0] : row.start_date,
-      endDate: row.end_date instanceof Date ? row.end_date.toISOString().split('T')[0] : row.end_date,
+      startDate: row.start_date instanceof Date ? row.start_date.toISOString().slice(0, 10) : row.start_date,
+      endDate: row.end_date instanceof Date ? row.end_date.toISOString().slice(0, 10) : row.end_date,
       status: row.status as EvaluationCycleStatus,
       evaluationTemplateVersionId: row.evaluation_template_version_id,
       applicableTeamIds: row.applicable_team_ids || [],
@@ -241,7 +309,7 @@ export class PostgresEvaluationRepository implements IEvaluationRepository {
     for (let i = 0; i < evaluations.length; i += chunkSize) {
       const chunk = evaluations.slice(i, i + chunkSize);
       const valueTuples: string[] = [];
-      const values: any[] = [];
+      const values: unknown[] = [];
       let paramIdx = 1;
 
       for (const item of chunk) {
@@ -306,7 +374,7 @@ export class PostgresEvaluationRepository implements IEvaluationRepository {
     return this.mapRowToEvaluation(res.rows[0]);
   }
 
-  private mapRowToEvaluation(row: any): Evaluation {
+  private mapRowToEvaluation(row: EvaluationRow): Evaluation {
     return {
       evaluationId: row.evaluation_id,
       evaluationCycleId: row.evaluation_cycle_id,
@@ -316,9 +384,9 @@ export class PostgresEvaluationRepository implements IEvaluationRepository {
       jobLevelSnapshot: row.job_level_snapshot,
       managerIdSnapshot: row.manager_id_snapshot,
       status: row.status as EvaluationStatus,
-      selfScore: row.self_score ? parseFloat(row.self_score) : null,
-      managerScore: row.manager_score ? parseFloat(row.manager_score) : null,
-      finalScore: row.final_score ? parseFloat(row.final_score) : null,
+      selfScore: row.self_score ? Number(row.self_score) : null,
+      managerScore: row.manager_score ? Number(row.manager_score) : null,
+      finalScore: row.final_score ? Number(row.final_score) : null,
       submittedAt: row.submitted_at ? new Date(row.submitted_at).toISOString() : null,
       approvedAt: row.approved_at ? new Date(row.approved_at).toISOString() : null,
       isLocked: row.is_locked,
@@ -345,7 +413,7 @@ export class PostgresEvaluationItemRepository implements IEvaluationItemReposito
     for (let i = 0; i < items.length; i += chunkSize) {
       const chunk = items.slice(i, i + chunkSize);
       const valueTuples: string[] = [];
-      const values: any[] = [];
+      const values: unknown[] = [];
       let paramIdx = 1;
 
       for (const item of chunk) {
@@ -394,24 +462,24 @@ export class PostgresEvaluationItemRepository implements IEvaluationItemReposito
     return created;
   }
 
-  private mapRowToItem(row: any): EvaluationItem {
+  private mapRowToItem(row: EvaluationItemRow): EvaluationItem {
     return {
       evaluationItemId: row.evaluation_item_id,
       evaluationId: row.evaluation_id,
       templateCriterionId: row.template_criterion_id,
       criterionCodeSnapshot: row.criterion_code_snapshot,
       criterionNameSnapshot: row.criterion_name_snapshot,
-      weightSnapshot: parseFloat(row.weight_snapshot),
+      weightSnapshot: Number(row.weight_snapshot),
       kpiIdSnapshot: row.kpi_id_snapshot,
       kpiCodeSnapshot: row.kpi_code_snapshot,
       kpiNameSnapshot: row.kpi_name_snapshot,
-      kpiWeightSnapshot: row.kpi_weight_snapshot == null ? undefined : parseFloat(row.kpi_weight_snapshot),
+      kpiWeightSnapshot: row.kpi_weight_snapshot == null ? undefined : Number(row.kpi_weight_snapshot),
       scoringRuleSnapshot: typeof row.scoring_rule_snapshot === 'string' ? JSON.parse(row.scoring_rule_snapshot) : row.scoring_rule_snapshot,
       levelDefinitionSnapshot: typeof row.level_definition_snapshot === 'string' ? JSON.parse(row.level_definition_snapshot) : row.level_definition_snapshot,
-      resolvedLevel: row.resolved_level == null ? null : parseInt(row.resolved_level, 10),
-      rawScore: row.raw_score == null ? null : parseFloat(row.raw_score),
-      normalizedScore: row.normalized_score == null ? null : parseFloat(row.normalized_score),
-      weightedScore: row.weighted_score ? parseFloat(row.weighted_score) : null,
+      resolvedLevel: row.resolved_level == null ? null : Number(row.resolved_level),
+      rawScore: row.raw_score == null ? null : Number(row.raw_score),
+      normalizedScore: row.normalized_score == null ? null : Number(row.normalized_score),
+      weightedScore: row.weighted_score ? Number(row.weighted_score) : null,
       isDisabledForEmployee: row.is_disabled_for_employee,
       isMissingScore: row.is_missing_score,
       comment: row.comment,

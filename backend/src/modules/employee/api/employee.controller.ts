@@ -395,7 +395,7 @@ export class EmployeeController {
         throw new NotFound(`Employee with ID ${employeeId}`);
       }
 
-      const chain: any[] = [];
+      const chain: ReturnType<typeof this.mapEmployeeToResponse>[] = [];
       let currentId: string | null = startEmp.managerId;
       const visited = new Set<string>([employeeId]);
 
@@ -564,7 +564,7 @@ export class EmployeeController {
   async getTeams(req: Request, res: Response): Promise<void> {
     const actor = getActorFromContext(req);
     if (!actor) throw new Forbidden();
-    const { limit, offset, buildPageMeta } = parsePaginationQuery(req.query as Record<string, unknown>);
+    const { limit, buildPageMeta } = parsePaginationQuery(req.query as Record<string, unknown>);
 
     if (this.teamService && this.hasDb()) {
       const page = parseInt((req.query.page as string) ?? '1', 10) || 1;

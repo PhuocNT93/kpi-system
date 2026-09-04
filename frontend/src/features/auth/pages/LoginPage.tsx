@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Chrome } from 'lucide-react';
-import { useAuth } from '../../../shared/auth/AuthContext';
+import { useAuth } from '../../../shared/auth/auth-context';
 import { ApiClientError } from '../../../shared/api/api-client';
 
 const loginSchema = z.object({
@@ -157,3 +157,4 @@ export function LoginPage() {
     </main>
   );
 }
+

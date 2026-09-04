@@ -47,7 +47,7 @@ if (canRunMigrationTests) {
       ORDER BY ordinal_position
     `);
 
-    expect(rows.map((column: any) => column.column_name)).toEqual([
+    expect(rows.map((column: Record<string, unknown>) => column.column_name)).toEqual([
       'department_id',
       'code',
       'name',
@@ -57,11 +57,11 @@ if (canRunMigrationTests) {
       'created_by',
       'updated_by'
     ]);
-    expect(rows.find((column: any) => column.column_name === 'department_id')).toMatchObject({
+    expect(rows.find((column: { column_name: string }) => column.column_name === 'department_id')).toMatchObject({
       data_type: 'uuid',
       column_default: expect.stringContaining('gen_random_uuid')
     });
-    expect(rows.filter((column: any) => column.column_name.endsWith('_at')).every((column: any) => column.data_type === 'timestamp with time zone')).toBe(true);
+    expect(rows.filter((column: { column_name: string, data_type: string }) => column.column_name.endsWith('_at')).every((column: { data_type: string }) => column.data_type === 'timestamp with time zone')).toBe(true);
   });
 
   it('generates IDs, updates timestamps, and provides the declared active index', async () => {

@@ -1,6 +1,17 @@
 import { Pool, PoolClient } from 'pg';
 import { Conflict, NotFound } from '../../../api/app-error.js';
-import { KpiRelationship, KpiRelationshipCreateDTO } from '../domain/kpi-relationship.model.js';
+import { KpiRelationship, KpiRelationshipCreateDTO, KpiRelationshipType } from '../domain/kpi-relationship.model.js';
+
+interface KpiRelationshipRow {
+  relationship_id: string;
+  source_kpi_id: string;
+  target_kpi_id: string;
+  relationship_type: KpiRelationshipType;
+  effective_from: Date;
+  effective_to: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
 
 export interface KpiRelationshipRepository {
   create(data: KpiRelationshipCreateDTO, client?: PoolClient): Promise<KpiRelationship>;
@@ -16,7 +27,7 @@ export class PostgresKpiRelationshipRepository implements KpiRelationshipReposit
     return client || this.pool;
   }
 
-  private mapToModel(row: any): KpiRelationship {
+  private mapToModel(row: KpiRelationshipRow): KpiRelationship {
     return {
       relationshipId: row.relationship_id,
       sourceKpiId: row.source_kpi_id,
@@ -46,11 +57,12 @@ export class PostgresKpiRelationshipRepository implements KpiRelationshipReposit
     try {
       const result = await this.getClient(client).query(query, values);
       return this.mapToModel(result.rows[0]);
-    } catch (error: any) {
-      if (error.code === '23505') {
+    } catch (error) {
+      const code = (error as { code?: string }).code;
+      if (code === '23505') {
         throw new Conflict('KPI Relationship already exists');
       }
-      if (error.code === '23503') {
+      if (code === '23503') {
         throw new NotFound('Referenced KPI does not exist');
       }
       throw error;

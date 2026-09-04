@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useJobRoles } from '../hooks/useJobRoles';
-import { useAuth } from '../../../shared/auth/AuthContext';
+import { useAuth } from '../../../shared/auth/auth-context';
 import { OrgRoleFormModal } from './OrgRoleFormModal';
 import { ErrorAlert, LoadingSpinner, EmptyState, StatusBadge } from '../../../shared/components/ui';
 import { Button } from '../../../shared/ui/Button/Button';
@@ -88,3 +88,4 @@ export function OrgRoleTable() {
     </div>
   );
 }
+

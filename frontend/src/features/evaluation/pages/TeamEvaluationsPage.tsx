@@ -33,8 +33,8 @@ export function TeamEvaluationsPage() {
         };
       case EvaluationStatus.SUBMITTED:
         return {
-          bg: (COLORS.semantic as any).warning[50],
-          text: (COLORS.semantic as any).warning[700],
+          bg: (COLORS.semantic as Record<string, Record<number, string>>).warning[50],
+          text: (COLORS.semantic as Record<string, Record<number, string>>).warning[700],
           label: 'Ready for Manager Review',
           icon: <Clock size={14} />,
         };
@@ -47,8 +47,8 @@ export function TeamEvaluationsPage() {
         };
       case EvaluationStatus.APPROVED:
         return {
-          bg: (COLORS.semantic as any).success[50],
-          text: (COLORS.semantic as any).success[700],
+          bg: (COLORS.semantic as Record<string, Record<number, string>>).success[50],
+          text: (COLORS.semantic as Record<string, Record<number, string>>).success[700],
           label: 'Approved',
           icon: <CheckCircle2 size={14} />,
         };

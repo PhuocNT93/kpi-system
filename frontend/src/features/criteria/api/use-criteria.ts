@@ -63,7 +63,7 @@ export function useCreateCriterionMutation() {
 export function useUpdateCriterionVersionMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ criterionId, versionId, data }: { criterionId: string, versionId: string, data: any }) => 
+    mutationFn: ({ criterionId, versionId, data }: { criterionId: string, versionId: string, data: Record<string, unknown> }) =>
       updateCriterionVersion(criterionId, versionId, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: criteriaKeys.versions(variables.criterionId) });

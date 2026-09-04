@@ -1,11 +1,50 @@
 import { Pool } from 'pg';
-import { Employee, EmployeeAssignment } from '../domain/employee.domain.js';
+import { Employee, EmployeeAssignment, EmploymentStatus } from '../domain/employee.domain.js';
 import { EmployeeRepository, EmployeeAssignmentRepository } from '../domain/employee.repository.js';
+import { QueryExecutor } from '../../../shared/database/query-executor.js';
+
+interface EmployeeRow extends Record<string, unknown> {
+  employee_id: string;
+  employee_code: string;
+  full_name: string;
+  email: string;
+  department_id: string | null;
+  team_id: string | null;
+  role_id: string;
+  job_level_id: string;
+  manager_id: string | null;
+  employment_status: string;
+  join_date: string;
+  termination_date: string | null;
+  version: string | number;
+  created_at?: string;
+  updated_at?: string;
+  created_by?: string | null;
+  updated_by?: string | null;
+  review_cadence?: string | null;
+  last_evaluation_completed_at?: string | null;
+}
+
+interface EmployeeAssignmentRow extends Record<string, unknown> {
+  employee_assignment_id: string;
+  employee_id: string;
+  department_id: string;
+  team_id: string;
+  role_id: string;
+  job_level_id: string;
+  manager_id: string | null;
+  effective_from: string;
+  effective_to: string | null;
+  change_reason?: string | null;
+  change_note?: string | null;
+  created_at?: string;
+  created_by?: string | null;
+}
 
 export class PostgresEmployeeRepository implements EmployeeRepository {
   constructor(private pool: Pool) {}
 
-  private hasQuery(executor?: any): boolean {
+  private hasQuery(executor?: QueryExecutor): boolean {
     const p = executor || this.pool;
     return !!(p && typeof p.query === 'function');
   }
@@ -56,7 +95,7 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
   }): Promise<{ employees: Employee[]; total: number }> {
     if (!this.hasQuery()) return { employees: [], total: 0 };
     const conditions: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
     let idx = 1;
 
     if (params.departmentId) {
@@ -109,7 +148,7 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
     };
   }
 
-  async create(employee: Omit<Employee, 'employeeId' | 'version'>, client?: any): Promise<Employee> {
+  async create(employee: Omit<Employee, 'employeeId' | 'version'>, client?: QueryExecutor): Promise<Employee> {
     const executor = client || this.pool;
     if (!this.hasQuery(executor)) {
       return {
@@ -118,7 +157,7 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
         version: 1,
       };
     }
-    const res = await executor.query(
+    const res = await executor.query<EmployeeRow>(
       `INSERT INTO employee (employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, review_cadence, last_evaluation_completed_at, created_by, updated_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, review_cadence, last_evaluation_completed_at, created_at, updated_at, created_by, updated_by`,
@@ -139,10 +178,14 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
         employee.updatedBy,
       ]
     );
-    return this.mapRowToEmployee(res.rows[0]);
+    const [insertedRow] = res.rows;
+    if (!insertedRow) {
+      throw new Error('EMPLOYEE_INSERT_RETURNED_NO_ROW');
+    }
+    return this.mapRowToEmployee(insertedRow);
   }
 
-  async update(employee: Employee, client?: any): Promise<Employee> {
+  async update(employee: Employee, client?: QueryExecutor): Promise<Employee> {
     const executor = client || this.pool;
     if (!this.hasQuery(executor)) {
       return {
@@ -150,7 +193,7 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
         version: employee.version + 1,
       };
     }
-    const res = await executor.query(
+    const res = await executor.query<EmployeeRow>(
       `UPDATE employee
        SET full_name = $1, email = $2, department_id = $3, team_id = $4, role_id = $5, job_level_id = $6, manager_id = $7, employment_status = $8, termination_date = $9, review_cadence = $10, last_evaluation_completed_at = $11, updated_by = $12, version = version + 1
        WHERE employee_id = $13 AND version = $14
@@ -173,13 +216,14 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
       ]
     );
 
-    if (res.rows.length === 0) {
+    const [updatedRow] = res.rows;
+    if (!updatedRow) {
       throw new Error('RESOURCE_VERSION_CONFLICT');
     }
-    return this.mapRowToEmployee(res.rows[0]);
+    return this.mapRowToEmployee(updatedRow);
   }
 
-  private mapRowToEmployee(row: any): Employee {
+  private mapRowToEmployee(row: EmployeeRow): Employee {
     return {
       employeeId: row.employee_id,
       employeeCode: row.employee_code,
@@ -190,12 +234,12 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
       roleId: row.role_id,
       jobLevelId: row.job_level_id,
       managerId: row.manager_id,
-      employmentStatus: row.employment_status,
+      employmentStatus: row.employment_status as EmploymentStatus,
       joinDate: row.join_date,
       terminationDate: row.termination_date,
-      version: parseInt(row.version, 10),
-      reviewCadence: row.review_cadence,
-      lastEvaluationCompletedAt: row.last_evaluation_completed_at,
+      version: Number(row.version),
+      reviewCadence: row.review_cadence as string | undefined,
+      lastEvaluationCompletedAt: row.last_evaluation_completed_at as string | undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       createdBy: row.created_by,
@@ -207,12 +251,12 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
 export class PostgresEmployeeAssignmentRepository implements EmployeeAssignmentRepository {
   constructor(private pool: Pool) {}
 
-  private hasQuery(executor?: any): boolean {
+  private hasQuery(executor?: QueryExecutor): boolean {
     const p = executor || this.pool;
     return !!(p && typeof p.query === 'function');
   }
 
-  async create(assignment: Omit<EmployeeAssignment, 'employeeAssignmentId'>, client?: any): Promise<EmployeeAssignment> {
+  async create(assignment: Omit<EmployeeAssignment, 'employeeAssignmentId'>, client?: QueryExecutor): Promise<EmployeeAssignment> {
     const executor = client || this.pool;
     if (!this.hasQuery(executor)) {
       return {
@@ -220,7 +264,7 @@ export class PostgresEmployeeAssignmentRepository implements EmployeeAssignmentR
         employeeAssignmentId: 'mock-assign-id',
       };
     }
-    const res = await executor.query(
+    const res = await executor.query<EmployeeAssignmentRow>(
       `INSERT INTO employee_assignment (employee_id, department_id, team_id, role_id, job_level_id, manager_id, effective_from, effective_to, change_reason, change_note, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING employee_assignment_id, employee_id, department_id, team_id, role_id, job_level_id, manager_id, effective_from, effective_to, change_reason, change_note, created_at, created_by`,
@@ -238,27 +282,32 @@ export class PostgresEmployeeAssignmentRepository implements EmployeeAssignmentR
         assignment.createdBy,
       ]
     );
-    return this.mapRowToAssignment(res.rows[0]);
+    const [insertedRow] = res.rows;
+    if (!insertedRow) {
+      throw new Error('EMPLOYEE_ASSIGNMENT_INSERT_RETURNED_NO_ROW');
+    }
+    return this.mapRowToAssignment(insertedRow);
   }
 
-  async findCurrentAssignment(employeeId: string, client?: any): Promise<EmployeeAssignment | null> {
+  async findCurrentAssignment(employeeId: string, client?: QueryExecutor): Promise<EmployeeAssignment | null> {
     const executor = client || this.pool;
     if (!this.hasQuery(executor)) return null;
-    const res = await executor.query(
+    const res = await executor.query<EmployeeAssignmentRow>(
       `SELECT employee_assignment_id, employee_id, department_id, team_id, role_id, job_level_id, manager_id, effective_from, effective_to, change_reason, change_note, created_at, created_by
        FROM employee_assignment
        WHERE employee_id = $1 AND effective_to IS NULL
        ORDER BY effective_from DESC LIMIT 1`,
       [employeeId]
     );
-    if (res.rows.length === 0) return null;
-    return this.mapRowToAssignment(res.rows[0]);
+    const [row] = res.rows;
+    if (!row) return null;
+    return this.mapRowToAssignment(row);
   }
 
-  async findAssignmentAt(employeeId: string, effectiveDate: string, client?: any): Promise<EmployeeAssignment | null> {
+  async findAssignmentAt(employeeId: string, effectiveDate: string, client?: QueryExecutor): Promise<EmployeeAssignment | null> {
     const executor = client || this.pool;
     if (!this.hasQuery(executor)) return null;
-    const res = await executor.query(
+    const res = await executor.query<EmployeeAssignmentRow>(
       `SELECT employee_assignment_id, employee_id, department_id, team_id, role_id, job_level_id, manager_id, effective_from, effective_to, change_reason, change_note, created_at, created_by
        FROM employee_assignment
        WHERE employee_id = $1
@@ -267,13 +316,14 @@ export class PostgresEmployeeAssignmentRepository implements EmployeeAssignmentR
        ORDER BY effective_from DESC LIMIT 1`,
       [employeeId, effectiveDate]
     );
-    if (res.rows.length === 0) return null;
-    return this.mapRowToAssignment(res.rows[0]);
+    const [row] = res.rows;
+    if (!row) return null;
+    return this.mapRowToAssignment(row);
   }
 
   async findAssignmentHistory(employeeId: string): Promise<EmployeeAssignment[]> {
     if (!this.hasQuery()) return [];
-    const res = await this.pool.query(
+    const res = await this.pool.query<EmployeeAssignmentRow>(
       `SELECT employee_assignment_id, employee_id, department_id, team_id, role_id, job_level_id, manager_id, effective_from, effective_to, change_reason, change_note, created_at, created_by
        FROM employee_assignment
        WHERE employee_id = $1
@@ -283,7 +333,7 @@ export class PostgresEmployeeAssignmentRepository implements EmployeeAssignmentR
     return res.rows.map(this.mapRowToAssignment);
   }
 
-  async closeActiveAssignment(employeeId: string, closeDate: string, client?: any): Promise<void> {
+  async closeActiveAssignment(employeeId: string, closeDate: string, client?: QueryExecutor): Promise<void> {
     const executor = client || this.pool;
     if (!this.hasQuery(executor)) return;
     await executor.query(
@@ -294,7 +344,7 @@ export class PostgresEmployeeAssignmentRepository implements EmployeeAssignmentR
     );
   }
 
-  private mapRowToAssignment(row: any): EmployeeAssignment {
+  private mapRowToAssignment(row: EmployeeAssignmentRow): EmployeeAssignment {
     return {
       employeeAssignmentId: row.employee_assignment_id,
       employeeId: row.employee_id,

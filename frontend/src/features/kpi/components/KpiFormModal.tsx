@@ -45,8 +45,8 @@ export function KpiFormModal({ isOpen, onClose, editingKpi }: Props) {
         await createMutation.mutateAsync(dto);
       }
       onClose();
-    } catch (err: any) {
-      setError(err?.message || 'An error occurred');
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Failed to save KPI');
     }
   };
 

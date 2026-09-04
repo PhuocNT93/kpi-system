@@ -2,6 +2,16 @@ import { Pool, PoolClient } from 'pg';
 import { ITemplateKpiRepository } from '../../domain/repositories.interface.js';
 import { TemplateKpi } from '../../domain/configuration.types.js';
 
+interface TemplateKpiRow {
+  template_kpi_id: string;
+  template_version_id: string;
+  kpi_id: string;
+  weight: string | number;
+  display_order: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
 export class PostgresTemplateKpiRepository implements ITemplateKpiRepository {
   constructor(private readonly pool: Pool) {}
 
@@ -9,12 +19,12 @@ export class PostgresTemplateKpiRepository implements ITemplateKpiRepository {
     return client || this.pool;
   }
 
-  private mapRow(row: any): TemplateKpi {
+  private mapRow(row: TemplateKpiRow): TemplateKpi {
     return {
       id: row.template_kpi_id,
       template_version_id: row.template_version_id,
       kpi_id: row.kpi_id,
-      weight: parseFloat(row.weight),
+      weight: Number(row.weight),
       display_order: row.display_order,
       created_at: row.created_at,
       updated_at: row.updated_at,
@@ -49,7 +59,7 @@ export class PostgresTemplateKpiRepository implements ITemplateKpiRepository {
 
   async update(id: string, tk: Partial<TemplateKpi>, client?: PoolClient): Promise<TemplateKpi> {
     const fields: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
     let idx = 1;
 
     if (tk.weight !== undefined) {

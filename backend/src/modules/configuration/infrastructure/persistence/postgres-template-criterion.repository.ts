@@ -1,5 +1,5 @@
 import { Pool, PoolClient } from 'pg';
-import { TemplateCriterion, ApplicabilityRule } from '../../domain/configuration.types.js';
+import { TemplateCriterion, ApplicabilityRule, TemplateCriterionWithDetails } from '../../domain/configuration.types.js';
 import { ITemplateCriterionRepository } from '../../domain/repositories.interface.js';
 import { NotFound } from '../../../../api/app-error.js';
 
@@ -46,7 +46,7 @@ export class PostgresTemplateCriterionRepository implements ITemplateCriterionRe
     return res.rows.map((r) => this.mapRow(r));
   }
 
-  async findByTemplateVersionIdWithDetails(templateVersionId: string, client?: PoolClient): Promise<any[]> {
+  async findByTemplateVersionIdWithDetails(templateVersionId: string, client?: PoolClient): Promise<TemplateCriterionWithDetails[]> {
     const runner = client || this.pool;
     const query = `
       SELECT tc.*,
@@ -63,7 +63,7 @@ export class PostgresTemplateCriterionRepository implements ITemplateCriterionRe
     const res = await runner.query(query, [templateVersionId]);
     return res.rows.map(row => {
       const tc = this.mapRow(row);
-      let criterion: any = null;
+      let criterion: TemplateCriterionWithDetails['criterion'] = null;
       if (row.cv_id && row.c_id) {
         criterion = {
           id: row.c_id,

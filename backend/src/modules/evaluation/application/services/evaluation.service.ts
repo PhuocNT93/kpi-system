@@ -1,6 +1,7 @@
 import { Pool, PoolClient } from 'pg';
 import { IEvaluationRepository, IEvaluationItemRepository } from '../../domain/repositories.interface.js';
-import { EvaluationStatus, Evaluation } from '../../domain/evaluation.types.js';
+import { EvaluationStatus, Evaluation, EvaluationItem } from '../../domain/evaluation.types.js';
+import { MyEvaluationListItem, TeamEvaluationListItem } from '../../domain/repositories.interface.js';
 import { NotFound, AppError } from '../../../../api/app-error.js';
 import { Actor } from '../../../../shared/auth/types.js';
 import { withTransaction } from '../../../../shared/database/transaction.js';
@@ -17,11 +18,11 @@ export class EvaluationService {
     private ruleEngine?: RuleEngine
   ) {}
 
-  async getMyEvaluations(userId: string): Promise<any[]> {
+  async getMyEvaluations(userId: string): Promise<MyEvaluationListItem[]> {
     return this.evaluationRepo.findMyEvaluations(userId);
   }
 
-  async getTeamEvaluations(actor: Actor): Promise<any[]> {
+  async getTeamEvaluations(actor: Actor): Promise<TeamEvaluationListItem[]> {
     const isSuperAdminOrHr = actor.role === 'SYSTEM_ADMIN' || actor.role === 'HR_ADMIN';
     let managerEmployeeId = actor.employeeId;
 
@@ -39,7 +40,7 @@ export class EvaluationService {
     });
   }
 
-  async getEvaluationDetail(evaluationId: string, actor: Actor): Promise<any> {
+  async getEvaluationDetail(evaluationId: string, actor: Actor): Promise<(Evaluation & { items: EvaluationItem[]; official_score: number | null; is_manager_reviewer: boolean })> {
     const evaluation = await this.evaluationRepo.findById(evaluationId);
     if (!evaluation) {
       throw new NotFound('Evaluation');
@@ -57,7 +58,7 @@ export class EvaluationService {
     return {
       ...evaluation,
       items,
-      official_score: evaluation.scoring_breakdown?.official_score ?? evaluation.manager_score ?? null,
+      official_score: (typeof evaluation.scoring_breakdown?.official_score === 'number' ? evaluation.scoring_breakdown.official_score : null) ?? evaluation.manager_score ?? null,
       is_manager_reviewer: isManager || isSuperAdminOrHr,
     };
   }

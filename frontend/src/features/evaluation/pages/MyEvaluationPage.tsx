@@ -30,7 +30,7 @@ export function MyEvaluationPage() {
     const active = evaluations.find(
       (e) =>
         e.evaluation.status === EvaluationStatus.OPEN ||
-        (e.evaluation.status as any) === 'SELF_ASSESSMENT'
+        (e.evaluation.status as string) === 'SELF_ASSESSMENT'
     ) || evaluations[0];
 
     const past = evaluations.filter(
@@ -86,7 +86,7 @@ export function MyEvaluationPage() {
             Không thể tải dữ liệu đánh giá
           </h3>
           <p style={{ margin: '0 0 16px', fontSize: TYPOGRAPHY.fontSize.sm, color: '#7f1d1d' }}>
-            {(error as any)?.message || 'Đã có lỗi xảy ra khi kết nối máy chủ. Vui lòng thử lại.'}
+            {(error as Error)?.message || 'Đã có lỗi xảy ra khi kết nối máy chủ. Vui lòng thử lại.'}
           </p>
           <button
             onClick={() => refetch()}

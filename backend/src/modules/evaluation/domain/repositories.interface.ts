@@ -1,11 +1,34 @@
 import { PoolClient } from 'pg';
 import { Evaluation, EvaluationItem } from './evaluation.types.js';
 
+export interface EvaluationCycleSummary {
+  name: string;
+  start_date: string;
+  end_date: string;
+  status: string;
+}
+
+export interface MyEvaluationListItem {
+  evaluation: Evaluation;
+  cycle: EvaluationCycleSummary;
+}
+
+export interface TeamEvaluationListItem extends MyEvaluationListItem {
+  employee: {
+    employee_id: string;
+    full_name: string;
+    employee_code: string;
+    email: string;
+    team_name: string | null;
+    role_name: string | null;
+  };
+}
+
 export interface IEvaluationRepository {
   findById(id: string, client?: PoolClient): Promise<Evaluation | null>;
   findByIdForUpdate(id: string, client: PoolClient): Promise<Evaluation | null>;
-  findMyEvaluations(userId: string, client?: PoolClient): Promise<any[]>;
-  findTeamEvaluations(params: { managerEmployeeId?: string; isSuperAdminOrHr?: boolean }, client?: PoolClient): Promise<any[]>;
+  findMyEvaluations(userId: string, client?: PoolClient): Promise<MyEvaluationListItem[]>;
+  findTeamEvaluations(params: { managerEmployeeId?: string; isSuperAdminOrHr?: boolean }, client?: PoolClient): Promise<TeamEvaluationListItem[]>;
   update(id: string, evaluation: Partial<Evaluation>, client?: PoolClient): Promise<Evaluation>;
 }
 

@@ -3,6 +3,7 @@ import { BadRequest } from '../../../api/app-error.js';
 import { withTransaction } from '../../../shared/database/transaction.js';
 import { KpiRelationshipCreateDTO, KpiRelationship } from '../domain/kpi-relationship.model.js';
 import { KpiRelationshipRepository } from '../infrastructure/postgres-kpi-relationship.repository.js';
+import { TransactionClient, TransactionConnection } from '../../../shared/database/transaction.js';
 
 export class KpiRelationshipService {
   constructor(
@@ -15,7 +16,7 @@ export class KpiRelationshipService {
       throw new BadRequest('KPI cannot have a relationship with itself');
     }
 
-    return withTransaction(this.pool as any, async (client: any) => {
+    return withTransaction(this.pool as unknown as TransactionConnection, async (client: TransactionClient) => {
       // 1. Lock the table or just rely on serialized/repeatable read?
       // For MVP, we fetch all active relations in this transaction.
       // Postgres pool client implements TransactionClient.

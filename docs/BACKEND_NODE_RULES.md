@@ -152,3 +152,8 @@ Before merge, run formatter/linter, type check, relevant unit/integration tests,
 Before editing backend code, identify the owning module and state whether the change can affect scope, snapshots, locks, score calculation, workflow, or audit. If it can, add or update a focused test first or alongside the implementation.
 
 Never bypass a service, invent a per-criterion branch, modify audit history, or add a write endpoint to a locked/published resource. Keep patches within the owning module unless an explicit cross-module contract is required.
+
+## 9. Code Quality & Linting
+- **No explicit `any`**: Do not use `any`. Use real types at API/domain boundaries, and `unknown` + narrowing elsewhere.
+- **No `eslint-disable`**: Do not use `eslint-disable` comments to bypass rules. Fix the underlying typing issues.
+- **Unused parameters**: Prefix intentionally unused parameters with `_` (e.g., `_req`, `_res`).

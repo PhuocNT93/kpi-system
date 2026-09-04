@@ -22,9 +22,9 @@ describe('EvaluationCycleTransitionService', () => {
     try {
       transitionService.validateTransition(EvaluationCycleStatus.DRAFT, EvaluationCycleStatus.LOCKED);
       expect.fail('Should have thrown Conflict');
-    } catch (err: any) {
+    } catch (err) {
       expect(err).toBeInstanceOf(Conflict);
-      expect(err.code).toBe(EvaluationCycleErrorCodes.INVALID_CYCLE_STATE_TRANSITION);
+      expect((err as Conflict).code).toBe(EvaluationCycleErrorCodes.INVALID_CYCLE_STATE_TRANSITION);
     }
   });
 
