@@ -12,6 +12,8 @@ export interface EmployeeResponse extends BaseResourceResponse {
   employment_status: string;
   join_date: string;
   termination_date?: string;
+  review_cadence?: string;
+  last_evaluation_completed_at?: string;
   version: number;
 }
 

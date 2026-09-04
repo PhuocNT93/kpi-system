@@ -7,11 +7,13 @@ import { ErrorAlert, LoadingSpinner, EmptyState, StatusBadge } from '../../../sh
 import { Button } from '../../../shared/ui/Button/Button';
 import type { OrgTeam } from '../domain/organization-models';
 
-export function TeamTable() {
+export function TeamTable({ departmentId }: { departmentId?: string }) {
   const { user } = useAuth();
   const isAdmin = user?.role === 'HR_ADMIN' || user?.role === 'SYSTEM_ADMIN';
-  
-  const teamsQuery = useTeams();
+  const filters: Record<string, string> = {};
+  if (departmentId) filters.department_id = departmentId;
+
+  const teamsQuery = useTeams(filters);
   const [editingTeam, setEditingTeam] = useState<OrgTeam | undefined>();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [deactivatingTeam, setDeactivatingTeam] = useState<OrgTeam | null>(null);

@@ -1,16 +1,25 @@
 import { useState } from 'react';
 import { useEmployees } from '../hooks/useEmployees';
+import { useJobRoles } from '../hooks/useJobRoles';
+import { useJobLevels } from '../hooks/useJobLevels';
 import { useAuth } from '../../../shared/auth/auth-context';
 import { ErrorAlert, LoadingSpinner, EmptyState, StatusBadge } from '../../../shared/components/ui';
 import { Button } from '../../../shared/ui/Button/Button';
 import type { OrgEmployee } from '../domain/organization-models';
 import { EmployeeFormModal } from './EmployeeFormModal';
 
-export function EmployeeTable() {
+export function EmployeeTable({ departmentId, teamId }: { departmentId?: string; teamId?: string }) {
   const { user } = useAuth();
   const isAdmin = user?.role === 'HR_ADMIN' || user?.role === 'SYSTEM_ADMIN';
   
-  const employeesQuery = useEmployees();
+  const filters: Record<string, string> = {};
+  if (departmentId) filters.department_id = departmentId;
+  if (teamId) filters.team_id = teamId;
+
+  const employeesQuery = useEmployees(filters);
+  const rolesQuery = useJobRoles();
+  const levelsQuery = useJobLevels();
+
   const [editingEmployee, setEditingEmployee] = useState<OrgEmployee | undefined>();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
@@ -18,6 +27,22 @@ export function EmployeeTable() {
   if (employeesQuery.isError) return <ErrorAlert error={employeesQuery.error} onRetry={() => employeesQuery.refetch()} />;
 
   const employees = employeesQuery.data ?? [];
+  const roles = rolesQuery.data ?? [];
+  const levels = levelsQuery.data ?? [];
+
+  const getRoleName = (roleId: string) => roles.find((r) => r.id === roleId)?.name ?? roleId;
+  const getLevelName = (levelId: string) => levels.find((l) => l.id === levelId)?.name ?? levelId;
+
+  const formatCadence = (cadence: string | null) => {
+    if (!cadence) return '-';
+    return cadence.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  };
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleDateString();
+  };
 
   return (
     <div>
@@ -38,7 +63,11 @@ export function EmployeeTable() {
               <tr style={{ borderBottom: '2px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
                 <th style={{ padding: '0.75rem 1rem' }}>Code</th>
                 <th style={{ padding: '0.75rem 1rem' }}>Name</th>
+                <th style={{ padding: '0.75rem 1rem' }}>Role</th>
+                <th style={{ padding: '0.75rem 1rem' }}>Level</th>
                 <th style={{ padding: '0.75rem 1rem' }}>Email</th>
+                <th style={{ padding: '0.75rem 1rem' }}>Review Cadence</th>
+                <th style={{ padding: '0.75rem 1rem' }}>Last Review Date</th>
                 <th style={{ padding: '0.75rem 1rem' }}>Status</th>
                 {isAdmin && <th style={{ padding: '0.75rem 1rem', width: '150px' }}>Actions</th>}
               </tr>
@@ -48,7 +77,29 @@ export function EmployeeTable() {
                 <tr key={emp.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                   <td style={{ padding: '0.75rem 1rem', fontWeight: 500 }}>{emp.employeeCode}</td>
                   <td style={{ padding: '0.75rem 1rem' }}>{emp.fullName}</td>
+                  <td style={{ padding: '0.75rem 1rem' }}>
+                    <span style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 500 }}>
+                      {getRoleName(emp.roleId)}
+                    </span>
+                  </td>
+                  <td style={{ padding: '0.75rem 1rem' }}>
+                    <span style={{ backgroundColor: '#f5f3ff', color: '#6d28d9', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 500 }}>
+                      {getLevelName(emp.jobLevelId)}
+                    </span>
+                  </td>
                   <td style={{ padding: '0.75rem 1rem' }}>{emp.email}</td>
+                  <td style={{ padding: '0.75rem 1rem' }}>
+                    {emp.reviewCadence ? (
+                      <span style={{ backgroundColor: '#f0fdf4', color: '#15803d', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 500 }}>
+                        {formatCadence(emp.reviewCadence)}
+                      </span>
+                    ) : (
+                      <span style={{ color: '#9ca3af' }}>Not Set</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '0.75rem 1rem', color: '#4b5563', fontSize: '0.875rem' }}>
+                    {formatDate(emp.lastEvaluationCompletedAt)}
+                  </td>
                   <td style={{ padding: '0.75rem 1rem' }}>
                     <StatusBadge status={emp.employmentStatus} />
                   </td>
@@ -75,6 +126,8 @@ export function EmployeeTable() {
       {isAdmin && (
         <EmployeeFormModal
           isOpen={isCreateOpen}
+          initialDepartmentId={departmentId}
+          initialTeamId={teamId}
           onClose={() => setIsCreateOpen(false)}
         />
       )}

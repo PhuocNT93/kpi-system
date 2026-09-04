@@ -50,7 +50,7 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
   async findById(employeeId: string): Promise<Employee | null> {
     if (!this.hasQuery()) return null;
     const res = await this.pool.query(
-      `SELECT employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, created_at, updated_at, created_by, updated_by
+      `SELECT employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, review_cadence, last_evaluation_completed_at, created_at, updated_at, created_by, updated_by
        FROM employee WHERE employee_id = $1`,
       [employeeId]
     );
@@ -61,7 +61,7 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
   async findByCode(employeeCode: string): Promise<Employee | null> {
     if (!this.hasQuery()) return null;
     const res = await this.pool.query(
-      `SELECT employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, created_at, updated_at, created_by, updated_by
+      `SELECT employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, review_cadence, last_evaluation_completed_at, created_at, updated_at, created_by, updated_by
        FROM employee WHERE employee_code = $1`,
       [employeeCode]
     );
@@ -72,7 +72,7 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
   async findByEmail(email: string): Promise<Employee | null> {
     if (!this.hasQuery()) return null;
     const res = await this.pool.query(
-      `SELECT employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, created_at, updated_at, created_by, updated_by
+      `SELECT employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, review_cadence, last_evaluation_completed_at, created_at, updated_at, created_by, updated_by
        FROM employee WHERE LOWER(email) = LOWER($1)`,
       [email]
     );
@@ -135,7 +135,7 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
     const offset = params.offset ?? 0;
 
     const dataRes = await this.pool.query(
-      `SELECT employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, created_at, updated_at, created_by, updated_by
+      `SELECT employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, review_cadence, last_evaluation_completed_at, created_at, updated_at, created_by, updated_by
        FROM employee ${whereClause} ORDER BY created_at DESC LIMIT $${idx++} OFFSET $${idx++}`,
       [...values, limit, offset]
     );
@@ -156,9 +156,9 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
       };
     }
     const res = await executor.query<EmployeeRow>(
-      `INSERT INTO employee (employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, created_by, updated_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-       RETURNING employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, created_at, updated_at, created_by, updated_by`,
+      `INSERT INTO employee (employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, review_cadence, last_evaluation_completed_at, created_by, updated_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       RETURNING employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, review_cadence, last_evaluation_completed_at, created_at, updated_at, created_by, updated_by`,
       [
         employee.employeeCode,
         employee.fullName,
@@ -170,6 +170,8 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
         employee.managerId,
         employee.employmentStatus,
         employee.joinDate,
+        employee.reviewCadence ?? null,
+        employee.lastEvaluationCompletedAt ?? null,
         employee.createdBy,
         employee.updatedBy,
       ]
@@ -191,9 +193,9 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
     }
     const res = await executor.query<EmployeeRow>(
       `UPDATE employee
-       SET full_name = $1, email = $2, department_id = $3, team_id = $4, role_id = $5, job_level_id = $6, manager_id = $7, employment_status = $8, termination_date = $9, updated_by = $10, version = version + 1
-       WHERE employee_id = $11 AND version = $12
-       RETURNING employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, created_at, updated_at, created_by, updated_by`,
+       SET full_name = $1, email = $2, department_id = $3, team_id = $4, role_id = $5, job_level_id = $6, manager_id = $7, employment_status = $8, termination_date = $9, review_cadence = $10, last_evaluation_completed_at = $11, updated_by = $12, version = version + 1
+       WHERE employee_id = $13 AND version = $14
+       RETURNING employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, review_cadence, last_evaluation_completed_at, created_at, updated_at, created_by, updated_by`,
       [
         employee.fullName,
         employee.email,
@@ -204,6 +206,8 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
         employee.managerId,
         employee.employmentStatus,
         employee.terminationDate,
+        employee.reviewCadence ?? null,
+        employee.lastEvaluationCompletedAt ?? null,
         employee.updatedBy,
         employee.employeeId,
         employee.version,
@@ -232,6 +236,8 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
       joinDate: row.join_date,
       terminationDate: row.termination_date,
       version: Number(row.version),
+      reviewCadence: row.review_cadence,
+      lastEvaluationCompletedAt: row.last_evaluation_completed_at,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       createdBy: row.created_by,

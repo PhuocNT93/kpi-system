@@ -29,6 +29,8 @@ export interface Employee {
   joinDate: string; // YYYY-MM-DD
   terminationDate?: string | null; // YYYY-MM-DD
   version: number;
+  reviewCadence?: string | null;
+  lastEvaluationCompletedAt?: string | null; // ISO DateTime
   createdAt?: string;
   updatedAt?: string;
   createdBy?: string | null;

@@ -74,6 +74,8 @@ export function mapWireEmployeeToDomain(wire: WireEmployee): OrgEmployee {
     employmentStatus: wire.employment_status,
     joinDate: wire.join_date,
     terminationDate: wire.termination_date,
+    reviewCadence: wire.review_cadence,
+    lastEvaluationCompletedAt: wire.last_evaluation_completed_at,
     version: wire.version,
     createdAt: new Date(wire.created_at),
     updatedAt: new Date(wire.updated_at),
