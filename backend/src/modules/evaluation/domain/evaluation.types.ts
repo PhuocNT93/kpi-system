@@ -18,6 +18,8 @@ export interface Evaluation {
   self_score?: number;
   manager_score?: number;
   final_score?: number;
+  official_score?: number | null;
+  scoring_breakdown?: Record<string, unknown>;
   submitted_at?: Date;
   approved_at?: Date;
   is_locked: boolean;
@@ -25,6 +27,7 @@ export interface Evaluation {
   updated_at: Date;
   created_by?: string;
   updated_by?: string;
+  version?: number;
 }
 
 export interface EvaluationItem {
@@ -34,11 +37,17 @@ export interface EvaluationItem {
   criterion_code_snapshot: string;
   criterion_name_snapshot: string;
   weight_snapshot: number;
+  kpi_id_snapshot?: string;
+  kpi_code_snapshot?: string;
+  kpi_name_snapshot?: string;
+  kpi_weight_snapshot?: number;
   scoring_rule_snapshot: any;
   level_definition_snapshot: any;
-  resolved_level?: number;
-  raw_score?: number;
-  weighted_score?: number;
+  measurement_value?: number;
+  resolved_level?: number | null;
+  raw_score?: number | null;
+  normalized_score?: number | null;
+  weighted_score?: number | null;
   is_disabled_for_employee: boolean;
   is_missing_score: boolean;
   comment?: string;
@@ -48,4 +57,5 @@ export interface EvaluationItem {
   updated_at: Date;
   created_by?: string;
   updated_by?: string;
+  version?: number;
 }

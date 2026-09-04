@@ -33,6 +33,7 @@ import { createKpiModule } from './modules/kpi/kpi.module.js';
 import { createAuditModule } from './modules/audit/audit.module.js';
 import { createEvaluationCycleModule } from './modules/evaluation-cycle/evaluation-cycle.module.js';
 import { createEvaluationModule } from './modules/evaluation/evaluation.module.js';
+import { createRuleEngineModule } from './modules/rule-engine/rule-engine.module.js';
 
 export interface AppOptions {
   userRepository?: UserRepository;
@@ -91,7 +92,8 @@ export function createApp(options: AppOptions = {}) {
   const evaluationCycleModule = pool ? createEvaluationCycleModule(pool, auditModule?.auditService) : undefined;
   const evaluationCycleController = evaluationCycleModule?.cycleController;
 
-  const evaluationModule = pool ? createEvaluationModule(pool) : undefined;
+  const ruleEngineModule = createRuleEngineModule();
+  const evaluationModule = pool ? createEvaluationModule(pool, auditModule?.auditService, ruleEngineModule.engine) : undefined;
   const evaluationController = evaluationModule?.evaluationController;
 
   // ── Global Middlewares ────────────────────────────────────────────────────

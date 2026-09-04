@@ -31,4 +31,8 @@ export const evaluationApi = {
   approveEvaluation: async (id: string): Promise<void> => {
     return postApi(`${EVALUATIONS_BASE}/${id}/approve`, {});
   },
+
+  recalculateEvaluation: async (id: string): Promise<void> => {
+    return postApi(`${EVALUATIONS_BASE}/${id}/recalculate`, {});
+  },
 };

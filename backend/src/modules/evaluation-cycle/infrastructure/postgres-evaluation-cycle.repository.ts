@@ -350,7 +350,7 @@ export class PostgresEvaluationItemRepository implements IEvaluationItemReposito
 
       for (const item of chunk) {
         valueTuples.push(
-          `($${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++})`
+          `($${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++})`
         );
         values.push(
           item.evaluationId,
@@ -358,6 +358,10 @@ export class PostgresEvaluationItemRepository implements IEvaluationItemReposito
           item.criterionCodeSnapshot,
           item.criterionNameSnapshot,
           item.weightSnapshot,
+          item.kpiIdSnapshot ?? null,
+          item.kpiCodeSnapshot ?? null,
+          item.kpiNameSnapshot ?? null,
+          item.kpiWeightSnapshot ?? null,
           JSON.stringify(item.scoringRuleSnapshot),
           JSON.stringify(item.levelDefinitionSnapshot),
           item.isDisabledForEmployee,
@@ -370,11 +374,13 @@ export class PostgresEvaluationItemRepository implements IEvaluationItemReposito
       const res = await client.query(
         `INSERT INTO evaluation_item (
           evaluation_id, template_criterion_id, criterion_code_snapshot, criterion_name_snapshot,
-          weight_snapshot, scoring_rule_snapshot, level_definition_snapshot,
+          weight_snapshot, kpi_id_snapshot, kpi_code_snapshot, kpi_name_snapshot, kpi_weight_snapshot,
+          scoring_rule_snapshot, level_definition_snapshot,
           is_disabled_for_employee, is_missing_score, created_by, updated_by
         ) VALUES ${valueTuples.join(', ')}
         RETURNING evaluation_item_id, evaluation_id, template_criterion_id, criterion_code_snapshot,
-                  criterion_name_snapshot, weight_snapshot, scoring_rule_snapshot, level_definition_snapshot,
+                  criterion_name_snapshot, weight_snapshot, kpi_id_snapshot, kpi_code_snapshot, kpi_name_snapshot,
+                  kpi_weight_snapshot, scoring_rule_snapshot, level_definition_snapshot,
                   resolved_level, raw_score, weighted_score, is_disabled_for_employee, is_missing_score,
                   comment, reviewer_id, review_date, created_at, updated_at, created_by, updated_by`,
         values
@@ -396,10 +402,15 @@ export class PostgresEvaluationItemRepository implements IEvaluationItemReposito
       criterionCodeSnapshot: row.criterion_code_snapshot,
       criterionNameSnapshot: row.criterion_name_snapshot,
       weightSnapshot: parseFloat(row.weight_snapshot),
+      kpiIdSnapshot: row.kpi_id_snapshot,
+      kpiCodeSnapshot: row.kpi_code_snapshot,
+      kpiNameSnapshot: row.kpi_name_snapshot,
+      kpiWeightSnapshot: row.kpi_weight_snapshot == null ? undefined : parseFloat(row.kpi_weight_snapshot),
       scoringRuleSnapshot: typeof row.scoring_rule_snapshot === 'string' ? JSON.parse(row.scoring_rule_snapshot) : row.scoring_rule_snapshot,
       levelDefinitionSnapshot: typeof row.level_definition_snapshot === 'string' ? JSON.parse(row.level_definition_snapshot) : row.level_definition_snapshot,
-      resolvedLevel: row.resolved_level ? parseInt(row.resolved_level, 10) : null,
-      rawScore: row.raw_score ? parseFloat(row.raw_score) : null,
+      resolvedLevel: row.resolved_level == null ? null : parseInt(row.resolved_level, 10),
+      rawScore: row.raw_score == null ? null : parseFloat(row.raw_score),
+      normalizedScore: row.normalized_score == null ? null : parseFloat(row.normalized_score),
       weightedScore: row.weighted_score ? parseFloat(row.weighted_score) : null,
       isDisabledForEmployee: row.is_disabled_for_employee,
       isMissingScore: row.is_missing_score,

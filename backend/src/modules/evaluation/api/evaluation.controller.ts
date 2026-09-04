@@ -78,4 +78,11 @@ export class EvaluationController {
     const result = await this.evaluationService.approveEvaluation(id, actor);
     sendSuccess(res, 200, 'Evaluation approved successfully.', result);
   };
+
+  recalculateEvaluation = async (req: Request, res: Response): Promise<void> => {
+    const actor = this.getActor(req);
+    const id = req.params.id as string;
+    const result = await this.evaluationService.recalculateEvaluation(id, actor);
+    sendSuccess(res, 200, 'Evaluation score calculated successfully.', result);
+  };
 }

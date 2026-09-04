@@ -17,6 +17,7 @@ export function createEvaluationRouter(
   router.post('/:id/submit', controller.submitEvaluation);
   router.post('/:id/self-submit', controller.selfSubmitEvaluation);
   router.post('/:id/approve', controller.approveEvaluation);
+  router.post('/:id/recalculate', controller.recalculateEvaluation);
 
   return router;
 }
