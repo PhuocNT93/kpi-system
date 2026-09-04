@@ -20,6 +20,7 @@ const createSchema = z.object({
   job_level_id: z.string().min(1, 'Job Level is required'),
   manager_id: z.string().optional(),
   employment_status: z.string().optional(),
+  review_cadence: z.string().optional(),
 });
 
 const updateSchema = z.object({
@@ -31,6 +32,7 @@ const updateSchema = z.object({
   job_level_id: z.string().min(1, 'Job Level is required'),
   manager_id: z.string().optional(),
   employment_status: z.string().optional(),
+  review_cadence: z.string().optional(),
 });
 
 type CreateFormValues = z.infer<typeof createSchema>;
@@ -39,10 +41,12 @@ type UpdateFormValues = z.infer<typeof updateSchema>;
 interface EmployeeFormModalProps {
   isOpen: boolean;
   employee?: OrgEmployee;
+  initialDepartmentId?: string;
+  initialTeamId?: string;
   onClose: () => void;
 }
 
-export function EmployeeFormModal({ isOpen, employee, onClose }: EmployeeFormModalProps) {
+export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initialTeamId, onClose }: EmployeeFormModalProps) {
   const isEditMode = employee !== undefined;
   const createMutation = useCreateEmployee();
   const updateMutation = useUpdateEmployee();
@@ -54,8 +58,12 @@ export function EmployeeFormModal({ isOpen, employee, onClose }: EmployeeFormMod
   const isPending = createMutation.isPending || updateMutation.isPending;
   const mutationError = createMutation.error ?? updateMutation.error;
 
+  const isDeptLocked = !isEditMode && !!initialDepartmentId;
+  const isTeamLocked = !isEditMode && !!initialTeamId;
+
   const {
     register,
+    watch,
     handleSubmit,
     reset,
     setError,
@@ -72,17 +80,19 @@ export function EmployeeFormModal({ isOpen, employee, onClose }: EmployeeFormMod
           job_level_id: employee.jobLevelId,
           manager_id: employee.managerId || '',
           employment_status: employee.employmentStatus,
+          review_cadence: employee.reviewCadence || '',
         }
       : {
           employee_code: '',
           full_name: '',
           email: '',
-          department_id: '',
-          team_id: '',
+          department_id: initialDepartmentId || '',
+          team_id: initialTeamId || '',
           role_id: '',
           job_level_id: '',
           manager_id: '',
           employment_status: 'ACTIVE',
+          review_cadence: '',
         },
   });
 
@@ -99,24 +109,31 @@ export function EmployeeFormModal({ isOpen, employee, onClose }: EmployeeFormMod
               job_level_id: employee.jobLevelId,
               manager_id: employee.managerId || '',
               employment_status: employee.employmentStatus,
+              review_cadence: employee.reviewCadence || '',
             }
           : {
               employee_code: '',
               full_name: '',
               email: '',
-              department_id: '',
-              team_id: '',
+              department_id: initialDepartmentId || '',
+              team_id: initialTeamId || '',
               role_id: '',
               job_level_id: '',
               manager_id: '',
               employment_status: 'ACTIVE',
+              review_cadence: '',
             },
       );
       createMutation.reset();
       updateMutation.reset();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, employee?.id]);
+  }, [isOpen, employee?.id, initialDepartmentId, initialTeamId]);
+
+  const selectedDeptId = watch('department_id');
+  const teamsInDept = selectedDeptId 
+    ? departments?.find(d => d.id === selectedDeptId)?.teams ?? [] 
+    : [];
 
   if (!isOpen) return null;
 
@@ -232,25 +249,66 @@ export function EmployeeFormModal({ isOpen, employee, onClose }: EmployeeFormMod
             </div>
 
             <div>
-              <label htmlFor="emp-dept" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
-                Department
+              <label htmlFor="emp-cadence" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
+                Review Cadence
               </label>
               <select 
-                id="emp-dept" 
-                {...register('department_id')} 
+                id="emp-cadence" 
+                {...register('review_cadence')} 
                 style={{ display: 'block', width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
               >
-                <option value="">-- Select Department --</option>
-                {departments?.map(d => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
+                <option value="">-- No Cadence --</option>
+                <option value="MONTHLY">Monthly</option>
+                <option value="QUARTERLY">Quarterly</option>
+                <option value="BIANNUALLY">Biannually</option>
+                <option value="ANNUALLY">Annually</option>
               </select>
-              {(errors as Record<string, { message?: string }>).department_id && (
-                <span role="alert" style={{ color: '#dc2626', fontSize: '0.875rem', marginTop: '0.25rem', display: 'block' }}>
-                  {(errors as Record<string, { message?: string }>).department_id?.message}
-                </span>
-              )}
             </div>
+
+            {!isDeptLocked ? (
+              <div>
+                <label htmlFor="emp-dept" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
+                  Department
+                </label>
+                <select 
+                  id="emp-dept" 
+                  {...register('department_id')} 
+                  style={{ display: 'block', width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
+                >
+                  <option value="">-- Select Department --</option>
+                  {departments?.map(d => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+                {(errors as Record<string, { message?: string }>).department_id && (
+                  <span role="alert" style={{ color: '#dc2626', fontSize: '0.875rem', marginTop: '0.25rem', display: 'block' }}>
+                    {(errors as Record<string, { message?: string }>).department_id?.message}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <input type="hidden" {...register('department_id')} />
+            )}
+
+            {!isTeamLocked && (
+              <div>
+                <label htmlFor="emp-team" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
+                  Team
+                </label>
+                <select 
+                  id="emp-team" 
+                  {...register('team_id')} 
+                  style={{ display: 'block', width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
+                  disabled={!selectedDeptId}
+                >
+                  <option value="">-- No Team --</option>
+                  {teamsInDept.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {isTeamLocked && <input type="hidden" {...register('team_id')} />}
 
             <div>
               <label htmlFor="emp-role" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>

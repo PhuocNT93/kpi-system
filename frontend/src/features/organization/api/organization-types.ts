@@ -105,6 +105,8 @@ export interface WireEmployee {
   employment_status: string;
   join_date: string;
   termination_date: string | null;
+  review_cadence: string | null;
+  last_evaluation_completed_at: string | null;
   version: number;
   created_at: string;
   updated_at: string;
@@ -121,6 +123,8 @@ export interface CreateEmployeeRequest {
   manager_id?: string;
   employment_status?: string;
   join_date?: string;
+  review_cadence?: string | null;
+  last_evaluation_completed_at?: string | null;
 }
 
 export interface UpdateEmployeeRequest {
@@ -133,4 +137,6 @@ export interface UpdateEmployeeRequest {
   manager_id?: string;
   employment_status?: string;
   termination_date?: string;
+  review_cadence?: string | null;
+  last_evaluation_completed_at?: string | null;
 }

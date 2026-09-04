@@ -58,6 +58,8 @@ export class EmployeeController {
       manager_id,
       employment_status,
       join_date,
+      review_cadence,
+      last_evaluation_completed_at,
     } = req.body || {};
 
     const empCode = employee_code || req.body?.code || `EMP-${Date.now()}`;
@@ -87,6 +89,8 @@ export class EmployeeController {
         managerId: manager_id || null,
         employmentStatus: employment_status || EmploymentStatus.ACTIVE,
         joinDate: joinDate,
+        reviewCadence: review_cadence || null,
+        lastEvaluationCompletedAt: last_evaluation_completed_at || null,
       });
 
       if (this.assignmentRepo && department_id && team_id) {
@@ -151,6 +155,8 @@ export class EmployeeController {
         managerId: newManagerId,
         employmentStatus: req.body.employment_status ?? existing.employmentStatus,
         terminationDate: req.body.termination_date ?? existing.terminationDate,
+        reviewCadence: req.body.review_cadence ?? existing.reviewCadence,
+        lastEvaluationCompletedAt: req.body.last_evaluation_completed_at ?? existing.lastEvaluationCompletedAt,
       });
 
       sendSuccess(res, 200, 'Employee updated successfully', this.mapEmployeeToResponse(updated));
@@ -915,6 +921,8 @@ export class EmployeeController {
       employment_status: emp.employmentStatus,
       join_date: emp.joinDate,
       termination_date: emp.terminationDate,
+      review_cadence: emp.reviewCadence,
+      last_evaluation_completed_at: emp.lastEvaluationCompletedAt,
       version: emp.version,
       created_at: emp.createdAt,
       updated_at: emp.updatedAt,
