@@ -8,7 +8,7 @@ import { TYPOGRAPHY } from '@/shared/theme';
 export const ReviewDueDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [employees, setEmployees] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<Record<string, unknown>[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

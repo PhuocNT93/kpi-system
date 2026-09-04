@@ -21,6 +21,8 @@ interface EmployeeRow extends Record<string, unknown> {
   updated_at?: string;
   created_by?: string | null;
   updated_by?: string | null;
+  review_cadence?: string | null;
+  last_evaluation_completed_at?: string | null;
 }
 
 interface EmployeeAssignmentRow extends Record<string, unknown> {
@@ -236,8 +238,8 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
       joinDate: row.join_date,
       terminationDate: row.termination_date,
       version: Number(row.version),
-      reviewCadence: row.review_cadence,
-      lastEvaluationCompletedAt: row.last_evaluation_completed_at,
+      reviewCadence: row.review_cadence as string | undefined,
+      lastEvaluationCompletedAt: row.last_evaluation_completed_at as string | undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       createdBy: row.created_by,
