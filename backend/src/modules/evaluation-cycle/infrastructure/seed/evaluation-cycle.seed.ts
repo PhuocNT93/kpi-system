@@ -40,7 +40,7 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
   const jobLevelId = levelRes.rows[0].job_level_id;
 
   // 2. Ensure active Employees exist for seed accounts
-  let mgrRes = await pool.query(`SELECT employee_id FROM employee WHERE employee_code = 'EMP_MGR';`);
+  const mgrRes = await pool.query(`SELECT employee_id FROM employee WHERE employee_code = 'EMP_MGR';`);
   let managerId: string;
   if (mgrRes.rows.length === 0) {
     const ins = await pool.query(
@@ -54,7 +54,7 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
     managerId = mgrRes.rows[0].employee_id;
   }
 
-  let empRes = await pool.query(`SELECT employee_id FROM employee WHERE employee_code = 'EMP_DEV_01';`);
+  const empRes = await pool.query(`SELECT employee_id FROM employee WHERE employee_code = 'EMP_DEV_01';`);
   let employeeId: string;
   if (empRes.rows.length === 0) {
     const ins = await pool.query(
@@ -69,7 +69,7 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
   }
 
   // HR Admin Employee
-  let hrRes = await pool.query(`SELECT employee_id FROM employee WHERE email = 'hradmin@kpi.com';`);
+  const hrRes = await pool.query(`SELECT employee_id FROM employee WHERE email = 'hradmin@kpi.com';`);
   let hrEmployeeId: string;
   if (hrRes.rows.length === 0) {
     const ins = await pool.query(
@@ -84,7 +84,7 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
   }
 
   // System Admin Employee
-  let sysRes = await pool.query(`SELECT employee_id FROM employee WHERE email = 'admin@kpi.com';`);
+  const sysRes = await pool.query(`SELECT employee_id FROM employee WHERE email = 'admin@kpi.com';`);
   let sysEmployeeId: string;
   if (sysRes.rows.length === 0) {
     const ins = await pool.query(
@@ -132,7 +132,7 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
   );
 
   // 3. Ensure template, criteria & levels exist in singular tables
-  let srRes = await pool.query(`SELECT scoring_rule_id FROM scoring_rule LIMIT 1;`);
+  const srRes = await pool.query(`SELECT scoring_rule_id FROM scoring_rule LIMIT 1;`);
   let scoringRuleId: string;
   if (srRes.rows.length === 0) {
     const ins = await pool.query(
@@ -145,7 +145,7 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
     scoringRuleId = srRes.rows[0].scoring_rule_id;
   }
 
-  let cRes = await pool.query(`SELECT criterion_id FROM criterion WHERE code = 'PERF_01';`);
+  const cRes = await pool.query(`SELECT criterion_id FROM criterion WHERE code = 'PERF_01';`);
   let criterionId: string;
   if (cRes.rows.length === 0) {
     const ins = await pool.query(
@@ -158,7 +158,7 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
     criterionId = cRes.rows[0].criterion_id;
   }
 
-  let cvRes = await pool.query(`SELECT criterion_version_id FROM criterion_version WHERE criterion_id = $1;`, [criterionId]);
+  const cvRes = await pool.query(`SELECT criterion_version_id FROM criterion_version WHERE criterion_id = $1;`, [criterionId]);
   let criterionVersionId: string;
   if (cvRes.rows.length === 0) {
     const ins = await pool.query(
@@ -180,7 +180,7 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
     criterionVersionId = cvRes.rows[0].criterion_version_id;
   }
 
-  let tplRes = await pool.query(`SELECT evaluation_template_id FROM evaluation_template WHERE code = 'TPL_ENG_2026';`);
+  const tplRes = await pool.query(`SELECT evaluation_template_id FROM evaluation_template WHERE code = 'TPL_ENG_2026';`);
   let templateId: string;
   if (tplRes.rows.length === 0) {
     const ins = await pool.query(
@@ -193,7 +193,7 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
     templateId = tplRes.rows[0].evaluation_template_id;
   }
 
-  let tvRes = await pool.query(
+  const tvRes = await pool.query(
     `SELECT evaluation_template_version_id FROM evaluation_template_version WHERE evaluation_template_id = $1;`,
     [templateId]
   );
@@ -217,7 +217,7 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
   }
 
   // 4. Seed Cycles (2026-Q3 DRAFT, 2026-Q2 OPEN, 2026-Q1 LOCKED)
-  let q3Cycle = await cycleModule.cycleRepo.findByCode('2026-Q3');
+  const q3Cycle = await cycleModule.cycleRepo.findByCode('2026-Q3');
   if (!q3Cycle) {
     await cycleModule.cycleService.createCycle(
       {
@@ -234,7 +234,7 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
     console.log('Seeded evaluation cycle: 2026-Q3 (DRAFT)');
   }
 
-  let q2Cycle = await cycleModule.cycleRepo.findByCode('2026-Q2');
+  const q2Cycle = await cycleModule.cycleRepo.findByCode('2026-Q2');
   if (!q2Cycle) {
     const created = await cycleModule.cycleService.createCycle(
       {
@@ -255,7 +255,7 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
     console.log('Opened existing evaluation cycle: 2026-Q2 (OPEN)');
   }
 
-  let q1Cycle = await cycleModule.cycleRepo.findByCode('2026-Q1');
+  const q1Cycle = await cycleModule.cycleRepo.findByCode('2026-Q1');
   if (!q1Cycle) {
     const created = await cycleModule.cycleService.createCycle(
       {

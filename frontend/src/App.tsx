@@ -12,14 +12,9 @@ import {
   PermissionsPage,
 } from './features/iam/pages/IamPage';
 import { AuditLogPage } from './features/audit/pages/AuditLogPage';
-import { TeamsPage } from './features/organization/pages/TeamsPage';
 import { EvaluationTemplatesPage } from './features/templates/pages/EvaluationTemplatesPage';
 import { CriteriaPage } from './features/criteria/pages/CriteriaPage';
 import { OrganizationPage } from './features/organization/pages/OrganizationPage';
-import { DepartmentsPage } from './features/organization/pages/DepartmentsPage';
-import { OrgRolesPage } from './features/organization/pages/OrgRolesPage';
-import { JobLevelsPage } from './features/organization/pages/JobLevelsPage';
-import { EmployeesPage } from './features/organization/pages/EmployeesPage';
 import { EvaluationDetailPage } from './features/evaluation/pages/EvaluationDetailPage';
 import { TeamEvaluationDetailPage } from './features/evaluation/pages/TeamEvaluationDetailPage';
 import { MyEvaluationPage } from './features/evaluation/pages/MyEvaluationPage';
@@ -129,14 +124,7 @@ export default function App() {
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
                   <OrganizationPage />
                 </ProtectedRoute>
-              }>
-                <Route index element={<Navigate to="departments" replace />} />
-                <Route path="departments" element={<DepartmentsPage />} />
-                <Route path="teams" element={<TeamsPage />} />
-                <Route path="roles" element={<OrgRolesPage />} />
-                <Route path="levels" element={<JobLevelsPage />} />
-                <Route path="employees" element={<EmployeesPage />} />
-              </Route>
+              } />
               <Route path="/admin/templates" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
                   <EvaluationTemplatesPage />

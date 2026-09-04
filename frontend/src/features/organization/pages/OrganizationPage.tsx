@@ -1,37 +1,46 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { useState } from 'react';
+import { OrgStructureTab } from '../components/OrgStructureTab';
+import { JobArchitectureTab } from '../components/JobArchitectureTab';
 
-const TAB_LINKS = [
-  { to: '/admin/organization/departments', label: 'Departments' },
-  { to: '/admin/organization/teams', label: 'Teams' },
-  { to: '/admin/organization/roles', label: 'Job Roles' },
-  { to: '/admin/organization/levels', label: 'Job Levels' },
-  { to: '/admin/organization/employees', label: 'Employees' },
-];
+type Tab = 'structure' | 'architecture';
 
 export function OrganizationPage() {
+  const [activeTab, setActiveTab] = useState<Tab>('structure');
+
+  const tabStyle = (tab: Tab): React.CSSProperties => ({
+    padding: '8px 20px',
+    borderRadius: '6px 6px 0 0',
+    border: 'none',
+    cursor: 'pointer',
+    fontWeight: 600,
+    fontSize: '0.875rem',
+    backgroundColor: activeTab === tab ? '#fff' : 'transparent',
+    color: activeTab === tab ? '#4f46e5' : '#6b7280',
+    borderBottom: activeTab === tab ? '2px solid #4f46e5' : '2px solid transparent',
+  });
+
   return (
-    <main>
-      <h1 style={{ margin: '0 0 1.5rem' }}>Organization Management</h1>
-      <nav
-        aria-label="Organization sections"
-        style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '2px solid #e5e7eb' }}
-      >
-        {TAB_LINKS.map((link) => (
-          <NavLink
-            key={link.to}
-            to={link.to}
-            style={({ isActive }) => ({
-              padding: '0.5rem 1rem', textDecoration: 'none',
-              borderBottom: isActive ? '2px solid #2563eb' : '2px solid transparent',
-              color: isActive ? '#2563eb' : '#374151',
-              fontWeight: isActive ? 600 : 400, marginBottom: -2,
-            })}
-          >
-            {link.label}
-          </NavLink>
-        ))}
-      </nav>
-      <Outlet />
+    <main style={{ padding: '2rem', width: '100%' }}>
+      <div style={{ marginBottom: '1.5rem' }}>
+        <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, color: '#111827' }}>
+          Organization Management
+        </h1>
+        <p style={{ margin: '0.25rem 0 0', color: '#6b7280', fontSize: '0.875rem' }}>
+          Manage your organization structure and job architecture.
+        </p>
+      </div>
+
+      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid #e5e7eb', marginBottom: '1.5rem' }}>
+        <button style={tabStyle('structure')} onClick={() => setActiveTab('structure')}>
+          Org Structure
+        </button>
+        <button style={tabStyle('architecture')} onClick={() => setActiveTab('architecture')}>
+          Job Architecture
+        </button>
+      </div>
+
+      {activeTab === 'structure' && <OrgStructureTab />}
+      {activeTab === 'architecture' && <JobArchitectureTab />}
     </main>
   );
 }
