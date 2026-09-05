@@ -23,6 +23,7 @@ interface EmployeeRow extends Record<string, unknown> {
   updated_by?: string | null;
   review_cadence?: string | null;
   last_evaluation_completed_at?: string | null;
+  next_review_due_date?: string | null;
 }
 
 interface EmployeeAssignmentRow extends Record<string, unknown> {
@@ -157,7 +158,7 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
         version: 1,
       };
     }
-    const res = await executor.query(
+    const res = await executor.query<EmployeeRow>(
       `INSERT INTO employee (employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, review_cadence, last_evaluation_completed_at, next_review_due_date, created_by, updated_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, review_cadence, last_evaluation_completed_at, next_review_due_date, created_at, updated_at, created_by, updated_by`,
@@ -174,6 +175,7 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
         employee.joinDate,
         employee.reviewCadence ?? null,
         employee.lastEvaluationCompletedAt ?? null,
+        employee.nextReviewDueDate ?? null,
         employee.createdBy,
         employee.updatedBy,
       ]
@@ -237,7 +239,7 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
       employmentStatus: row.employment_status as EmploymentStatus,
       joinDate: row.join_date,
       terminationDate: row.termination_date,
-      version: parseInt(row.version, 10),
+      version: typeof row.version === 'string' ? parseInt(row.version, 10) : Number(row.version),
       reviewCadence: row.review_cadence,
       nextReviewDueDate: row.next_review_due_date,
       lastEvaluationCompletedAt: row.last_evaluation_completed_at,
