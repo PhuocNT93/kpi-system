@@ -107,6 +107,7 @@ export interface WireEmployee {
   termination_date: string | null;
   review_cadence: string | null;
   last_evaluation_completed_at: string | null;
+  next_review_due_date: string | null;
   version: number;
   created_at: string;
   updated_at: string;

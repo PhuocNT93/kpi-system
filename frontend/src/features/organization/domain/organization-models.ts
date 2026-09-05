@@ -61,6 +61,7 @@ export interface OrgEmployee {
   terminationDate: string | null;
   reviewCadence: string | null;
   lastEvaluationCompletedAt: string | null;
+  nextReviewDueDate: string | null;
   version: number;
   createdAt: Date;
   updatedAt: Date;

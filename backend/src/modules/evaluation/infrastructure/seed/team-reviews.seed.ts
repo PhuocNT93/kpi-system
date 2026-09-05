@@ -44,8 +44,8 @@ export async function seedTeamReviewsModule(pool: Pool): Promise<void> {
       continue;
     }
     const ins = await pool.query(
-      `INSERT INTO employee (employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'ACTIVE', '2025-02-01')
+      `INSERT INTO employee (employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, review_cadence, next_review_due_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'ACTIVE', '2025-02-01', 'PROBATION', '2025-04-01 10:00:00Z')
        RETURNING employee_id;`,
       [spec.code, spec.name, spec.email, manager.department_id, manager.team_id, manager.role_id, manager.job_level_id, managerId]
     );

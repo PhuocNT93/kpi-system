@@ -22,7 +22,31 @@ export class EmployeeController {
     return !!(this.pool && typeof this.pool.query === 'function');
   }
 
-  // ── Employee ─────────────────────────────────────────────────────────────
+  private calculateNextReviewDate(lastDateStr: string | null | undefined, cadence: string | null | undefined): string | null {
+  if (!lastDateStr || !cadence) return null;
+  const lastDate = new Date(lastDateStr);
+  if (isNaN(lastDate.getTime())) return null;
+
+  switch (cadence.toUpperCase()) {
+    case 'MONTHLY':
+      lastDate.setMonth(lastDate.getMonth() + 1);
+      break;
+    case 'QUARTERLY':
+      lastDate.setMonth(lastDate.getMonth() + 3);
+      break;
+    case 'SEMI_ANNUAL':
+      lastDate.setMonth(lastDate.getMonth() + 6);
+      break;
+    case 'ANNUAL':
+      lastDate.setFullYear(lastDate.getFullYear() + 1);
+      break;
+    default:
+      return null;
+  }
+  return lastDate.toISOString();
+}
+
+// ── Employee ─────────────────────────────────────────────────────────────
 
   async getEmployees(req: Request, res: Response): Promise<void> {
     const { limit, offset, buildPageMeta } = parsePaginationQuery(req.query as Record<string, unknown>);
@@ -60,6 +84,7 @@ export class EmployeeController {
       join_date,
       review_cadence,
       last_evaluation_completed_at,
+      next_review_due_date,
     } = req.body || {};
 
     const empCode = employee_code || req.body?.code || `EMP-${Date.now()}`;
@@ -91,6 +116,7 @@ export class EmployeeController {
         joinDate: joinDate,
         reviewCadence: review_cadence || null,
         lastEvaluationCompletedAt: last_evaluation_completed_at || null,
+        nextReviewDueDate: next_review_due_date || this.calculateNextReviewDate(last_evaluation_completed_at, review_cadence),
       });
 
       if (this.assignmentRepo && department_id && team_id) {
@@ -157,6 +183,7 @@ export class EmployeeController {
         terminationDate: req.body.termination_date ?? existing.terminationDate,
         reviewCadence: req.body.review_cadence ?? existing.reviewCadence,
         lastEvaluationCompletedAt: req.body.last_evaluation_completed_at ?? existing.lastEvaluationCompletedAt,
+        nextReviewDueDate: req.body.next_review_due_date ?? this.calculateNextReviewDate(req.body.last_evaluation_completed_at ?? existing.lastEvaluationCompletedAt, req.body.review_cadence ?? existing.reviewCadence) ?? existing.nextReviewDueDate,
       });
 
       sendSuccess(res, 200, 'Employee updated successfully', this.mapEmployeeToResponse(updated));
@@ -923,6 +950,7 @@ export class EmployeeController {
       termination_date: emp.terminationDate,
       review_cadence: emp.reviewCadence,
       last_evaluation_completed_at: emp.lastEvaluationCompletedAt,
+      next_review_due_date: emp.nextReviewDueDate,
       version: emp.version,
       created_at: emp.createdAt,
       updated_at: emp.updatedAt,
