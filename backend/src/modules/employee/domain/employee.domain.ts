@@ -31,6 +31,7 @@ export interface Employee {
   version: number;
   reviewCadence?: string | null;
   lastEvaluationCompletedAt?: string | null; // ISO DateTime
+  nextReviewDueDate?: string | null; // ISO DateTime
   createdAt?: string;
   updatedAt?: string;
   createdBy?: string | null;

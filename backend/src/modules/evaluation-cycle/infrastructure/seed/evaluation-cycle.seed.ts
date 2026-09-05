@@ -8,7 +8,7 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
   // 1. Ensure active Department, Team, Role, Job Level exist in singular tables
   const deptRes = await pool.query(
     `INSERT INTO department (code, name)
-     VALUES ('ENG', 'Engineering')
+     VALUES ('DEPT-ENG', 'Engineering')
      ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
      RETURNING department_id;`
   );
@@ -16,7 +16,7 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
 
   const teamRes = await pool.query(
     `INSERT INTO team (code, name, department_id)
-     VALUES ('PLATFORM', 'Platform Team', $1)
+     VALUES ('TEAM-BACKEND', 'Backend Team', $1)
      ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
      RETURNING team_id;`,
     [deptId]
@@ -25,7 +25,7 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
 
   const roleRes = await pool.query(
     `INSERT INTO role (code, name)
-     VALUES ('SWE', 'Software Engineer')
+     VALUES ('ROLE-SWE', 'Software Engineer')
      ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
      RETURNING role_id;`
   );
@@ -33,8 +33,8 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
 
   const levelRes = await pool.query(
     `INSERT INTO job_level (code, name, rank)
-     VALUES ('L3', 'Senior Software Engineer', 3)
-     ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+     VALUES ('L4', 'Mid-level', 4)
+     ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, rank = EXCLUDED.rank
      RETURNING job_level_id;`
   );
   const jobLevelId = levelRes.rows[0].job_level_id;
@@ -44,8 +44,8 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
   let managerId: string;
   if (mgrRes.rows.length === 0) {
     const ins = await pool.query(
-      `INSERT INTO employee (employee_code, full_name, email, department_id, team_id, role_id, job_level_id, employment_status, join_date)
-       VALUES ('EMP_MGR', 'Engineering Manager', 'manager@kpi.com', $1, $2, $3, $4, 'ACTIVE', '2025-01-01')
+      `INSERT INTO employee (employee_code, full_name, email, department_id, team_id, role_id, job_level_id, employment_status, join_date, review_cadence, last_evaluation_completed_at, next_review_due_date)
+       VALUES ('EMP_MGR', 'Engineering Manager', 'manager@kpi.com', $1, $2, $3, $4, 'ACTIVE', '2025-01-01', 'ANNUAL', '2025-12-15 10:00:00Z', '2026-12-15 10:00:00Z')
        RETURNING employee_id;`,
       [deptId, teamId, roleId, jobLevelId]
     );
@@ -58,8 +58,8 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
   let employeeId: string;
   if (empRes.rows.length === 0) {
     const ins = await pool.query(
-      `INSERT INTO employee (employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date)
-       VALUES ('EMP_DEV_01', 'Jane Developer', 'employee@kpi.com', $1, $2, $3, $4, $5, 'ACTIVE', '2025-01-15')
+      `INSERT INTO employee (employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, review_cadence, last_evaluation_completed_at, next_review_due_date)
+       VALUES ('EMP_DEV_01', 'Jane Developer', 'employee@kpi.com', $1, $2, $3, $4, $5, 'ACTIVE', '2025-01-15', 'QUARTERLY', '2026-03-15 10:00:00Z', '2026-06-15 10:00:00Z')
        RETURNING employee_id;`,
       [deptId, teamId, roleId, jobLevelId, managerId]
     );
@@ -88,8 +88,8 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
   let sysEmployeeId: string;
   if (sysRes.rows.length === 0) {
     const ins = await pool.query(
-      `INSERT INTO employee (employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date)
-       VALUES ('EMP_SYS_01', 'System Admin User', 'admin@kpi.com', $1, $2, $3, $4, NULL, 'ACTIVE', '2025-01-01')
+      `INSERT INTO employee (employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, review_cadence, next_review_due_date)
+       VALUES ('EMP_SYS_01', 'System Admin User', 'admin@kpi.com', $1, $2, $3, $4, NULL, 'ACTIVE', '2025-01-01', 'SEMI_ANNUAL', '2026-07-01 10:00:00Z')
        RETURNING employee_id;`,
       [deptId, teamId, roleId, jobLevelId]
     );

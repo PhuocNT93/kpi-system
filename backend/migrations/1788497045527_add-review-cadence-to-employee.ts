@@ -10,9 +10,13 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
       type: 'timestamp with time zone',
       notNull: false,
     },
+    next_review_due_date: {
+      type: 'timestamp with time zone',
+      notNull: false,
+    },
   });
 }
 
 export async function down(pgm: MigrationBuilder): Promise<void> {
-  pgm.dropColumns('employee', ['review_cadence', 'last_evaluation_completed_at']);
+  pgm.dropColumns('employee', ['review_cadence', 'last_evaluation_completed_at', 'next_review_due_date']);
 }

@@ -68,6 +68,7 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
                 <th style={{ padding: '0.75rem 1rem' }}>Email</th>
                 <th style={{ padding: '0.75rem 1rem' }}>Review Cadence</th>
                 <th style={{ padding: '0.75rem 1rem' }}>Last Review Date</th>
+                <th style={{ padding: '0.75rem 1rem' }}>Next Review Date</th>
                 <th style={{ padding: '0.75rem 1rem' }}>Status</th>
                 {isAdmin && <th style={{ padding: '0.75rem 1rem', width: '150px' }}>Actions</th>}
               </tr>
@@ -99,6 +100,9 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
                   </td>
                   <td style={{ padding: '0.75rem 1rem', color: '#4b5563', fontSize: '0.875rem' }}>
                     {formatDate(emp.lastEvaluationCompletedAt)}
+                  </td>
+                  <td style={{ padding: '0.75rem 1rem', color: '#ea580c', fontSize: '0.875rem', fontWeight: 500 }}>
+                    {formatDate(emp.nextReviewDueDate)}
                   </td>
                   <td style={{ padding: '0.75rem 1rem' }}>
                     <StatusBadge status={emp.employmentStatus} />
