@@ -114,9 +114,9 @@ describe('Swagger Documentation', () => {
     expect(response.body.paths).toHaveProperty('/api/auth/login');
     expect(response.body.paths).toHaveProperty('/api/iam/roles');
     expect(response.body.paths).toHaveProperty('/api/employees');
-    expect(response.body.paths).toHaveProperty('/api/departments');
+    expect(response.body.paths).toHaveProperty('/api/org/departments');
     expect(response.body.paths).toHaveProperty('/api/teams');
-    expect(response.body.paths).toHaveProperty('/api/job-levels');
+    expect(response.body.paths).toHaveProperty('/api/org/job-levels');
     expect(response.body.paths).toHaveProperty('/api/employee-imports');
     expect(response.body.paths).toHaveProperty('/api/v1/configuration/criteria');
   });

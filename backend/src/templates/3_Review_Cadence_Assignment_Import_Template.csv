@@ -1,0 +1,4 @@
+employee_code,review_cadence_code,reason,effective_from
+EMP1003,EVERY_2_MONTHS,"Nhân viên mới thử việc, cần review sát theo chính sách probation",2026-07-01
+EMP1002,EVERY_6_MONTHS,"Áp dụng cadence chuẩn theo job level Middle",2026-07-01
+EMP1001,ANNUALLY,"Senior ổn định trên 2 năm, chuyển sang review hàng năm theo đề xuất Manager",2026-07-01

@@ -1,0 +1,5 @@
+employee_code,full_name,email,department_code,team_code,role_code,job_level_code,manager_employee_code,employment_status,join_date,review_cadence_override_code
+EMP1001,Nguyen Van A,a.nguyen@cyberlogitec.com,DEPT_ENG,TEAM_SI_A,SI,SENIOR,EMP1000,ACTIVE,2023-03-01,
+EMP1002,Tran Thi B,b.tran@cyberlogitec.com,DEPT_ENG,TEAM_SI_A,SI,MIDDLE,EMP1000,ACTIVE,2024-06-15,
+EMP1003,Le Van C,c.le@cyberlogitec.com,DEPT_ENG,TEAM_SM_B,SM,JUNIOR,EMP1000,ACTIVE,2026-07-01,EVERY_2_MONTHS
+EMP1000,Pham Thi D,d.pham@cyberlogitec.com,DEPT_ENG,TEAM_SI_A,SI,LEAD,,ACTIVE,2021-01-10,

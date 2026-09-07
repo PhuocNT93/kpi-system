@@ -117,6 +117,13 @@ export const swaggerOptions: swaggerJsdoc.Options = {
             password: { type: 'string', format: 'password', example: 'Password123!' },
           },
         },
+        GoogleLoginRequest: {
+          type: 'object',
+          required: ['id_token'],
+          properties: {
+            id_token: { type: 'string', example: 'eyJhbGciOiJSUzI1NiIsIn...' },
+          },
+        },
         RefreshTokenRequest: {
           type: 'object',
           required: ['refreshToken'],
@@ -152,6 +159,18 @@ export const swaggerOptions: swaggerJsdoc.Options = {
               },
             },
             tokens: { $ref: '#/components/schemas/AuthTokens' },
+          },
+        },
+        IamUser: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid', example: '123e4567-e89b-12d3-a456-426614174000' },
+            email: { type: 'string', format: 'email', example: 'john.doe@example.com' },
+            name: { type: 'string', example: 'John Doe' },
+            is_active: { type: 'boolean', example: true },
+            role_code: { type: 'string', example: 'EMPLOYEE' },
+            created_at: { type: 'string', format: 'date-time', example: '2026-01-01T00:00:00Z' },
+            updated_at: { type: 'string', format: 'date-time', example: '2026-01-01T00:00:00Z' },
           },
         },
         Role: {
@@ -773,6 +792,43 @@ export const swaggerOptions: swaggerJsdoc.Options = {
           },
         },
       },
+      '/api/auth/google': {
+        post: {
+          summary: 'Login with Google',
+          description: 'Authenticates a user via Google ID token and returns JWT access and refresh tokens.',
+          tags: ['Auth'],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/GoogleLoginRequest' },
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: 'Login successful',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/AuthResponseData' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            400: { description: 'Missing or invalid id_token' },
+            401: { description: 'Google account is not eligible to sign in' },
+          },
+        },
+      },
       '/api/auth/change-password': {
         post: {
           summary: 'Change password',
@@ -804,6 +860,39 @@ export const swaggerOptions: swaggerJsdoc.Options = {
                 },
               },
             },
+          },
+        },
+      },
+      '/api/iam/users': {
+        get: {
+          summary: 'List all users',
+          description: 'Retrieves all users with their assigned role.',
+          tags: ['IAM - Users'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: {
+              description: 'Users retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: {
+                            type: 'array',
+                            items: { $ref: '#/components/schemas/IamUser' },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden - Missing user:read permission' },
           },
         },
       },
@@ -1119,6 +1208,72 @@ export const swaggerOptions: swaggerJsdoc.Options = {
           responses: {
             200: { description: 'Role removed successfully' },
             404: { description: 'User or Role assignment not found' },
+          },
+        },
+      },
+      '/api/iam/users/{userId}/activate': {
+        post: {
+          summary: 'Activate user',
+          description: 'Reactivates a user account.',
+          tags: ['IAM - Users'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'userId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: {
+              description: 'User activated successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/IamUser' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'User not found' },
+          },
+        },
+      },
+      '/api/iam/users/{userId}/deactivate': {
+        post: {
+          summary: 'Deactivate user',
+          description: 'Deactivates a user account.',
+          tags: ['IAM - Users'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'userId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: {
+              description: 'User deactivated successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/IamUser' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            401: { description: 'Unauthorized' },
+            404: { description: 'User not found' },
           },
         },
       },
@@ -1818,11 +1973,11 @@ export const swaggerOptions: swaggerJsdoc.Options = {
           },
         },
       },
-      '/api/departments': {
+      '/api/org/departments': {
         get: {
           summary: 'List departments',
-          description: 'Retrieves a list of all departments.',
-          tags: ['Employee - Departments'],
+          description: 'Retrieves a paginated list of all departments.',
+          tags: ['Organization - Departments'],
           security: [{ bearerAuth: [] }],
           parameters: [
             { name: 'page', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
@@ -1856,7 +2011,7 @@ export const swaggerOptions: swaggerJsdoc.Options = {
         post: {
           summary: 'Create department',
           description: 'Creates a new department.',
-          tags: ['Employee - Departments'],
+          tags: ['Organization - Departments'],
           security: [{ bearerAuth: [] }],
           requestBody: {
             required: true,
@@ -1890,14 +2045,14 @@ export const swaggerOptions: swaggerJsdoc.Options = {
           },
         },
       },
-      '/api/departments/{departmentId}': {
+      '/api/org/departments/{id}': {
         get: {
           summary: 'Get department by ID',
           description: 'Retrieves details of a department.',
-          tags: ['Employee - Departments'],
+          tags: ['Organization - Departments'],
           security: [{ bearerAuth: [] }],
           parameters: [
-            { name: 'departmentId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
           ],
           responses: {
             200: {
@@ -1924,11 +2079,11 @@ export const swaggerOptions: swaggerJsdoc.Options = {
         },
         patch: {
           summary: 'Update department',
-          description: 'Updates department code, name, or active status.',
-          tags: ['Employee - Departments'],
+          description: 'Updates department name or active status.',
+          tags: ['Organization - Departments'],
           security: [{ bearerAuth: [] }],
           parameters: [
-            { name: 'departmentId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
           ],
           requestBody: {
             required: true,
@@ -1950,77 +2105,6 @@ export const swaggerOptions: swaggerJsdoc.Options = {
                         type: 'object',
                         properties: {
                           data: { $ref: '#/components/schemas/Department' },
-                        },
-                      },
-                    ],
-                  },
-                },
-              },
-            },
-            401: { description: 'Unauthorized' },
-            404: { description: 'Department not found' },
-          },
-        },
-      },
-      '/api/departments/{departmentId}/deactivate': {
-        post: {
-          summary: 'Deactivate department',
-          description: 'Sets department status to inactive.',
-          tags: ['Employee - Departments'],
-          security: [{ bearerAuth: [] }],
-          parameters: [
-            { name: 'departmentId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
-          ],
-          responses: {
-            200: {
-              description: 'Department deactivated successfully',
-              content: {
-                'application/json': {
-                  schema: {
-                    allOf: [
-                      { $ref: '#/components/schemas/ApiResponse' },
-                      {
-                        type: 'object',
-                        properties: {
-                          data: { $ref: '#/components/schemas/Department' },
-                        },
-                      },
-                    ],
-                  },
-                },
-              },
-            },
-            401: { description: 'Unauthorized' },
-            404: { description: 'Department not found' },
-          },
-        },
-      },
-      '/api/departments/{departmentId}/teams': {
-        get: {
-          summary: 'List department teams',
-          description: 'Retrieves all teams belonging to a department.',
-          tags: ['Employee - Departments'],
-          security: [{ bearerAuth: [] }],
-          parameters: [
-            { name: 'departmentId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
-            { name: 'page', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
-            { name: 'page_size', in: 'query', required: false, schema: { type: 'integer', default: 20 } },
-          ],
-          responses: {
-            200: {
-              description: 'Department teams retrieved successfully',
-              content: {
-                'application/json': {
-                  schema: {
-                    allOf: [
-                      { $ref: '#/components/schemas/ApiCollectionResponse' },
-                      {
-                        type: 'object',
-                        properties: {
-                          data: {
-                            type: 'array',
-                            items: { $ref: '#/components/schemas/Team' },
-                          },
                         },
                       },
                     ],
@@ -2219,11 +2303,11 @@ export const swaggerOptions: swaggerJsdoc.Options = {
           },
         },
       },
-      '/api/roles': {
+      '/api/org/roles': {
         get: {
-          summary: 'List employee roles',
-          description: 'Retrieves a list of organizational employee roles.',
-          tags: ['Employee - Roles'],
+          summary: 'List job roles',
+          description: 'Retrieves a paginated list of organizational job roles.',
+          tags: ['Organization - Job Roles'],
           security: [{ bearerAuth: [] }],
           parameters: [
             { name: 'page', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
@@ -2231,7 +2315,7 @@ export const swaggerOptions: swaggerJsdoc.Options = {
           ],
           responses: {
             200: {
-              description: 'Roles retrieved successfully',
+              description: 'Job roles retrieved successfully',
               content: {
                 'application/json': {
                   schema: {
@@ -2255,9 +2339,9 @@ export const swaggerOptions: swaggerJsdoc.Options = {
           },
         },
         post: {
-          summary: 'Create employee role',
-          description: 'Creates a new organizational role.',
-          tags: ['Employee - Roles'],
+          summary: 'Create job role',
+          description: 'Creates a new organizational job role.',
+          tags: ['Organization - Job Roles'],
           security: [{ bearerAuth: [] }],
           requestBody: {
             required: true,
@@ -2269,7 +2353,7 @@ export const swaggerOptions: swaggerJsdoc.Options = {
           },
           responses: {
             201: {
-              description: 'Role created successfully',
+              description: 'Job role created successfully',
               content: {
                 'application/json': {
                   schema: {
@@ -2291,18 +2375,18 @@ export const swaggerOptions: swaggerJsdoc.Options = {
           },
         },
       },
-      '/api/roles/{roleId}': {
+      '/api/org/roles/{id}': {
         get: {
-          summary: 'Get employee role by ID',
-          description: 'Retrieves details of an organizational role.',
-          tags: ['Employee - Roles'],
+          summary: 'Get job role by ID',
+          description: 'Retrieves details of an organizational job role.',
+          tags: ['Organization - Job Roles'],
           security: [{ bearerAuth: [] }],
           parameters: [
-            { name: 'roleId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
           ],
           responses: {
             200: {
-              description: 'Role retrieved successfully',
+              description: 'Job role retrieved successfully',
               content: {
                 'application/json': {
                   schema: {
@@ -2320,16 +2404,16 @@ export const swaggerOptions: swaggerJsdoc.Options = {
               },
             },
             401: { description: 'Unauthorized' },
-            404: { description: 'Role not found' },
+            404: { description: 'Job role not found' },
           },
         },
         patch: {
-          summary: 'Update employee role',
-          description: 'Updates an organizational role.',
-          tags: ['Employee - Roles'],
+          summary: 'Update job role',
+          description: 'Updates an organizational job role.',
+          tags: ['Organization - Job Roles'],
           security: [{ bearerAuth: [] }],
           parameters: [
-            { name: 'roleId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
           ],
           requestBody: {
             required: true,
@@ -2341,7 +2425,7 @@ export const swaggerOptions: swaggerJsdoc.Options = {
           },
           responses: {
             200: {
-              description: 'Role updated successfully',
+              description: 'Job role updated successfully',
               content: {
                 'application/json': {
                   schema: {
@@ -2359,48 +2443,15 @@ export const swaggerOptions: swaggerJsdoc.Options = {
               },
             },
             401: { description: 'Unauthorized' },
-            404: { description: 'Role not found' },
+            404: { description: 'Job role not found' },
           },
         },
       },
-      '/api/roles/{roleId}/deactivate': {
-        post: {
-          summary: 'Deactivate employee role',
-          description: 'Deactivates an organizational role.',
-          tags: ['Employee - Roles'],
-          security: [{ bearerAuth: [] }],
-          parameters: [
-            { name: 'roleId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
-          ],
-          responses: {
-            200: {
-              description: 'Role deactivated successfully',
-              content: {
-                'application/json': {
-                  schema: {
-                    allOf: [
-                      { $ref: '#/components/schemas/ApiResponse' },
-                      {
-                        type: 'object',
-                        properties: {
-                          data: { $ref: '#/components/schemas/EmployeeRole' },
-                        },
-                      },
-                    ],
-                  },
-                },
-              },
-            },
-            401: { description: 'Unauthorized' },
-            404: { description: 'Role not found' },
-          },
-        },
-      },
-      '/api/job-levels': {
+      '/api/org/job-levels': {
         get: {
           summary: 'List job levels',
           description: 'Retrieves job levels ordered by rank.',
-          tags: ['Employee - Job Levels'],
+          tags: ['Organization - Job Levels'],
           security: [{ bearerAuth: [] }],
           parameters: [
             { name: 'page', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
@@ -2434,7 +2485,7 @@ export const swaggerOptions: swaggerJsdoc.Options = {
         post: {
           summary: 'Create job level',
           description: 'Creates a new job level with rank.',
-          tags: ['Employee - Job Levels'],
+          tags: ['Organization - Job Levels'],
           security: [{ bearerAuth: [] }],
           requestBody: {
             required: true,
@@ -2468,14 +2519,14 @@ export const swaggerOptions: swaggerJsdoc.Options = {
           },
         },
       },
-      '/api/job-levels/{jobLevelId}': {
+      '/api/org/job-levels/{id}': {
         get: {
           summary: 'Get job level by ID',
           description: 'Retrieves details of a job level.',
-          tags: ['Employee - Job Levels'],
+          tags: ['Organization - Job Levels'],
           security: [{ bearerAuth: [] }],
           parameters: [
-            { name: 'jobLevelId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
           ],
           responses: {
             200: {
@@ -2503,10 +2554,10 @@ export const swaggerOptions: swaggerJsdoc.Options = {
         patch: {
           summary: 'Update job level',
           description: 'Updates job level attributes.',
-          tags: ['Employee - Job Levels'],
+          tags: ['Organization - Job Levels'],
           security: [{ bearerAuth: [] }],
           parameters: [
-            { name: 'jobLevelId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
           ],
           requestBody: {
             required: true,
@@ -2519,39 +2570,6 @@ export const swaggerOptions: swaggerJsdoc.Options = {
           responses: {
             200: {
               description: 'Job level updated successfully',
-              content: {
-                'application/json': {
-                  schema: {
-                    allOf: [
-                      { $ref: '#/components/schemas/ApiResponse' },
-                      {
-                        type: 'object',
-                        properties: {
-                          data: { $ref: '#/components/schemas/JobLevel' },
-                        },
-                      },
-                    ],
-                  },
-                },
-              },
-            },
-            401: { description: 'Unauthorized' },
-            404: { description: 'Job level not found' },
-          },
-        },
-      },
-      '/api/job-levels/{jobLevelId}/deactivate': {
-        post: {
-          summary: 'Deactivate job level',
-          description: 'Deactivates a job level.',
-          tags: ['Employee - Job Levels'],
-          security: [{ bearerAuth: [] }],
-          parameters: [
-            { name: 'jobLevelId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
-          ],
-          responses: {
-            200: {
-              description: 'Job level deactivated successfully',
               content: {
                 'application/json': {
                   schema: {
@@ -3412,6 +3430,71 @@ export const swaggerOptions: swaggerJsdoc.Options = {
           },
         },
       },
+      '/api/v1/configuration/templates/{templateId}/versions/{versionId}/kpis': {
+        get: {
+          summary: 'Get template KPIs',
+          description: 'Retrieves KPIs assigned to a template version.',
+          tags: ['Configuration - Templates'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'templateId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'versionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Template KPIs retrieved successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        post: {
+          summary: 'Add KPI to template version',
+          description: 'Adds a KPI with a weight to a template version. Fails if the version is PUBLISHED or RETIRED.',
+          tags: ['Configuration - Templates'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'templateId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'versionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['kpi_id', 'weight'],
+                  properties: {
+                    kpi_id: { type: 'string', format: 'uuid' },
+                    weight: { type: 'number' },
+                    display_order: { type: 'integer' },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            201: { description: 'Template KPI added successfully' },
+            401: { description: 'Unauthorized' },
+            409: { description: 'Published template versions are immutable' },
+          },
+        },
+      },
+      '/api/v1/configuration/templates/{templateId}/versions/{versionId}/kpis/{id}': {
+        delete: {
+          summary: 'Remove KPI from template version',
+          description: 'Removes a KPI from a template version.',
+          tags: ['Configuration - Templates'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'templateId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'versionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            204: { description: 'Template KPI removed successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Template KPI not found' },
+          },
+        },
+      },
       '/api/v1/configuration/templates/{templateId}/versions/{versionId}/criteria': {
         get: {
           summary: 'Get template criteria',
@@ -3931,6 +4014,1068 @@ export const swaggerOptions: swaggerJsdoc.Options = {
             200: { description: 'Audit log retrieved successfully' },
             401: { description: 'Unauthorized' },
             404: { description: 'Audit log not found' },
+          },
+        },
+      },
+      // ── KPI Module Routes ────────────────────────────────────────────────────
+      '/api/kpis': {
+        get: {
+          summary: 'List KPIs',
+          description: 'Retrieves a paginated list of KPIs with optional search.',
+          tags: ['KPI'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'search', in: 'query', required: false, schema: { type: 'string' } },
+            { name: 'page', in: 'query', required: false, schema: { type: 'integer' } },
+            { name: 'size', in: 'query', required: false, schema: { type: 'integer', maximum: 100 } },
+          ],
+          responses: {
+            200: { description: 'KPIs retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            403: { description: "Forbidden - Missing 'CONFIGURATION_READ' permission" },
+          },
+        },
+        post: {
+          summary: 'Create KPI',
+          description: 'Creates a new KPI definition.',
+          tags: ['KPI'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['code', 'name'],
+                  properties: {
+                    code: { type: 'string', example: 'ON_TIME_DELIVERY' },
+                    name: { type: 'string', example: 'On-time Delivery' },
+                    description: { type: 'string', nullable: true },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            201: { description: 'KPI created successfully' },
+            400: { description: 'Validation error' },
+            401: { description: 'Unauthorized' },
+            403: { description: "Forbidden - Missing 'CONFIGURATION_CREATE' permission" },
+          },
+        },
+      },
+      '/api/kpis/{id}': {
+        get: {
+          summary: 'Get KPI by ID',
+          description: 'Retrieves details of a KPI.',
+          tags: ['KPI'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'KPI retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'KPI not found' },
+          },
+        },
+        put: {
+          summary: 'Update KPI',
+          description: 'Updates name or description of a KPI.',
+          tags: ['KPI'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    name: { type: 'string' },
+                    description: { type: 'string', nullable: true },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: 'KPI updated successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'KPI not found' },
+          },
+        },
+        delete: {
+          summary: 'Delete KPI',
+          description: 'Deletes a KPI definition.',
+          tags: ['KPI'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'KPI deleted successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'KPI not found' },
+          },
+        },
+      },
+      '/api/kpis/{id}/criteria': {
+        get: {
+          summary: 'Get KPI criteria mappings',
+          description: 'Retrieves criteria mapped to a KPI with their weights.',
+          tags: ['KPI - Criteria'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'KPI criteria retrieved successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        post: {
+          summary: 'Map criterion to KPI',
+          description: 'Adds a criterion with a weight to a KPI.',
+          tags: ['KPI - Criteria'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['criterionId', 'weight'],
+                  properties: {
+                    criterionId: { type: 'string', format: 'uuid' },
+                    weight: { type: 'number', minimum: 0, maximum: 100 },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            201: { description: 'Criterion mapped to KPI successfully' },
+            400: { description: 'Validation error' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/kpis/{id}/criteria/{mappingId}': {
+        patch: {
+          summary: 'Update KPI criterion mapping',
+          description: 'Updates weight or display order of a KPI-criterion mapping.',
+          tags: ['KPI - Criteria'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'mappingId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    weight: { type: 'number', minimum: 0, maximum: 100 },
+                    displayOrder: { type: 'integer' },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: 'KPI criterion mapping updated successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Mapping not found' },
+          },
+        },
+        delete: {
+          summary: 'Remove criterion from KPI',
+          description: 'Removes a criterion mapping from a KPI.',
+          tags: ['KPI - Criteria'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'mappingId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Criterion removed from KPI successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Mapping not found' },
+          },
+        },
+      },
+      '/api/kpis/relationships': {
+        get: {
+          summary: 'List KPI relationships',
+          description: 'Retrieves all KPI-to-KPI relationships.',
+          tags: ['KPI - Relationships'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: { description: 'KPI relationships retrieved successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        post: {
+          summary: 'Create KPI relationship',
+          description: 'Creates a directional relationship between two KPIs.',
+          tags: ['KPI - Relationships'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['sourceKpiId', 'targetKpiId', 'relationshipType'],
+                  properties: {
+                    sourceKpiId: { type: 'string', format: 'uuid' },
+                    targetKpiId: { type: 'string', format: 'uuid' },
+                    relationshipType: {
+                      type: 'string',
+                      enum: ['DEPENDS_ON', 'SUPPORTS', 'INFLUENCES', 'BLOCKS', 'PREREQUISITE_FOR'],
+                    },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            201: { description: 'KPI relationship created successfully' },
+            400: { description: 'Validation error' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/kpis/relationships/{id}': {
+        delete: {
+          summary: 'Delete KPI relationship',
+          description: 'Removes a KPI-to-KPI relationship.',
+          tags: ['KPI - Relationships'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'KPI relationship deleted successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Relationship not found' },
+          },
+        },
+      },
+      // ── Evaluation Cycle Module Routes (dual-mounted at /api/v1 and /api) ─────
+      '/api/v1/evaluation-cycles': {
+        get: {
+          summary: 'List evaluation cycles',
+          description: 'Retrieves a paginated list of evaluation cycles.',
+          tags: ['Evaluation Cycle'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'page', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
+            { name: 'page_size', in: 'query', required: false, schema: { type: 'integer', default: 20 } },
+            {
+              name: 'status',
+              in: 'query',
+              required: false,
+              schema: { type: 'string', enum: ['DRAFT', 'OPEN', 'IN_PROGRESS', 'SUBMITTED', 'REVIEWING', 'CALIBRATION', 'APPROVED', 'PUBLISHED', 'LOCKED'] },
+            },
+            { name: 'search', in: 'query', required: false, schema: { type: 'string' } },
+            { name: 'sort', in: 'query', required: false, schema: { type: 'string' } },
+            { name: 'sort_direction', in: 'query', required: false, schema: { type: 'string', enum: ['asc', 'desc'] } },
+          ],
+          responses: {
+            200: { description: 'Evaluation cycles retrieved successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        post: {
+          summary: 'Create evaluation cycle',
+          description: 'Creates a new evaluation cycle in DRAFT status. Requires HR_ADMIN or SYSTEM_ADMIN.',
+          tags: ['Evaluation Cycle'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['code', 'name', 'start_date', 'end_date', 'evaluation_template_version_id'],
+                  properties: {
+                    code: { type: 'string', example: 'CYCLE-2026-H1' },
+                    name: { type: 'string', example: '2026 H1 Performance Review' },
+                    start_date: { type: 'string', format: 'date', example: '2026-01-01' },
+                    end_date: { type: 'string', format: 'date', example: '2026-06-30' },
+                    evaluation_template_version_id: { type: 'string', format: 'uuid' },
+                    applicable_team_ids: { type: 'array', items: { type: 'string', format: 'uuid' } },
+                    applicable_role_ids: { type: 'array', items: { type: 'string', format: 'uuid' } },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            201: { description: 'Evaluation cycle created successfully' },
+            400: { description: 'Validation error' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden - Only HR_ADMIN or SYSTEM_ADMIN can perform this operation' },
+          },
+        },
+      },
+      '/api/evaluation-cycles': {
+        get: {
+          summary: 'List evaluation cycles (alias)',
+          description: 'Alias of /api/v1/evaluation-cycles. Retrieves a paginated list of evaluation cycles.',
+          tags: ['Evaluation Cycle'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'page', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
+            { name: 'page_size', in: 'query', required: false, schema: { type: 'integer', default: 20 } },
+            {
+              name: 'status',
+              in: 'query',
+              required: false,
+              schema: { type: 'string', enum: ['DRAFT', 'OPEN', 'IN_PROGRESS', 'SUBMITTED', 'REVIEWING', 'CALIBRATION', 'APPROVED', 'PUBLISHED', 'LOCKED'] },
+            },
+            { name: 'search', in: 'query', required: false, schema: { type: 'string' } },
+            { name: 'sort', in: 'query', required: false, schema: { type: 'string' } },
+            { name: 'sort_direction', in: 'query', required: false, schema: { type: 'string', enum: ['asc', 'desc'] } },
+          ],
+          responses: {
+            200: { description: 'Evaluation cycles retrieved successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        post: {
+          summary: 'Create evaluation cycle (alias)',
+          description: 'Alias of /api/v1/evaluation-cycles. Creates a new evaluation cycle in DRAFT status. Requires HR_ADMIN or SYSTEM_ADMIN.',
+          tags: ['Evaluation Cycle'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['code', 'name', 'start_date', 'end_date', 'evaluation_template_version_id'],
+                  properties: {
+                    code: { type: 'string' },
+                    name: { type: 'string' },
+                    start_date: { type: 'string', format: 'date' },
+                    end_date: { type: 'string', format: 'date' },
+                    evaluation_template_version_id: { type: 'string', format: 'uuid' },
+                    applicable_team_ids: { type: 'array', items: { type: 'string', format: 'uuid' } },
+                    applicable_role_ids: { type: 'array', items: { type: 'string', format: 'uuid' } },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            201: { description: 'Evaluation cycle created successfully' },
+            400: { description: 'Validation error' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden - Only HR_ADMIN or SYSTEM_ADMIN can perform this operation' },
+          },
+        },
+      },
+      '/api/v1/evaluation-cycles/{id}': {
+        get: {
+          summary: 'Get evaluation cycle by ID',
+          description: 'Retrieves details of an evaluation cycle.',
+          tags: ['Evaluation Cycle'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Evaluation cycle retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Evaluation cycle not found' },
+          },
+        },
+        patch: {
+          summary: 'Update draft evaluation cycle',
+          description: 'Updates a DRAFT evaluation cycle. Requires HR_ADMIN or SYSTEM_ADMIN.',
+          tags: ['Evaluation Cycle'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    code: { type: 'string' },
+                    name: { type: 'string' },
+                    start_date: { type: 'string', format: 'date' },
+                    end_date: { type: 'string', format: 'date' },
+                    evaluation_template_version_id: { type: 'string', format: 'uuid' },
+                    applicable_team_ids: { type: 'array', items: { type: 'string', format: 'uuid' } },
+                    applicable_role_ids: { type: 'array', items: { type: 'string', format: 'uuid' } },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: 'Evaluation cycle updated successfully' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden - Only HR_ADMIN or SYSTEM_ADMIN can perform this operation' },
+            404: { description: 'Evaluation cycle not found' },
+          },
+        },
+      },
+      '/api/evaluation-cycles/{id}': {
+        get: {
+          summary: 'Get evaluation cycle by ID (alias)',
+          description: 'Alias of /api/v1/evaluation-cycles/{id}.',
+          tags: ['Evaluation Cycle'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Evaluation cycle retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Evaluation cycle not found' },
+          },
+        },
+        patch: {
+          summary: 'Update draft evaluation cycle (alias)',
+          description: 'Alias of /api/v1/evaluation-cycles/{id}. Requires HR_ADMIN or SYSTEM_ADMIN.',
+          tags: ['Evaluation Cycle'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            200: { description: 'Evaluation cycle updated successfully' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden - Only HR_ADMIN or SYSTEM_ADMIN can perform this operation' },
+            404: { description: 'Evaluation cycle not found' },
+          },
+        },
+      },
+      '/api/v1/evaluation-cycles/{id}/open': {
+        post: {
+          summary: 'Open evaluation cycle',
+          description: 'Transitions a DRAFT cycle to OPEN and generates evaluation instances for the applicable scope. Requires HR_ADMIN or SYSTEM_ADMIN.',
+          tags: ['Evaluation Cycle'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Evaluation cycle opened successfully' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden - Only HR_ADMIN or SYSTEM_ADMIN can perform this operation' },
+            404: { description: 'Evaluation cycle not found' },
+            409: { description: 'Evaluation cycle open conflict' },
+          },
+        },
+      },
+      '/api/evaluation-cycles/{id}/open': {
+        post: {
+          summary: 'Open evaluation cycle (alias)',
+          description: 'Alias of /api/v1/evaluation-cycles/{id}/open.',
+          tags: ['Evaluation Cycle'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Evaluation cycle opened successfully' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden - Only HR_ADMIN or SYSTEM_ADMIN can perform this operation' },
+            404: { description: 'Evaluation cycle not found' },
+            409: { description: 'Evaluation cycle open conflict' },
+          },
+        },
+      },
+      '/api/v1/evaluation-cycles/{id}/transition': {
+        post: {
+          summary: 'Transition evaluation cycle status',
+          description: 'Moves the evaluation cycle to a new lifecycle status. Requires HR_ADMIN or SYSTEM_ADMIN.',
+          tags: ['Evaluation Cycle'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['target_status'],
+                  properties: {
+                    target_status: {
+                      type: 'string',
+                      enum: ['DRAFT', 'OPEN', 'IN_PROGRESS', 'SUBMITTED', 'REVIEWING', 'CALIBRATION', 'APPROVED', 'PUBLISHED', 'LOCKED'],
+                    },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: 'Evaluation cycle status transitioned successfully' },
+            400: { description: 'Invalid transition' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden - Only HR_ADMIN or SYSTEM_ADMIN can perform this operation' },
+            404: { description: 'Evaluation cycle not found' },
+          },
+        },
+      },
+      '/api/evaluation-cycles/{id}/transition': {
+        post: {
+          summary: 'Transition evaluation cycle status (alias)',
+          description: 'Alias of /api/v1/evaluation-cycles/{id}/transition.',
+          tags: ['Evaluation Cycle'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            200: { description: 'Evaluation cycle status transitioned successfully' },
+            400: { description: 'Invalid transition' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden - Only HR_ADMIN or SYSTEM_ADMIN can perform this operation' },
+            404: { description: 'Evaluation cycle not found' },
+          },
+        },
+      },
+      '/api/v1/evaluation-cycles/{id}/lock': {
+        post: {
+          summary: 'Lock evaluation cycle',
+          description: 'Locks the evaluation cycle, freezing all evaluations. Requires HR_ADMIN or SYSTEM_ADMIN.',
+          tags: ['Evaluation Cycle'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Evaluation cycle locked successfully' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden - Only HR_ADMIN or SYSTEM_ADMIN can perform this operation' },
+            404: { description: 'Evaluation cycle not found' },
+            409: { description: 'Evaluation cycle already locked' },
+          },
+        },
+      },
+      '/api/evaluation-cycles/{id}/lock': {
+        post: {
+          summary: 'Lock evaluation cycle (alias)',
+          description: 'Alias of /api/v1/evaluation-cycles/{id}/lock.',
+          tags: ['Evaluation Cycle'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Evaluation cycle locked successfully' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden - Only HR_ADMIN or SYSTEM_ADMIN can perform this operation' },
+            404: { description: 'Evaluation cycle not found' },
+            409: { description: 'Evaluation cycle already locked' },
+          },
+        },
+      },
+      '/api/v1/evaluation-cycles/{id}/opening-status': {
+        get: {
+          summary: 'Get evaluation cycle opening status',
+          description: 'Retrieves the progress of an in-flight cycle-opening operation.',
+          tags: ['Evaluation Cycle'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Opening status retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Evaluation cycle not found' },
+          },
+        },
+      },
+      '/api/evaluation-cycles/{id}/opening-status': {
+        get: {
+          summary: 'Get evaluation cycle opening status (alias)',
+          description: 'Alias of /api/v1/evaluation-cycles/{id}/opening-status.',
+          tags: ['Evaluation Cycle'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Opening status retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Evaluation cycle not found' },
+          },
+        },
+      },
+      '/api/v1/evaluation-cycles/{id}/scope-preview': {
+        get: {
+          summary: 'Preview evaluation cycle scope',
+          description: 'Previews which employees/evaluations would be generated for the applicable scope before opening.',
+          tags: ['Evaluation Cycle'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Scope preview retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Evaluation cycle not found' },
+          },
+        },
+      },
+      '/api/evaluation-cycles/{id}/scope-preview': {
+        get: {
+          summary: 'Preview evaluation cycle scope (alias)',
+          description: 'Alias of /api/v1/evaluation-cycles/{id}/scope-preview.',
+          tags: ['Evaluation Cycle'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Scope preview retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Evaluation cycle not found' },
+          },
+        },
+      },
+      // ── Evaluation Module Routes (dual-mounted at /api/v1/evaluations and /api/evaluations) ─
+      '/api/v1/evaluations/my': {
+        get: {
+          summary: 'Get my evaluations',
+          description: "Retrieves the authenticated employee's own evaluations.",
+          tags: ['Evaluation'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: { description: 'My evaluations retrieved successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/evaluations/my': {
+        get: {
+          summary: 'Get my evaluations (alias)',
+          description: 'Alias of /api/v1/evaluations/my.',
+          tags: ['Evaluation'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: { description: 'My evaluations retrieved successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/evaluations/team': {
+        get: {
+          summary: 'Get team evaluations',
+          description: "Retrieves evaluations for employees the authenticated manager oversees.",
+          tags: ['Evaluation'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: { description: 'Team evaluations retrieved successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/evaluations/team': {
+        get: {
+          summary: 'Get team evaluations (alias)',
+          description: 'Alias of /api/v1/evaluations/team.',
+          tags: ['Evaluation'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: { description: 'Team evaluations retrieved successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/evaluations/{id}': {
+        get: {
+          summary: 'Get evaluation detail',
+          description: 'Retrieves the full detail of an evaluation, including scored items.',
+          tags: ['Evaluation'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Evaluation detail retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Evaluation not found' },
+          },
+        },
+      },
+      '/api/evaluations/{id}': {
+        get: {
+          summary: 'Get evaluation detail (alias)',
+          description: 'Alias of /api/v1/evaluations/{id}.',
+          tags: ['Evaluation'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Evaluation detail retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Evaluation not found' },
+          },
+        },
+      },
+      '/api/v1/evaluations/{id}/items': {
+        put: {
+          summary: 'Save evaluation draft',
+          description: 'Bulk-saves draft scores/comments for all items of an evaluation.',
+          tags: ['Evaluation'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    items: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          item_id: { type: 'string', format: 'uuid' },
+                          resolved_level: { type: 'string' },
+                          comment: { type: 'string', nullable: true },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: 'Draft saved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Evaluation not found' },
+          },
+        },
+      },
+      '/api/evaluations/{id}/items': {
+        put: {
+          summary: 'Save evaluation draft (alias)',
+          description: 'Alias of /api/v1/evaluations/{id}/items.',
+          tags: ['Evaluation'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            200: { description: 'Draft saved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Evaluation not found' },
+          },
+        },
+      },
+      '/api/v1/evaluations/{id}/items/{itemId}': {
+        put: {
+          summary: 'Save single evaluation item draft',
+          description: 'Saves the draft score/comment of one evaluation item.',
+          tags: ['Evaluation'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'itemId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    resolved_level: { type: 'string' },
+                    comment: { type: 'string', nullable: true },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: 'Item draft saved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Evaluation or item not found' },
+          },
+        },
+      },
+      '/api/evaluations/{id}/items/{itemId}': {
+        put: {
+          summary: 'Save single evaluation item draft (alias)',
+          description: 'Alias of /api/v1/evaluations/{id}/items/{itemId}.',
+          tags: ['Evaluation'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'itemId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          responses: {
+            200: { description: 'Item draft saved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Evaluation or item not found' },
+          },
+        },
+      },
+      '/api/v1/evaluations/{id}/submit': {
+        post: {
+          summary: 'Submit evaluation',
+          description: 'Submits a manager evaluation for the next workflow stage.',
+          tags: ['Evaluation'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Evaluation submitted successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Evaluation not found' },
+          },
+        },
+      },
+      '/api/evaluations/{id}/submit': {
+        post: {
+          summary: 'Submit evaluation (alias)',
+          description: 'Alias of /api/v1/evaluations/{id}/submit.',
+          tags: ['Evaluation'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Evaluation submitted successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Evaluation not found' },
+          },
+        },
+      },
+      '/api/v1/evaluations/{id}/self-submit': {
+        post: {
+          summary: 'Submit self-assessment',
+          description: "Submits the employee's own self-assessment for an evaluation.",
+          tags: ['Evaluation'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Self-assessment submitted successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Evaluation not found' },
+          },
+        },
+      },
+      '/api/evaluations/{id}/self-submit': {
+        post: {
+          summary: 'Submit self-assessment (alias)',
+          description: 'Alias of /api/v1/evaluations/{id}/self-submit.',
+          tags: ['Evaluation'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Self-assessment submitted successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Evaluation not found' },
+          },
+        },
+      },
+      '/api/v1/evaluations/{id}/approve': {
+        post: {
+          summary: 'Approve evaluation',
+          description: 'Approves an evaluation, advancing its workflow status.',
+          tags: ['Evaluation'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Evaluation approved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Evaluation not found' },
+          },
+        },
+      },
+      '/api/evaluations/{id}/approve': {
+        post: {
+          summary: 'Approve evaluation (alias)',
+          description: 'Alias of /api/v1/evaluations/{id}/approve.',
+          tags: ['Evaluation'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Evaluation approved successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Evaluation not found' },
+          },
+        },
+      },
+      '/api/v1/evaluations/{id}/recalculate': {
+        post: {
+          summary: 'Recalculate evaluation score',
+          description: 'Recomputes the aggregate score of an evaluation from its scored items.',
+          tags: ['Evaluation'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Evaluation score calculated successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Evaluation not found' },
+          },
+        },
+      },
+      '/api/evaluations/{id}/recalculate': {
+        post: {
+          summary: 'Recalculate evaluation score (alias)',
+          description: 'Alias of /api/v1/evaluations/{id}/recalculate.',
+          tags: ['Evaluation'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            200: { description: 'Evaluation score calculated successfully' },
+            401: { description: 'Unauthorized' },
+            404: { description: 'Evaluation not found' },
+          },
+        },
+      },
+      // ── I18n Module Routes ───────────────────────────────────────────────────
+      '/api/i18n/locales': {
+        get: {
+          summary: 'List available locales',
+          description: 'Retrieves the list of locales supported by the system. Public endpoint.',
+          tags: ['I18n'],
+          responses: {
+            200: { description: 'Available locales retrieved successfully' },
+          },
+        },
+      },
+      '/api/i18n/{entity_type}/{entity_id}': {
+        get: {
+          summary: 'Get entity translations',
+          description: 'Retrieves the translation map for an entity across all locales.',
+          tags: ['I18n'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'entity_type', in: 'path', required: true, schema: { type: 'string' } },
+            { name: 'entity_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Entity translations retrieved successfully' },
+            401: { description: 'Unauthorized' },
+          },
+        },
+        put: {
+          summary: 'Upsert entity translations',
+          description: 'Creates or updates translations for an entity. Requires SYSTEM_ADMIN or HR_ADMIN.',
+          tags: ['I18n'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'entity_type', in: 'path', required: true, schema: { type: 'string' } },
+            { name: 'entity_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  description: 'Map of locale code to field translations, e.g. { "vi": { "name": "..." } }',
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: 'Translations updated successfully' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden - Admin privileges required' },
+          },
+        },
+      },
+      '/api/users/me/locale': {
+        patch: {
+          summary: 'Update my preferred locale',
+          description: "Updates the authenticated user's preferred display locale.",
+          tags: ['I18n'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['locale'],
+                  properties: { locale: { type: 'string', example: 'vi' } },
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: 'User preferred locale updated successfully' },
+            400: { description: "Missing or invalid 'locale'" },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      // ── Import Module Routes ─────────────────────────────────────────────────
+      '/api/csv-templates/current': {
+        get: {
+          summary: 'Get current CSV template metadata',
+          description: 'Retrieves metadata of the current active evaluation-score CSV import template. Requires HR_ADMIN or SYSTEM_ADMIN.',
+          tags: ['Import'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: { description: 'CSV template metadata retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden' },
+            404: { description: 'CSV template not found' },
+          },
+        },
+      },
+      '/api/csv-templates/current/download': {
+        get: {
+          summary: 'Download current CSV template',
+          description: 'Downloads the current active evaluation-score CSV import template file. Requires HR_ADMIN or SYSTEM_ADMIN.',
+          tags: ['Import'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: {
+              description: 'CSV template file',
+              content: { 'text/csv': { schema: { type: 'string', format: 'binary' } } },
+            },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden' },
+            404: { description: 'CSV template not found' },
+          },
+        },
+      },
+      '/api/csv-templates/{csv_template_id}/download': {
+        get: {
+          summary: 'Download CSV template by ID',
+          description: 'Downloads a specific CSV import template file by its ID. Requires HR_ADMIN or SYSTEM_ADMIN.',
+          tags: ['Import'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'csv_template_id', in: 'path', required: true, schema: { type: 'string' } },
+          ],
+          responses: {
+            200: {
+              description: 'CSV template file',
+              content: { 'text/csv': { schema: { type: 'string', format: 'binary' } } },
+            },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden' },
+            404: { description: 'CSV template not found' },
+          },
+        },
+      },
+      // ── Audit Module Routes ──────────────────────────────────────────────────
+      '/api/audit-logs': {
+        get: {
+          summary: 'List audit logs',
+          description: 'Retrieves system audit logs. Requires SYSTEM_ADMIN or HR_ADMIN.',
+          tags: ['Audit'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'page', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
+            { name: 'page_size', in: 'query', required: false, schema: { type: 'integer', default: 20 } },
+          ],
+          responses: {
+            200: { description: 'Audit logs retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden' },
           },
         },
       },
