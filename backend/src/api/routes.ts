@@ -20,6 +20,8 @@ import { createEvaluationCycleRouter } from '../modules/evaluation-cycle/api/eva
 import { EvaluationController } from '../modules/evaluation/api/evaluation.controller.js';
 import { createEvaluationRouter } from '../modules/evaluation/api/evaluation.router.js';
 import { I18nController, createI18nRouter } from '../modules/i18n/index.js';
+import { ImportController } from '../modules/import/api/import.controller.js';
+import { createImportRouter } from '../modules/import/api/import.routes.js';
 
 export interface RegisterRoutesOptions {
   authController: AuthController;
@@ -35,6 +37,7 @@ export interface RegisterRoutesOptions {
   evaluationCycleController?: EvaluationCycleController;
   evaluationController?: EvaluationController;
   i18nController?: I18nController;
+  importController?: ImportController;
 }
 
 export function createApiRouter(options: RegisterRoutesOptions): Router {
@@ -93,6 +96,9 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
   // ── I18n Module Routes ────────────────────────────────────────────────────
   if (options.i18nController) {
     router.use('/', createI18nRouter(options.i18nController, options.jwtMiddleware));
+  // ── Import Module Routes ──────────────────────────────────────────────────
+  if (options.importController) {
+    router.use('/', createImportRouter(options.importController, options.authorizationService, options.jwtMiddleware));
   }
 
   // ── Sample: single-resource response ──────────────────────────────────────
