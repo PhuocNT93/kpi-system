@@ -19,7 +19,7 @@ export function createImportRouter(
       sendFailure(res, 401, 'Authentication required', 'UNAUTHENTICATED');
       return;
     }
-    if (actor.role !== 'HR_ADMIN') {
+    if (actor.role !== 'HR_ADMIN' && actor.role !== 'SYSTEM_ADMIN') {
       sendFailure(res, 403, 'Forbidden', 'FORBIDDEN');
       return;
     }
