@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { getCurrentCsvTemplate, downloadCurrentCsvTemplate } from '../api/csv-template-api';
+import { uploadCsvFile, type ImportPreviewResponse } from '../api/import-api';
 import { csvTemplateKeys } from '../api/csv-template-keys';
 import { LoadingSpinner, ErrorAlert, EmptyState } from '@/shared/components/ui';
 import { Button } from '@/shared/ui/Button/Button';
 import { Badge } from '@/shared/ui/Badge/Badge';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
-import { Download } from 'lucide-react';
+import { Download, UploadCloud, AlertCircle, FileText } from 'lucide-react';
+import { randomUUID } from '@/shared/utils/uuid';
 
 function renderValidationMetadata(rule: Record<string, unknown> | null): string {
   if (!rule) return 'None';
@@ -30,6 +32,14 @@ function renderValidationMetadata(rule: Record<string, unknown> | null): string 
 
 export function ImportCenterPage() {
   const [downloadError, setDownloadError] = useState<unknown | null>(null);
+  
+  // Upload State
+  const [cycleId, setCycleId] = useState('02d1847e-97ec-449e-b762-b94f923c5ed7'); // Pre-fill with a valid seed cycle ID
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [idempotencyKey, setIdempotencyKey] = useState(randomUUID());
+  const [previewData, setPreviewData] = useState<ImportPreviewResponse | null>(null);
+  const [uploadError, setUploadError] = useState<unknown | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: template, isLoading, error, refetch } = useQuery({
     queryKey: csvTemplateKeys.current(),
@@ -40,7 +50,6 @@ export function ImportCenterPage() {
     mutationFn: downloadCurrentCsvTemplate,
     onSuccess: (data) => {
       setDownloadError(null);
-      // Trigger download in browser
       const url = window.URL.createObjectURL(data.blob);
       const a = document.createElement('a');
       a.href = url;
@@ -55,8 +64,39 @@ export function ImportCenterPage() {
     }
   });
 
+  const uploadMutation = useMutation({
+    mutationFn: (variables: { cycleId: string, file: File, key: string }) => 
+      uploadCsvFile(variables.cycleId, variables.file, variables.key),
+    onSuccess: (response) => {
+      setPreviewData(response);
+      setUploadError(null);
+      // Reset idempotency key for next upload, but ONLY if we intend to do another action
+      setIdempotencyKey(randomUUID());
+    },
+    onError: (err: unknown) => {
+      setUploadError(err);
+      const error = err as Error & { code?: string };
+      if (error.code !== 'DUPLICATE_IMPORT' && error.code !== 'NETWORK_ERROR') {
+        setIdempotencyKey(randomUUID()); // Reset on distinct bad requests
+      }
+    }
+  });
+
   const handleDownload = () => {
     downloadMutation.mutate();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+      setPreviewData(null);
+      setUploadError(null);
+    }
+  };
+
+  const handleUploadClick = () => {
+    if (!selectedFile || !cycleId) return;
+    uploadMutation.mutate({ cycleId, file: selectedFile, key: idempotencyKey });
   };
 
   if (isLoading) {
@@ -176,6 +216,135 @@ export function ImportCenterPage() {
             </table>
           </div>
         </div>
+      </div>
+
+      {/* Upload Section */}
+      <div style={{
+        background: COLORS.neutral.white,
+        border: `1px solid ${COLORS.neutral[200]}`,
+        borderRadius: RADII.lg,
+        padding: '24px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '24px'
+      }}>
+        <h2 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.lg }}>Upload CSV Data</h2>
+        
+        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, minWidth: '250px' }}>
+            <label style={{ fontSize: TYPOGRAPHY.fontSize.sm, fontWeight: 500 }}>Evaluation Cycle ID</label>
+            <input 
+              type="text" 
+              value={cycleId}
+              onChange={(e) => setCycleId(e.target.value)}
+              placeholder="e.g. 02d1847e-97ec-449e-b762-b94f923c5ed7"
+              style={{
+                padding: '8px 12px',
+                border: `1px solid ${COLORS.neutral[300]}`,
+                borderRadius: RADII.md,
+                fontSize: TYPOGRAPHY.fontSize.sm
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 2, minWidth: '300px' }}>
+            <label style={{ fontSize: TYPOGRAPHY.fontSize.sm, fontWeight: 500 }}>Select CSV File</label>
+            <input 
+              type="file" 
+              accept=".csv"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              style={{
+                padding: '7px 12px',
+                border: `1px solid ${COLORS.neutral[300]}`,
+                borderRadius: RADII.md,
+                fontSize: TYPOGRAPHY.fontSize.sm
+              }}
+            />
+          </div>
+
+          <Button 
+            onClick={handleUploadClick} 
+            disabled={uploadMutation.isPending || !selectedFile || !cycleId}
+            variant="primary"
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '38px' }}
+          >
+            <UploadCloud size={16} />
+            {uploadMutation.isPending ? 'Uploading...' : 'Upload & Validate'}
+          </Button>
+        </div>
+
+        {!!uploadError && (
+          <ErrorAlert error={uploadError} />
+        )}
+
+        {previewData && (
+          <div style={{ marginTop: '16px' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: TYPOGRAPHY.fontSize.base, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FileText size={18} />
+              Validation Preview
+            </h3>
+            
+            <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
+              <div style={{ padding: '16px', background: COLORS.neutral[50], borderRadius: RADII.md, flex: 1, border: `1px solid ${COLORS.neutral[200]}` }}>
+                <div style={{ fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary }}>Total Rows</div>
+                <div style={{ fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: 600 }}>{previewData.data.total_rows}</div>
+              </div>
+              <div style={{ padding: '16px', background: COLORS.semantic.success[50], borderRadius: RADII.md, flex: 1, border: `1px solid ${COLORS.semantic.success[100]}` }}>
+                <div style={{ fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.semantic.success[700] }}>Valid Rows</div>
+                <div style={{ fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: 600, color: COLORS.semantic.success[700] }}>{previewData.data.success_rows}</div>
+              </div>
+              <div style={{ padding: '16px', background: COLORS.semantic.danger[50], borderRadius: RADII.md, flex: 1, border: `1px solid ${COLORS.semantic.danger[100]}` }}>
+                <div style={{ fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.semantic.danger[700] }}>Errors</div>
+                <div style={{ fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: 600, color: COLORS.semantic.danger[700] }}>{previewData.data.error_rows}</div>
+              </div>
+            </div>
+
+            {previewData.meta.row_errors && previewData.meta.row_errors.length > 0 && (
+              <div>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.semantic.danger[700], display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <AlertCircle size={14} />
+                  Row Validation Errors
+                </h4>
+                <div style={{ overflowX: 'auto', border: `1px solid ${COLORS.neutral[200]}`, borderRadius: RADII.md }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: TYPOGRAPHY.fontSize.sm }}>
+                    <thead style={{ background: COLORS.neutral[50] }}>
+                      <tr style={{ borderBottom: `1px solid ${COLORS.neutral[200]}` }}>
+                        <th style={{ padding: '8px 12px' }}>Row</th>
+                        <th style={{ padding: '8px 12px' }}>Field</th>
+                        <th style={{ padding: '8px 12px' }}>Error Code</th>
+                        <th style={{ padding: '8px 12px' }}>Message</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewData.meta.row_errors.slice(0, 100).map((err, i) => (
+                        <tr key={i} style={{ borderBottom: `1px solid ${COLORS.neutral[100]}` }}>
+                          <td style={{ padding: '8px 12px', color: COLORS.neutral.textSecondary }}>{err.row_no}</td>
+                          <td style={{ padding: '8px 12px', fontFamily: 'monospace' }}>{err.field}</td>
+                          <td style={{ padding: '8px 12px' }}>
+                            <Badge variant={err.code === 'AMBIGUOUS_KPI_FOR_CRITERION' ? 'secondary' : 'danger'}>{err.code}</Badge>
+                          </td>
+                          <td style={{ padding: '8px 12px', color: COLORS.semantic.danger[700] }}>{err.message}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {previewData.meta.row_errors.length > 100 && (
+                  <div style={{ marginTop: '8px', fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
+                    Showing first 100 errors.
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {previewData.data.error_rows === 0 && previewData.data.total_rows > 0 && (
+              <div style={{ marginTop: '16px', padding: '12px', background: COLORS.semantic.success[50], color: COLORS.semantic.success[700], borderRadius: RADII.md, fontSize: TYPOGRAPHY.fontSize.sm }}>
+                All rows passed validation successfully! You may proceed with the import.
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,8 +1,14 @@
 import { Router, RequestHandler, Request, Response, NextFunction } from 'express';
+import multer from 'multer';
 import { ImportController } from './import.controller.js';
 import { AuthorizationService } from '../../iam/index.js';
 import { getActorFromContext } from '../../../shared/auth/actor-context.js';
 import { sendFailure } from '../../../api/http-response.js';
+
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+});
 
 export function createImportRouter(
   controller: ImportController,
@@ -36,6 +42,10 @@ export function createImportRouter(
 
   router.get('/csv-templates/:csv_template_id/download', requireHrAdmin, (req, res, next) => { 
     controller.downloadCsvTemplateById(req, res).catch(next); 
+  });
+
+  router.post('/csv', requireHrAdmin, upload.single('file'), (req, res, next) => {
+    controller.uploadCsv(req, res).catch(next);
   });
 
   return router;
