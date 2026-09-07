@@ -98,6 +98,7 @@ export class EvaluationCycleOpeningService {
                   tk.weight AS kpi_weight,
                   k.code AS kpi_code,
                   k.name AS kpi_name,
+                  c.criterion_id,
                   c.code AS criterion_code,
                   c.name AS criterion_name,
                   sr.rule_type,
@@ -128,6 +129,7 @@ export class EvaluationCycleOpeningService {
                   tk.weight AS kpi_weight,
                   k.code AS kpi_code,
                   k.name AS kpi_name,
+                  c.criterion_id,
                   c.code AS criterion_code,
                   c.name AS criterion_name,
                   sr.rule_type,
@@ -295,6 +297,30 @@ export class EvaluationCycleOpeningService {
         evalMapByEmp[ev.employeeId as string] = ev.evaluationId;
       }
 
+      // 8.5. Load translations for criteria to snapshot as jsonb map
+      const criterionIds = Array.from(
+        new Set(templateCriteria.map((tc: Record<string, unknown>) => tc.criterion_id).filter(Boolean))
+      );
+      const criterionTranslations: Record<string, Record<string, string>> = {};
+      if (criterionIds.length > 0) {
+        const i18nRes = await dbClient.query(
+          `SELECT entity_id, locale, field_name, value
+           FROM i18n_translation
+           WHERE entity_type = 'CRITERION' AND entity_id = ANY($1::uuid[])`,
+          [criterionIds]
+        );
+        for (const row of i18nRes.rows) {
+          let translations = criterionTranslations[row.entity_id];
+
+          if (!translations) {
+            translations = {};
+            criterionTranslations[row.entity_id] = translations;
+          }
+
+          translations[row.locale] = row.value;
+        }
+      }
+
       // 9. Build evaluation item snapshots
       const itemInserts: Parameters<typeof this.evaluationItemRepo.batchCreate>[0] = [];
       for (const ev of evaluationInserts) {
@@ -320,11 +346,21 @@ export class EvaluationCycleOpeningService {
 
           const levels = levelsByCvId[tc.criterion_version_id as string] || [];
 
+          const critId = tc.criterion_id as string;
+          const translationsMap = criterionTranslations[critId] || {};
+          let nameSnapshot: string;
+          if (Object.keys(translationsMap).length > 0) {
+            nameSnapshot = JSON.stringify(translationsMap);
+          } else {
+            const rawName = (tc.criterion_name as string) || '';
+            nameSnapshot = rawName.startsWith('{') ? rawName : JSON.stringify({ en: rawName });
+          }
+
           itemInserts.push({
             evaluationId: evalId as string,
             templateCriterionId: tc.template_criterion_id as string,
             criterionCodeSnapshot: tc.criterion_code as string,
-            criterionNameSnapshot: tc.criterion_name as string,
+            criterionNameSnapshot: nameSnapshot,
             weightSnapshot: parseFloat(tc.effective_weight as string),
             kpiIdSnapshot: tc.kpi_id as string | undefined,
             kpiCodeSnapshot: tc.kpi_code as string | undefined,

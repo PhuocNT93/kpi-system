@@ -15,6 +15,7 @@ import { AuditLogPage } from './features/audit/pages/AuditLogPage';
 import { EvaluationTemplatesPage } from './features/templates/pages/EvaluationTemplatesPage';
 import { CriteriaPage } from './features/criteria/pages/CriteriaPage';
 import { OrganizationPage } from './features/organization/pages/OrganizationPage';
+import { I18nPage } from './features/i18n/pages/I18nPage';
 import { EvaluationDetailPage } from './features/evaluation/pages/EvaluationDetailPage';
 import { TeamEvaluationDetailPage } from './features/evaluation/pages/TeamEvaluationDetailPage';
 import { MyEvaluationPage } from './features/evaluation/pages/MyEvaluationPage';
@@ -134,6 +135,11 @@ export default function App() {
               <Route path="/admin/criteria" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
                   <CriteriaPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/i18n" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
+                  <I18nPage />
                 </ProtectedRoute>
               } />
               <Route path="/admin/kpis" element={
