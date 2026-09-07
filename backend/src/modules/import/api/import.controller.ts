@@ -4,6 +4,39 @@ import { CsvTemplateService } from '../application/csv-template.service.js';
 export class ImportController {
   constructor(private readonly csvTemplateService: CsvTemplateService) {}
 
+  async getCurrentCsvTemplate(request: Request, response: Response) {
+    const templateCode = 'EVALUATION_SCORE_IMPORT';
+    const result = await this.csvTemplateService.getCurrentCsvTemplateMeta(templateCode);
+
+    if (!result) {
+      const requestId = request.headers['x-request-id'] || 'unknown';
+      return response.status(404).json({
+        success: false,
+        message: 'CSV template not found.',
+        data: null,
+        meta: {
+          request_id: requestId,
+          timestamp: new Date().toISOString(),
+          error: {
+            code: 'CSV_TEMPLATE_NOT_FOUND',
+            field: null,
+            details: []
+          }
+        }
+      });
+    }
+
+    return response.status(200).json({
+      success: true,
+      message: 'CSV template retrieved successfully.',
+      data: result,
+      meta: {
+        request_id: request.headers['x-request-id'] || 'unknown',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+
   async downloadCurrentCsvTemplate(request: Request, response: Response) {
     const templateCode = 'EVALUATION_SCORE_IMPORT';
     const result = await this.csvTemplateService.getCurrentCsvTemplateContent(templateCode);

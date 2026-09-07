@@ -26,6 +26,10 @@ export function createImportRouter(
     next();
   };
 
+  router.get('/csv-templates/current', requireHrAdmin, (req, res, next) => {
+    controller.getCurrentCsvTemplate(req, res).catch(next);
+  });
+
   router.get('/csv-templates/current/download', requireHrAdmin, (req, res, next) => { 
     controller.downloadCurrentCsvTemplate(req, res).catch(next); 
   });

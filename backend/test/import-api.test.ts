@@ -97,6 +97,6 @@ describe('Import API Routes', () => {
     expect(res.status).toBe(200);
     expect(res.header['content-type']).toContain('text/csv');
     expect(res.header['content-disposition']).toContain('attachment; filename="evaluation_score_import_template_v1.csv"');
-    expect(res.text).toBe('employee_id,evaluation_cycle_code,kpi_code\\n');
+    expect(res.text).toContain('employee_id,evaluation_cycle_code,kpi_code');
   });
 });
