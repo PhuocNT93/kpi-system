@@ -51,10 +51,10 @@ function mapTemplate(apiTemplate: ApiCsvTemplate): CsvTemplate {
  * API methods
  */
 export async function getCurrentCsvTemplate(): Promise<CsvTemplate> {
-  const data = await getApi<ApiCsvTemplate>('/csv-templates/current');
+  const data = await getApi<ApiCsvTemplate>('/api/csv-templates/current');
   return mapTemplate(data);
 }
 
 export async function downloadCurrentCsvTemplate(): Promise<{ blob: Blob; filename?: string }> {
-  return downloadApi('/csv-templates/current/download');
+  return downloadApi('/api/csv-templates/current/download');
 }
