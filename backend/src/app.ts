@@ -34,6 +34,7 @@ import { createAuditModule } from './modules/audit/audit.module.js';
 import { createEvaluationCycleModule } from './modules/evaluation-cycle/evaluation-cycle.module.js';
 import { createEvaluationModule } from './modules/evaluation/evaluation.module.js';
 import { createRuleEngineModule } from './modules/rule-engine/rule-engine.module.js';
+import { createImportModule } from './modules/import/import.module.js';
 
 export interface AppOptions {
   userRepository?: UserRepository;
@@ -96,6 +97,9 @@ export function createApp(options: AppOptions = {}) {
   const evaluationModule = pool ? createEvaluationModule(pool, auditModule?.auditService, ruleEngineModule.engine) : undefined;
   const evaluationController = evaluationModule?.evaluationController;
 
+  const importModule = pool ? createImportModule(pool) : undefined;
+  const importController = importModule?.importController;
+
   // ── Global Middlewares ────────────────────────────────────────────────────
   app.use(requestIdMiddleware);
   app.use(cors());
@@ -148,6 +152,7 @@ export function createApp(options: AppOptions = {}) {
         auditController: auditModule?.auditController,
         evaluationCycleController,
         evaluationController,
+        importController,
       })
     );
   }
