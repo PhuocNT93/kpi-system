@@ -14,7 +14,7 @@ export class ConfigurationValidationService {
    */
   public static validateTemplateCriteria(
     criteria: TemplateCriterion[],
-    policy: WeightPolicy = WeightPolicy.EXACT_100
+    _policy: WeightPolicy = WeightPolicy.EXACT_100
   ): ValidationResult {
     const errors: ValidationErrorDetail[] = [];
     const warnings: ValidationErrorDetail[] = [];
@@ -30,7 +30,6 @@ export class ConfigurationValidationService {
       return { valid: false, errors, warnings };
     }
 
-    let totalWeight = 0;
     for (const item of enabledCriteria) {
       if (typeof item.weight !== 'number' || item.weight < 0 || item.weight > 100) {
         errors.push({
@@ -39,7 +38,6 @@ export class ConfigurationValidationService {
           message: `Criterion weight (${item.weight}) must be between 0 and 100.`,
         });
       }
-      totalWeight += item.weight;
     }
 
     // Total weight validation for criteria is removed because they are now scoped per KPI.
