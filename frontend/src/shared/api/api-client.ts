@@ -293,6 +293,31 @@ export async function postApi<T>(
   );
 }
 
+export async function postFormDataApi<T>(
+  path: string,
+  body: FormData,
+  idempotencyKey?: string,
+): Promise<T> {
+  const extraHeaders: Record<string, string> = {};
+  if (idempotencyKey) {
+    extraHeaders['Idempotency-Key'] = idempotencyKey;
+  }
+  
+  // Exclude Content-Type so browser sets multipart/form-data with boundary
+  const headers = buildHeaders(extraHeaders);
+  delete headers['Content-Type'];
+
+  return requestApi<T>(
+    path,
+    {
+      method: 'POST',
+      headers,
+      body,
+    },
+    false,
+  );
+}
+
 export async function putApi<T>(path: string, body: unknown): Promise<T> {
   return requestApi<T>(
     path,
