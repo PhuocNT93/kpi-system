@@ -1,0 +1,7 @@
+employee_id,evaluation_cycle_code,kpi_code,criterion_code,measurement_value,measurement_unit,score_override,comment,evidence_url
+EMP1002,2026-Q3,,ON_TIME,94,%,,,"https://jira.company.com/reports/EMP1002-Q3-ontime"
+EMP1002,2026-Q3,,INCIDENT,1,incident,,,"https://jira.company.com/rca/INC-2026-0842"
+EMP1002,2026-Q3,KPI01,KNOWLEDGE_SHARING,3,count,,,"https://confluence.company.com/tech-talks/2026-Q3"
+EMP1002,2026-Q3,KPI02,INDEPENDENCE,,score,4,"Tự chủ xử lý hầu hết task được giao trong quý, chỉ cần hỗ trợ 1-2 lần/tháng cho vấn đề liên quan kiến trúc hệ thống.",
+EMP1002,2026-Q3,,TESTING_DOC,88,%,,,"https://git.company.com/pulls?filter=EMP1002-Q3"
+EMP1003,2026-Q3,,ON_TIME,72,%,68,"Đạt 72% đúng hạn theo hệ thống, nhưng override xuống mức tương đương 68% vì 2 trong số các task đã gia hạn.","https://jira.company.com/reports/EMP1003-Q3-ontime"

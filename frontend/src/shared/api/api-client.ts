@@ -107,6 +107,50 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return payload.data;
 }
 
+async function parseBlobResponse(response: Response): Promise<{ blob: Blob; filename?: string }> {
+  if (!response.ok) {
+    if (response.status === 401) {
+      if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+        localStorage.removeItem(TOKEN_STORAGE_KEY);
+        localStorage.removeItem('kpi_auth_user');
+        window.location.href = '/login';
+      }
+    }
+    // Try to parse the error as standard ApiEnvelope if possible
+    try {
+      const payload = await response.json();
+      throw new ApiClientError(
+        payload.message || 'Unknown server error',
+        payload.meta?.error?.code ?? 'UNEXPECTED_API_RESPONSE',
+        payload.meta?.request_id ?? 'unknown',
+        response.status,
+      );
+    } catch (e) {
+      if (e instanceof ApiClientError) throw e;
+      throw new ApiClientError(
+        `Failed to download file (${response.status} ${response.statusText}).`,
+        'NETWORK_OR_SERVER_ERROR',
+        'unknown',
+        response.status,
+      );
+    }
+  }
+
+  const blob = await response.blob();
+  
+  let filename: string | undefined;
+  const disposition = response.headers.get('Content-Disposition');
+  if (disposition && disposition.indexOf('attachment') !== -1) {
+    const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+    const matches = filenameRegex.exec(disposition);
+    if (matches != null && matches[1]) {
+      filename = matches[1].replace(/['"]/g, '');
+    }
+  }
+
+  return { blob, filename };
+}
+
 function serverWakingUpError(): ApiClientError {
   return new ApiClientError(
     'The server is starting up. This can take up to a minute after a period of inactivity.',
@@ -185,6 +229,46 @@ async function requestApi<T>(path: string, init: RequestInit, retryable: boolean
   throw serverWakingUpError();
 }
 
+async function requestBlob(path: string, init: RequestInit, retryable: boolean): Promise<{ blob: Blob; filename?: string }> {
+  const maxAttempts = retryable ? MAX_RETRIES + 1 : 1;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const isLastAttempt = attempt === maxAttempts - 1;
+    let response: Response;
+
+    try {
+      response = await fetchWithTimeout(path, init);
+    } catch (error) {
+      if (isLastAttempt) {
+        if (error instanceof RequestTimeoutError || retryable) {
+          throw serverWakingUpError();
+        }
+        throw new ApiClientError(
+          'Network Error: Could not connect to the backend server.',
+          'NETWORK_ERROR',
+          'unknown',
+          0,
+        );
+      }
+      await delay(RETRY_BACKOFF_MS * (attempt + 1));
+      continue;
+    }
+
+    if (retryable && response.status === 503) {
+      if (isLastAttempt) {
+        throw serverWakingUpError();
+      }
+      await delay(RETRY_BACKOFF_MS * (attempt + 1));
+      continue;
+    }
+
+    hasReachedServer = true;
+    return parseBlobResponse(response);
+  }
+
+  throw serverWakingUpError();
+}
+
 export async function getApi<T>(path: string): Promise<T> {
   return requestApi<T>(path, { headers: buildHeaders() }, true);
 }
@@ -242,5 +326,16 @@ export async function deleteApi<T>(path: string): Promise<T> {
       headers: buildHeaders(),
     },
     false,
+  );
+}
+
+export async function downloadApi(path: string): Promise<{ blob: Blob; filename?: string }> {
+  return requestBlob(
+    path,
+    {
+      method: 'GET',
+      headers: buildHeaders(),
+    },
+    true,
   );
 }
