@@ -151,8 +151,9 @@ export interface ValidationErrorItem {
     | 'INVALID_RANGE'
     | 'MISSING_SCORING_BRANCH'
     | 'DUPLICATE_LEVEL_NUMBER'
-    | 'MISSING_REQUIRED_FIELD';
-  category: 'WEIGHT' | 'SCORING_RULE' | 'APPLICABILITY' | 'WARNINGS';
+    | 'MISSING_REQUIRED_FIELD'
+    | 'UNSAVED_CHANGES';
+  category: 'WEIGHT' | 'SCORING_RULE' | 'APPLICABILITY' | 'WARNINGS' | 'STATE';
   criterionCode?: string;
   criterionName?: string;
   field?: string;

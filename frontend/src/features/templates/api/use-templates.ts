@@ -14,6 +14,7 @@ import {
   archiveEvaluationTemplate,
   addTemplateKpiApi,
   removeTemplateKpiApi,
+  updateTemplateKpiWeightApi,
 } from './template-api';
 import type { TemplateCriterion } from '../domain/template-models';
 
@@ -120,18 +121,16 @@ export function useSaveCriteriaDraftMutation() {
     mutationFn: ({
       templateId,
       versionId,
-      templateKpiId,
       criteria,
       expectedVersion,
     }: {
       templateId: string;
       versionId: string;
-      templateKpiId: string;
       criteria: TemplateCriterion[];
       expectedVersion: number;
-    }) => saveTemplateCriteriaDraft(templateId, versionId, templateKpiId, criteria, expectedVersion),
-    onSuccess: (data, { templateId, versionId }) => {
-      queryClient.setQueryData(templateKeys.version(templateId, versionId), data);
+    }) => saveTemplateCriteriaDraft(templateId, versionId, criteria, expectedVersion),
+    onSuccess: (_, { templateId, versionId }) => {
+      queryClient.invalidateQueries({ queryKey: templateKeys.version(templateId, versionId) });
       queryClient.invalidateQueries({ queryKey: templateKeys.detail(templateId) });
     },
   });
@@ -202,5 +201,20 @@ export function useRemoveTemplateKpiMutation() {
     onSuccess: (_, { templateId, versionId }) => {
       queryClient.invalidateQueries({ queryKey: templateKeys.version(templateId, versionId) });
     },
+  });
+}
+export function useUpdateTemplateKpiWeightMutation() {
+  return useMutation({
+    mutationFn: ({
+      templateId,
+      versionId,
+      templateKpiId,
+      weight,
+    }: {
+      templateId: string;
+      versionId: string;
+      templateKpiId: string;
+      weight: number;
+    }) => updateTemplateKpiWeightApi(templateId, versionId, templateKpiId, weight),
   });
 }

@@ -10,6 +10,9 @@ interface TemplateKpiRow {
   display_order: number;
   created_at: Date;
   updated_at: Date;
+  kpi_code?: string;
+  kpi_name?: string;
+  kpi_description?: string;
 }
 
 export class PostgresTemplateKpiRepository implements ITemplateKpiRepository {
@@ -20,7 +23,7 @@ export class PostgresTemplateKpiRepository implements ITemplateKpiRepository {
   }
 
   private mapRow(row: TemplateKpiRow): TemplateKpi {
-    return {
+    const tk: TemplateKpi = {
       id: row.template_kpi_id,
       template_version_id: row.template_version_id,
       kpi_id: row.kpi_id,
@@ -29,6 +32,17 @@ export class PostgresTemplateKpiRepository implements ITemplateKpiRepository {
       created_at: row.created_at,
       updated_at: row.updated_at,
     };
+    
+    if (row.kpi_code) {
+      tk.kpi = {
+        id: row.kpi_id,
+        code: row.kpi_code,
+        name: row.kpi_name || '',
+        description: row.kpi_description,
+      };
+    }
+    
+    return tk;
   }
 
   async findById(id: string, client?: PoolClient): Promise<TemplateKpi | null> {
@@ -41,7 +55,11 @@ export class PostgresTemplateKpiRepository implements ITemplateKpiRepository {
 
   async findByTemplateVersionId(templateVersionId: string, client?: PoolClient): Promise<TemplateKpi[]> {
     const res = await this.getClient(client).query(
-      `SELECT * FROM template_kpi WHERE template_version_id = $1 ORDER BY display_order ASC`,
+      `SELECT tk.*, k.code as kpi_code, k.name as kpi_name, k.description as kpi_description 
+       FROM template_kpi tk 
+       LEFT JOIN kpi k ON k.kpi_id = tk.kpi_id 
+       WHERE tk.template_version_id = $1 
+       ORDER BY tk.display_order ASC`,
       [templateVersionId]
     );
     return res.rows.map(this.mapRow);

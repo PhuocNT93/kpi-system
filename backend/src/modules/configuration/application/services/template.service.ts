@@ -268,6 +268,25 @@ export class TemplateService {
     });
   }
 
+  async updateKpiWeight(templateVersionId: string, templateKpiId: string, weight: number, actorId?: string): Promise<TemplateKpi> {
+    const version = await this.getTemplateVersionById(templateVersionId);
+    if (version.status === VersionStatus.PUBLISHED || version.status === VersionStatus.RETIRED) {
+      throw new AppError(409, 'PUBLISHED_CONFIGURATION_IMMUTABLE', 'Published template versions are immutable.');
+    }
+
+    const updated = await this.templateKpiRepo.update(templateKpiId, { weight });
+
+    await this.auditRepo.create({
+      entity_type: 'TEMPLATE_KPI',
+      entity_id: templateKpiId,
+      action: AuditAction.UPDATE,
+      performed_by: actorId || 'SYSTEM',
+      changes: { weight },
+    });
+
+    return updated;
+  }
+
   // ── Template Criteria ───────────────────────────────────────────────────────
 
   async getTemplateCriteria(templateVersionId: string): Promise<TemplateCriterion[]> {
@@ -316,14 +335,16 @@ export class TemplateService {
 
   async bulkUpdateTemplateCriteria(
     templateVersionId: string,
-    templateKpiId: string,
     criteriaItems: Array<{
+      template_kpi_id: string;
       criterion_version_id: string;
       weight?: number;
       effective_weight?: number;
       display_order?: number;
       required?: boolean;
       enabled?: boolean;
+      is_disabled?: boolean;
+      is_optional?: boolean;
       applicability?: ApplicabilityRule;
       applicable_role_ids?: string[];
       applicable_team_ids?: string[];
@@ -352,13 +373,21 @@ export class TemplateService {
         }
         applicability = { rules };
       }
+      // Support both weight and effective_weight field names from frontend
+      const resolvedWeight = item.weight ?? item.effective_weight ?? 0;
+      // Support both enabled and is_disabled field names
+      const resolvedEnabled = item.enabled !== undefined
+        ? item.enabled
+        : item.is_disabled !== undefined
+          ? !item.is_disabled
+          : true;
       return {
-        template_kpi_id: templateKpiId,
+        template_kpi_id: item.template_kpi_id,
         criterion_version_id: item.criterion_version_id,
-        weight: item.weight ?? item.effective_weight,
+        weight: resolvedWeight,
         display_order: item.display_order ?? idx + 1,
-        required: item.required ?? true,
-        enabled: item.enabled ?? true,
+        required: item.required ?? !(item.is_optional ?? false),
+        enabled: resolvedEnabled,
         applicability: applicability ?? { rules: [] },
       };
     });

@@ -42,24 +42,7 @@ export class ConfigurationValidationService {
       totalWeight += item.weight;
     }
 
-    // Round total weight to 2 decimal places to prevent float precision issues
-    totalWeight = Math.round(totalWeight * 100) / 100;
-
-    if (policy === WeightPolicy.EXACT_100 && totalWeight !== 100) {
-      errors.push({
-        code: 'INVALID_WEIGHT_TOTAL',
-        path: 'criteria',
-        message: 'Enabled criterion weights must total 100%.',
-        details: { actual: totalWeight, expected: 100 },
-      });
-    } else if (policy === WeightPolicy.LE_100 && totalWeight > 100) {
-      errors.push({
-        code: 'INVALID_WEIGHT_TOTAL',
-        path: 'criteria',
-        message: 'Enabled criterion weights cannot exceed 100%.',
-        details: { actual: totalWeight, max: 100 },
-      });
-    }
+    // Total weight validation for criteria is removed because they are now scoped per KPI.
 
     return {
       valid: errors.length === 0,

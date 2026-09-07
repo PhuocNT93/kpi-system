@@ -271,6 +271,7 @@ export interface TemplateKpi {
   display_order: number;
   created_at: Date;
   updated_at: Date;
+  kpi?: { id: string; code: string; name: string; description?: string };
   criteria?: TemplateCriterion[];
 }
 
