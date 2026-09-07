@@ -14,7 +14,7 @@ export class ConfigurationValidationService {
    */
   public static validateTemplateCriteria(
     criteria: TemplateCriterion[],
-    _policy: WeightPolicy = WeightPolicy.EXACT_100
+    policy: WeightPolicy = WeightPolicy.EXACT_100
   ): ValidationResult {
     const errors: ValidationErrorDetail[] = [];
     const warnings: ValidationErrorDetail[] = [];
@@ -30,6 +30,7 @@ export class ConfigurationValidationService {
       return { valid: false, errors, warnings };
     }
 
+    let totalWeight = 0;
     for (const item of enabledCriteria) {
       if (typeof item.weight !== 'number' || item.weight < 0 || item.weight > 100) {
         errors.push({
@@ -37,10 +38,33 @@ export class ConfigurationValidationService {
           path: `criteria[${item.criterion_version_id}]`,
           message: `Criterion weight (${item.weight}) must be between 0 and 100.`,
         });
+      } else {
+        totalWeight += item.weight;
       }
     }
 
-    // Total weight validation for criteria is removed because they are now scoped per KPI.
+    // Validate total weight against policy
+    if (policy === WeightPolicy.EXACT_100) {
+      const rounded = Math.round(totalWeight * 100) / 100;
+      if (Math.abs(rounded - 100) > 0.01) {
+        errors.push({
+          code: 'INVALID_WEIGHT_TOTAL',
+          path: 'criteria',
+          message: `Total criteria weight must be exactly 100%. Current total: ${rounded}%.`,
+          details: { actual: rounded, expected: 100 },
+        });
+      }
+    } else if (policy === WeightPolicy.LE_100) {
+      const rounded = Math.round(totalWeight * 100) / 100;
+      if (rounded > 100) {
+        errors.push({
+          code: 'INVALID_WEIGHT_TOTAL',
+          path: 'criteria',
+          message: `Total criteria weight must not exceed 100%. Current total: ${rounded}%.`,
+          details: { actual: rounded, expected: 100 },
+        });
+      }
+    }
 
     return {
       valid: errors.length === 0,

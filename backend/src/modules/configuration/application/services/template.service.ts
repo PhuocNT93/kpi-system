@@ -392,10 +392,10 @@ export class TemplateService {
       };
     });
 
-    // Pre-validate weight total
+    // Pre-validate individual criterion weights (skip total check on draft save – totals are validated at publish)
     const validation = ConfigurationValidationService.validateTemplateCriteria(
       mappedItems as TemplateCriterion[],
-      version.weight_total_policy
+      WeightPolicy.CUSTOM
     );
     if (!validation.valid) {
       throw new ValidationError('Template criteria validation failed.', validation.errors.map(e => ({ field: e.path, code: e.code, message: e.message })));
