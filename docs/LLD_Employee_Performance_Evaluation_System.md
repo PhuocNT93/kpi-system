@@ -1,6 +1,6 @@
 # LLD — Employee Performance Evaluation Management System
 
-> **Trạng thái tài liệu:** v1.3 — bổ sung tính năng Review Cadence & Scheduling (chu kỳ đánh giá riêng theo từng nhân viên). Xem changelog cuối tài liệu.
+> **Trạng thái tài liệu:** v1.5 — cập nhật kiến trúc Đa ngôn ngữ sang bảng `i18n_translation` generic (hỗ trợ mở rộng >2 ngôn ngữ trong tương lai). Xem changelog cuối tài liệu.
 > **18 tiêu chí hiện tại (Performance / Capability / Contribution) chỉ được coi là *seed data / sample configuration*.** Toàn bộ hệ thống được thiết kế theo hướng **Configurable, Rule-driven Evaluation Framework** — không hard-code criterion, weight, level, hay tool phụ thuộc vào application code.
 
 ---
@@ -24,6 +24,7 @@ Kiến trúc đề xuất: **Modular Monolith**, tách rõ các bounded context 
 - Snapshot hóa criterion/template vào evaluation đã submit để đảm bảo lịch sử không đổi khi template gốc thay đổi.
 - Audit log đầy đủ, immutable cho mọi thay đổi có ảnh hưởng đến điểm số.
 - RBAC rõ ràng theo 4 nhóm role: Employee, Team Lead/Manager, HR/Admin, System Admin.
+- **Đa ngôn ngữ (EN/VI)** — dữ liệu master (Criterion, Level, Department, Team, Role, Job Level, Review Cadence...) và UI hiển thị được cả tiếng Anh lẫn tiếng Việt, mặc định EN (✅ mới, xem mục 21.1).
 
 ### Non-goals (giai đoạn MVP)
 - Không xây dựng full BPMN workflow engine (dùng state machine cấu hình đơn giản).
@@ -31,6 +32,8 @@ Kiến trúc đề xuất: **Modular Monolith**, tách rõ các bounded context 
 - Không làm multi-tenant (multi-organization) ở MVP — giả định 1 organization.
 - Không làm real-time collaborative editing.
 - Không làm ranking/stack-ranking tự động (chỉ hỗ trợ xem distribution aggregate theo team/org — **không** xem xếp hạng cá nhân dưới bất kỳ hình thức nào, kể cả ẩn danh; ✅ đã chốt, xem mục 19).
+- **Không tự động dịch nội dung do người dùng nhập** (comment, evidence, full_name...) — đa ngôn ngữ chỉ áp dụng cho dữ liệu master/UI (mục 21.1), không dịch máy nội dung tự do.
+- Không đa ngôn ngữ cho report export PDF/Excel ở MVP (Phase 2).
 
 ### Scope
 In-scope: employee management, evaluation cycle/template/criteria configuration, manual entry, CSV import, scoring engine, workflow, calibration (cơ bản), reporting, audit, RBAC.
@@ -222,6 +225,14 @@ erDiagram
     EMPLOYEE ||--o| USER_ACCOUNT : "login qua Google (mục 10.8)"
     REVIEW_CADENCE ||--o{ JOB_LEVEL : "default cadence cho job level"
     REVIEW_CADENCE ||--o{ EMPLOYEE : "override cá nhân (mục 14.1)"
+    I18N_TRANSLATION }o--|| CRITERION : "polymorphic — name/description (mục 21.1)"
+    I18N_TRANSLATION }o--|| CRITERION_LEVEL : "polymorphic — label"
+    I18N_TRANSLATION }o--|| EVALUATION_TEMPLATE : "polymorphic — name/description"
+    I18N_TRANSLATION }o--|| DEPARTMENT : "polymorphic — name"
+    I18N_TRANSLATION }o--|| TEAM : "polymorphic — name"
+    I18N_TRANSLATION }o--|| ROLE : "polymorphic — name"
+    I18N_TRANSLATION }o--|| JOB_LEVEL : "polymorphic — name"
+    I18N_TRANSLATION }o--|| REVIEW_CADENCE : "polymorphic — name"
 
     EVALUATION_CYCLE ||--o{ EVALUATION_TEMPLATE_VERSION : uses
     EVALUATION_TEMPLATE ||--o{ EVALUATION_TEMPLATE_VERSION : "versioned by"
@@ -272,17 +283,18 @@ erDiagram
 |---|---|---|---|---|---|
 | department_id | uuid | N | gen_random_uuid() | PK | |
 | code | varchar(50) | N | | UNIQUE | |
-| name | varchar(200) | N | | | |
 | active | boolean | N | true | | |
 
+> Tên hiển thị (`name`) **không còn là cột trực tiếp** — resolve qua bảng `i18n_translation` (mục 10.9, `entity_type='DEPARTMENT'`). Áp dụng tương tự cho `team`, `role`, `job_level`, `review_cadence`, `criterion`, `criterion_level`, `evaluation_template` bên dưới.
+
 **team**
-| team_id uuid PK | code varchar UNIQUE | name varchar | department_id FK→department | active boolean |
+| team_id uuid PK | code varchar UNIQUE | department_id FK→department | active boolean |
 
 **role** *(SI, SM, BA... — mở rộng được)*
-| role_id uuid PK | code varchar UNIQUE | name varchar | description text | active boolean |
+| role_id uuid PK | code varchar UNIQUE | active boolean |
 
 **job_level**
-| job_level_id uuid PK | code varchar UNIQUE (JUNIOR, MIDDLE...) | name varchar | rank int (thứ tự sắp xếp) | default_review_cadence_id uuid FK → review_cadence, null | active boolean |
+| job_level_id uuid PK | code varchar UNIQUE (JUNIOR, MIDDLE...) | rank int (thứ tự sắp xếp) | default_review_cadence_id uuid FK → review_cadence, null | active boolean |
 
 > `default_review_cadence_id` — **mới**: chu kỳ đánh giá mặc định theo job level (vd Junior/Probation mặc định 2 tháng, Senior mặc định 12 tháng). Xem mục 14.1.
 
@@ -291,19 +303,18 @@ erDiagram
 |---|---|---|---|
 | review_cadence_id | uuid | N | PK |
 | code | varchar(30) | N | UNIQUE, vd `EVERY_2_MONTHS`, `EVERY_6_MONTHS`, `ANNUALLY` |
-| name | varchar(100) | N | vd "2 tháng/lần" |
 | interval_months | int | N | số tháng giữa 2 lần đánh giá |
 | is_system_default | boolean | N | default true cho đúng 1 dòng — dùng khi employee không có override và job_level không có default riêng |
 | active | boolean | N | |
 
-> HR tự thêm/sửa cadence mới qua UI (vd "3 tháng/lần" cho 1 nhóm đặc thù) — **không hard-code danh sách cố định**, đúng nguyên tắc configurable xuyên suốt hệ thống.
+> HR tự thêm/sửa cadence mới qua UI (vd "3 tháng/lần" cho 1 nhóm đặc thù) — **không hard-code danh sách cố định**, đúng nguyên tắc configurable xuyên suốt hệ thống. Tên hiển thị (vd "2 tháng/lần" / "Every 2 months") resolve qua `i18n_translation`.
 
 **employee**
 | Column | Type | Null | Note |
 |---|---|---|---|
 | employee_id | uuid | N | PK |
 | employee_code | varchar(50) | N | UNIQUE |
-| full_name | varchar(200) | N | |
+| full_name | varchar(200) | N | *(không đa ngôn ngữ — đây là tên riêng, không phải nội dung dịch được, mục 21.1)* |
 | email | varchar(200) | N | UNIQUE |
 | department_id | uuid | Y | FK |
 | team_id | uuid | Y | FK |
@@ -326,7 +337,10 @@ Index: `(team_id)`, `(manager_id)`, `(employment_status)`, `(next_review_due_dat
 ### 10.2 Template & Criteria
 
 **criterion** *(định danh logic, không version-specific)*
-| criterion_id uuid PK | code varchar(50) UNIQUE | category varchar(30) — ENUM PERFORMANCE/CAPABILITY/CONTRIBUTION (mở rộng qua bảng `criterion_category` nếu cần) | name varchar | description text | active boolean |
+| criterion_id uuid PK | code varchar(50) UNIQUE | category varchar(30) — ENUM PERFORMANCE/CAPABILITY/CONTRIBUTION (mở rộng qua bảng `criterion_category` nếu cần) | active boolean |
+
+> `name`/`description` resolve qua `i18n_translation` (`entity_type='CRITERION'`).
+
 
 **criterion_version** *(mỗi lần sửa weight/level/rule → version mới, immutable)*
 | Column | Type | Note |
@@ -345,7 +359,9 @@ Index: `(team_id)`, `(manager_id)`, `(employment_status)`, `(next_review_due_dat
 Unique: `(criterion_id, version_no)`.
 
 **criterion_level** *(mô tả 5 level, gắn với criterion_version)*
-| criterion_level_id uuid PK | criterion_version_id FK | level_no int (1-5) | label_en varchar | label_vn varchar | score_value numeric(5,2) — điểm số ứng với level (mặc định 1..5, nhưng configurable) |
+| criterion_level_id uuid PK | criterion_version_id FK | level_no int (1-5) | score_value numeric(5,2) — điểm số ứng với level (mặc định 1..5, nhưng configurable) |
+
+> `label` (mô tả level) resolve qua `i18n_translation` (`entity_type='CRITERION_LEVEL'`, `entity_id=criterion_level_id`).
 
 **scoring_rule** *(generic rule container — xem mục 18 chi tiết)*
 | scoring_rule_id uuid PK | rule_type varchar(30) — ENUM: RANGE_THRESHOLD / INVERSE_THRESHOLD / COUNT_THRESHOLD / ORDINAL_MANUAL / ROLE_CONDITIONAL | rule_config jsonb | description text |
@@ -362,7 +378,9 @@ Unique: `(criterion_id, version_no)`.
 | active | boolean | |
 
 **evaluation_template**
-| evaluation_template_id uuid PK | code varchar UNIQUE | name varchar | description text | active boolean |
+| evaluation_template_id uuid PK | code varchar UNIQUE | active boolean |
+
+> `name`/`description` resolve qua `i18n_translation` (`entity_type='EVALUATION_TEMPLATE'`).
 
 **evaluation_template_version** *(publish-immutable snapshot)*
 | evaluation_template_version_id uuid PK | evaluation_template_id FK | version_no int | status ENUM DRAFT/PUBLISHED/ARCHIVED | published_at timestamptz | published_by uuid |
@@ -408,7 +426,7 @@ Unique: `(evaluation_cycle_id, employee_id)`.
 | evaluation_id | uuid FK | |
 | template_criterion_id | uuid FK | |
 | criterion_code_snapshot | varchar | denormalize để hiển thị nhanh & phòng khi criterion bị xóa |
-| criterion_name_snapshot | varchar | |
+| criterion_name_snapshot | jsonb | **Đa ngôn ngữ (cập nhật)** — map toàn bộ bản dịch tại thời điểm tạo, vd `{"en": "On-time Completion", "vi": "Hoàn thành đúng hạn"}`; dùng jsonb thay vì cột cố định `_en`/`_vi` để tự động support ngôn ngữ mới thêm sau này mà không cần đổi schema (mục 21.1, Rule 13) |
 | weight_snapshot | numeric(5,2) | copy từ `template_criterion.effective_weight` tại thời điểm evaluation được tạo |
 | scoring_rule_snapshot | jsonb | copy toàn bộ rule_config tại thời điểm tạo |
 | level_definition_snapshot | jsonb | copy toàn bộ criterion_level |
@@ -485,6 +503,7 @@ Index: `(entity_type, entity_id)`, `(performed_at)`.
 | email_at_login | varchar(200) | N | email lấy từ Google ID token tại lần login gần nhất (đối chiếu với `employee.email`) |
 | access_role | varchar(20) | N | ENUM: `EMPLOYEE` / `MANAGER` / `HR_ADMIN` / `SYSTEM_ADMIN` — nhóm quyền RBAC (mục 17), **khác** với `employee.role_id` (job title SI/SM/BA) |
 | status | varchar(20) | N | ENUM `ACTIVE` / `DISABLED` |
+| locale | varchar(5) | N | **Mới** — ENUM `en` / `vi`, default `en` (mục 21.1) — preference hiển thị UI/dữ liệu master của user này |
 | last_login_at | timestamptz | Y | |
 
 Unique: `(employee_id)`, `(google_sub)`.
@@ -1167,6 +1186,112 @@ sequenceDiagram
 
 ---
 
+## 21.1 Localization (i18n) — ✅ tính năng mới (cập nhật — kiến trúc mở rộng nhiều ngôn ngữ)
+
+> **Yêu cầu:** hệ thống hỗ trợ đa ngôn ngữ, khởi điểm **EN / VI**, **mặc định EN**. **✅ Đã xác nhận với Product Owner: có kế hoạch mở rộng thêm ngôn ngữ khác (JA/KO/...) trong 1-2 năm tới** — quyết định kiến trúc dưới đây đã đổi để phù hợp việc mở rộng này (khác bản v1.4 dùng inline column, xem Changelog).
+
+### Phân loại nội dung — chỉ 1 trong 3 loại cần thiết kế đa ngôn ngữ
+
+| Loại nội dung | Ví dụ | Cách xử lý |
+|---|---|---|
+| **1. Master/reference data** | Tên Criterion, mô tả Level, tên Department/Team/Role/Job Level/Review Cadence, tên Template | ✅ **Đa ngôn ngữ qua bảng `i18n_translation` generic** (xem mục 10.9) |
+| **2. UI static strings** | Nhãn nút, menu, thông báo lỗi, validation message | Xử lý ở **frontend i18n resource bundle** (JSON theo locale, vd `en.json`/`vi.json`/`ja.json`) — **không lưu trong DB** |
+| **3. User-generated content** | `comment`, `evidence`, `full_name`, email | ❌ **Không đa ngôn ngữ hóa** — lưu nguyên văn theo ngôn ngữ người dùng gõ, không dịch máy (mục 2, Non-goals) |
+
+### Quyết định thiết kế cột DB — Decision → Why → Alternative → Trade-off
+
+**Decision:** dùng **bảng `i18n_translation` generic** (polymorphic: entity_type, entity_id, field_name, locale, value) cho mọi master data cần dịch — **không** dùng cột inline `_en`/`_vi` trên từng bảng (đã đổi so với bản v1.4).
+
+**Why:** Product Owner **xác nhận có kế hoạch mở rộng >2 ngôn ngữ** trong 1-2 năm tới (JA/KO hoặc ngôn ngữ khác tùy thị trường mở rộng). Với inline column, mỗi lần thêm 1 ngôn ngữ mới phải `ALTER TABLE` thêm cột `_ja`/`_ko` trên **7 bảng khác nhau** (department, team, role, job_level, review_cadence, criterion, criterion_level, evaluation_template) — vừa tốn migration, vừa dễ sót bảng. Bảng generic chỉ cần **insert thêm dòng dữ liệu**, không đổi schema, không downtime deploy.
+
+**Alternative:** cột inline `_en`/`_vi`/`_ja`... (phương án đã chọn ở bản v1.4, nay revert).
+
+**Trade-off:** bảng generic cần **JOIN thêm** (hoặc 1 query riêng + resolve ở application layer) cho mọi lần đọc master data — tốn hơn 1 chút so với inline column đọc thẳng trong cùng 1 dòng. Giảm thiểu bằng **cache Redis** cho bộ translation (thay đổi không thường xuyên, cache TTL dài vd 1 giờ, invalidate khi HR sửa) — chi phí JOIN không đáng kể trong thực tế ở quy mô ~1,000 employee.
+
+### 10.9 Bảng `i18n_translation` (mới — bổ sung vào mục 10 Database Design)
+
+| Column | Type | Null | Note |
+|---|---|---|---|
+| translation_id | uuid | N | PK |
+| entity_type | varchar(50) | N | ENUM mở rộng được: `CRITERION`, `CRITERION_LEVEL`, `DEPARTMENT`, `TEAM`, `ROLE`, `JOB_LEVEL`, `REVIEW_CADENCE`, `EVALUATION_TEMPLATE`... |
+| entity_id | uuid | N | ID của record gốc (không FK cứng vì polymorphic — validate ở application layer) |
+| field_name | varchar(50) | N | vd `name`, `description`, `label` |
+| locale | varchar(10) | N | `en`, `vi`, mở rộng thêm `ja`/`ko`... không cần đổi schema |
+| value | text | N | nội dung đã dịch |
+| created_at, updated_at, created_by, updated_by | | | chuẩn chung |
+
+Unique: `(entity_type, entity_id, field_name, locale)`. Index: `(entity_type, entity_id)` — phục vụ load toàn bộ bản dịch của 1 record trong 1 query.
+
+> **Bảng gốc (criterion, department, team, role, job_level, review_cadence, evaluation_template) không còn cột `name`/`description`/`label` nữa** — chỉ giữ `code` (định danh nghiệp vụ) + các field không cần dịch (weight, active, rank, interval_months...). Tên hiển thị **luôn resolve qua `i18n_translation`**.
+
+### Quy tắc bắt buộc — EN là baseline
+
+- **Mỗi entity phải có ít nhất 1 dòng `i18n_translation` với `locale='en'`** cho mỗi field cần dịch — validate ở **application layer** (service tạo Criterion/Template/... bắt buộc tạo kèm bản dịch EN trong cùng transaction), không phải DB constraint (vì polymorphic không FK cứng được).
+- **Các locale khác (`vi`, và sau này `ja`/`ko`...) là tùy chọn** — ✅ đã xác nhận: **không bắt buộc nhập ngay**, HR có thể bổ sung sau.
+- **Fallback rule:** nếu không tìm thấy bản dịch đúng locale đang yêu cầu → **fallback về `en`**, không bao giờ trả rỗng/null. Resolve ở tầng API (service layer), không để Frontend tự xử lý.
+
+### Locale resolution — thứ tự ưu tiên khi trả response
+
+```
+1. user_account.locale (nếu user đã đăng nhập và có set — mục 10.8)
+2. Query param ?locale=vi (nếu FE truyền tường minh, dùng cho trang login/public chưa có user_account)
+3. HTTP header Accept-Language (fallback nếu không có 2 cái trên)
+4. Default hệ thống = "en"  (✅ đã chốt theo yêu cầu)
+```
+
+### API response shape
+
+Với mọi entity master data, response trả **field đã resolve theo locale hiện tại** (service layer JOIN/lookup `i18n_translation`, Frontend không cần biết cơ chế bên dưới):
+```json
+{
+  "criterion_id": "...",
+  "code": "ON_TIME",
+  "name": "On-time Completion",        // đã resolve theo locale request, có fallback
+  "description": "..."
+}
+```
+
+Riêng **màn hình Admin chỉnh sửa** (Template Builder, Criterion Management) cần sửa **nhiều ngôn ngữ cùng lúc** bất kể locale hiện tại của Admin đó — API trả **toàn bộ bản dịch hiện có**, dạng map theo locale (mở rộng được, không giới hạn cứng EN/VI):
+```json
+{
+  "criterion_id": "...",
+  "code": "ON_TIME",
+  "translations": {
+    "en": { "name": "On-time Completion", "description": "..." },
+    "vi": { "name": "Hoàn thành đúng hạn", "description": "..." }
+  }
+}
+```
+Khi thêm ngôn ngữ mới (vd `ja`), response tự động có thêm key `"ja": {...}` khi có dữ liệu — **không đổi contract API**, chỉ thêm dữ liệu.
+
+### API bổ sung (mục 16)
+| Method | Endpoint | Auth | Note |
+|---|---|---|---|
+| PATCH | `/users/me/locale` | Bearer JWT | đổi `user_account.locale`, self-service, không cần permission đặc biệt |
+| GET | `/i18n/{entity_type}/{entity_id}` | HR/Admin | trả toàn bộ bản dịch hiện có (mọi locale) của 1 record — dùng cho màn hình Admin edit |
+| PUT | `/i18n/{entity_type}/{entity_id}` | HR/Admin | upsert bản dịch cho 1+ locale cùng lúc, body dạng `{ locale: { field_name: value } }` |
+| GET | `/i18n/locales` | Public | danh sách locale hệ thống đang hỗ trợ (để FE build language switcher động, không hard-code danh sách EN/VI trong code) |
+| Mọi GET trả master data | — | — | hỗ trợ query param `?locale=xx` override tạm thời (không đổi `user_account.locale`, chỉ áp dụng cho request đó) |
+
+### UI
+- **Language switcher** ở header/top-nav, đọc danh sách locale động từ `GET /i18n/locales` (không hard-code EN/VI trong Frontend) — đổi ngay lập tức không cần reload trang.
+- Màn hình Admin edit (Criterion/Template/...) hiển thị **N tab theo số locale đang có** (khởi điểm 2 tab EN/VI, tự thêm tab khi Admin thêm locale mới), badge cảnh báo nếu locale nào đó (ngoài EN) còn thiếu bản dịch.
+- Màn hình mới: **Locale Management** (System Admin) — thêm/bớt locale hệ thống hỗ trợ (vd bật thêm `ja`), không cần deploy code.
+
+### CSV Import (mục 15 / Import Center)
+- Format CSV cho Criterion/KPI Catalog Import **giữ nguyên dạng cột theo từng ngôn ngữ** (`criterion_name_en`, `criterion_name_vi`, sau này thêm `criterion_name_ja` khi cần) — đây là lựa chọn có chủ đích: **CSV là định dạng cho con người chỉnh sửa** (Excel-friendly), khác với cách lưu trữ nội bộ (bảng generic). Import Service **decompose** mỗi cột ngôn ngữ thành 1 dòng `i18n_translation` tương ứng. Thêm ngôn ngữ mới = thêm 1 cột vào **version mới** của CSV template (đã có cơ chế versioning, mục 15) — không phá vỡ file cũ.
+
+### Audit
+- Thay đổi bản dịch (`i18n_translation`) của bất kỳ master data nào **vẫn ghi audit_log** như mọi thay đổi config khác (mục 18) — `entity_type=I18N_TRANSLATION`, `field_name` ghi rõ `entity_type.field_name.locale` (vd `CRITERION.name.vi`) để phân biệt.
+
+### Business rules bổ sung
+- **Rule 12:** Mọi entity phải có bản dịch `locale='en'` tại thời điểm tạo (application-level validate, cùng transaction); các locale khác — ✅ đã chốt: **optional, không bắt buộc nhập ngay**, fallback về EN khi thiếu.
+- **Rule 13:** Locale không ảnh hưởng **snapshot đã lưu** trong `evaluation_criterion`/`evaluation_item` (mục 10.5) — snapshot lưu **toàn bộ bản dịch tại thời điểm tạo** dưới dạng `jsonb` (vd `criterion_name_snapshot: {"en": "On-time Completion", "vi": "Hoàn thành đúng hạn"}`) — thiết kế dạng map thay vì cột cố định `_en`/`_vi` để **tự động support thêm ngôn ngữ mới** cho evaluation tạo sau này mà không cần đổi schema snapshot.
+- **Rule 14 (mới):** Thêm 1 locale mới vào hệ thống (vd bật `ja`) là thao tác **runtime** (insert vào bảng danh mục locale hệ thống + bắt đầu cho phép `i18n_translation.locale='ja'`), **không yêu cầu deploy lại code hay migration schema** — đúng nguyên tắc configurable xuyên suốt hệ thống.
+
+---
+
+
 ## 22. Performance & Scalability
 
 - **Quy mô (✅ đã HR/Product xác nhận):** ~1,000 employees, ~50 concurrent users giờ cao điểm, CSV import tối đa ~5,000 rows/file. Ở quy mô này, materialized view refresh theo batch (mục 19) và cache Redis TTL 15 phút là đủ dùng — **không cần** tối ưu sớm (premature optimization) cho scale >5,000 employee.
@@ -1273,7 +1398,7 @@ flowchart LR
 
 | Layer | Recommended Stack | Alternative | Trade-off |
 |---|---|---|---|
-| Frontend | React + TypeScript, TanStack Query, shadcn/ui | Vue 3 + TS | React có ecosystem lớn hơn cho form builder phức tạp (Template Builder) |
+| Frontend | React + TypeScript, TanStack Query, shadcn/ui, **react-i18next** (i18n) | Vue 3 + TS | React có ecosystem lớn hơn cho form builder phức tạp (Template Builder); react-i18next là chuẩn phổ biến cho locale switching runtime |
 | Backend | Node.js (NestJS, TypeScript) hoặc Java (Spring Boot) | Python (FastAPI) | NestJS/Spring Boot có module system rõ ràng, phù hợp Modular Monolith; FastAPI nhanh để viết nhưng module boundary phải tự kỷ luật hơn |
 | Database | PostgreSQL (hỗ trợ JSONB tốt cho `rule_config`) | MySQL 8 | Postgres JSONB + GIN index mạnh hơn cho query rule config |
 | Cache | Redis | Memcached | Redis hỗ trợ cấu trúc phức tạp hơn (cần cho report cache/session) |
@@ -1300,6 +1425,8 @@ flowchart LR
 10. **Audit log & evaluation lịch sử — ✅ đã chốt retention = 2 năm.** Cần implement archive job (chuyển dữ liệu >2 năm sang cold storage, không xóa hẳn — vẫn giữ được cho mục đích tuân thủ nếu cần) chạy định kỳ; cân nhắc partition bảng `audit_log` theo tháng/quý để archive job không phải quét full table.
 11. **[MỚI] Review Cadence trùng lịch với Batch Cycle** — nếu HR vừa mở batch cycle "2026 H2" vừa có nhiều employee đến hạn individual review cùng lúc, có thể tạo ra 2 evaluation gần nhau cho cùng 1 người gây khó chịu cho nhân viên/manager. Đã có cảnh báo dedup (mục 14.1) nhưng vẫn phụ thuộc HR chủ động xử lý đúng, không tự động ngăn hoàn toàn.
 12. **[MỚI] `next_review_due_date` tính sai nếu quên cập nhật `last_evaluation_completed_at`** khi có luồng ghi điểm ngoài quy trình chuẩn (vd import CSV tạo thẳng evaluation đã PUBLISHED cho dữ liệu lịch sử/migration) — cần đảm bảo mọi đường dẫn khiến evaluation đạt PUBLISHED đều chạy qua cùng 1 hàm cập nhật due-date, không rải rác nhiều nơi.
+13. **[MỚI] Đa ngôn ngữ tăng chi phí nhập liệu cho HR** — mỗi lần tạo Criterion/Template mới, HR phải cân nhắc nhập thêm bản dịch (dù optional) để tránh hiển thị fallback EN cho user chọn locale khác — cần UX nhắc nhở (badge cảnh báo) nhưng không nên chặn cứng (bắt buộc sẽ làm chậm quá trình tạo mới không cần thiết).
+14. ~~Inline column `_en`/`_vi` giới hạn khả năng mở rộng ngôn ngữ~~ **✅ Đã giải quyết** — đổi sang bảng `i18n_translation` generic (mục 21.1, mục 10.9) ngay từ đầu vì đã xác nhận có kế hoạch mở rộng >2 ngôn ngữ. Rủi ro còn lại chỉ là chi phí JOIN nhẹ, đã có phương án cache Redis giảm thiểu.
 
 ---
 
@@ -1318,6 +1445,8 @@ flowchart LR
 11. **[MỚI] Review cadence mặc định theo job level cụ thể là gì?** — vd Junior/Probation = 2 tháng, Middle/Senior = 6 tháng, Lead/Principal = 12 tháng? Cần HR xác nhận bảng mapping cụ thể trước khi seed data.
 12. **[MỚI] Nhân viên mới join (chưa từng được đánh giá) — due ngay từ ngày join, hay có grace period (vd sau 1 tháng thử việc mới tính due)?**
 13. **[MỚI] Khi đổi cadence (vd thăng chức đổi job level), `next_review_due_date` có nên "grandfather" (giữ nguyên lịch cũ đến hết chu kỳ hiện tại) hay tính lại ngay theo cadence mới?**
+14. ~~`name_vi` có nên bắt buộc nhập ngay khi tạo Criterion/Template mới, hay cho phép để trống?~~ **✅ Đã chốt: để trống được**, chỉ cảnh báo UI (badge), không chặn.
+15. ~~Ngoài EN/VI, tổ chức có kế hoạch mở rộng thêm ngôn ngữ khác trong 1-2 năm tới không?~~ **✅ Đã chốt: Có** — đã đổi kiến trúc sang bảng `i18n_translation` generic (mục 21.1) để sẵn sàng mở rộng mà không cần `ALTER TABLE` mỗi lần thêm ngôn ngữ.
 
 ---
 
@@ -1339,6 +1468,8 @@ flowchart LR
 | 12 | **[MỚI]** Nhân viên mới có grace period trước khi tính due không? | Đề xuất tạm: due ngay từ `join_date`, chưa có grace period riêng | HR |
 | 13 | **[MỚI]** Đổi cadence giữa chừng — grandfather hay tính lại ngay? | Đề xuất tạm: tính lại ngay (đơn giản hơn, nhất quán logic snapshot-driven-by-actual-completion) | HR |
 | 14 | **[MỚI]** MVP có tự động tạo evaluation khi due, hay bắt buộc HR/Manager bấm xác nhận? | Đề xuất tạm: bán tự động — chỉ dashboard + nút xác nhận, auto-create để Phase 2 | Product Owner |
+| 15 | `name_vi` bắt buộc hay optional khi tạo mới? | **✅ Đã chốt: optional**, chỉ cảnh báo UI | HR |
+| 16 | Có kế hoạch mở rộng >2 ngôn ngữ trong tương lai gần không? | **✅ Đã chốt: Có** — kiến trúc đã đổi sang `i18n_translation` generic | Product Owner |
 
 ---
 
@@ -1422,6 +1553,27 @@ Security review, performance test (import lớn, concurrent), UAT với 18 KPI m
 - **MVP = bán tự động:** hệ thống chỉ tính due-date + hiển thị Review Due Dashboard; HR/Manager phải chủ động bấm "Tạo Evaluation". Full-auto (tự tạo, tự gửi thông báo) để Phase 2 — tránh review "từ trên trời rơi xuống" gây bất ngờ cho nhân viên.
 - **4 câu hỏi mở quan trọng cần HR chốt trước khi implement:** cadence mặc định cụ thể theo job level, grace period cho nhân viên mới, grandfather hay recalculate khi đổi cadence, và mức độ tự động hóa ở MVP (xem mục 29 #11-13, mục 30 #11-14).
 
+## Changelog v1.3 → v1.4
+
+| # | Thay đổi | Vị trí |
+|---|---|---|
+| 10 | **[MỚI] Đa ngôn ngữ EN/VI, mặc định EN** — dữ liệu master data (Criterion, Level, Department, Team, Role, Job Level, Review Cadence, Template) đa ngôn ngữ; UI static string qua i18n bundle; user-content KHÔNG dịch | Mục 2, 6, 9, 10.1, 10.2, 10.5 (snapshot), 10.8 (`user_account.locale`), **21.1 (mới — thiết kế đầy đủ)**, 16 (API), 18, 27, 28, 29, 30 |
+
+## Changelog v1.4 → v1.5
+
+| # | Thay đổi | Vị trí |
+|---|---|---|
+| 11 | **[ĐỔI KIẾN TRÚC] Chuyển từ inline column `_en`/`_vi` sang bảng `i18n_translation` generic** — do Product Owner xác nhận có kế hoạch mở rộng >2 ngôn ngữ (JA/KO...) trong 1-2 năm tới. Xóa cột `name_en`/`name_vi`/`description_en`/`description_vi`/`label_en`/`label_vi` khỏi 7 bảng master data; snapshot đổi từ cột cố định sang `jsonb` map | Mục 9 (ERD), 10.1, 10.2 (bỏ cột song ngữ), 10.5 (snapshot jsonb), **10.9 (mới — bảng `i18n_translation`)**, 21.1 (viết lại Decision), 16 (API `/i18n/*`), 28 (Risk #14 resolved), 29 (Decision #14-15 resolved), 30 (Open Question #15-16 resolved) |
+| 12 | `name_vi`/bản dịch phụ **xác nhận: optional**, không bắt buộc nhập ngay khi tạo mới | Mục 21.1, 29, 30 |
+
+**Thiết kế cốt lõi sau khi đổi kiến trúc (tóm tắt):**
+- **Bảng `i18n_translation` generic** (entity_type, entity_id, field_name, locale, value) — thêm ngôn ngữ mới chỉ cần insert dữ liệu, **không** cần `ALTER TABLE`/deploy code.
+- **Mỗi entity bắt buộc có bản dịch `locale='en'`** (validate application-layer, cùng transaction lúc tạo); các locale khác **optional**, fallback về EN khi thiếu.
+- **Locale resolution 4 tầng** giữ nguyên: `user_account.locale` → query param → `Accept-Language` header → default `en`.
+- **Snapshot lịch sử dùng `jsonb` map** (`{"en": "...", "vi": "..."}`) thay vì cột cố định — tự động support ngôn ngữ mới cho evaluation tạo sau này mà không cần đổi schema.
+- **CSV Import vẫn giữ định dạng cột theo ngôn ngữ** (Excel-friendly cho HR) — Import Service decompose thành các dòng `i18n_translation` nội bộ; thêm ngôn ngữ = thêm cột ở version CSV mới, không phá file cũ.
+- **Trade-off chấp nhận:** JOIN thêm khi đọc master data (so với inline column) — giảm thiểu bằng cache Redis TTL dài (translation ít đổi).
+
 ---
 
-*Hết tài liệu — v1.3.*
+*Hết tài liệu — v1.5.*
