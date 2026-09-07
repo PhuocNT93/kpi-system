@@ -19,6 +19,7 @@ import { EvaluationCycleController } from '../modules/evaluation-cycle/api/evalu
 import { createEvaluationCycleRouter } from '../modules/evaluation-cycle/api/evaluation-cycle.router.js';
 import { EvaluationController } from '../modules/evaluation/api/evaluation.controller.js';
 import { createEvaluationRouter } from '../modules/evaluation/api/evaluation.router.js';
+import { I18nController, createI18nRouter } from '../modules/i18n/index.js';
 
 export interface RegisterRoutesOptions {
   authController: AuthController;
@@ -33,6 +34,7 @@ export interface RegisterRoutesOptions {
   auditController?: AuditController;
   evaluationCycleController?: EvaluationCycleController;
   evaluationController?: EvaluationController;
+  i18nController?: I18nController;
 }
 
 export function createApiRouter(options: RegisterRoutesOptions): Router {
@@ -86,6 +88,11 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
     const evalRouter = createEvaluationRouter(options.evaluationController, options.jwtMiddleware);
     router.use('/v1/evaluations', evalRouter);
     router.use('/evaluations', evalRouter);
+  }
+
+  // ── I18n Module Routes ────────────────────────────────────────────────────
+  if (options.i18nController) {
+    router.use('/', createI18nRouter(options.i18nController, options.jwtMiddleware));
   }
 
   // ── Sample: single-resource response ──────────────────────────────────────
