@@ -74,7 +74,7 @@ describe('Import API Routes', () => {
       userId: 'emp-id',
       email: 'emp@test.com',
       role: 'EMPLOYEE',
-    } as any);
+    } as unknown as Record<string, unknown>);
 
     const res = await request(app)
       .get('/api/csv-templates/current/download')
@@ -88,7 +88,7 @@ describe('Import API Routes', () => {
       userId: 'admin-id',
       email: 'admin@test.com',
       role: 'HR_ADMIN',
-    } as any);
+    } as unknown as Record<string, unknown>);
 
     const res = await request(app)
       .get('/api/csv-templates/current/download')

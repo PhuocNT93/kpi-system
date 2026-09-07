@@ -14,7 +14,7 @@ export interface CsvTemplateColumn {
   column_name: string;
   data_type: string;
   required: boolean;
-  validation_rule: any;
+  validation_rule: Record<string, unknown> | null;
   display_order: number;
 }
 
