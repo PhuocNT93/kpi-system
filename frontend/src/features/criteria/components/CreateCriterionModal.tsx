@@ -18,7 +18,7 @@ export function CreateCriterionModal({
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<'PERFORMANCE' | 'BEHAVIOR' | 'CONTRIBUTION'>('PERFORMANCE');
+  const [category, setCategory] = useState<'PERFORMANCE' | 'CAPABILITY' | 'CONTRIBUTION' | 'BEHAVIOR'>('PERFORMANCE');
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
@@ -114,15 +114,16 @@ export function CreateCriterionModal({
             </label>
             <select
               value={category}
-              onChange={(e) => setCategory(e.target.value as 'PERFORMANCE' | 'BEHAVIOR' | 'CONTRIBUTION')}
+              onChange={(e) => setCategory(e.target.value as 'PERFORMANCE' | 'CAPABILITY' | 'CONTRIBUTION' | 'BEHAVIOR')}
               style={{
                 width: '100%', padding: '0.5rem 0.75rem',
                 borderRadius: 6, border: '1px solid #d1d5db', outline: 'none',
               }}
             >
               <option value="PERFORMANCE">Performance</option>
-              <option value="BEHAVIOR">Behavior</option>
+              <option value="CAPABILITY">Capability</option>
               <option value="CONTRIBUTION">Contribution</option>
+              <option value="BEHAVIOR">Behavior</option>
             </select>
           </div>
 

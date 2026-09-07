@@ -65,8 +65,9 @@ export function CriteriaPage() {
         >
           <option value="">All Categories</option>
           <option value="PERFORMANCE">Performance</option>
-          <option value="BEHAVIOR">Behavior</option>
+          <option value="CAPABILITY">Capability</option>
           <option value="CONTRIBUTION">Contribution</option>
+          <option value="BEHAVIOR">Behavior</option>
         </select>
       </div>
 
@@ -94,26 +95,36 @@ export function CriteriaPage() {
                 </td>
               </tr>
             )}
-            {criteria?.map((criterion) => (
-              <tr key={criterion.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                <td style={{ padding: '1rem', fontWeight: 500 }}>{criterion.code}</td>
-                <td style={{ padding: '1rem' }}>{criterion.name}</td>
-                <td style={{ padding: '1rem' }}>
-                  <span style={{
-                    display: 'inline-flex', padding: '2px 8px', borderRadius: 999,
-                    backgroundColor: '#e0e7ff', color: '#3730a3', fontSize: '0.75rem', fontWeight: 500
-                  }}>
-                    {criterion.category}
-                  </span>
-                </td>
-                <td style={{ padding: '1rem' }}>
-                  {criterion.currentVersion ? `v${criterion.currentVersion.versionNo}` : '-'}
-                </td>
-                <td style={{ padding: '1rem' }}>
-                  <StatusBadge status={criterion.status} />
-                </td>
-              </tr>
-            ))}
+            {criteria?.map((criterion) => {
+              const versionNum = criterion.currentVersion?.versionNo ?? (criterion as unknown as { current_version?: { version_no?: number } }).current_version?.version_no;
+              const categoryColorMap: Record<string, { bg: string; text: string }> = {
+                PERFORMANCE: { bg: '#e0f2fe', text: '#0369a1' },
+                CAPABILITY: { bg: '#e0e7ff', text: '#3730a3' },
+                CONTRIBUTION: { bg: '#fef3c7', text: '#92400e' },
+              };
+              const colors = categoryColorMap[criterion.category] || { bg: '#f3f4f6', text: '#374151' };
+
+              return (
+                <tr key={criterion.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                  <td style={{ padding: '1rem', fontWeight: 500 }}>{criterion.code}</td>
+                  <td style={{ padding: '1rem' }}>{criterion.name}</td>
+                  <td style={{ padding: '1rem' }}>
+                    <span style={{
+                      display: 'inline-flex', padding: '2px 8px', borderRadius: 999,
+                      backgroundColor: colors.bg, color: colors.text, fontSize: '0.75rem', fontWeight: 500
+                    }}>
+                      {criterion.category}
+                    </span>
+                  </td>
+                  <td style={{ padding: '1rem' }}>
+                    {versionNum ? `v${versionNum}` : '-'}
+                  </td>
+                  <td style={{ padding: '1rem' }}>
+                    <StatusBadge status={criterion.status} />
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
