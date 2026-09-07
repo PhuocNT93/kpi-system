@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
 import request from 'supertest';
 import type { Pool } from 'pg';

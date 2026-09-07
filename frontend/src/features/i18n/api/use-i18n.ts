@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getApi, putApi, patchApi } from '@/shared/api/api-client';
 

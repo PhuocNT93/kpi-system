@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import React from 'react';
 import EntityTranslationEditor from '../components/EntityTranslationEditor';
 import { useLocales, useUpdateUserLocale } from '../api/use-i18n';
