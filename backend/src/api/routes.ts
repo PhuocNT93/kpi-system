@@ -96,6 +96,8 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
   // ── I18n Module Routes ────────────────────────────────────────────────────
   if (options.i18nController) {
     router.use('/', createI18nRouter(options.i18nController, options.jwtMiddleware));
+  }
+
   // ── Import Module Routes ──────────────────────────────────────────────────
   if (options.importController) {
     router.use('/', createImportRouter(options.importController, options.authorizationService, options.jwtMiddleware));
