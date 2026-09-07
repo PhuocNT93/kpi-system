@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import type { TemplateKpi, TemplateCriterion } from '../domain/template-models';
+import { useState, useRef, useEffect } from 'react';
+import type { TemplateKpi, TemplateCriterion, Criterion } from '../domain/template-models';
 import { SelectedCriteriaCanvas } from './SelectedCriteriaCanvas';
 import { Button } from '../../../shared/ui/Button/Button';
 
@@ -14,6 +14,7 @@ interface KpiCanvasProps {
   selectedKpiId?: string | null;
   onSelectKpi?: (kpiId: string) => void;
   onKpiWeightChange?: (kpiId: string, newWeight: number) => void;
+  onDropCriterion?: (criterion: Criterion, kpiId: string) => void;
   isReadOnly?: boolean;
 }
 
@@ -28,9 +29,27 @@ export function KpiCanvas({
   selectedKpiId,
   onSelectKpi,
   onKpiWeightChange,
+  onDropCriterion,
   isReadOnly = false,
 }: KpiCanvasProps) {
   const [expandedKpiIds, setExpandedKpiIds] = useState<Set<string>>(new Set(kpis.map(k => k.id)));
+  const knownKpiIds = useRef<Set<string>>(new Set(kpis.map(k => k.id)));
+  const [dragOverKpiId, setDragOverKpiId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setExpandedKpiIds(prev => {
+      const next = new Set(prev);
+      let changed = false;
+      kpis.forEach(k => {
+        if (!knownKpiIds.current.has(k.id)) {
+          next.add(k.id);
+          knownKpiIds.current.add(k.id);
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [kpis]);
 
   const toggleKpi = (id: string) => {
     setExpandedKpiIds(prev => {
@@ -80,12 +99,38 @@ export function KpiCanvas({
         return (
           <div
             key={kpi.id}
+            onDragOver={(e) => {
+              if (isReadOnly) return;
+              e.preventDefault();
+              setDragOverKpiId(kpi.id);
+            }}
+            onDragLeave={(e) => {
+              if (isReadOnly) return;
+              e.preventDefault();
+              setDragOverKpiId(null);
+            }}
+            onDrop={(e) => {
+              if (isReadOnly) return;
+              e.preventDefault();
+              setDragOverKpiId(null);
+              const data = e.dataTransfer.getData('application/json');
+              if (data && onDropCriterion) {
+                try {
+                  const criterion = JSON.parse(data);
+                  onDropCriterion(criterion, kpi.id);
+                  setExpandedKpiIds(prev => new Set(prev).add(kpi.id));
+                } catch (err) {
+                  console.error('Failed to parse dropped criterion', err);
+                }
+              }
+            }}
             style={{
               background: '#ffffff',
-              border: '1px solid #e5e7eb',
+              border: dragOverKpiId === kpi.id ? '2px dashed #4f46e5' : '1px solid #e5e7eb',
               borderRadius: 8,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+              boxShadow: dragOverKpiId === kpi.id ? '0 4px 6px -1px rgba(79, 70, 229, 0.1)' : '0 1px 3px rgba(0,0,0,0.05)',
               overflow: 'hidden',
+              transition: 'all 0.2s ease',
             }}
           >
             {/* KPI Header */}

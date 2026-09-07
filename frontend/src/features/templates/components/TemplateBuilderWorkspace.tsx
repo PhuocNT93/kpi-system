@@ -31,7 +31,7 @@ interface TemplateBuilderWorkspaceProps {
   libraryCriteria: Criterion[];
   isLoading?: boolean;
   error?: unknown;
-  onSaveDraft: (updatedCriteria: TemplateCriterion[], expectedVersion: number) => Promise<void>;
+  onSaveDraft: (updatedKpis: TemplateKpi[], updatedCriteria: TemplateCriterion[], expectedVersion: number) => Promise<void>;
   onPublishVersion: (expectedVersion: number) => Promise<void>;
   onBackToList: () => void;
   isSavePending?: boolean;
@@ -103,16 +103,17 @@ export function TemplateBuilderWorkspace({
     setHasUnsavedChanges(true);
   };
 
-  const handleAddCriterionFromLibrary = (criterion: Criterion) => {
+  const handleAddCriterionFromLibrary = (criterion: Criterion, targetKpiId?: string) => {
     if (isReadOnly) return;
-    if (!selectedKpiId) {
-      alert("Please select a KPI in the canvas first to map criteria to it.");
+    const kpiIdToUse = targetKpiId || selectedKpiId;
+    if (!kpiIdToUse) {
+      alert("Please select a KPI in the canvas first to map criteria to it, or drag and drop the criterion directly into a KPI.");
       return;
     }
     const newCriterionItem: TemplateCriterion = {
       id: `tc-${Date.now()}`,
       templateVersionId: version.id,
-      templateKpiId: selectedKpiId,
+      templateKpiId: kpiIdToUse,
       criterionVersionId: criterion.currentVersion?.id || `cv-${criterion.id}`,
       criterion,
       effectiveWeight: 10,
@@ -206,13 +207,25 @@ export function TemplateBuilderWorkspace({
 
   const handleSaveDraft = async () => {
     if (isReadOnly) return;
-    await onSaveDraft(criteria, version.version);
-    setHasUnsavedChanges(false);
-    setLastSavedTime(new Date().toLocaleTimeString());
+    try {
+      await onSaveDraft(kpis, criteria, version.version);
+      setHasUnsavedChanges(false);
+      setLastSavedTime(new Date().toLocaleTimeString());
+    } catch {
+      // save failed – keep hasUnsavedChanges true so publish stays disabled
+    }
   };
 
   const handlePublishClick = () => {
     const res = validateTemplateClientSide(kpis, criteria);
+    if (hasUnsavedChanges) {
+      res.isValid = false;
+      res.errors.unshift({
+        code: 'UNSAVED_CHANGES',
+        category: 'STATE',
+        message: 'You have unsaved changes. Please click "Save Draft" first before publishing.',
+      });
+    }
     setValidationResult(res);
     if (!res.isValid) {
       setIsValidationModalOpen(true);
@@ -226,7 +239,8 @@ export function TemplateBuilderWorkspace({
     setIsPublishModalOpen(false);
   };
 
-  const existingCriterionIds = new Set(criteria.filter(c => c.templateKpiId === selectedKpiId).map((c) => c.criterion.id));
+  // Check ALL criteria (across all KPIs) to prevent duplicating same criterion in multiple KPIs
+  const existingCriterionIds = new Set(criteria.map((c) => c.criterion?.id).filter(Boolean));
   const existingKpiIds = new Set(kpis.map((k) => (k.kpi as { id?: string })?.id || k.kpiId));
 
   if (isLoading) return <LoadingSpinner label="Loading Template Workspace..." />;
@@ -297,7 +311,7 @@ export function TemplateBuilderWorkspace({
                 {isSavePending ? 'Saving...' : 'Save Draft'}
               </Button>
 
-              <Button size="sm" onClick={handlePublishClick} disabled={isPublishPending}>
+              <Button size="sm" onClick={handlePublishClick} disabled={isPublishPending || hasUnsavedChanges}>
                 Publish Version
               </Button>
             </>
@@ -366,18 +380,11 @@ export function TemplateBuilderWorkspace({
               />
             ) : (
               <div>
-                {!selectedKpiId ? (
-                  <div style={{ padding: '2rem 1rem', textAlign: 'center', color: '#6b7280', fontSize: '0.875rem' }}>
-                    Select a KPI on the right canvas to add criteria to it.
-                  </div>
-                ) : (
-                  <CriterionLibraryPanel
-                    criteria={libraryCriteria}
-                    existingCriterionIds={existingCriterionIds}
-                    onAddCriterion={handleAddCriterionFromLibrary}
-                    isReadOnly={isReadOnly}
-                  />
-                )}
+                <CriterionLibraryPanel
+                  criteria={libraryCriteria}
+                  existingCriterionIds={existingCriterionIds}
+                  isReadOnly={isReadOnly}
+                />
               </div>
             )}
           </div>
@@ -432,6 +439,7 @@ export function TemplateBuilderWorkspace({
             selectedKpiId={selectedKpiId}
             onSelectKpi={(id) => setSelectedKpiId(id)}
             onKpiWeightChange={handleKpiWeightChange}
+            onDropCriterion={handleAddCriterionFromLibrary}
             isReadOnly={isReadOnly}
           />
         </div>

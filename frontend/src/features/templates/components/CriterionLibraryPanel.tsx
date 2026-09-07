@@ -1,18 +1,15 @@
 import { useState } from 'react';
 import type { Criterion } from '../domain/template-models';
-import { Button } from '../../../shared/ui/Button/Button';
 
 interface CriterionLibraryPanelProps {
   criteria: Criterion[];
   existingCriterionIds: Set<string>;
-  onAddCriterion: (criterion: Criterion) => void;
   isReadOnly?: boolean;
 }
 
 export function CriterionLibraryPanel({
   criteria,
   existingCriterionIds,
-  onAddCriterion,
   isReadOnly = false,
 }: CriterionLibraryPanelProps) {
   const [search, setSearch] = useState('');
@@ -115,6 +112,15 @@ export function CriterionLibraryPanel({
               return (
                 <div
                   key={c.id}
+                  draggable={!isAdded && !isReadOnly}
+                  onDragStart={(e) => {
+                    if (isAdded || isReadOnly) {
+                      e.preventDefault();
+                      return;
+                    }
+                    e.dataTransfer.setData('application/json', JSON.stringify(c));
+                    e.dataTransfer.effectAllowed = 'copy';
+                  }}
                   style={{
                     border: '1px solid #e5e7eb',
                     borderRadius: 6,
@@ -123,6 +129,8 @@ export function CriterionLibraryPanel({
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '0.375rem',
+                    cursor: (!isAdded && !isReadOnly) ? 'grab' : 'default',
+                    opacity: isAdded ? 0.7 : 1,
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -153,14 +161,12 @@ export function CriterionLibraryPanel({
                         ✓ Already added
                       </span>
                     ) : (
-                      <Button
-                        size="sm"
-                        variant="outlined"
-                        disabled={isReadOnly}
-                        onClick={() => onAddCriterion(c)}
-                      >
-                        + Add to Template
-                      </Button>
+                      !isReadOnly && (
+                        <span style={{ fontSize: '0.75rem', color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
+                          Drag to add to KPI
+                        </span>
+                      )
                     )}
                   </div>
                 </div>

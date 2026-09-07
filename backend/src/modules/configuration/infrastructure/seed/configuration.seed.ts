@@ -643,6 +643,7 @@ export async function seedConfigurationModule(pool: Pool, options?: { clearOld?:
         }
 
         return {
+          template_kpi_id: templateKpiId,
           criterion_version_id: item.versionId,
           weight: cItem.weight,
           display_order: idx + 1,
@@ -652,7 +653,7 @@ export async function seedConfigurationModule(pool: Pool, options?: { clearOld?:
         };
       });
 
-      await configModule.templateService.bulkUpdateTemplateCriteria(versionId, templateKpiId, criteriaPayload);
+      await configModule.templateService.bulkUpdateTemplateCriteria(versionId, criteriaPayload);
     }
   }
 }

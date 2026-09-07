@@ -1,16 +1,18 @@
-import { getApi, postApi, putApi, deleteApi } from '../../../shared/api/api-client';
+import { getApi, postApi, putApi, deleteApi, patchApi } from '../../../shared/api/api-client';
 import type {
   EvaluationTemplate,
   EvaluationTemplateVersion,
   Criterion,
   TemplateCriterion,
   TemplateValidationResult,
+  TemplateKpi,
 } from '../domain/template-models';
-import type { WireTemplate, WireVersion, WireCriterion } from '../domain/template-mappers';
+import type { WireTemplate, WireVersion, WireCriterion, WireTemplateKpi } from '../domain/template-mappers';
 import {
   mapWireTemplateToDomain,
   mapWireVersionToDomain,
   mapWireCriterionToDomain,
+  mapWireTemplateKpiToDomain,
 } from '../domain/template-mappers';
 
 export const MOCK_TEAMS = [
@@ -100,14 +102,13 @@ export async function createTemplateVersion(
 export async function saveTemplateCriteriaDraft(
   templateId: string,
   versionId: string,
-  templateKpiId: string,
   criteria: TemplateCriterion[],
   expectedVersion: number
-): Promise<EvaluationTemplateVersion> {
+): Promise<void> {
   const payload = {
     expected_version: expectedVersion,
-    templateKpiId: templateKpiId,
     criteria: criteria.map((c) => ({
+      template_kpi_id: c.templateKpiId,
       criterion_version_id: c.criterionVersionId,
       effective_weight: c.effectiveWeight,
       applicable_role_ids: c.applicableRoleIds,
@@ -118,11 +119,10 @@ export async function saveTemplateCriteriaDraft(
     })),
   };
 
-  const data = await putApi<WireVersion>(
+  await putApi<unknown>(
     `/api/v1/configuration/templates/${templateId}/versions/${versionId}/criteria`,
     payload
   );
-  return mapWireVersionToDomain(data);
 }
 
 export async function addTemplateKpiApi(
@@ -130,11 +130,12 @@ export async function addTemplateKpiApi(
   versionId: string,
   kpiId: string,
   weight: number
-): Promise<unknown> {
-  return postApi<unknown>(
+): Promise<TemplateKpi> {
+  const data = await postApi<WireTemplateKpi>(
     `/api/v1/configuration/templates/${templateId}/versions/${versionId}/kpis`,
     { kpi_id: kpiId, weight }
   );
+  return mapWireTemplateKpiToDomain(data);
 }
 
 export async function removeTemplateKpiApi(
@@ -145,6 +146,19 @@ export async function removeTemplateKpiApi(
   await deleteApi<void>(
     `/api/v1/configuration/templates/${templateId}/versions/${versionId}/kpis/${templateKpiId}`
   );
+}
+
+export async function updateTemplateKpiWeightApi(
+  templateId: string,
+  versionId: string,
+  templateKpiId: string,
+  weight: number
+): Promise<TemplateKpi> {
+  const data = await patchApi<WireTemplateKpi>(
+    `/api/v1/configuration/templates/${templateId}/versions/${versionId}/kpis/${templateKpiId}`,
+    { weight }
+  );
+  return mapWireTemplateKpiToDomain(data);
 }
 
 export async function validateTemplateVersionApi(

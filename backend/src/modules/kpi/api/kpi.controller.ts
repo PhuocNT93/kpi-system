@@ -5,7 +5,7 @@ import { KpiCriterionService } from '../services/kpi-criterion.service.js';
 import { sendSuccess } from '../../../api/http-response.js';
 
 const createKpiSchema = z.object({
-  code: z.string().min(1).max(100).regex(/^[A-Z0-9_-]+$/, 'Code must be uppercase alphanumeric with underscores/hyphens'),
+  code: z.string().min(1).max(100).transform(v => v.toUpperCase().replace(/\s+/g, '_')).pipe(z.string().regex(/^[A-Z0-9_-]+$/, 'Code must be uppercase alphanumeric with underscores/hyphens')),
   name: z.string().min(1).max(255),
   description: z.string().optional().nullable(),
 });
@@ -24,11 +24,6 @@ const listKpiSchema = z.object({
 const createKpiCriterionSchema = z.object({
   criterionId: z.string().uuid(),
   weight: z.coerce.number().min(0).max(100),
-});
-
-const updateKpiCriterionSchema = z.object({
-  weight: z.coerce.number().min(0).max(100).optional(),
-  displayOrder: z.coerce.number().int().optional(),
 });
 
 export class KpiController {
@@ -106,18 +101,6 @@ export class KpiController {
       const data = createKpiCriterionSchema.parse(req.body);
       const result = await this.criterionService.addCriterion(kpiId, data);
       sendSuccess(res, 201, 'Criterion mapped to KPI successfully', result);
-    } catch (error) {
-      next(error);
-    }
-  };
-
-  updateCriterion = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const kpiId = req.params.id as string;
-      const mappingId = req.params.mappingId as string;
-      const data = updateKpiCriterionSchema.parse(req.body);
-      const result = await this.criterionService.updateWeight(kpiId, mappingId, data);
-      sendSuccess(res, 200, 'KPI criterion mapping updated successfully', result);
     } catch (error) {
       next(error);
     }
