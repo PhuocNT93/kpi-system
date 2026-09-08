@@ -1,7 +1,4 @@
-import { MigrationBuilder, ColumnDefinitions } from 'node-pg-migrate';
-
-export const shorthands: ColumnDefinitions | undefined = undefined;
-
+import type { MigrationBuilder } from 'node-pg-migrate';
 export async function up(pgm: MigrationBuilder): Promise<void> {
   pgm.addColumn('import_job', {
     idempotency_key: {
