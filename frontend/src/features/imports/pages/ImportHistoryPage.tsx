@@ -29,7 +29,7 @@ export function ImportHistoryPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'COMPLETED': return <Badge variant="success">Completed</Badge>;
-      case 'PARTIALLY_COMPLETED': return <Badge variant="warning">Partial</Badge>;
+      case 'PARTIALLY_COMPLETED': return <Badge variant="secondary">Partial</Badge>;
       case 'FAILED': return <Badge variant="danger">Failed</Badge>;
       case 'IMPORTING': return <Badge variant="primary">Importing...</Badge>;
       default: return <Badge variant="neutral">{status}</Badge>;
@@ -70,11 +70,14 @@ export function ImportHistoryPage() {
         gap: '24px'
       }}>
         {items.length === 0 ? (
-          <EmptyState 
-            message="No imports yet." 
-            description="Upload your first CSV file to begin importing evaluation data."
-            action={<Button onClick={() => navigate('/admin/imports/upload')}>Upload CSV</Button>}
-          />
+          <>
+            <EmptyState 
+              message="No imports yet. Upload your first CSV file to begin importing evaluation data." 
+            />
+            <div style={{ textAlign: 'center', marginTop: '-16px' }}>
+              <Button onClick={() => navigate('/admin/imports/upload')}>Upload CSV</Button>
+            </div>
+          </>
         ) : (
           <>
             <div style={{ overflowX: 'auto' }}>
@@ -102,7 +105,7 @@ export function ImportHistoryPage() {
                       <td style={{ padding: '12px 16px', color: COLORS.neutral.textSecondary }}>{new Date(job.started_at).toLocaleString()}</td>
                       <td style={{ padding: '12px 16px', color: COLORS.neutral.textSecondary }}>{job.finished_at ? new Date(job.finished_at).toLocaleString() : '-'}</td>
                       <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                        <Button variant="ghost" onClick={() => navigate(`/admin/imports/${job.import_job_id}`)} style={{ padding: '4px 8px' }}>
+                        <Button variant="outlined" onClick={() => navigate(`/admin/imports/${job.import_job_id}`)} style={{ padding: '4px 8px' }}>
                           <Eye size={16} />
                         </Button>
                       </td>

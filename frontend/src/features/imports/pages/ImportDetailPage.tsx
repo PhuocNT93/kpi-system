@@ -52,7 +52,7 @@ export function ImportDetailPage() {
       case 'VALID': return <Badge variant="success">Valid</Badge>;
       case 'INVALID': return <Badge variant="danger">Invalid</Badge>;
       case 'IMPORTED': return <Badge variant="primary">Imported</Badge>;
-      case 'SKIPPED': return <Badge variant="warning">Skipped</Badge>;
+      case 'SKIPPED': return <Badge variant="secondary">Skipped</Badge>;
       default: return <Badge variant="neutral">{status}</Badge>;
     }
   };
@@ -60,7 +60,7 @@ export function ImportDetailPage() {
   const getJobStatusBadge = (status: string) => {
     switch (status) {
       case 'COMPLETED': return <Badge variant="success">Completed</Badge>;
-      case 'PARTIALLY_COMPLETED': return <Badge variant="warning">Partial</Badge>;
+      case 'PARTIALLY_COMPLETED': return <Badge variant="secondary">Partial</Badge>;
       case 'FAILED': return <Badge variant="danger">Failed</Badge>;
       case 'IMPORTING': return <Badge variant="primary">Importing...</Badge>;
       default: return <Badge variant="neutral">{status}</Badge>;
@@ -72,7 +72,7 @@ export function ImportDetailPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <div>
-        <Button variant="ghost" onClick={() => navigate('/admin/imports')} style={{ padding: '0 0 16px 0', color: COLORS.neutral.textSecondary, display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <Button variant="outlined" onClick={() => navigate('/admin/imports')} style={{ padding: '0 0 16px 0', color: COLORS.neutral.textSecondary, display: 'flex', alignItems: 'center', gap: '8px' }}>
           <ArrowLeft size={16} /> Back to History
         </Button>
         <h1 style={{ margin: '0 0 8px 0', fontFamily: TYPOGRAPHY.fontFamily.headline, fontSize: TYPOGRAPHY.fontSize['2xl'] }}>

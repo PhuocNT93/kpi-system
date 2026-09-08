@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { getCurrentCsvTemplate, downloadCurrentCsvTemplate } from '../api/csv-template-api';
 import { uploadCsvFile, confirmImport, getImportStatus, type ImportPreviewResponse } from '../api/import-api';
 import { csvTemplateKeys } from '../api/csv-template-keys';
@@ -31,6 +32,7 @@ function renderValidationMetadata(rule: Record<string, unknown> | null): string 
 }
 
 export function ImportUploadPage() {
+  const navigate = useNavigate();
   const [downloadError, setDownloadError] = useState<unknown | null>(null);
   
   // Upload State
