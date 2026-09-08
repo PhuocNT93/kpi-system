@@ -44,7 +44,7 @@ export function createImportRouter(
     controller.downloadCsvTemplateById(req, res).catch(next); 
   });
 
-  router.post('/csv', requireHrAdmin, upload.single('file'), (req, res, next) => {
+  router.post('/imports/csv', requireHrAdmin, upload.single('file'), (req, res, next) => {
     controller.uploadCsv(req, res).catch(next);
   });
 
