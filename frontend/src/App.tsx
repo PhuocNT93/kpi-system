@@ -57,7 +57,7 @@ function ProtectedLayout() {
   const location = useLocation();
   const { user, logout } = useAuth();
 
-  // Extract active menu from URL (e.g. /admin/iam -> iam)
+  // Extract active menu from URL (e.g. /admin/iam -> iam, /admin/imports/upload -> imports)
   const pathParts = location.pathname.split('/');
   const activeMenu = pathParts.length > 2 ? pathParts[2] : 'iam';
   const pageTitle = ADMIN_PAGE_TITLES[activeMenu] ?? 'System Layout';
@@ -99,7 +99,7 @@ function ProtectedLayout() {
   return (
     <AppLayout
       activeMenuItem={activeMenu}
-      onSelectMenuItem={(id) => navigate(`/admin/${id}`)}
+      onSelectMenuItem={(id) => navigate(id === 'imports' ? '/admin/imports/upload' : `/admin/${id}`)}
       pageTitle={pageTitle}
       headerActions={headerActions}
       onGenerateReport={() => alert('Generate Report clicked')}
