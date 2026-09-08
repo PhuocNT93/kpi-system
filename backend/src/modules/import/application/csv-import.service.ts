@@ -4,10 +4,13 @@ import { Pool } from 'pg';
 import { randomUUID } from 'crypto';
 import { IImportRepository, ImportJob, ImportRow } from '../domain/import.types.js';
 
+import { EvaluationService } from '../../evaluation/application/services/evaluation.service.js';
+
 export class CsvImportService {
   constructor(
-    private importRepo: IImportRepository,
-    private pool: Pool
+    public importRepo: IImportRepository,
+    private pool: Pool,
+    private evaluationService: EvaluationService
   ) {}
 
   public async processUpload(
@@ -271,5 +274,197 @@ export class CsvImportService {
     }
 
     return errors;
+  }
+
+  public async confirmImport(
+    jobId: string,
+    strictMode: boolean,
+    actor: { userId: string; role: string; employeeId?: string }
+  ): Promise<{ status: 'ACCEPTED' | 'COMPLETED', job: ImportJob }> {
+    // 1. Fetch Job
+    const job = await this.importRepo.getImportJobById(jobId);
+    if (!job) {
+      const err = new Error('Import job not found') as Error & { code?: string };
+      err.code = 'NOT_FOUND';
+      throw err;
+    }
+
+    // 2. Validate State
+    if (job.status !== 'PREVIEW') {
+      const err = new Error('Only PREVIEW jobs can be confirmed') as Error & { code?: string };
+      err.code = 'INVALID_STATUS';
+      throw err;
+    }
+
+    // 3. Strict Mode Check
+    if (strictMode && job.error_rows > 0) {
+      await this.importRepo.updateImportJob({ import_job_id: jobId, status: 'FAILED' });
+      job.status = 'FAILED';
+      const err = new Error('Strict mode enabled: Cannot import because there are invalid rows.') as Error & { code?: string };
+      err.code = 'STRICT_MODE_VIOLATION';
+      throw err;
+    }
+
+    // 4. Determine Execution Mode
+    const targetRows = strictMode ? job.total_rows : job.success_rows;
+    if (targetRows === 0) {
+      await this.importRepo.updateImportJob({ import_job_id: jobId, status: 'COMPLETED' });
+      job.status = 'COMPLETED';
+      return { status: 'COMPLETED', job };
+    }
+
+    await this.importRepo.updateImportJob({ import_job_id: jobId, status: 'IMPORTING' });
+    job.status = 'IMPORTING';
+
+    if (targetRows <= 500) {
+      // Synchronous
+      await this.processJobAsync(jobId, actor, strictMode);
+      const completedJob = await this.importRepo.getImportJobById(jobId);
+      return { status: 'COMPLETED', job: completedJob! };
+    } else {
+      // Asynchronous
+      setImmediate(() => {
+        this.processJobAsync(jobId, actor, strictMode).catch((err) => {
+          console.error(`Background processing failed for job ${jobId}`, err);
+        });
+      });
+      return { status: 'ACCEPTED', job };
+    }
+  }
+
+  private async processJobAsync(jobId: string, actor: { userId: string; role: string; employeeId?: string }, strictMode: boolean) {
+    const batchSize = 200;
+    let offset = 0;
+    let hasMore = true;
+    let hasErrors = false;
+
+    try {
+      while (hasMore) {
+        // Fetch pending valid rows (or all valid if strict mode is implied by validation)
+        const rows = await this.importRepo.getImportRows(jobId, ['VALID'], batchSize, offset);
+        if (rows.length === 0) {
+          hasMore = false;
+          break;
+        }
+
+        const batchError = await this.processJobBatch(jobId, rows, actor);
+        if (batchError) {
+          hasErrors = true;
+          if (strictMode) {
+            // In strict mode, a processing failure halts everything
+            throw new Error('Batch processing failed in strict mode.');
+          }
+        }
+        offset += batchSize;
+      }
+
+      const finalStatus = hasErrors && !strictMode ? 'PARTIALLY_COMPLETED' : 'COMPLETED';
+      await this.importRepo.updateImportJob({ 
+        import_job_id: jobId, 
+        status: finalStatus,
+        finished_at: new Date()
+      });
+    } catch (error) {
+      console.error(`Error processing job ${jobId}:`, error);
+      await this.importRepo.updateImportJob({ 
+        import_job_id: jobId, 
+        status: 'FAILED',
+        finished_at: new Date()
+      });
+    }
+  }
+
+  private async processJobBatch(
+    jobId: string, 
+    rows: ImportRow[], 
+    actor: { userId: string; role: string; employeeId?: string }
+  ): Promise<boolean> {
+    let hasErrors = false;
+    // Map employee_id -> criterion_code -> row (we only take the latest per employee/criterion to avoid conflicts)
+    // Wait, rows already passed validation. We need to update evaluation_item for each.
+    // To do this, we need to map employee_id to evaluation_id.
+    
+    // Extract employee IDs
+    const employeeIds = [...new Set(rows.map(r => String(r.raw_data.employee_id)))];
+    
+    // Fetch active evaluations for these employees in this cycle
+    const job = await this.importRepo.getImportJobById(jobId);
+    if (!job) return true;
+
+    const evaluationsRes = await this.pool.query(
+      `SELECT evaluation_id, employee_id FROM evaluation WHERE evaluation_cycle_id = $1 AND employee_id = ANY($2)`,
+      [job.evaluation_cycle_id, employeeIds]
+    );
+    const evalMap = new Map<string, string>();
+    for (const e of evaluationsRes.rows) {
+      evalMap.set(e.employee_id, e.evaluation_id);
+    }
+
+    const evaluationIdsToRecalculate = new Set<string>();
+
+    // Process each row
+    for (const row of rows) {
+      try {
+        const employeeId = String(row.raw_data.employee_id);
+        const criterionCode = String(row.raw_data.criterion_code);
+        const measurementValue = row.raw_data.measurement_value ? Number(row.raw_data.measurement_value) : null;
+        const comment = row.raw_data.comment ? String(row.raw_data.comment) : null;
+        
+        const evaluationId = evalMap.get(employeeId);
+        if (!evaluationId) {
+          throw new Error('No active evaluation found for employee.');
+        }
+
+        // Find the evaluation item by criterion_code
+        // We need to look up criterion_id from criterion_code in the evaluation's cycle template
+        const itemRes = await this.pool.query(`
+          SELECT ei.evaluation_item_id, ei.is_disabled_for_employee
+          FROM evaluation_item ei
+          JOIN template_criterion tc ON ei.template_criterion_id = tc.template_criterion_id
+          JOIN criterion_version cv ON tc.criterion_version_id = cv.criterion_version_id
+          JOIN criterion c ON cv.criterion_id = c.criterion_id
+          WHERE ei.evaluation_id = $1 AND c.code = $2
+        `, [evaluationId, criterionCode]);
+
+        if (itemRes.rows.length === 0) {
+          throw new Error(`Criterion ${criterionCode} not found in evaluation.`);
+        }
+        const itemId = itemRes.rows[0].evaluation_item_id;
+
+        // Update the measurement_value and comment directly in evaluation_item
+        await this.pool.query(`
+          UPDATE evaluation_item 
+          SET measurement_value = $1, comment = $2, updated_by = $3, updated_at = NOW()
+          WHERE evaluation_item_id = $4
+        `, [measurementValue, comment, actor.userId, itemId]);
+
+        // Mark row as imported
+        await this.importRepo.updateImportRow(row.import_row_id, {
+          status: 'IMPORTED',
+          evaluation_item_id: itemId
+        });
+
+        evaluationIdsToRecalculate.add(evaluationId);
+      } catch (err) {
+        hasErrors = true;
+        const errMsg = err instanceof Error ? err.message : 'Unknown processing error';
+        await this.importRepo.updateImportRow(row.import_row_id, {
+          status: 'SKIPPED',
+          error_messages: [{ row_no: row.row_no, field: 'system', code: 'PROCESSING_ERROR', message: errMsg }]
+        });
+      }
+    }
+
+    // Recalculate KPIs for modified evaluations
+    for (const evalId of evaluationIdsToRecalculate) {
+      try {
+        await this.evaluationService.recalculateEvaluation(evalId, actor as never);
+      } catch (err) {
+        console.error(`Failed to recalculate evaluation ${evalId}`, err);
+        // We don't fail the batch if recalculation fails, but it's an anomaly.
+      }
+    }
+
+    return hasErrors;
   }
 }

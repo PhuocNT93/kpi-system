@@ -1,14 +1,14 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { getCurrentCsvTemplate, downloadCurrentCsvTemplate } from '../api/csv-template-api';
-import { uploadCsvFile, type ImportPreviewResponse } from '../api/import-api';
+import { uploadCsvFile, confirmImport, getImportStatus, type ImportPreviewResponse } from '../api/import-api';
 import { csvTemplateKeys } from '../api/csv-template-keys';
 import { LoadingSpinner, ErrorAlert, EmptyState } from '@/shared/components/ui';
 import { Button } from '@/shared/ui/Button/Button';
 import { Badge } from '@/shared/ui/Badge/Badge';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
-import { Download, UploadCloud, AlertCircle, FileText } from 'lucide-react';
+import { Download, UploadCloud, AlertCircle, FileText, CheckCircle } from 'lucide-react';
 import { randomUUID } from '@/shared/utils/uuid';
 
 function renderValidationMetadata(rule: Record<string, unknown> | null): string {
@@ -41,9 +41,24 @@ export function ImportCenterPage() {
   const [uploadError, setUploadError] = useState<unknown | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Confirm State
+  const [importMode, setImportMode] = useState<'PARTIAL' | 'STRICT'>('PARTIAL');
+  const [confirmError, setConfirmError] = useState<unknown | null>(null);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+
   const { data: template, isLoading, error, refetch } = useQuery({
     queryKey: csvTemplateKeys.current(),
     queryFn: getCurrentCsvTemplate,
+  });
+
+  const { data: jobStatus } = useQuery({
+    queryKey: ['importJob', activeJobId],
+    queryFn: () => getImportStatus(activeJobId!),
+    enabled: !!activeJobId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.data.status;
+      return (status === 'IMPORTING' || status === 'UPLOADED' || status === 'VALIDATING') ? 2000 : false;
+    }
   });
 
   const downloadMutation = useMutation({
@@ -70,6 +85,8 @@ export function ImportCenterPage() {
     onSuccess: (response) => {
       setPreviewData(response);
       setUploadError(null);
+      setConfirmError(null);
+      setActiveJobId(null);
       // Reset idempotency key for next upload, but ONLY if we intend to do another action
       setIdempotencyKey(randomUUID());
     },
@@ -82,6 +99,18 @@ export function ImportCenterPage() {
     }
   });
 
+  const confirmMutation = useMutation({
+    mutationFn: (variables: { jobId: string, strict: boolean }) =>
+      confirmImport(variables.jobId, variables.strict),
+    onSuccess: (response) => {
+      setConfirmError(null);
+      setActiveJobId(response.data.import_job_id);
+    },
+    onError: (err: unknown) => {
+      setConfirmError(err);
+    }
+  });
+
   const handleDownload = () => {
     downloadMutation.mutate();
   };
@@ -91,12 +120,29 @@ export function ImportCenterPage() {
       setSelectedFile(e.target.files[0]);
       setPreviewData(null);
       setUploadError(null);
+      setConfirmError(null);
+      setActiveJobId(null);
     }
   };
 
   const handleUploadClick = () => {
     if (!selectedFile || !cycleId) return;
     uploadMutation.mutate({ cycleId, file: selectedFile, key: idempotencyKey });
+  };
+
+  const handleConfirmClick = () => {
+    if (!previewData) return;
+    
+    if (importMode === 'STRICT' && previewData.data.error_rows > 0) {
+      if (!window.confirm(`You selected Strict Mode but there are ${previewData.data.error_rows} errors. This will fail the import. Proceed?`)) {
+        return;
+      }
+    }
+
+    confirmMutation.mutate({ 
+      jobId: previewData.data.import_job_id, 
+      strict: importMode === 'STRICT' 
+    });
   };
 
   if (isLoading) {
@@ -341,6 +387,90 @@ export function ImportCenterPage() {
             {previewData.data.error_rows === 0 && previewData.data.total_rows > 0 && (
               <div style={{ marginTop: '16px', padding: '12px', background: COLORS.semantic.success[50], color: COLORS.semantic.success[700], borderRadius: RADII.md, fontSize: TYPOGRAPHY.fontSize.sm }}>
                 All rows passed validation successfully! You may proceed with the import.
+              </div>
+            )}
+
+            {!activeJobId && previewData.data.total_rows > 0 && (
+              <div style={{ marginTop: '24px', padding: '16px', border: `1px solid ${COLORS.neutral[200]}`, borderRadius: RADII.md }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: TYPOGRAPHY.fontSize.base }}>Import Settings</h4>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                    <input 
+                      type="radio" 
+                      name="importMode" 
+                      value="PARTIAL" 
+                      checked={importMode === 'PARTIAL'} 
+                      onChange={() => setImportMode('PARTIAL')} 
+                      style={{ marginTop: '4px' }}
+                    />
+                    <div>
+                      <div style={{ fontWeight: 500, fontSize: TYPOGRAPHY.fontSize.sm }}>Partial Import (Recommended)</div>
+                      <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
+                        Valid rows will be imported. Rows with errors will be skipped.
+                      </div>
+                    </div>
+                  </label>
+                  
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                    <input 
+                      type="radio" 
+                      name="importMode" 
+                      value="STRICT" 
+                      checked={importMode === 'STRICT'} 
+                      onChange={() => setImportMode('STRICT')} 
+                      style={{ marginTop: '4px' }}
+                    />
+                    <div>
+                      <div style={{ fontWeight: 500, fontSize: TYPOGRAPHY.fontSize.sm }}>Strict Mode</div>
+                      <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
+                        All or nothing. If any row has an error, the entire import will be rejected.
+                      </div>
+                    </div>
+                  </label>
+                </div>
+
+                {!!confirmError && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <ErrorAlert error={confirmError} />
+                  </div>
+                )}
+
+                <Button 
+                  onClick={handleConfirmClick} 
+                  disabled={confirmMutation.isPending || (importMode === 'STRICT' && previewData.data.error_rows > 0)}
+                  variant="primary"
+                >
+                  {confirmMutation.isPending ? 'Starting Import...' : 'Confirm and Import'}
+                </Button>
+              </div>
+            )}
+
+            {activeJobId && jobStatus?.data && (
+              <div style={{ marginTop: '24px', padding: '16px', border: `1px solid ${COLORS.primary[200]}`, background: COLORS.primary[50], borderRadius: RADII.md }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: TYPOGRAPHY.fontSize.base, display: 'flex', alignItems: 'center', gap: '8px', color: COLORS.primary[700] }}>
+                  {jobStatus.data.status === 'COMPLETED' ? <CheckCircle size={18} /> : <LoadingSpinner />}
+                  Import Status: {jobStatus.data.status}
+                </h4>
+                <div style={{ fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary }}>
+                  {jobStatus.data.status === 'COMPLETED' && 'Import completed successfully.'}
+                  {jobStatus.data.status === 'PARTIALLY_COMPLETED' && 'Import finished with some skipped rows.'}
+                  {jobStatus.data.status === 'FAILED' && 'Import failed.'}
+                  {(jobStatus.data.status === 'IMPORTING' || jobStatus.data.status === 'PREVIEW' || jobStatus.data.status === 'VALIDATING' || jobStatus.data.status === 'UPLOADED') && 'Processing your import in the background...'}
+                </div>
+                
+                {(jobStatus.data.status === 'COMPLETED' || jobStatus.data.status === 'PARTIALLY_COMPLETED' || jobStatus.data.status === 'FAILED') && (
+                  <div style={{ marginTop: '16px' }}>
+                    <Button onClick={() => {
+                      setPreviewData(null);
+                      setActiveJobId(null);
+                      setSelectedFile(null);
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }} variant="outlined">
+                      Start New Import
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>

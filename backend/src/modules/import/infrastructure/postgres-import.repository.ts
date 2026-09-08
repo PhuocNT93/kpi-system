@@ -86,4 +86,67 @@ export class PostgresImportRepository implements IImportRepository {
       [import_row_id, import_job_id, row_no, raw_data, status, error_messages, evaluation_item_id]
     );
   }
+
+  async getImportJobById(jobId: string): Promise<ImportJob | null> {
+    const res = await this.pool.query(`SELECT * FROM import_job WHERE import_job_id = $1 LIMIT 1`, [jobId]);
+    return res.rows[0] || null;
+  }
+
+  async getImportRows(jobId: string, statuses?: string[], limit?: number, offset?: number): Promise<ImportRow[]> {
+    let query = `SELECT * FROM import_row WHERE import_job_id = $1`;
+    const params: unknown[] = [jobId];
+    let paramIdx = 2;
+
+    if (statuses && statuses.length > 0) {
+      query += ` AND status = ANY($${paramIdx})`;
+      params.push(statuses);
+      paramIdx++;
+    }
+    
+    query += ` ORDER BY row_no ASC`;
+
+    if (limit !== undefined) {
+      query += ` LIMIT $${paramIdx}`;
+      params.push(limit);
+      paramIdx++;
+    }
+
+    if (offset !== undefined) {
+      query += ` OFFSET $${paramIdx}`;
+      params.push(offset);
+      paramIdx++;
+    }
+
+    const res = await this.pool.query(query, params);
+    return res.rows;
+  }
+
+  async updateImportRow(rowId: string, updates: Partial<ImportRow>): Promise<void> {
+    const fields = [];
+    const values = [];
+    let idx = 1;
+
+    for (const [key, value] of Object.entries(updates)) {
+      if (key !== 'import_row_id' && value !== undefined) {
+        fields.push(`${key} = $${idx}`);
+        values.push(key === 'error_messages' || key === 'raw_data' ? JSON.stringify(value) : value);
+        idx++;
+      }
+    }
+
+    if (fields.length === 0) return;
+
+    values.push(rowId);
+    await this.pool.query(
+      `UPDATE import_row SET ${fields.join(', ')} WHERE import_row_id = $${idx}`,
+      values
+    );
+  }
+
+  async updateImportRowsStatusByJobId(jobId: string, fromStatus: string, toStatus: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE import_row SET status = $1 WHERE import_job_id = $2 AND status = $3`,
+      [toStatus, jobId, fromStatus]
+    );
+  }
 }

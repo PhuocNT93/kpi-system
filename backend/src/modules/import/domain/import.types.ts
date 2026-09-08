@@ -44,7 +44,11 @@ export interface ImportJobPreview {
 export interface IImportRepository {
   createImportJob(job: ImportJob): Promise<void>;
   updateImportJob(job: Partial<ImportJob> & { import_job_id: string }): Promise<void>;
+  getImportJobById(jobId: string): Promise<ImportJob | null>;
   getImportJobByHash(cycleId: string, fileHash: string): Promise<ImportJob | null>;
   getImportJobByIdempotencyKey(actorId: string, idempotencyKey: string): Promise<ImportJob | null>;
   bulkInsertImportRows(rows: ImportRow[]): Promise<void>;
+  getImportRows(jobId: string, status?: string[], limit?: number, offset?: number): Promise<ImportRow[]>;
+  updateImportRow(rowId: string, updates: Partial<ImportRow>): Promise<void>;
+  updateImportRowsStatusByJobId(jobId: string, fromStatus: string, toStatus: string): Promise<void>;
 }
