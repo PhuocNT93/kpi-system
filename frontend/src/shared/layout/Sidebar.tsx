@@ -108,6 +108,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: <FileSpreadsheet size={18} />
         },
         {
+          id: 'i18n',
+          label: 'I18n Translation',
+          icon: <SlidersHorizontal size={18} />
+        },
+        {
           id: 'iam',
           label: 'Identity & Access',
           icon: <Shield size={18} />

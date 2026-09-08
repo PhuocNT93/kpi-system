@@ -140,7 +140,7 @@ export function createApp(options: AppOptions = {}) {
   });
 
   // ── API Routes ────────────────────────────────────────────────────────────
-  if (authController && iamController && authorizationService) {
+  if (iamController && authorizationService) {
     app.use(
       '/api',
       createApiRouter({

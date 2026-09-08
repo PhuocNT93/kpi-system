@@ -36,6 +36,20 @@ import { LayoutTemplate } from 'lucide-react';
 import { useAuth } from './shared/auth/auth-context';
 import { LogOut } from 'lucide-react';
 
+const ADMIN_PAGE_TITLES: Record<string, string> = {
+  iam: 'IAM Management',
+  'audit-logs': 'Audit Logs',
+  organization: 'Organization',
+  templates: 'Evaluation Templates',
+  criteria: 'Criteria',
+  i18n: 'Translation Settings',
+  kpis: 'KPI Management',
+  'import-center': 'Import Center',
+  cycles: 'Evaluation Cycles',
+  'my-evaluations': 'My Evaluations',
+  'team-evaluations': 'Team Evaluations',
+};
+
 function ProtectedLayout() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -44,6 +58,7 @@ function ProtectedLayout() {
   // Extract active menu from URL (e.g. /admin/iam -> iam)
   const pathParts = location.pathname.split('/');
   const activeMenu = pathParts.length > 2 ? pathParts[2] : 'iam';
+  const pageTitle = ADMIN_PAGE_TITLES[activeMenu] ?? 'System Layout';
 
   const headerActions = (
     <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -83,7 +98,7 @@ function ProtectedLayout() {
     <AppLayout
       activeMenuItem={activeMenu}
       onSelectMenuItem={(id) => navigate(`/admin/${id}`)}
-      pageTitle="System Layout"
+      pageTitle={pageTitle}
       headerActions={headerActions}
       onGenerateReport={() => alert('Generate Report clicked')}
       footerProps={{}}

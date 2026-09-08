@@ -31,6 +31,7 @@ export interface EvaluationCycle {
   evaluationTemplateVersionId: string;
   applicableTeamIds: string[];
   applicableRoleIds: string[];
+  applicableEmployeeIds: string[];
   approvedBy: string | null;
   lockedAt: string | null;
   createdAt: string;

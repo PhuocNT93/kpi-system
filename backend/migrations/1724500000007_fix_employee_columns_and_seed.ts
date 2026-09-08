@@ -47,7 +47,7 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     ON CONFLICT (code) DO NOTHING;
   `);
 
-  // Insert Employees (Dummy Data)
+  // Insert Employees (Dummy Data)  
   pgm.sql(`
     INSERT INTO employee (employee_code, full_name, email, department_id, role_id, job_level_id, employment_status, join_date)
     VALUES 

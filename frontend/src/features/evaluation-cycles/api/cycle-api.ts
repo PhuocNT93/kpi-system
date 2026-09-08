@@ -20,6 +20,7 @@ export interface BackendEvaluationCycleResponse {
   evaluation_template_version_id: string;
   applicable_team_ids: string[];
   applicable_role_ids: string[];
+  applicable_employee_ids?: string[];
   approved_by: string | null;
   locked_at: string | null;
   created_at: string;
@@ -58,6 +59,7 @@ export function mapBackendToCycleDTO(raw: BackendEvaluationCycleResponse): Evalu
       teams: (raw.applicable_team_ids || []).map((id) => ({ id, name: `Team (${id.slice(0, 8)})` })),
       roles: (raw.applicable_role_ids || []).map((id) => ({ id, name: `Role (${id.slice(0, 8)})` })),
     },
+    applicableEmployeeIds: raw.applicable_employee_ids || [],
     calibration: { enabled: true },
     selfAssessment: { required: true },
     gracePeriodDays: 7,
@@ -100,6 +102,7 @@ export const evaluationCycleApi = {
       evaluation_template_version_id: payload.templateVersionId,
       applicable_team_ids: payload.applicableTeamIds ?? [],
       applicable_role_ids: payload.applicableRoleIds ?? [],
+      applicable_employee_ids: payload.applicableEmployeeIds ?? [],
     };
     const raw = await postApi<BackendEvaluationCycleResponse>('/api/evaluation-cycles', body);
     return mapBackendToCycleDTO(raw);
@@ -114,6 +117,7 @@ export const evaluationCycleApi = {
     if (payload.templateVersionId !== undefined) body.evaluation_template_version_id = payload.templateVersionId;
     if (payload.applicableTeamIds !== undefined) body.applicable_team_ids = payload.applicableTeamIds;
     if (payload.applicableRoleIds !== undefined) body.applicable_role_ids = payload.applicableRoleIds;
+    if (payload.applicableEmployeeIds !== undefined) body.applicable_employee_ids = payload.applicableEmployeeIds;
 
     const raw = await patchApi<BackendEvaluationCycleResponse>(`/api/evaluation-cycles/${id}`, body);
     return mapBackendToCycleDTO(raw);

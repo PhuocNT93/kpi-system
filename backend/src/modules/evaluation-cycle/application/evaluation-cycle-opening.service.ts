@@ -54,9 +54,9 @@ export class EvaluationCycleOpeningService {
 
       // 3. Load & validate template version
       const templateVersionRes = await dbClient.query(
-        `SELECT evaluation_template_version_id, status
-         FROM evaluation_template_version
-         WHERE evaluation_template_version_id = $1`,
+        `SELECT id, status
+         FROM evaluation_template_versions
+         WHERE id = $1`,
         [cycle.evaluationTemplateVersionId]
       );
 
@@ -197,6 +197,11 @@ export class EvaluationCycleOpeningService {
       const empConditions: string[] = ["employment_status = 'ACTIVE'"];
       const empValues: unknown[] = [];
       let idx = 1;
+
+      if (cycle.applicableEmployeeIds && cycle.applicableEmployeeIds.length > 0) {
+        empConditions.push(`employee_id = ANY($${idx++}::uuid[])`);
+        empValues.push(cycle.applicableEmployeeIds);
+      }
 
       if (cycle.applicableTeamIds && cycle.applicableTeamIds.length > 0) {
         empConditions.push(`team_id = ANY($${idx++}::uuid[])`);

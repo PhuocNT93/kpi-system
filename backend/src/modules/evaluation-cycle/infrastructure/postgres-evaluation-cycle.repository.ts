@@ -24,6 +24,7 @@ interface EvaluationCycleRow {
   evaluation_template_version_id: string;
   applicable_team_ids: string[] | null;
   applicable_role_ids: string[] | null;
+  applicable_employee_ids: string[] | null;
   approved_by: string | null;
   locked_at: Date | string | null;
   created_at: Date | string;
@@ -98,7 +99,7 @@ export class PostgresEvaluationCycleRepository implements IEvaluationCycleReposi
 
     const res = await executor.query(
       `SELECT evaluation_cycle_id, code, name, start_date, end_date, status,
-              evaluation_template_version_id, applicable_team_ids, applicable_role_ids,
+              evaluation_template_version_id, applicable_team_ids, applicable_role_ids, applicable_employee_ids,
               approved_by, locked_at, created_at, updated_at, created_by, updated_by
        FROM evaluation_cycle
        WHERE evaluation_cycle_id = $1`,
@@ -114,7 +115,7 @@ export class PostgresEvaluationCycleRepository implements IEvaluationCycleReposi
 
     const res = await client.query(
       `SELECT evaluation_cycle_id, code, name, start_date, end_date, status,
-              evaluation_template_version_id, applicable_team_ids, applicable_role_ids,
+              evaluation_template_version_id, applicable_team_ids, applicable_role_ids, applicable_employee_ids,
               approved_by, locked_at, created_at, updated_at, created_by, updated_by
        FROM evaluation_cycle
        WHERE evaluation_cycle_id = $1
@@ -132,7 +133,7 @@ export class PostgresEvaluationCycleRepository implements IEvaluationCycleReposi
 
     const res = await executor.query(
       `SELECT evaluation_cycle_id, code, name, start_date, end_date, status,
-              evaluation_template_version_id, applicable_team_ids, applicable_role_ids,
+              evaluation_template_version_id, applicable_team_ids, applicable_role_ids, applicable_employee_ids,
               approved_by, locked_at, created_at, updated_at, created_by, updated_by
        FROM evaluation_cycle
        WHERE code = $1`,
@@ -179,7 +180,7 @@ export class PostgresEvaluationCycleRepository implements IEvaluationCycleReposi
 
     const dataRes = await executor.query(
       `SELECT evaluation_cycle_id, code, name, start_date, end_date, status,
-              evaluation_template_version_id, applicable_team_ids, applicable_role_ids,
+              evaluation_template_version_id, applicable_team_ids, applicable_role_ids, applicable_employee_ids,
               approved_by, locked_at, created_at, updated_at, created_by, updated_by
        FROM evaluation_cycle
        ${whereClause}
@@ -203,11 +204,11 @@ export class PostgresEvaluationCycleRepository implements IEvaluationCycleReposi
     const res = await executor.query(
       `INSERT INTO evaluation_cycle (
         code, name, start_date, end_date, status,
-        evaluation_template_version_id, applicable_team_ids, applicable_role_ids,
+        evaluation_template_version_id, applicable_team_ids, applicable_role_ids, applicable_employee_ids,
         approved_by, locked_at, created_by, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING evaluation_cycle_id, code, name, start_date, end_date, status,
-                evaluation_template_version_id, applicable_team_ids, applicable_role_ids,
+                evaluation_template_version_id, applicable_team_ids, applicable_role_ids, applicable_employee_ids,
                 approved_by, locked_at, created_at, updated_at, created_by, updated_by`,
       [
         cycle.code,
@@ -218,6 +219,7 @@ export class PostgresEvaluationCycleRepository implements IEvaluationCycleReposi
         cycle.evaluationTemplateVersionId,
         cycle.applicableTeamIds ?? [],
         cycle.applicableRoleIds ?? [],
+        cycle.applicableEmployeeIds ?? [],
         cycle.approvedBy,
         cycle.lockedAt,
         cycle.createdBy,
@@ -235,10 +237,10 @@ export class PostgresEvaluationCycleRepository implements IEvaluationCycleReposi
       `UPDATE evaluation_cycle
        SET code = $1, name = $2, start_date = $3, end_date = $4, status = $5,
            evaluation_template_version_id = $6, applicable_team_ids = $7, applicable_role_ids = $8,
-           approved_by = $9, locked_at = $10, updated_by = $11
-       WHERE evaluation_cycle_id = $12
+           applicable_employee_ids = $9, approved_by = $10, locked_at = $11, updated_by = $12
+         WHERE evaluation_cycle_id = $13
        RETURNING evaluation_cycle_id, code, name, start_date, end_date, status,
-                 evaluation_template_version_id, applicable_team_ids, applicable_role_ids,
+             evaluation_template_version_id, applicable_team_ids, applicable_role_ids, applicable_employee_ids,
                  approved_by, locked_at, created_at, updated_at, created_by, updated_by`,
       [
         cycle.code,
@@ -249,6 +251,7 @@ export class PostgresEvaluationCycleRepository implements IEvaluationCycleReposi
         cycle.evaluationTemplateVersionId,
         cycle.applicableTeamIds ?? [],
         cycle.applicableRoleIds ?? [],
+        cycle.applicableEmployeeIds ?? [],
         cycle.approvedBy,
         cycle.lockedAt,
         cycle.updatedBy,
@@ -265,7 +268,7 @@ export class PostgresEvaluationCycleRepository implements IEvaluationCycleReposi
        SET status = $1, locked_at = $2
        WHERE evaluation_cycle_id = $3
        RETURNING evaluation_cycle_id, code, name, start_date, end_date, status,
-                 evaluation_template_version_id, applicable_team_ids, applicable_role_ids,
+                 evaluation_template_version_id, applicable_team_ids, applicable_role_ids, applicable_employee_ids,
                  approved_by, locked_at, created_at, updated_at, created_by, updated_by`,
       [EvaluationCycleStatus.LOCKED, lockedAt, id]
     );
@@ -284,6 +287,7 @@ export class PostgresEvaluationCycleRepository implements IEvaluationCycleReposi
       evaluationTemplateVersionId: row.evaluation_template_version_id,
       applicableTeamIds: row.applicable_team_ids || [],
       applicableRoleIds: row.applicable_role_ids || [],
+      applicableEmployeeIds: row.applicable_employee_ids || [],
       approvedBy: row.approved_by,
       lockedAt: row.locked_at ? new Date(row.locked_at).toISOString() : null,
       createdAt: new Date(row.created_at).toISOString(),
