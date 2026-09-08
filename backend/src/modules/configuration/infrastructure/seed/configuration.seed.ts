@@ -4,6 +4,8 @@ import { CriterionCategory, ScoringRuleType } from '../../domain/configuration.t
 
 export async function clearConfigurationData(pool: Pool): Promise<void> {
   await pool.query(`
+    DELETE FROM evaluation;
+    DELETE FROM evaluation_cycle;
     DELETE FROM template_criteria;
     DELETE FROM template_kpi;
     DELETE FROM role_overrides;

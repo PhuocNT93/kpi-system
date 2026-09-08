@@ -8,6 +8,7 @@ export interface AuthUser {
   email: string;
   name: string;
   role: UserRole;
+  managedTeamIds?: string[];
 }
 
 export interface AuthState {

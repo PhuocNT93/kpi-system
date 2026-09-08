@@ -21,6 +21,17 @@ function extractRoleFromToken(token: string): UserRole | null {
   }
 }
 
+function extractManagedTeamIdsFromToken(token: string): string[] {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return Array.isArray(payload.managedTeamIds)
+      ? payload.managedTeamIds.filter((id: unknown): id is string => typeof id === 'string')
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => {
     const storedUser = localStorage.getItem(AUTH_STORAGE_KEY);
@@ -54,6 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: result.user.email,
       name: result.user.name,
       role,
+      managedTeamIds: extractManagedTeamIdsFromToken(result.accessToken),
     };
     
     setUser(authUser);

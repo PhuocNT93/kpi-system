@@ -3,7 +3,6 @@
 import React from 'react';
 import EntityTranslationEditor from '../components/EntityTranslationEditor';
 import { useLocales, useUpdateUserLocale } from '../api/use-i18n';
-import { AppLayout } from '@/shared/layout';
 import { LoadingSpinner, ErrorAlert, StatusBadge } from '@/shared/components/ui';
 import { Button } from '@/shared/ui/Button/Button';
 
@@ -26,7 +25,7 @@ export function I18nPage() {
   }
 
   return (
-    <AppLayout pageTitle="Internationalization (i18n)">
+    <>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem' }}>
         {isLoading ? (
           <LoadingSpinner label="Loading i18n configuration..." />
@@ -149,7 +148,7 @@ export function I18nPage() {
           </>
         )}
       </div>
-    </AppLayout>
+    </>
   );
 }
 

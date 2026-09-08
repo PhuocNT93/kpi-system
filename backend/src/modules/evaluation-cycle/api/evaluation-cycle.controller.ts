@@ -204,6 +204,7 @@ export class EvaluationCycleController {
       evaluation_template_version_id: cycle.evaluationTemplateVersionId,
       applicable_team_ids: cycle.applicableTeamIds,
       applicable_role_ids: cycle.applicableRoleIds,
+      applicable_employee_ids: cycle.applicableEmployeeIds,
       approved_by: cycle.approvedBy,
       locked_at: cycle.lockedAt,
       created_at: cycle.createdAt,

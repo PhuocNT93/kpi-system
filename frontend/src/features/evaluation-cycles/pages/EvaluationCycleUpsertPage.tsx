@@ -8,22 +8,28 @@ import {
 } from '../hooks/use-evaluation-cycles';
 import type { CreateEvaluationCyclePayload, TemplateReferenceDTO } from '../types/cycle-types';
 import { useTemplatesQuery } from '@/features/templates/api/use-templates';
+import { useDepartments } from '@/features/organization/hooks/useDepartments';
 import { useTeams } from '@/features/organization/hooks/useTeams';
+import { useJobLevels } from '@/features/organization/hooks/useJobLevels';
 import { useEmployees } from '@/features/organization/hooks/useEmployees';
 import { useRoles } from '@/features/iam/hooks/useRoles';
 import { LoadingSpinner, ErrorAlert } from '@/shared/components/ui';
 import { COLORS } from '@/lib/theme';
 import { TYPOGRAPHY } from '@/shared/theme';
 import { ArrowLeft } from 'lucide-react';
+import { useAuth } from '@/shared/auth/auth-context';
 
 export const EvaluationCycleUpsertPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const templatesQuery = useTemplatesQuery();
+  const departmentsQuery = useDepartments();
   const teamsQuery = useTeams();
   const rolesQuery = useRoles();
+  const levelsQuery = useJobLevels();
   const employeesQuery = useEmployees();
 
   const createMutation = useCreateEvaluationCycleMutation();
@@ -46,17 +52,21 @@ export const EvaluationCycleUpsertPage: React.FC = () => {
   };
 
   const templatesOptions: TemplateReferenceDTO[] = (templatesQuery.data || []).map((t: { id: string; name: string; currentVersionId?: string; currentVersion?: { id?: string; versionNo?: number; criteria?: unknown[] }; version?: number; status?: string; criteriaCount?: number }) => ({
-    id: t.currentVersionId ?? t.currentVersion?.id ?? t.id,
+    id: t.currentVersionId ?? t.currentVersion?.id ?? '',
     name: t.name,
     version: t.currentVersion?.versionNo ? `v${t.currentVersion.versionNo}` : `v${t.version}`,
     status: (t.status || 'DRAFT') as TemplateReferenceDTO['status'],
     criteriaCount: t.criteriaCount ?? t.currentVersion?.criteria?.length,
-  }));
+  })).filter((template) => Boolean(template.id));
 
-  const teamsOptions = (teamsQuery.data || []).map((team: { id: string; name: string }) => ({ id: team.id, name: team.name }));
+  const teamsOptions = (teamsQuery.data || []).map((team: { id: string; name: string; departmentId: string }) => ({
+    id: team.id,
+    name: team.name,
+    parentId: team.departmentId,
+  }));
   const rolesOptions = (rolesQuery.data || []).map((role: { id: string; name: string }) => ({ id: role.id, name: role.name }));
   const isAnyFetching =
-    templatesQuery.isFetching || teamsQuery.isFetching || rolesQuery.isFetching || employeesQuery.isFetching || createMutation.isPending || updateMutation.isPending;
+    templatesQuery.isFetching || departmentsQuery.isFetching || teamsQuery.isFetching || rolesQuery.isFetching || levelsQuery.isFetching || employeesQuery.isFetching || createMutation.isPending || updateMutation.isPending;
     
 
   return (
@@ -110,9 +120,13 @@ export const EvaluationCycleUpsertPage: React.FC = () => {
       <EvaluationCycleForm
         initialValues={isEdit ? detailData : undefined}
         templatesOptions={templatesOptions}
+        departmentsOptions={(departmentsQuery.data || []).map((dept: { id: string; name: string }) => ({ id: dept.id, name: dept.name }))}
         teamsOptions={teamsOptions}
         rolesOptions={rolesOptions}
+        levelsOptions={(levelsQuery.data || []).map((level: { id: string; name: string }) => ({ id: level.id, name: level.name }))}
         employeesOptions={employeesQuery.data ?? []}
+        currentUserRole={user?.role}
+        managedTeamIds={user?.managedTeamIds ?? []}
         onSubmit={handleSubmit}
         onCancel={() => navigate(isEdit ? `/admin/cycles/${id}` : '/admin/cycles')}
         isPending={isAnyFetching}

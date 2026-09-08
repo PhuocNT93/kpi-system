@@ -24,7 +24,7 @@ import { ImportController } from '../modules/import/api/import.controller.js';
 import { createImportRouter } from '../modules/import/api/import.routes.js';
 
 export interface RegisterRoutesOptions {
-  authController: AuthController;
+  authController?: AuthController;
   jwtMiddleware: RequestHandler;
   iamController: IamController;
   authorizationService: AuthorizationService;
@@ -44,7 +44,9 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
   const router = Router();
 
   // ── Auth Module Routes ───────────────────────────────────────────────────
-  router.use('/auth', createAuthRouter(options.authController, options.jwtMiddleware));
+  if (options.authController) {
+    router.use('/auth', createAuthRouter(options.authController, options.jwtMiddleware));
+  }
 
   // ── IAM Module Routes ────────────────────────────────────────────────────
   router.use('/iam', createIamRouter(options.iamController, options.authorizationService, options.jwtMiddleware));

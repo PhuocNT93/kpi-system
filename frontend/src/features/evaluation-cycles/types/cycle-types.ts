@@ -63,6 +63,7 @@ export interface EvaluationCycleDTO {
   gracePeriodDays: number;
   evaluationSummary: EvaluationSummaryDTO;
   allowedActions: CycleAllowedAction[];
+  applicableEmployeeIds?: string[];
   createdAt: string;
   updatedAt: string;
   openedAt?: string | null;
@@ -79,6 +80,7 @@ export interface CreateEvaluationCyclePayload {
   endDate: string;
   applicableTeamIds: string[];
   applicableRoleIds: string[];
+  applicableEmployeeIds?: string[];
   calibrationEnabled: boolean;
   gracePeriodDays: number;
 }

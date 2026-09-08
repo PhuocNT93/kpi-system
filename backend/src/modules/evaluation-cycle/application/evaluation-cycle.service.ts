@@ -40,7 +40,7 @@ export class EvaluationCycleService {
     // Verify template version existence
     if (this.pool && typeof this.pool.query === 'function') {
       const tplRes = await this.pool.query(
-        'SELECT evaluation_template_version_id FROM evaluation_template_version WHERE evaluation_template_version_id = $1',
+        'SELECT id FROM evaluation_template_versions WHERE id = $1',
         [input.evaluation_template_version_id]
       );
       if (tplRes.rows.length === 0) {
@@ -84,6 +84,7 @@ export class EvaluationCycleService {
           evaluationTemplateVersionId: input.evaluation_template_version_id,
           applicableTeamIds: input.applicable_team_ids || [],
           applicableRoleIds: input.applicable_role_ids || [],
+          applicableEmployeeIds: input.applicable_employee_ids || [],
           approvedBy: null,
           lockedAt: null,
           createdBy: validActorEmployeeId,
@@ -161,6 +162,7 @@ export class EvaluationCycleService {
       }
       if (input.applicable_team_ids !== undefined) cycle.applicableTeamIds = input.applicable_team_ids;
       if (input.applicable_role_ids !== undefined) cycle.applicableRoleIds = input.applicable_role_ids;
+      if (input.applicable_employee_ids !== undefined) cycle.applicableEmployeeIds = input.applicable_employee_ids;
 
       cycle.updatedBy = validActorEmployeeId;
 

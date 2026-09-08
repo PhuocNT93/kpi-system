@@ -180,40 +180,139 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
     criterionVersionId = cvRes.rows[0].criterion_version_id;
   }
 
-  const tplRes = await pool.query(`SELECT evaluation_template_id FROM evaluation_template WHERE code = 'TPL_ENG_2026';`);
+  const criteriaV2Res = await pool.query(`SELECT id FROM criteria WHERE code = 'PERF_01';`);
+  let criteriaV2Id: string;
+  if (criteriaV2Res.rows.length === 0) {
+    const ins = await pool.query(
+      `INSERT INTO criteria (code, category, name, description)
+       VALUES ('PERF_01', 'PERFORMANCE', 'Code Quality & Delivery', 'Code quality, test coverage, and on-time delivery')
+       RETURNING id;`
+    );
+    criteriaV2Id = ins.rows[0].id;
+  } else {
+    criteriaV2Id = criteriaV2Res.rows[0].id;
+  }
+
+  const scoringRulesV2Res = await pool.query(`SELECT id FROM scoring_rules LIMIT 1;`);
+  let scoringRuleV2Id: string;
+  if (scoringRulesV2Res.rows.length === 0) {
+    const ins = await pool.query(
+      `INSERT INTO scoring_rules (rule_type, config, name)
+       VALUES ('RANGE_THRESHOLD', '{"ranges": [{"min": 0, "max": 100, "level": 5}]}', 'Range Threshold Rule')
+       RETURNING id;`
+    );
+    scoringRuleV2Id = ins.rows[0].id;
+  } else {
+    scoringRuleV2Id = scoringRulesV2Res.rows[0].id;
+  }
+
+  const criterionVersionsV2Res = await pool.query(`SELECT id FROM criterion_versions WHERE criterion_id = $1;`, [criteriaV2Id]);
+  let criterionVersionV2Id: string;
+  if (criterionVersionsV2Res.rows.length === 0) {
+    const ins = await pool.query(
+      `INSERT INTO criterion_versions (criterion_id, version_no, default_weight, measurement_unit, scoring_rule_id, effective_from, status)
+       VALUES ($1, 1, 100.00, '%', $2, '2025-01-01', 'PUBLISHED')
+       RETURNING id;`,
+      [criteriaV2Id, scoringRuleV2Id]
+    );
+    criterionVersionV2Id = ins.rows[0].id;
+  } else {
+    criterionVersionV2Id = criterionVersionsV2Res.rows[0].id;
+  }
+
+  const tplRes = await pool.query(`SELECT id FROM evaluation_templates WHERE code = 'TPL_ENG_2026';`);
   let templateId: string;
   if (tplRes.rows.length === 0) {
     const ins = await pool.query(
-      `INSERT INTO evaluation_template (code, name, description)
-       VALUES ('TPL_ENG_2026', 'Engineering Evaluation Template 2026', 'Standard engineering template')
-       RETURNING evaluation_template_id;`
+      `INSERT INTO evaluation_templates (code, name, description, status)
+       VALUES ('TPL_ENG_2026', 'Engineering Evaluation Template 2026', 'Standard engineering template', 'PUBLISHED')
+       RETURNING id;`
     );
-    templateId = ins.rows[0].evaluation_template_id;
+    templateId = ins.rows[0].id;
   } else {
-    templateId = tplRes.rows[0].evaluation_template_id;
+    templateId = tplRes.rows[0].id;
   }
 
   const tvRes = await pool.query(
-    `SELECT evaluation_template_version_id FROM evaluation_template_version WHERE evaluation_template_id = $1;`,
+    `SELECT id FROM evaluation_template_versions WHERE template_id = $1;`,
     [templateId]
   );
   let templateVersionId: string;
+  let templateKpiId: string;
   if (tvRes.rows.length === 0) {
     const ins = await pool.query(
-      `INSERT INTO evaluation_template_version (evaluation_template_id, version_no, status, published_at)
+      `INSERT INTO evaluation_template_versions (template_id, version_no, status, created_at)
        VALUES ($1, 1, 'PUBLISHED', CURRENT_TIMESTAMP)
-       RETURNING evaluation_template_version_id;`,
+       RETURNING id;`,
       [templateId]
     );
-    templateVersionId = ins.rows[0].evaluation_template_version_id;
+    templateVersionId = ins.rows[0].id;
+
+    const legacyKpiRes = await pool.query(`SELECT kpi_id FROM "kpi" WHERE code = 'LEGACY_KPI'`);
+    let legacyKpiId = legacyKpiRes.rows[0]?.kpi_id;
+    if (!legacyKpiId) {
+      const legacyInsert = await pool.query(
+        `INSERT INTO "kpi" (code, name, description)
+         VALUES ('LEGACY_KPI', 'Legacy Migration KPI', 'Auto-generated KPI for evaluation templates')
+         RETURNING kpi_id;`
+      );
+      legacyKpiId = legacyInsert.rows[0].kpi_id;
+    }
+
+    const templateKpiRes = await pool.query(
+      `INSERT INTO template_kpi (template_version_id, kpi_id, weight, display_order)
+       VALUES ($1, $2, 100, 0)
+       RETURNING template_kpi_id;`,
+      [templateVersionId, legacyKpiId]
+    );
+    templateKpiId = templateKpiRes.rows[0].template_kpi_id;
 
     await pool.query(
-      `INSERT INTO template_criterion (evaluation_template_version_id, criterion_version_id, effective_weight, is_disabled, display_order)
-       VALUES ($1, $2, 100.00, false, 1);`,
-      [templateVersionId, criterionVersionId]
+      `INSERT INTO template_criteria (template_version_id, template_kpi_id, criterion_version_id, weight, required, enabled, display_order, applicability)
+       VALUES ($1, $2, $3, 100.00, true, true, 1, '{}'::jsonb);`,
+      [templateVersionId, templateKpiId, criterionVersionV2Id]
     );
   } else {
-    templateVersionId = tvRes.rows[0].evaluation_template_version_id;
+    templateVersionId = tvRes.rows[0].id;
+    const templateKpiRes = await pool.query(
+      `SELECT template_kpi_id FROM template_kpi WHERE template_version_id = $1 LIMIT 1;`,
+      [templateVersionId]
+    );
+
+    if (templateKpiRes.rows.length === 0) {
+      const legacyKpiRes = await pool.query(`SELECT kpi_id FROM "kpi" WHERE code = 'LEGACY_KPI'`);
+      let legacyKpiId = legacyKpiRes.rows[0]?.kpi_id;
+      if (!legacyKpiId) {
+        const legacyInsert = await pool.query(
+          `INSERT INTO "kpi" (code, name, description)
+           VALUES ('LEGACY_KPI', 'Legacy Migration KPI', 'Auto-generated KPI for evaluation templates')
+           RETURNING kpi_id;`
+        );
+        legacyKpiId = legacyInsert.rows[0].kpi_id;
+      }
+
+      const newTemplateKpiRes = await pool.query(
+        `INSERT INTO template_kpi (template_version_id, kpi_id, weight, display_order)
+         VALUES ($1, $2, 100, 0)
+         RETURNING template_kpi_id;`,
+        [templateVersionId, legacyKpiId]
+      );
+      templateKpiId = newTemplateKpiRes.rows[0].template_kpi_id;
+    } else {
+      templateKpiId = templateKpiRes.rows[0].template_kpi_id;
+    }
+  }
+
+  const criteriaRes = await pool.query(
+    `SELECT id FROM template_criteria WHERE template_version_id = $1 LIMIT 1;`,
+    [templateVersionId]
+  );
+  if (criteriaRes.rows.length === 0) {
+    await pool.query(
+      `INSERT INTO template_criteria (template_version_id, template_kpi_id, criterion_version_id, weight, required, enabled, display_order, applicability)
+       VALUES ($1, $2, $3, 100.00, true, true, 1, '{}'::jsonb);`,
+      [templateVersionId, templateKpiId, criterionVersionV2Id]
+    );
   }
 
   // 4. Seed Cycles (2026-Q3 DRAFT, 2026-Q2 OPEN, 2026-Q1 LOCKED)
@@ -228,6 +327,7 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
         evaluation_template_version_id: templateVersionId,
         applicable_team_ids: [],
         applicable_role_ids: [],
+        applicable_employee_ids: [],
       },
       managerId
     );
@@ -245,14 +345,23 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
         evaluation_template_version_id: templateVersionId,
         applicable_team_ids: [],
         applicable_role_ids: [],
+        applicable_employee_ids: [],
       },
       managerId
     );
-    await cycleModule.openingService.openCycle(created.evaluationCycleId, managerId);
-    console.log('Seeded evaluation cycle: 2026-Q2 (OPEN)');
+    try {
+      await cycleModule.openingService.openCycle(created.evaluationCycleId, managerId);
+      console.log('Seeded evaluation cycle: 2026-Q2 (OPEN)');
+    } catch (error) {
+      console.warn('Seeded evaluation cycle 2026-Q2 created but could not be opened:', error);
+    }
   } else if (q2Cycle.status === EvaluationCycleStatus.DRAFT) {
-    await cycleModule.openingService.openCycle(q2Cycle.evaluationCycleId, managerId);
-    console.log('Opened existing evaluation cycle: 2026-Q2 (OPEN)');
+    try {
+      await cycleModule.openingService.openCycle(q2Cycle.evaluationCycleId, managerId);
+      console.log('Opened existing evaluation cycle: 2026-Q2 (OPEN)');
+    } catch (error) {
+      console.warn('Existing evaluation cycle 2026-Q2 could not be opened:', error);
+    }
   }
 
   const q1Cycle = await cycleModule.cycleRepo.findByCode('2026-Q1');
@@ -266,11 +375,16 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
         evaluation_template_version_id: templateVersionId,
         applicable_team_ids: [],
         applicable_role_ids: [],
+        applicable_employee_ids: [],
       },
       managerId
     );
-    await cycleModule.openingService.openCycle(created.evaluationCycleId, managerId);
-    await cycleModule.cycleService.lockCycle(created.evaluationCycleId, managerId);
-    console.log('Seeded evaluation cycle: 2026-Q1 (LOCKED)');
+    try {
+      await cycleModule.openingService.openCycle(created.evaluationCycleId, managerId);
+      await cycleModule.cycleService.lockCycle(created.evaluationCycleId, managerId);
+      console.log('Seeded evaluation cycle: 2026-Q1 (LOCKED)');
+    } catch (error) {
+      console.warn('Seeded evaluation cycle 2026-Q1 created but could not be opened/locked:', error);
+    }
   }
 }

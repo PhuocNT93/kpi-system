@@ -113,17 +113,25 @@ export async function seedTeamReviewsModule(pool: Pool): Promise<void> {
     const evaluationId = evalIns.rows[0].evaluation_id;
 
     for (const tc of templateCriteria) {
+      const scoringRuleSnapshot = {
+        rule_type: tc.rule_type,
+        rule_config: typeof tc.rule_config === 'string' ? JSON.parse(tc.rule_config) : tc.rule_config,
+      };
+      const criterionNameSnapshot = {
+        en: tc.criterion_name,
+      };
+      const levelDefinitionSnapshot = levelsByCvId[tc.criterion_version_id] || [];
       await pool.query(
         `INSERT INTO evaluation_item (evaluation_id, template_criterion_id, criterion_code_snapshot, criterion_name_snapshot, weight_snapshot, scoring_rule_snapshot, level_definition_snapshot, is_disabled_for_employee, is_missing_score, created_by, updated_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, false, true, $8, $8);`,
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, false, true, $8, $8);`,
         [
           evaluationId,
           tc.template_criterion_id,
           tc.criterion_code,
-          tc.criterion_name,
+          criterionNameSnapshot,
           tc.effective_weight,
-          JSON.stringify({ rule_type: tc.rule_type, rule_config: typeof tc.rule_config === 'string' ? JSON.parse(tc.rule_config) : tc.rule_config }),
-          JSON.stringify(levelsByCvId[tc.criterion_version_id] || []),
+          scoringRuleSnapshot,
+          JSON.stringify(levelDefinitionSnapshot),
           managerId,
         ]
       );

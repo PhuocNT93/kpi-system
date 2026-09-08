@@ -9,6 +9,7 @@ export const CreateEvaluationCycleSchema = z.object({
   evaluation_template_version_id: z.string().uuid('evaluation_template_version_id must be a valid UUID'),
   applicable_team_ids: z.array(z.string().uuid()).optional().default([]),
   applicable_role_ids: z.array(z.string().uuid()).optional().default([]),
+  applicable_employee_ids: z.array(z.string().uuid()).optional().default([]),
 }).refine((data) => data.start_date <= data.end_date, {
   message: 'start_date must be less than or equal to end_date',
   path: ['end_date'],
@@ -24,6 +25,7 @@ export const UpdateEvaluationCycleSchema = z.object({
   evaluation_template_version_id: z.string().uuid().optional(),
   applicable_team_ids: z.array(z.string().uuid()).optional(),
   applicable_role_ids: z.array(z.string().uuid()).optional(),
+  applicable_employee_ids: z.array(z.string().uuid()).optional(),
 }).refine((data) => {
   if (data.start_date && data.end_date) {
     return data.start_date <= data.end_date;
@@ -63,6 +65,7 @@ export interface EvaluationCycleResponse {
   evaluation_template_version_id: string;
   applicable_team_ids: string[];
   applicable_role_ids: string[];
+  applicable_employee_ids: string[];
   approved_by: string | null;
   locked_at: string | null;
   created_at: string;
