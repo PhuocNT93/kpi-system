@@ -241,7 +241,7 @@ export class ImportController {
     // However, the easiest way here is to use importRepo through csvImportService, 
     // or we can add a simple method to csvImportService.
     try {
-      const job = await (this.csvImportService as any).importRepo.getImportJobById(jobId);
+      const job = await this.csvImportService.importRepo.getImportJobById(jobId);
       if (!job) {
         return response.status(404).json({ success: false, message: 'Job not found' });
       }
@@ -252,6 +252,59 @@ export class ImportController {
         meta: { request_id: request.headers['x-request-id'] || 'unknown' }
       });
     } catch (err: unknown) {
+      console.error(err);
+      return response.status(500).json({ success: false, message: 'Internal server error.' });
+    }
+  }
+
+  async getImportHistory(request: Request, response: Response) {
+    const page = Math.max(1, parseInt(request.query.page as string || '1', 10));
+    const pageSize = Math.min(100, Math.max(1, parseInt(request.query.pageSize as string || '20', 10)));
+    const offset = (page - 1) * pageSize;
+
+    try {
+      const { items, total } = await this.csvImportService.getImportHistory(pageSize, offset);
+      return response.status(200).json({
+        success: true,
+        message: 'Import history retrieved.',
+        data: {
+          items,
+          page,
+          pageSize,
+          total
+        },
+        meta: { request_id: request.headers['x-request-id'] || 'unknown' }
+      });
+    } catch (err: unknown) {
+      console.error(err);
+      return response.status(500).json({ success: false, message: 'Internal server error.' });
+    }
+  }
+
+  async getImportRows(request: Request, response: Response) {
+    const jobId = request.params['id'] as string;
+    const page = Math.max(1, parseInt(request.query.page as string || '1', 10));
+    const pageSize = Math.min(1000, Math.max(1, parseInt(request.query.pageSize as string || '100', 10)));
+    const offset = (page - 1) * pageSize;
+
+    try {
+      const { items, total } = await this.csvImportService.getImportRowsPaginated(jobId, pageSize, offset);
+      return response.status(200).json({
+        success: true,
+        message: 'Import rows retrieved.',
+        data: {
+          items,
+          page,
+          pageSize,
+          total
+        },
+        meta: { request_id: request.headers['x-request-id'] || 'unknown' }
+      });
+    } catch (err: unknown) {
+      const error = err as Error & { code?: string };
+      if (error.code === 'NOT_FOUND') {
+        return response.status(404).json({ success: false, message: error.message });
+      }
       console.error(err);
       return response.status(500).json({ success: false, message: 'Internal server error.' });
     }

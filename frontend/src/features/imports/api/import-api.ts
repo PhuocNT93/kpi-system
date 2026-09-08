@@ -27,6 +27,31 @@ export interface ImportPreviewResponse {
   };
 }
 
+export interface PaginatedResponse<T> {
+  data: {
+    items: T[];
+    page: number;
+    pageSize: number;
+    total: number;
+  };
+  meta: { request_id: string };
+}
+
+export interface ImportJobSummary extends ImportJobPreview {
+  started_at: string;
+  finished_at: string | null;
+  imported_by: string;
+}
+
+export interface ImportRowDetails {
+  import_row_id: string;
+  import_job_id: string;
+  row_no: number;
+  raw_data: Record<string, unknown>;
+  status: 'VALID' | 'INVALID' | 'IMPORTED' | 'SKIPPED';
+  error_messages: ImportRowError[] | null;
+}
+
 export async function uploadCsvFile(
   cycleId: string,
   file: File,
@@ -73,6 +98,42 @@ export async function getImportStatus(jobId: string): Promise<{ data: ImportJobP
   if (!res.ok) {
     const errorData = await res.json().catch(() => null);
     throw new Error(errorData?.message || 'Failed to fetch import status');
+  }
+  return res.json();
+}
+
+export async function getImportHistory(page: number = 1, pageSize: number = 20): Promise<PaginatedResponse<ImportJobSummary>> {
+  const token = localStorage.getItem('access_token');
+  const res = await fetch(`/api/imports?page=${page}&pageSize=${pageSize}`, {
+    method: 'GET',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    }
+  });
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      throw new Error('Permission denied');
+    }
+    const errorData = await res.json().catch(() => null);
+    throw new Error(errorData?.message || 'Failed to fetch import history');
+  }
+  return res.json();
+}
+
+export async function getImportRows(jobId: string, page: number = 1, pageSize: number = 100): Promise<PaginatedResponse<ImportRowDetails>> {
+  const token = localStorage.getItem('access_token');
+  const res = await fetch(`/api/imports/${jobId}/rows?page=${page}&pageSize=${pageSize}`, {
+    method: 'GET',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    }
+  });
+  if (!res.ok) {
+    if (res.status === 404) {
+      throw new Error('Import job not found');
+    }
+    const errorData = await res.json().catch(() => null);
+    throw new Error(errorData?.message || 'Failed to fetch import rows');
   }
   return res.json();
 }

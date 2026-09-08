@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CsvImportService } from './csv-import.service.js';
 import { EvaluationService } from '../../evaluation/application/services/evaluation.service.js';
-import { IImportRepository } from '../domain/import.types.js';
+import { IImportRepository, ImportJob } from '../domain/import.types.js';
 import { Pool } from 'pg';
 
 describe('CsvImportService', () => {
@@ -36,7 +36,7 @@ describe('CsvImportService', () => {
 
   describe('confirmImport', () => {
     it('should throw an error if job is not in PREVIEW status', async () => {
-      mockRepo.getImportJobById.mockResolvedValue({ status: 'UPLOADED' } as any);
+      mockRepo.getImportJobById.mockResolvedValue({ status: 'UPLOADED' } as unknown as ImportJob);
       
       await expect(service.confirmImport('job-1', false, { userId: 'u1', role: 'ADMIN' }))
         .rejects.toThrow('Only PREVIEW jobs can be confirmed');
@@ -47,7 +47,7 @@ describe('CsvImportService', () => {
         import_job_id: 'job-1', 
         status: 'PREVIEW',
         error_rows: 5
-      } as any);
+      } as unknown as ImportJob);
 
       await expect(service.confirmImport('job-1', true, { userId: 'u1', role: 'ADMIN' }))
         .rejects.toThrow('Strict mode enabled: Cannot import because there are invalid rows.');
@@ -62,7 +62,7 @@ describe('CsvImportService', () => {
         success_rows: 10,
         total_rows: 10,
         error_rows: 0
-      } as any);
+      } as unknown as ImportJob);
 
       // Mock processJobAsync indirectly by returning empty rows on first batch to simulate completion
       mockRepo.getImportRows.mockResolvedValue([]);
@@ -81,7 +81,7 @@ describe('CsvImportService', () => {
         total_rows: 1000,
         error_rows: 0
       };
-      mockRepo.getImportJobById.mockResolvedValue(mockJob as any);
+      mockRepo.getImportJobById.mockResolvedValue(mockJob as unknown as ImportJob);
 
       const result = await service.confirmImport('job-1', false, { userId: 'u1', role: 'ADMIN' });
       

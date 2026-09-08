@@ -4,7 +4,7 @@ import { render, screen, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ImportCenterPage } from './ImportCenterPage';
+import { ImportUploadPage } from './ImportUploadPage';
 import * as csvTemplateApi from '../api/csv-template-api';
 import type { CsvTemplate } from '../api/csv-template-types';
 import { ApiClientError } from '@/shared/api/api-client';
@@ -48,7 +48,7 @@ const mockTemplate: CsvTemplate = {
   ]
 };
 
-describe('ImportCenterPage', () => {
+describe('ImportUploadPage', () => {
   let queryClient: QueryClient;
 
   beforeEach(() => {
@@ -65,7 +65,7 @@ describe('ImportCenterPage', () => {
   function renderPage() {
     return render(
       <QueryClientProvider client={queryClient}>
-        <ImportCenterPage />
+        <ImportUploadPage />
       </QueryClientProvider>
     );
   }

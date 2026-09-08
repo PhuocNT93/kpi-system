@@ -103,7 +103,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: <LayoutTemplate size={18} />
         },
         {
-          id: 'import-center',
+          id: 'imports',
           label: 'Import Center',
           icon: <FileSpreadsheet size={18} />
         },

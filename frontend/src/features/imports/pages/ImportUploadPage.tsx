@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { getCurrentCsvTemplate, downloadCurrentCsvTemplate } from '../api/csv-template-api';
 import { uploadCsvFile, confirmImport, getImportStatus, type ImportPreviewResponse } from '../api/import-api';
 import { csvTemplateKeys } from '../api/csv-template-keys';
@@ -30,7 +31,8 @@ function renderValidationMetadata(rule: Record<string, unknown> | null): string 
   return rules.join(', ');
 }
 
-export function ImportCenterPage() {
+export function ImportUploadPage() {
+  const navigate = useNavigate();
   const [downloadError, setDownloadError] = useState<unknown | null>(null);
   
   // Upload State
@@ -161,10 +163,10 @@ export function ImportCenterPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <div>
         <h1 style={{ margin: '0 0 8px 0', fontFamily: TYPOGRAPHY.fontFamily.headline, fontSize: TYPOGRAPHY.fontSize['2xl'] }}>
-          CSV Template Management
+          Upload CSV
         </h1>
         <p style={{ margin: 0, color: COLORS.neutral.textSecondary }}>
-          View and download the current evaluation score import template structure.
+          Upload a new evaluation score CSV and review validation errors before confirming.
         </p>
       </div>
 
@@ -466,8 +468,9 @@ export function ImportCenterPage() {
                       setActiveJobId(null);
                       setSelectedFile(null);
                       if (fileInputRef.current) fileInputRef.current.value = '';
+                      navigate('/admin/imports');
                     }} variant="outlined">
-                      Start New Import
+                      View Import History
                     </Button>
                   </div>
                 )}
