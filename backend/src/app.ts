@@ -100,7 +100,7 @@ export function createApp(options: AppOptions = {}) {
   const evaluationController = evaluationModule?.evaluationController;
 
   const i18nModule = pool ? createI18nModule(pool, auditModule?.auditService) : undefined;
-  const importModule = pool ? createImportModule(pool) : undefined;
+  const importModule = pool && evaluationModule ? createImportModule(pool, evaluationModule.evaluationService) : undefined;
   const importController = importModule?.importController;
 
   // ── Global Middlewares ────────────────────────────────────────────────────

@@ -194,4 +194,66 @@ export class ImportController {
       });
     }
   }
+
+  async confirmImport(request: Request, response: Response) {
+    const requestId = request.headers['x-request-id'] as string || 'unknown';
+    const actor = getActorFromContext(request);
+    const jobId = request.params['id'] as string;
+    const { strict_mode } = request.body;
+
+    if (!actor) {
+      return response.status(401).json({ success: false, message: 'Unauthenticated' });
+    }
+
+    try {
+      const result = await this.csvImportService.confirmImport(jobId, !!strict_mode, {
+        userId: actor.userId,
+        role: actor.role,
+        employeeId: actor.employeeId
+      });
+
+      const statusCode = result.status === 'ACCEPTED' ? 202 : 200;
+
+      return response.status(statusCode).json({
+        success: true,
+        message: result.status === 'ACCEPTED' ? 'Import processing started in background.' : 'Import completed.',
+        data: result.job,
+        meta: { request_id: requestId }
+      });
+    } catch (err: unknown) {
+      const error = err as Error & { code?: string };
+      
+      if (error.code === 'NOT_FOUND') {
+        return response.status(404).json({ success: false, message: error.message });
+      }
+      if (error.code === 'INVALID_STATUS' || error.code === 'STRICT_MODE_VIOLATION') {
+        return response.status(400).json({ success: false, message: error.message });
+      }
+
+      console.error(err);
+      return response.status(500).json({ success: false, message: 'Internal server error.' });
+    }
+  }
+
+  async getImportStatus(request: Request, response: Response) {
+    const jobId = request.params['id'] as string;
+    // For a real implementation, we could just read the job directly from the repository.
+    // However, the easiest way here is to use importRepo through csvImportService, 
+    // or we can add a simple method to csvImportService.
+    try {
+      const job = await (this.csvImportService as any).importRepo.getImportJobById(jobId);
+      if (!job) {
+        return response.status(404).json({ success: false, message: 'Job not found' });
+      }
+      return response.status(200).json({
+        success: true,
+        message: 'Import status retrieved.',
+        data: job,
+        meta: { request_id: request.headers['x-request-id'] || 'unknown' }
+      });
+    } catch (err: unknown) {
+      console.error(err);
+      return response.status(500).json({ success: false, message: 'Internal server error.' });
+    }
+  }
 }

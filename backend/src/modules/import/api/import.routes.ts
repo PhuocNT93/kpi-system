@@ -48,5 +48,13 @@ export function createImportRouter(
     controller.uploadCsv(req, res).catch(next);
   });
 
+  router.post('/imports/:id/confirm', requireHrAdmin, (req, res, next) => {
+    controller.confirmImport(req, res).catch(next);
+  });
+
+  router.get('/imports/:id', requireHrAdmin, (req, res, next) => {
+    controller.getImportStatus(req, res).catch(next);
+  });
+
   return router;
 }
