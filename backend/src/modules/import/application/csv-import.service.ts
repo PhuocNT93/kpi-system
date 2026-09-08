@@ -467,4 +467,26 @@ export class CsvImportService {
 
     return hasErrors;
   }
+
+  public async getImportHistory(limit: number, offset: number) {
+    const [items, total] = await Promise.all([
+      this.importRepo.getImportJobsHistory(limit, offset),
+      this.importRepo.getImportJobCount()
+    ]);
+    return { items, total };
+  }
+
+  public async getImportRowsPaginated(jobId: string, limit: number, offset: number) {
+    const job = await this.importRepo.getImportJobById(jobId);
+    if (!job) {
+      const err = new Error('Import job not found') as Error & { code?: string };
+      err.code = 'NOT_FOUND';
+      throw err;
+    }
+    const [items, total] = await Promise.all([
+      this.importRepo.getImportRowsPaginated(jobId, limit, offset),
+      this.importRepo.getImportRowCount(jobId)
+    ]);
+    return { items, total };
+  }
 }

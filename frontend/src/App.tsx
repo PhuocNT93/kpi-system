@@ -28,7 +28,9 @@ import {
 } from './features/evaluation-cycles';
 import { AppLayout } from '@/shared/layout';
 import { KpiPage } from './features/kpi/pages/KpiPage';
-import { ImportCenterPage } from './features/imports/pages/ImportCenterPage';
+import { ImportUploadPage } from './features/imports/pages/ImportUploadPage';
+import { ImportHistoryPage } from './features/imports/pages/ImportHistoryPage';
+import { ImportDetailPage } from './features/imports/pages/ImportDetailPage';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
 import { LayoutTemplate } from 'lucide-react';
@@ -44,7 +46,7 @@ const ADMIN_PAGE_TITLES: Record<string, string> = {
   criteria: 'Criteria',
   i18n: 'Translation Settings',
   kpis: 'KPI Management',
-  'import-center': 'Import Center',
+  imports: 'CSV Imports',
   cycles: 'Evaluation Cycles',
   'my-evaluations': 'My Evaluations',
   'team-evaluations': 'Team Evaluations',
@@ -162,9 +164,19 @@ export default function App() {
                   <KpiPage />
                 </ProtectedRoute>
               } />
-              <Route path="/admin/import-center" element={
+              <Route path="/admin/imports" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
-                  <ImportCenterPage />
+                  <ImportHistoryPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/imports/upload" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
+                  <ImportUploadPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/imports/:id" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
+                  <ImportDetailPage />
                 </ProtectedRoute>
               } />
               <Route path="/admin/cycles" element={

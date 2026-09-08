@@ -149,4 +149,33 @@ export class PostgresImportRepository implements IImportRepository {
       [toStatus, jobId, fromStatus]
     );
   }
+
+  async getImportJobsHistory(limit: number, offset: number): Promise<ImportJob[]> {
+    const res = await this.pool.query(
+      `SELECT * FROM import_job ORDER BY started_at DESC LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
+    return res.rows;
+  }
+
+  async getImportJobCount(): Promise<number> {
+    const res = await this.pool.query(`SELECT COUNT(*)::int as count FROM import_job`);
+    return res.rows[0].count;
+  }
+
+  async getImportRowsPaginated(jobId: string, limit: number, offset: number): Promise<ImportRow[]> {
+    const res = await this.pool.query(
+      `SELECT * FROM import_row WHERE import_job_id = $1 ORDER BY row_no ASC LIMIT $2 OFFSET $3`,
+      [jobId, limit, offset]
+    );
+    return res.rows;
+  }
+
+  async getImportRowCount(jobId: string): Promise<number> {
+    const res = await this.pool.query(
+      `SELECT COUNT(*)::int as count FROM import_row WHERE import_job_id = $1`,
+      [jobId]
+    );
+    return res.rows[0].count;
+  }
 }

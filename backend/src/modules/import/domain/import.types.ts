@@ -51,4 +51,8 @@ export interface IImportRepository {
   getImportRows(jobId: string, status?: string[], limit?: number, offset?: number): Promise<ImportRow[]>;
   updateImportRow(rowId: string, updates: Partial<ImportRow>): Promise<void>;
   updateImportRowsStatusByJobId(jobId: string, fromStatus: string, toStatus: string): Promise<void>;
+  getImportJobsHistory(limit: number, offset: number): Promise<ImportJob[]>;
+  getImportJobCount(): Promise<number>;
+  getImportRowsPaginated(jobId: string, limit: number, offset: number): Promise<ImportRow[]>;
+  getImportRowCount(jobId: string): Promise<number>;
 }

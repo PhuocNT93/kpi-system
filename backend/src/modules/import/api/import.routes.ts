@@ -56,5 +56,13 @@ export function createImportRouter(
     controller.getImportStatus(req, res).catch(next);
   });
 
+  router.get('/imports', requireHrAdmin, (req, res, next) => {
+    controller.getImportHistory(req, res).catch(next);
+  });
+
+  router.get('/imports/:id/rows', requireHrAdmin, (req, res, next) => {
+    controller.getImportRows(req, res).catch(next);
+  });
+
   return router;
 }
