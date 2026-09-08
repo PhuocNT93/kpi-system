@@ -58,7 +58,7 @@ export function ImportUploadPage() {
     queryFn: () => getImportStatus(activeJobId!),
     enabled: !!activeJobId,
     refetchInterval: (query) => {
-      const status = query.state.data?.data.status;
+      const status = query.state.data?.status;
       return (status === 'IMPORTING' || status === 'UPLOADED' || status === 'VALIDATING') ? 2000 : false;
     }
   });
@@ -106,7 +106,7 @@ export function ImportUploadPage() {
       confirmImport(variables.jobId, variables.strict),
     onSuccess: (response) => {
       setConfirmError(null);
-      setActiveJobId(response.data.import_job_id);
+      setActiveJobId(response.import_job_id);
     },
     onError: (err: unknown) => {
       setConfirmError(err);
@@ -448,20 +448,20 @@ export function ImportUploadPage() {
               </div>
             )}
 
-            {activeJobId && jobStatus?.data && (
+            {activeJobId && jobStatus && (
               <div style={{ marginTop: '24px', padding: '16px', border: `1px solid ${COLORS.primary[200]}`, background: COLORS.primary[50], borderRadius: RADII.md }}>
                 <h4 style={{ margin: '0 0 12px 0', fontSize: TYPOGRAPHY.fontSize.base, display: 'flex', alignItems: 'center', gap: '8px', color: COLORS.primary[700] }}>
-                  {jobStatus.data.status === 'COMPLETED' ? <CheckCircle size={18} /> : <LoadingSpinner />}
-                  Import Status: {jobStatus.data.status}
+                  {jobStatus.status === 'COMPLETED' ? <CheckCircle size={18} /> : <LoadingSpinner />}
+                  Import Status: {jobStatus.status}
                 </h4>
                 <div style={{ fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary }}>
-                  {jobStatus.data.status === 'COMPLETED' && 'Import completed successfully.'}
-                  {jobStatus.data.status === 'PARTIALLY_COMPLETED' && 'Import finished with some skipped rows.'}
-                  {jobStatus.data.status === 'FAILED' && 'Import failed.'}
-                  {(jobStatus.data.status === 'IMPORTING' || jobStatus.data.status === 'PREVIEW' || jobStatus.data.status === 'VALIDATING' || jobStatus.data.status === 'UPLOADED') && 'Processing your import in the background...'}
+                  {jobStatus.status === 'COMPLETED' && 'Import completed successfully.'}
+                  {jobStatus.status === 'PARTIALLY_COMPLETED' && 'Import finished with some skipped rows.'}
+                  {jobStatus.status === 'FAILED' && 'Import failed.'}
+                  {(jobStatus.status === 'IMPORTING' || jobStatus.status === 'PREVIEW' || jobStatus.status === 'VALIDATING' || jobStatus.status === 'UPLOADED') && 'Processing your import in the background...'}
                 </div>
                 
-                {(jobStatus.data.status === 'COMPLETED' || jobStatus.data.status === 'PARTIALLY_COMPLETED' || jobStatus.data.status === 'FAILED') && (
+                {(jobStatus.status === 'COMPLETED' || jobStatus.status === 'PARTIALLY_COMPLETED' || jobStatus.status === 'FAILED') && (
                   <div style={{ marginTop: '16px' }}>
                     <Button onClick={() => {
                       setPreviewData(null);

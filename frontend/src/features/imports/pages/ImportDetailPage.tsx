@@ -20,7 +20,7 @@ export function ImportDetailPage() {
     queryFn: () => getImportStatus(id!),
     enabled: !!id,
     refetchInterval: (query) => {
-      const status = query.state.data?.data.status;
+      const status = query.state.data?.status;
       return (status === 'IMPORTING' || status === 'UPLOADED' || status === 'VALIDATING') ? 2000 : false;
     }
   });
@@ -31,7 +31,7 @@ export function ImportDetailPage() {
     enabled: !!id,
     refetchInterval: () => {
       // Poll rows if job is importing, to see live progress
-      const status = jobStatus?.data.status;
+      const status = jobStatus?.status;
       return status === 'IMPORTING' ? 3000 : false;
     }
   });
@@ -42,9 +42,9 @@ export function ImportDetailPage() {
   if (isLoading && !jobStatus) return <LoadingSpinner label="Loading import details..." />;
   if (error) return <ErrorAlert error={error} onRetry={() => refetchRows()} />;
 
-  const job = jobStatus?.data;
-  const items = rowsData?.data.items || [];
-  const total = rowsData?.data.total || 0;
+  const job = jobStatus;
+  const items = rowsData?.items || [];
+  const total = rowsData?.total || 0;
   const totalPages = Math.ceil(total / pageSize);
 
   const getStatusBadge = (status: string) => {

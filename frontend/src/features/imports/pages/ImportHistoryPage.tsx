@@ -19,7 +19,7 @@ export function ImportHistoryPage() {
     queryFn: () => getImportHistory(page, pageSize),
     refetchInterval: (query) => {
       // Poll if any job on the page is running
-      const hasRunningJobs = query.state.data?.data.items.some(
+      const hasRunningJobs = query.state.data?.items.some(
         job => ['UPLOADED', 'VALIDATING', 'PREVIEW', 'IMPORTING'].includes(job.status)
       );
       return hasRunningJobs ? 5000 : false;
@@ -39,8 +39,8 @@ export function ImportHistoryPage() {
   if (isLoading) return <LoadingSpinner label="Loading import history..." />;
   if (error) return <ErrorAlert error={error} onRetry={() => refetch()} />;
 
-  const items = data?.data.items || [];
-  const total = data?.data.total || 0;
+  const items = data?.items || [];
+  const total = data?.total || 0;
   const totalPages = Math.ceil(total / pageSize);
 
   return (

@@ -1,4 +1,4 @@
-import { postFormDataApi } from '@/shared/api/api-client';
+import { getApi, postApi, postFormDataApi } from '@/shared/api/api-client';
 
 export interface ImportRowError {
   row_no: number;
@@ -27,14 +27,14 @@ export interface ImportPreviewResponse {
   };
 }
 
-export interface PaginatedResponse<T> {
-  data: {
-    items: T[];
-    page: number;
-    pageSize: number;
-    total: number;
-  };
-  meta: { request_id: string };
+// Shape returned by the backend controller for paginated endpoints:
+// { "success": true, "data": { "items": [...], "page": N, "pageSize": N, "total": N }, "meta": {...} }
+// getApi<T> strips the envelope and returns payload.data, so T = PaginatedData<X>
+export interface PaginatedData<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  total: number;
 }
 
 export interface ImportJobSummary extends ImportJobPreview {
@@ -67,73 +67,18 @@ export async function uploadCsvFile(
 export async function confirmImport(
   jobId: string,
   strictMode: boolean
-): Promise<{ data: ImportJobPreview }> {
-  // Use generic fetch since api-client doesn't have a postJsonApi with body yet,
-  // or we can use fetch directly. Wait, api-client might have it. Let's see.
-  // Actually, let's just use standard fetch with Authorization.
-  const token = localStorage.getItem('access_token');
-  const res = await fetch(`/api/imports/${jobId}/confirm`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    },
-    body: JSON.stringify({ strict_mode: strictMode })
-  });
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => null);
-    throw new Error(errorData?.message || 'Failed to confirm import');
-  }
-  return res.json();
+): Promise<ImportJobPreview> {
+  return postApi<ImportJobPreview>(`/api/imports/${jobId}/confirm`, { strict_mode: strictMode });
 }
 
-export async function getImportStatus(jobId: string): Promise<{ data: ImportJobPreview }> {
-  const token = localStorage.getItem('access_token');
-  const res = await fetch(`/api/imports/${jobId}`, {
-    method: 'GET',
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
-  });
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => null);
-    throw new Error(errorData?.message || 'Failed to fetch import status');
-  }
-  return res.json();
+export async function getImportStatus(jobId: string): Promise<ImportJobPreview> {
+  return getApi<ImportJobPreview>(`/api/imports/${jobId}`);
 }
 
-export async function getImportHistory(page: number = 1, pageSize: number = 20): Promise<PaginatedResponse<ImportJobSummary>> {
-  const token = localStorage.getItem('access_token');
-  const res = await fetch(`/api/imports?page=${page}&pageSize=${pageSize}`, {
-    method: 'GET',
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
-  });
-  if (!res.ok) {
-    if (res.status === 401 || res.status === 403) {
-      throw new Error('Permission denied');
-    }
-    const errorData = await res.json().catch(() => null);
-    throw new Error(errorData?.message || 'Failed to fetch import history');
-  }
-  return res.json();
+export async function getImportHistory(page: number = 1, pageSize: number = 20): Promise<PaginatedData<ImportJobSummary>> {
+  return getApi<PaginatedData<ImportJobSummary>>(`/api/imports?page=${page}&pageSize=${pageSize}`);
 }
 
-export async function getImportRows(jobId: string, page: number = 1, pageSize: number = 100): Promise<PaginatedResponse<ImportRowDetails>> {
-  const token = localStorage.getItem('access_token');
-  const res = await fetch(`/api/imports/${jobId}/rows?page=${page}&pageSize=${pageSize}`, {
-    method: 'GET',
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
-  });
-  if (!res.ok) {
-    if (res.status === 404) {
-      throw new Error('Import job not found');
-    }
-    const errorData = await res.json().catch(() => null);
-    throw new Error(errorData?.message || 'Failed to fetch import rows');
-  }
-  return res.json();
+export async function getImportRows(jobId: string, page: number = 1, pageSize: number = 100): Promise<PaginatedData<ImportRowDetails>> {
+  return getApi<PaginatedData<ImportRowDetails>>(`/api/imports/${jobId}/rows?page=${page}&pageSize=${pageSize}`);
 }
