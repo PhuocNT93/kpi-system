@@ -122,12 +122,15 @@ export async function seedTeamReviewsModule(pool: Pool): Promise<void> {
         en: tc.criterion_name,
       };
       const levelDefinitionSnapshot = levelsByCvId[tc.criterion_version_id] || [];
+      
+      const legacyTcId = legacyTcIdByCode.get(tc.criterion_code) || tc.template_criterion_id;
+
       await pool.query(
         `INSERT INTO evaluation_item (evaluation_id, template_criterion_id, criterion_code_snapshot, criterion_name_snapshot, weight_snapshot, scoring_rule_snapshot, level_definition_snapshot, is_disabled_for_employee, is_missing_score, created_by, updated_by)
          VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, false, true, $8, $8);`,
         [
           evaluationId,
-          tc.template_criterion_id,
+          legacyTcId,
           tc.criterion_code,
           criterionNameSnapshot,
           tc.effective_weight,
@@ -140,9 +143,6 @@ export async function seedTeamReviewsModule(pool: Pool): Promise<void> {
     return evaluationId;
   }
 
-  const alexEvaluationId = await ensureEvaluation(reportIds['EMP_DEV_02']!);
-  const minhEvaluationId = await ensureEvaluation(reportIds['EMP_DEV_03']!);
-
   const janeRes = await pool.query(`SELECT employee_id FROM employee WHERE employee_code = 'EMP_DEV_01';`);
   const janeEvaluationId: string | null = janeRes.rows.length > 0
     ? (await pool.query(
@@ -150,6 +150,19 @@ export async function seedTeamReviewsModule(pool: Pool): Promise<void> {
         [cycleId, janeRes.rows[0].employee_id]
       )).rows[0]?.evaluation_id ?? null
     : null;
+
+  const legacyTcIdByCode = new Map<string, string>();
+  if (janeEvaluationId) {
+    const janeItems = await pool.query(`SELECT template_criterion_id, criterion_code_snapshot FROM evaluation_item WHERE evaluation_id = $1;`, [janeEvaluationId]);
+    for (const item of janeItems.rows) {
+      legacyTcIdByCode.set(item.criterion_code_snapshot, item.template_criterion_id);
+    }
+  }
+
+  const alexEvaluationId = await ensureEvaluation(reportIds['EMP_DEV_02']!);
+  const minhEvaluationId = await ensureEvaluation(reportIds['EMP_DEV_03']!);
+
+
 
   // 4. Fill scores for an evaluation's items and return the computed weighted total
   async function fillItems(evaluationId: string, resolvedLevel: number, comment: string, reviewedByManager: boolean): Promise<number> {
