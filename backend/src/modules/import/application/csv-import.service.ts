@@ -160,11 +160,11 @@ export class CsvImportService {
 
     // Fetch template criteria & mappings
     // Assuming we have KPI relationships in DB, for MVP mock/query from a table if it exists.
-    // LLD: template_criterion has criterion_version_id, which connects to criterion.
+    // LLD: template_criteria has criterion_version_id, which connects to criterion.
     // Assuming kpi_criterion_mapping table exists from previous migrations.
     const criteriaRes = await this.pool.query(`
       SELECT tc.template_criterion_id, c.code as criterion_code, k.code as kpi_code
-      FROM template_criterion tc
+      FROM template_criteria tc
       JOIN criterion_version cv ON tc.criterion_version_id = cv.criterion_version_id
       JOIN criterion c ON cv.criterion_id = c.criterion_id
       LEFT JOIN kpi_criterion_mapping kcm ON c.criterion_id = kcm.criterion_id
@@ -420,7 +420,7 @@ export class CsvImportService {
         const itemRes = await this.pool.query(`
           SELECT ei.evaluation_item_id, ei.is_disabled_for_employee
           FROM evaluation_item ei
-          JOIN template_criterion tc ON ei.template_criterion_id = tc.template_criterion_id
+          JOIN template_criteria tc ON ei.template_criterion_id = tc.template_criterion_id
           JOIN criterion_version cv ON tc.criterion_version_id = cv.criterion_version_id
           JOIN criterion c ON cv.criterion_id = c.criterion_id
           WHERE ei.evaluation_id = $1 AND c.code = $2

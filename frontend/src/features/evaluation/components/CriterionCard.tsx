@@ -54,6 +54,11 @@ export const CriterionCard: React.FC<CriterionCardProps> = ({
 
   const ruleSnapshot = item.scoring_rule_snapshot as { rule_type?: string; name?: string } | null;
   const ruleType = ruleSnapshot?.rule_type || ruleSnapshot?.name || 'Chuẩn';
+  const criterionName = typeof item.criterion_name_snapshot === 'string'
+    ? item.criterion_name_snapshot
+    : item.criterion_name_snapshot
+    ? JSON.stringify(item.criterion_name_snapshot)
+    : 'Tiêu chí';
 
   const isCompleted = isDisabled || (resolvedLevel !== null && resolvedLevel !== undefined);
 
@@ -120,7 +125,7 @@ export const CriterionCard: React.FC<CriterionCardProps> = ({
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <span style={{ fontSize: TYPOGRAPHY.fontSize.base, fontWeight: 600, color: COLORS.neutral.textPrimary }}>
-                {getLocalizedText(item.criterion_name_snapshot)}
+                {criterionName}
               </span>
               <span
                 style={{

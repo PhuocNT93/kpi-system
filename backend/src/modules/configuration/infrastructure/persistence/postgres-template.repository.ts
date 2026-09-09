@@ -14,6 +14,7 @@ export class PostgresTemplateRepository implements ITemplateRepository {
       description: row.description ? (row.description as string) : undefined,
       status: row.status as TemplateStatus,
       current_version_id: row.current_version_id ? (row.current_version_id as string) : undefined,
+      criteria_count: row.criteria_count !== undefined && row.criteria_count !== null ? Number(row.criteria_count) : undefined,
       version: Number(row.version),
       created_at: new Date(row.created_at as string),
       created_by: row.created_by ? (row.created_by as string) : undefined,
@@ -61,7 +62,17 @@ export class PostgresTemplateRepository implements ITemplateRepository {
 
     const queryParams = [...params, size, offset];
     const dataRes = await runner.query(
-      `SELECT * FROM evaluation_templates ${whereClause} ORDER BY created_at DESC LIMIT $${idx++} OFFSET $${idx++}`,
+      `SELECT et.*,
+              COALESCE(tc.criteria_count, 0) AS criteria_count
+       FROM evaluation_templates et
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*)::int AS criteria_count
+         FROM evaluation_template_versions v
+         JOIN template_criteria tc ON tc.template_version_id = v.id
+         WHERE v.id = et.current_version_id
+       ) tc ON true
+       ${whereClause ? whereClause.replace(/status/g, 'et.status').replace(/name/g, 'et.name').replace(/code/g, 'et.code') : ''}
+       ORDER BY et.created_at DESC LIMIT $${idx++} OFFSET $${idx++}`,
       queryParams
     );
 
