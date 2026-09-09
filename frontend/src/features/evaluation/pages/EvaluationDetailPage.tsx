@@ -10,6 +10,9 @@ import { SubmitConfirmModal } from '../components/SubmitConfirmModal';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
 import { AlertCircle, ArrowLeft, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { useAuth } from '@/shared/auth/auth-context';
+import { OverrideScoreModal } from '../components/OverrideScoreModal';
+import { getLocalizedText } from '../domain/evaluation-models';
 
 type EvaluationDetailMode = 'self' | 'manager';
 
@@ -23,9 +26,12 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isHrAdmin = user?.role === 'HR_ADMIN' || user?.role === 'SYSTEM_ADMIN';
 
   const [draftItems, setDraftItems] = useState<Record<string, DraftItemState>>({});
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+  const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
   const showToast = useCallback((type: 'success' | 'error' | 'info', text: string) => {
@@ -172,6 +178,41 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
     },
   });
 
+  const publishMutation = useMutation({
+    mutationFn: () => evaluationApi.publishEvaluation(id!),
+    onSuccess: () => {
+      showToast('success', 'Đã công bố đánh giá thành công.');
+      queryClient.invalidateQueries({ queryKey: ['evaluation-detail', id] });
+    },
+    onError: (err: Error) => {
+      showToast('error', err.message || 'Không thể công bố đánh giá.');
+    },
+  });
+
+  const lockMutation = useMutation({
+    mutationFn: () => evaluationApi.lockEvaluation(id!),
+    onSuccess: () => {
+      showToast('success', 'Đã khóa đánh giá thành công.');
+      queryClient.invalidateQueries({ queryKey: ['evaluation-detail', id] });
+    },
+    onError: (err: Error) => {
+      showToast('error', err.message || 'Không thể khóa đánh giá.');
+    },
+  });
+
+  const overrideMutation = useMutation({
+    mutationFn: ({ kpiId, score, reason }: { kpiId: string; score: number; reason: string }) => 
+      evaluationApi.overrideKpiScore(id!, kpiId, { manual_override_score: score, override_reason: reason }),
+    onSuccess: () => {
+      showToast('success', 'Đã ghi đè điểm KPI thành công.');
+      setIsOverrideModalOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['evaluation-detail', id] });
+    },
+    onError: (err: Error) => {
+      showToast('error', err.message || 'Lỗi khi ghi đè điểm KPI.');
+    },
+  });
+
   // Level selection handler
   const handleLevelChange = (itemId: string, level: number) => {
     if (!isEditable) return;
@@ -238,7 +279,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
       .map((item) => ({
         id: item.evaluation_item_id,
         code: item.criterion_code_snapshot,
-        name: item.criterion_name_snapshot,
+        name: getLocalizedText(item.criterion_name_snapshot),
       }));
   }, [activeCriteria, draftItems]);
 
@@ -247,6 +288,13 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
   // Open submit confirmation modal
   const handleOpenSubmit = () => {
     setIsSubmitModalOpen(true);
+  };
+
+  const handlePublish = () => publishMutation.mutate();
+  const handleLock = () => lockMutation.mutate();
+
+  const handleOverrideSubmit = (kpiId: string, score: number, reason: string) => {
+    overrideMutation.mutate({ kpiId, score, reason });
   };
 
   // Confirm submit after saving dirty items if any
@@ -427,7 +475,10 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
         onSaveDraft={handleSaveAll}
         onSubmit={handleOpenSubmit}
         backPath={isManagerMode ? '/admin/team-evaluations' : '/admin/my-evaluations'}
-        backLabel={isManagerMode ? 'Team Reviews' : 'My Evaluation'}
+        backLabel={isManagerMode ? 'Team Evaluations' : 'My Evaluations'}
+        isHrAdmin={isHrAdmin}
+        onPublish={handlePublish}
+        onLock={handleLock}
         submitLabel={isManagerMode ? 'Duyệt đánh giá' : 'Nộp tự đánh giá'}
         submittingLabel={isManagerMode ? 'Đang duyệt...' : 'Đang gửi...'}
       />
@@ -514,7 +565,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
                       const item = detail.items.find((candidate) => candidate.evaluation_item_id === criterionResult.criterion_id);
                       return (
                         <tr key={criterionResult.criterion_id}>
-                          <td style={{ padding: '6px' }}>{item?.criterion_name_snapshot ?? criterionResult.criterion_id}</td>
+                          <td style={{ padding: '6px' }}>{item ? getLocalizedText(item.criterion_name_snapshot) : criterionResult.criterion_id}</td>
                           <td style={{ padding: '6px' }}>{criterionResult.is_na ? 'N/A' : criterionResult.resolved_level ?? 'N/A'}</td>
                           <td style={{ padding: '6px' }}>{criterionResult.is_na ? 'N/A' : `${criterionResult.raw_score} / ${criterionResult.max_score}`}</td>
                           <td style={{ padding: '6px' }}>{criterionResult.normalized_score ?? 'N/A'}</td>
@@ -538,6 +589,24 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
           <h2 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.lg, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
             Danh sách tiêu chí đánh giá ({detail.items.length})
           </h2>
+          {isHrAdmin && (detail.status === EvaluationStatus.APPROVED || detail.status === EvaluationStatus.PUBLISHED) && !detail.is_locked && (
+            <button
+              type="button"
+              onClick={() => setIsOverrideModalOpen(true)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: RADII.md,
+                backgroundColor: '#eff6ff',
+                color: '#2563eb',
+                border: '1px solid #bfdbfe',
+                fontSize: TYPOGRAPHY.fontSize.sm,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Override Score
+            </button>
+          )}
           {isEditable && (
             <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
               * {isManagerMode ? 'Chọn mức đánh giá và nhập nhận xét cho từng tiêu chí' : 'Chọn mức độ và nhập giải trình cho từng tiêu chí'}
@@ -577,6 +646,16 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
         onClose={() => setIsSubmitModalOpen(false)}
         mode={mode}
       />
+
+      {isHrAdmin && (
+        <OverrideScoreModal
+          isOpen={isOverrideModalOpen}
+          kpiList={activeCriteria}
+          isSubmitting={overrideMutation.isPending}
+          onSubmit={handleOverrideSubmit}
+          onClose={() => setIsOverrideModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

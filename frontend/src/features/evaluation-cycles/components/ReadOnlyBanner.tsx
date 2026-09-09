@@ -5,10 +5,14 @@ import { Lock, ShieldAlert } from 'lucide-react';
 
 interface ReadOnlyBannerProps {
   reason?: string;
+  title?: string;
+  iconColor?: string;
 }
 
 export const ReadOnlyBanner: React.FC<ReadOnlyBannerProps> = ({
   reason = 'This evaluation cycle is LOCKED. All cycle configurations, evaluation instances, criterion scores, and workflow state transitions are permanently read-only.',
+  title = 'Cycle Status: LOCKED',
+  iconColor = '#f87171',
 }) => {
   return (
     <div
@@ -36,14 +40,14 @@ export const ReadOnlyBanner: React.FC<ReadOnlyBannerProps> = ({
           flexShrink: 0,
         }}
       >
-        <Lock size={18} color="#f87171" />
+        <Lock size={18} color={iconColor} />
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: TYPOGRAPHY.fontSize.sm, fontWeight: 700, letterSpacing: '0.02em', textTransform: 'uppercase', color: '#f87171' }}>
-            Cycle Status: LOCKED
+          <span style={{ fontSize: TYPOGRAPHY.fontSize.sm, fontWeight: 700, letterSpacing: '0.02em', textTransform: 'uppercase', color: iconColor }}>
+            {title}
           </span>
-          <ShieldAlert size={14} color="#f87171" />
+          <ShieldAlert size={14} color={iconColor} />
         </div>
         <p style={{ margin: 0, fontSize: '0.8125rem', color: COLORS.neutral[300], lineHeight: 1.4 }}>
           {reason}

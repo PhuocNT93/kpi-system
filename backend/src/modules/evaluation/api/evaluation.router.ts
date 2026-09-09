@@ -18,6 +18,9 @@ export function createEvaluationRouter(
   router.post('/:id/self-submit', controller.selfSubmitEvaluation);
   router.post('/:id/approve', controller.approveEvaluation);
   router.post('/:id/recalculate', controller.recalculateEvaluation);
+  router.post('/:id/publish', controller.publishEvaluation);
+  router.post('/:id/lock', controller.lockEvaluation);
+  router.post('/:id/kpis/:kpiId/override', controller.overrideKpiScore);
 
   return router;
 }

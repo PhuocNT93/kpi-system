@@ -3,6 +3,7 @@ export enum EvaluationStatus {
   SUBMITTED = 'SUBMITTED',
   MANAGER_REVIEW = 'MANAGER_REVIEW',
   APPROVED = 'APPROVED',
+  PUBLISHED = 'PUBLISHED',
   LOCKED = 'LOCKED',
 }
 
@@ -34,7 +35,7 @@ export interface EvaluationItem {
   evaluation_id: string;
   template_criterion_id: string;
   criterion_code_snapshot: string;
-  criterion_name_snapshot: string;
+  criterion_name_snapshot: Record<string, string> | string | undefined;
   weight_snapshot: number;
   kpi_id_snapshot?: string;
   kpi_code_snapshot?: string;
@@ -48,6 +49,8 @@ export interface EvaluationItem {
   weighted_score?: number;
   is_disabled_for_employee: boolean;
   is_missing_score: boolean;
+  manual_override_score?: number | null;
+  override_reason?: string | null;
   comment?: string;
 }
 
@@ -128,6 +131,15 @@ export interface EvaluationDetail {
   scoring_breakdown?: EvaluationScoringBreakdown;
   is_locked?: boolean;
   submitted_at?: string;
+  approved_at?: string;
+  published_at?: string;
+  locked_at?: string;
   is_manager_reviewer?: boolean;
   items: EvaluationItem[];
+}
+
+export function getLocalizedText(val: Record<string, string> | string | undefined, locale: string = 'en'): string {
+  if (!val) return '';
+  if (typeof val === 'string') return val;
+  return val[locale] || val['en'] || Object.values(val)[0] || '';
 }

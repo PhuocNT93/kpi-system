@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { EvaluationItem } from '../domain/evaluation-models';
+import { getLocalizedText } from '../domain/evaluation-models';
 import { LevelSelector } from './LevelSelector';
 import type { LevelItem } from './LevelSelector';
 import { COLORS } from '@/lib/theme';
@@ -119,7 +120,7 @@ export const CriterionCard: React.FC<CriterionCardProps> = ({
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <span style={{ fontSize: TYPOGRAPHY.fontSize.base, fontWeight: 600, color: COLORS.neutral.textPrimary }}>
-                {item.criterion_name_snapshot}
+                {getLocalizedText(item.criterion_name_snapshot)}
               </span>
               <span
                 style={{

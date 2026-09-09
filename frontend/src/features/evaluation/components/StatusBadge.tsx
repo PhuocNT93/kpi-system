@@ -66,7 +66,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
           text: '#15803d',
           icon: CheckCircle,
         };
-      case 'PUBLISHED':
+      case EvaluationStatus.PUBLISHED:
         return {
           label: 'Đã công bố (Published)',
           bg: '#ecfdf5',
