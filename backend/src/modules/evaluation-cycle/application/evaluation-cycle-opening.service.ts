@@ -85,26 +85,27 @@ export class EvaluationCycleOpeningService {
         throw new NotFound('EvaluationTemplateVersion');
       }
 
+      const currentTemplateMeta = await dbClient.query(
+        `SELECT code, name, description, status, created_at, created_by, updated_at, updated_by
+         FROM evaluation_templates
+         WHERE id = $1`,
+        [currentTemplateId]
+      );
+
+      if (currentTemplateMeta.rows.length === 0) {
+        throw new NotFound('EvaluationTemplate');
+      }
+
       const legacyTemplateRes = await dbClient.query(
         `SELECT evaluation_template_id
          FROM evaluation_template
          WHERE code = $1
          LIMIT 1`,
-        [currentTemplateId]
+        [currentTemplateMeta.rows[0].code]
       );
 
       let legacyTemplateId = legacyTemplateRes.rows[0]?.evaluation_template_id as string | undefined;
       if (!legacyTemplateId) {
-        const currentTemplateMeta = await dbClient.query(
-          `SELECT code, name, description, status, created_at, created_by, updated_at, updated_by
-           FROM evaluation_templates
-           WHERE id = $1`,
-          [currentTemplateId]
-        );
-
-        if (currentTemplateMeta.rows.length === 0) {
-          throw new NotFound('EvaluationTemplate');
-        }
 
         const legacyTemplateInsertRes = await dbClient.query(
           `INSERT INTO evaluation_template (
