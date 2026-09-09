@@ -4,19 +4,37 @@ import { CriterionCategory, ScoringRuleType } from '../../domain/configuration.t
 
 export async function clearConfigurationData(pool: Pool): Promise<void> {
   await pool.query(`
+    DELETE FROM import_row;
+    DELETE FROM import_job;
+    DELETE FROM evidence;
+    DELETE FROM measurement;
+    DELETE FROM score_adjustment;
+    DELETE FROM evaluation_item;
+    DELETE FROM review;
+    DELETE FROM approval;
+    DELETE FROM calibration_adjustment;
+    DELETE FROM calibration_session;
     DELETE FROM evaluation;
     DELETE FROM evaluation_cycle;
     DELETE FROM template_criteria;
+    DELETE FROM template_criterion;
     DELETE FROM template_kpi;
     DELETE FROM role_overrides;
     DELETE FROM team_overrides;
     DELETE FROM template_overrides;
+    DELETE FROM criterion_override;
     DELETE FROM evaluation_template_versions;
     DELETE FROM evaluation_templates;
+    DELETE FROM evaluation_template_version;
+    DELETE FROM evaluation_template;
     DELETE FROM kpi_criterion;
+    DELETE FROM criterion_level;
     DELETE FROM criterion_versions;
+    DELETE FROM criterion_version;
     DELETE FROM criteria;
+    DELETE FROM criterion;
     DELETE FROM scoring_rules;
+    DELETE FROM scoring_rule;
   `);
 }
 
