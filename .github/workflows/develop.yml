@@ -121,7 +121,9 @@ jobs:
       - name: Run Neon develop migrations
         env:
           DATABASE_URL: ${{ secrets.DEVELOP_DATABASE_URL }}
-        run: npm run migrate:up
+        # --no-check-order: needed because some migration files were renamed (timestamp changed) in git history.
+        # The Neon DB recorded the OLD names; node-pg-migrate would fail the order check otherwise.
+        run: npm run migrate:up -- --no-check-order
 
   deploy-backend:
     if: github.ref == 'refs/heads/develop' && inputs.run_migrations != true && inputs.run_seed != true
