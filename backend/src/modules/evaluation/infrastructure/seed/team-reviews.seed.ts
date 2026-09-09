@@ -62,18 +62,19 @@ export async function seedTeamReviewsModule(pool: Pool): Promise<void> {
 
   // 2. Load template criteria + scoring rule + levels for the cycle's template version
   const tcRes = await pool.query(
-    `SELECT tc.template_criterion_id,
+    `SELECT tc.id AS template_criterion_id,
             tc.criterion_version_id,
-            tc.effective_weight,
+            (COALESCE(tk.weight, 100) * tc.weight / 100) AS effective_weight,
             c.code AS criterion_code,
             c.name AS criterion_name,
             sr.rule_type,
-            sr.rule_config
-     FROM template_criterion tc
-     JOIN criterion_version cv ON tc.criterion_version_id = cv.criterion_version_id
-     JOIN criterion c ON cv.criterion_id = c.criterion_id
-     JOIN scoring_rule sr ON cv.scoring_rule_id = sr.scoring_rule_id
-     WHERE tc.evaluation_template_version_id = $1
+            sr.config AS rule_config
+     FROM template_criteria tc
+     LEFT JOIN template_kpi tk ON tc.template_kpi_id = tk.template_kpi_id
+     JOIN criterion_versions cv ON tc.criterion_version_id = cv.id
+     JOIN criteria c ON cv.criterion_id = c.id
+     JOIN scoring_rules sr ON cv.scoring_rule_id = sr.id
+     WHERE tc.template_version_id = $1
      ORDER BY tc.display_order ASC;`,
     [templateVersionId]
   );

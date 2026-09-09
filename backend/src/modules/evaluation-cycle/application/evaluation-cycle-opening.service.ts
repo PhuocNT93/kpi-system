@@ -74,79 +74,35 @@ export class EvaluationCycleOpeningService {
       }
 
       // 4. Load template criteria & defensive weight check
-      // Some databases may not have the `template_kpi_id` column due to migration name mismatches.
-      // Detect column presence and run a compatible query.
-      const colCheck = await dbClient.query(
-        `SELECT 1 FROM information_schema.columns WHERE table_name = $1 AND column_name = $2`,
-        ['template_criterion', 'template_kpi_id']
+      let tcRes = await dbClient.query(
+        `SELECT tc.id AS template_criterion_id,
+                tc.template_kpi_id,
+                tc.template_version_id AS evaluation_template_version_id,
+                tc.criterion_version_id,
+                (COALESCE(tk.weight, 100) * tc.weight / 100) AS effective_weight,
+                NULL AS applicable_role_ids,
+                NULL AS applicable_team_ids,
+                (NOT tc.enabled) AS is_disabled,
+                tc.display_order,
+                tk.kpi_id,
+                tk.weight AS kpi_weight,
+                k.code AS kpi_code,
+                k.name AS kpi_name,
+                c.id AS criterion_id,
+                c.code AS criterion_code,
+                c.name AS criterion_name,
+                sr.rule_type,
+                sr.config AS rule_config
+         FROM template_criteria tc
+         LEFT JOIN template_kpi tk ON tc.template_kpi_id = tk.template_kpi_id
+         LEFT JOIN kpi k ON tk.kpi_id = k.kpi_id
+         JOIN criterion_versions cv ON tc.criterion_version_id = cv.id
+         JOIN criteria c ON cv.criterion_id = c.id
+         JOIN scoring_rules sr ON cv.scoring_rule_id = sr.id
+         WHERE tc.template_version_id = $1
+         ORDER BY tc.display_order ASC`,
+        [cycle.evaluationTemplateVersionId]
       );
-
-      let tcRes;
-      if (colCheck.rows.length > 0) {
-        // Column exists — run original query joining by template_kpi_id
-        tcRes = await dbClient.query(
-          `SELECT tc.template_criterion_id,
-                  tc.template_kpi_id,
-                  tc.evaluation_template_version_id,
-                  tc.criterion_version_id,
-                  tc.effective_weight,
-                  tc.applicable_role_ids,
-                  tc.applicable_team_ids,
-                  tc.is_disabled,
-                  tc.display_order,
-                  tk.kpi_id,
-                  tk.weight AS kpi_weight,
-                  k.code AS kpi_code,
-                  k.name AS kpi_name,
-                  c.criterion_id,
-                  c.code AS criterion_code,
-                  c.name AS criterion_name,
-                  sr.rule_type,
-                  sr.rule_config
-           FROM template_criterion tc
-           JOIN template_kpi tk ON tc.template_kpi_id = tk.template_kpi_id
-           JOIN kpi k ON tk.kpi_id = k.kpi_id
-           JOIN criterion_version cv ON tc.criterion_version_id = cv.criterion_version_id
-           JOIN criterion c ON cv.criterion_id = c.criterion_id
-           JOIN scoring_rule sr ON cv.scoring_rule_id = sr.scoring_rule_id
-           WHERE tc.evaluation_template_version_id = $1
-           ORDER BY tc.display_order ASC`,
-          [cycle.evaluationTemplateVersionId]
-        );
-      } else {
-        // Column missing — fallback: pick the first template_kpi for the template version (legacy templates)
-        tcRes = await dbClient.query(
-          `SELECT tc.template_criterion_id,
-                  NULL::uuid AS template_kpi_id,
-                  tc.evaluation_template_version_id,
-                  tc.criterion_version_id,
-                  tc.effective_weight,
-                  tc.applicable_role_ids,
-                  tc.applicable_team_ids,
-                  tc.is_disabled,
-                  tc.display_order,
-                  tk.kpi_id,
-                  tk.weight AS kpi_weight,
-                  k.code AS kpi_code,
-                  k.name AS kpi_name,
-                  c.criterion_id,
-                  c.code AS criterion_code,
-                  c.name AS criterion_name,
-                  sr.rule_type,
-                  sr.rule_config
-           FROM template_criterion tc
-           LEFT JOIN LATERAL (
-             SELECT * FROM template_kpi tk WHERE tk.template_version_id = tc.evaluation_template_version_id ORDER BY tk.display_order ASC LIMIT 1
-           ) tk ON true
-           LEFT JOIN kpi k ON tk.kpi_id = k.kpi_id
-           JOIN criterion_version cv ON tc.criterion_version_id = cv.criterion_version_id
-           JOIN criterion c ON cv.criterion_id = c.criterion_id
-           JOIN scoring_rule sr ON cv.scoring_rule_id = sr.scoring_rule_id
-           WHERE tc.evaluation_template_version_id = $1
-           ORDER BY tc.display_order ASC`,
-          [cycle.evaluationTemplateVersionId]
-        );
-      }
 
       const templateCriteria = tcRes.rows;
       if (templateCriteria.length === 0) {

@@ -207,7 +207,6 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     evaluation_template_version_id: { type: 'uuid', notNull: true, references: '"evaluation_template_version"' },
     applicable_team_ids: { type: 'uuid[]' },
     applicable_role_ids: { type: 'uuid[]' },
-    applicable_employee_ids: { type: 'uuid[]' },
     approved_by: { type: 'uuid' },
     locked_at: { type: 'timestamptz' },
     created_at: { type: 'timestamptz', notNull: true, default: pgm.func('CURRENT_TIMESTAMP') },
