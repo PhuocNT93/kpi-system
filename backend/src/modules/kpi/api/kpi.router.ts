@@ -12,6 +12,10 @@ export function createKpiRouter(
 ): Router {
   const router = Router();
 
+  type PrivilegedRole = 'SYSTEM_ADMIN' | 'HR_ADMIN' | 'MANAGER';
+  const privilegedRoles = new Set<PrivilegedRole>(['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER']);
+  const hasPrivilegedRole = (role: string): role is PrivilegedRole => privilegedRoles.has(role as PrivilegedRole);
+
   const requirePermission = (permissionCode: string): RequestHandler => {
     return async (req, res, next) => {
       try {
@@ -20,6 +24,12 @@ export function createKpiRouter(
           res.status(401).json({ success: false, message: 'Authentication required.' });
           return;
         }
+
+        if (hasPrivilegedRole(actor.role)) {
+          next();
+          return;
+        }
+
         const hasPerm = await authorizationService.hasPermission(actor.userId, permissionCode);
         if (!hasPerm) {
           res.status(403).json({ success: false, message: `Permission '${permissionCode}' required.` });

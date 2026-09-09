@@ -226,6 +226,7 @@ export interface EvaluationTemplate {
   description?: string;
   status: TemplateStatus;
   current_version_id?: string;
+  criteria_count?: number;
   version: number;
   created_at: Date;
   created_by?: string;

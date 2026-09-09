@@ -144,14 +144,12 @@ export function TemplateBuilderWorkspace({
       // Auto-populate with mapped criteria from global KPI library
       const mappedCriteria = await fetchKpiCriteria(kpi.kpiId);
       if (mappedCriteria && mappedCriteria.length > 0) {
-        // We also need to fetch the full criteria details to get the names/codes.
-        // For now, we will add them with the information we have from the mapping.
-        // The mapping returns criterionCode and criterionName in the payload from the DB.
+        const criterionById = new Map(libraryCriteria.map((criterion) => [criterion.id, criterion]));
         const newTemplateCriteria: TemplateCriterion[] = mappedCriteria.map((mapping, idx) => ({
           id: `tcrit-${Date.now()}-${idx}`,
           templateVersionId: version.id,
           templateKpiId: kpiId,
-          criterionVersionId: `cv-${mapping.criterionId}`, // Placeholder for version ID since mapping doesn't have it
+          criterionVersionId: criterionById.get(mapping.criterionId)?.currentVersion?.id || '',
           effectiveWeight: mapping.weight,
           applicableRoleIds: [],
           applicableTeamIds: [],
@@ -163,12 +161,13 @@ export function TemplateBuilderWorkspace({
             code: (mapping as { criterionCode?: string }).criterionCode || '',
             name: (mapping as { criterionName?: string }).criterionName || 'Unknown Criterion',
             category: 'PERFORMANCE',
-            status: 'ACTIVE',
+            status: 'ACTIVE' as const,
             version: 1,
             createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
+            currentVersion: criterionById.get(mapping.criterionId)?.currentVersion,
           }
-        }));
+        })).filter((criterion) => criterion.criterionVersionId);
         
         setCriteria((prev) => [...prev, ...newTemplateCriteria]);
       }
