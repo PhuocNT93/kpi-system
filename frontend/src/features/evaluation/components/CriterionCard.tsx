@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import type { EvaluationItem } from '../domain/evaluation-models';
-import { getLocalizedText } from '../domain/evaluation-models';
 import { LevelSelector } from './LevelSelector';
 import type { LevelItem } from './LevelSelector';
 import { COLORS } from '@/lib/theme';
