@@ -89,4 +89,30 @@ export class EvaluationController {
     const result = await this.evaluationService.recalculateEvaluation(id, actor);
     sendSuccess(res, 200, 'Evaluation score calculated successfully.', result);
   };
+
+  publishEvaluation = async (req: Request, res: Response): Promise<void> => {
+    const actor = this.getActor(req);
+    const id = req.params.id as string;
+    const result = await this.evaluationService.publishEvaluation(id, actor);
+    sendSuccess(res, 200, 'Evaluation published successfully.', result);
+  };
+
+  lockEvaluation = async (req: Request, res: Response): Promise<void> => {
+    const actor = this.getActor(req);
+    const id = req.params.id as string;
+    const result = await this.evaluationService.lockEvaluation(id, actor);
+    sendSuccess(res, 200, 'Evaluation locked successfully.', result);
+  };
+
+  overrideKpiScore = async (req: Request, res: Response): Promise<void> => {
+    const actor = this.getActor(req);
+    const id = req.params.id as string;
+    const kpiId = req.params.kpiId as string;
+    const { manual_override_score, override_reason } = req.body;
+    const result = await this.evaluationService.overrideKpiScore(id, kpiId, actor, {
+      manual_override_score: Number(manual_override_score),
+      override_reason: override_reason as string,
+    });
+    sendSuccess(res, 200, 'KPI score override applied successfully.', result);
+  };
 }

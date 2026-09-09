@@ -81,12 +81,23 @@ export function TeamEvaluationsPage() {
     EvaluationStatus.MANAGER_REVIEW,
   ];
 
+  const completedStatuses = [
+    EvaluationStatus.APPROVED,
+    EvaluationStatus.PUBLISHED,
+    EvaluationStatus.LOCKED,
+  ];
+
   const inProgress = filteredEvaluations.filter((item: TeamEvaluation) =>
     inProgressStatuses.includes(item.evaluation.status as EvaluationStatus)
   );
 
+  const completed = filteredEvaluations.filter((item: TeamEvaluation) =>
+    completedStatuses.includes(item.evaluation.status as EvaluationStatus)
+  );
+
   const upcoming = filteredEvaluations.filter((item: TeamEvaluation) =>
-    !inProgressStatuses.includes(item.evaluation.status as EvaluationStatus)
+    !inProgressStatuses.includes(item.evaluation.status as EvaluationStatus) &&
+    !completedStatuses.includes(item.evaluation.status as EvaluationStatus)
   );
 
   return (
@@ -244,6 +255,94 @@ export function TeamEvaluationsPage() {
                         </span>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: TYPOGRAPHY.fontSize.sm, fontWeight: 600, color: COLORS.primary.DEFAULT }}>
                           {isReady ? 'Review Now' : 'View Details'} <ArrowRight size={14} />
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {completed.length > 0 && (
+            <div>
+              <h2 style={{ margin: '0 0 8px 0', fontSize: TYPOGRAPHY.fontSize.lg, color: COLORS.neutral.textPrimary }}>Completed Reviews ({completed.length})</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '20px' }}>
+                {completed.map((item: TeamEvaluation) => {
+                  const badge = getStatusBadge(item.evaluation.status);
+
+                  return (
+                    <div
+                      key={item.evaluation.evaluation_id}
+                      onClick={() => navigate(`/admin/team-evaluations/${item.evaluation.evaluation_id}`)}
+                      style={{
+                        backgroundColor: COLORS.neutral.white,
+                        borderRadius: RADII.xl,
+                        border: `1px solid ${COLORS.neutral[200]}`,
+                        padding: '20px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '16px',
+                        position: 'relative'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = COLORS.primary.DEFAULT;
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = COLORS.neutral[200];
+                        e.currentTarget.style.transform = 'none';
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <h3 style={{ margin: '0 0 4px 0', fontSize: TYPOGRAPHY.fontSize.base, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
+                            {item.employee?.full_name || 'Team Member'}
+                          </h3>
+                          <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
+                            {item.employee?.employee_code} • {item.employee?.role_name || 'Member'} • {item.employee?.team_name || 'Team'}
+                          </div>
+                        </div>
+
+                        <span style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '4px 8px',
+                          borderRadius: RADII.md,
+                          fontSize: TYPOGRAPHY.fontSize.xs,
+                          fontWeight: 600,
+                          backgroundColor: badge.bg,
+                          color: badge.text
+                        }}>
+                          {badge.icon}
+                          {badge.label}
+                        </span>
+                      </div>
+
+                      <div style={{
+                        padding: '12px',
+                        backgroundColor: COLORS.neutral[50],
+                        borderRadius: RADII.md,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        fontSize: TYPOGRAPHY.fontSize.sm,
+                        color: COLORS.neutral.textSecondary
+                      }}>
+                        <Calendar size={16} color={COLORS.neutral[500]} />
+                        <span style={{ fontWeight: 500, color: COLORS.neutral.textPrimary }}>{item.cycle?.name}</span>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '8px', borderTop: `1px solid ${COLORS.neutral[100]}` }}>
+                        <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
+                          {item.evaluation.submitted_at ? `Submitted: ${new Date(item.evaluation.submitted_at).toLocaleDateString()}` : 'Not submitted yet'}
+                        </span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: TYPOGRAPHY.fontSize.sm, fontWeight: 600, color: COLORS.primary.DEFAULT }}>
+                          View Details <ArrowRight size={14} />
                         </span>
                       </div>
                     </div>

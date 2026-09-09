@@ -3,6 +3,7 @@ export enum EvaluationStatus {
   SUBMITTED = 'SUBMITTED',
   MANAGER_REVIEW = 'MANAGER_REVIEW',
   APPROVED = 'APPROVED',
+  PUBLISHED = 'PUBLISHED',
   LOCKED = 'LOCKED',
 }
 
@@ -22,6 +23,10 @@ export interface Evaluation {
   scoring_breakdown?: Record<string, unknown>;
   submitted_at?: Date;
   approved_at?: Date;
+  published_at?: Date;
+  locked_at?: Date;
+  published_by?: string;
+  locked_by?: string;
   is_locked: boolean;
   created_at: Date;
   updated_at: Date;
@@ -50,6 +55,10 @@ export interface EvaluationItem {
   weighted_score?: number | null;
   is_disabled_for_employee: boolean;
   is_missing_score: boolean;
+  manual_override_score?: number | null;
+  override_reason?: string | null;
+  override_by?: string | null;
+  override_at?: Date | null;
   comment?: string;
   reviewer_id?: string;
   review_date?: Date;

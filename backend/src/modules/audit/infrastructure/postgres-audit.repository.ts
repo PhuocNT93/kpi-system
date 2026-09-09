@@ -91,11 +91,11 @@ export class PostgresAuditRepository implements AuditRepository {
         a.new_value AS "newValue",
         a.reason,
         a.performed_by AS "performedBy",
-        e.name AS "performedByName",
+        u.name AS "performedByName",
         a.performed_at AS "performedAt",
         a.source
       FROM audit_log a
-      LEFT JOIN employee e ON a.performed_by = e.employee_id
+      LEFT JOIN app_user u ON a.performed_by = u.id
       ${whereClause}
       ORDER BY a.performed_at DESC
       LIMIT $${paramIndex++} OFFSET $${paramIndex++}

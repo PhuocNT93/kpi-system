@@ -268,4 +268,114 @@ export class EvaluationService {
       };
     });
   }
+
+  async publishEvaluation(evaluationId: string, actor: Actor): Promise<Evaluation> {
+    const evaluation = await this.evaluationRepo.findById(evaluationId);
+    if (!evaluation) throw new NotFound('Evaluation');
+
+    const isHrOrAdmin = actor.role === 'HR_ADMIN' || actor.role === 'SYSTEM_ADMIN';
+    if (!isHrOrAdmin) {
+      throw new AppError(403, 'FORBIDDEN', 'Only HR or System Admins can publish evaluations.');
+    }
+
+    if (evaluation.status !== EvaluationStatus.APPROVED) {
+      throw new AppError(400, 'INVALID_STATUS', 'Evaluation must be APPROVED before it can be published.');
+    }
+
+    return this.evaluationRepo.update(evaluationId, {
+      status: EvaluationStatus.PUBLISHED,
+      published_at: new Date(),
+      published_by: actor.userId,
+      updated_by: actor.userId,
+    });
+  }
+
+  async lockEvaluation(evaluationId: string, actor: Actor): Promise<Evaluation> {
+    const isHrOrAdmin = actor.role === 'HR_ADMIN' || actor.role === 'SYSTEM_ADMIN';
+    if (!isHrOrAdmin) {
+      throw new AppError(403, 'FORBIDDEN', 'Only HR or System Admins can lock evaluations.');
+    }
+
+    return withTransaction(this.pool, async (client) => {
+      const repositoryClient = client as unknown as PoolClient;
+      const evaluation = await this.evaluationRepo.findByIdForUpdate(evaluationId, repositoryClient);
+      
+      if (!evaluation) throw new NotFound('Evaluation');
+      if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
+        throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is already locked.');
+      }
+      if (evaluation.status !== EvaluationStatus.PUBLISHED && evaluation.status !== EvaluationStatus.APPROVED) {
+        throw new AppError(400, 'INVALID_STATUS', 'Evaluation must be APPROVED or PUBLISHED before locking.');
+      }
+
+      const updated = await this.evaluationRepo.update(evaluationId, {
+        status: EvaluationStatus.LOCKED,
+        is_locked: true,
+        locked_at: new Date(),
+        locked_by: actor.userId,
+        updated_by: actor.userId,
+      }, repositoryClient);
+
+      return updated;
+    });
+  }
+
+  async overrideKpiScore(
+    evaluationId: string,
+    kpiId: string,
+    actor: Actor,
+    data: { manual_override_score: number; override_reason: string }
+  ): Promise<EvaluationItem> {
+    const isHrOrAdmin = actor.role === 'HR_ADMIN' || actor.role === 'SYSTEM_ADMIN';
+    if (!isHrOrAdmin) {
+      throw new AppError(403, 'FORBIDDEN', 'Only HR or System Admins can manually override scores.');
+    }
+
+    if (data.manual_override_score < 0 || data.manual_override_score > 100) {
+      throw new AppError(400, 'INVALID_INPUT', 'Override score must be between 0 and 100.');
+    }
+    if (!data.override_reason || data.override_reason.trim() === '') {
+      throw new AppError(400, 'INVALID_INPUT', 'Override reason is required.');
+    }
+
+    return withTransaction(this.pool, async (client) => {
+      const repositoryClient = client as unknown as PoolClient;
+      const evaluation = await this.evaluationRepo.findByIdForUpdate(evaluationId, repositoryClient);
+      
+      if (!evaluation) throw new NotFound('Evaluation');
+      if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
+        throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked. Scores cannot be overridden.');
+      }
+      if (evaluation.status !== EvaluationStatus.APPROVED && evaluation.status !== EvaluationStatus.PUBLISHED) {
+        throw new AppError(400, 'INVALID_STATUS', 'Can only override score when evaluation is APPROVED or PUBLISHED.');
+      }
+
+      const items = await this.evaluationItemRepo.findByEvaluationId(evaluationId, repositoryClient);
+      const targetItem = items.find(item => item.evaluation_item_id === kpiId);
+      
+      if (!targetItem) throw new NotFound('EvaluationItem');
+
+      const updatedItem = await this.evaluationItemRepo.update(targetItem.evaluation_item_id, {
+        manual_override_score: data.manual_override_score,
+        override_reason: data.override_reason,
+        override_by: actor.userId,
+        override_at: new Date(),
+        updated_by: actor.userId,
+      }, repositoryClient);
+
+      if (this.auditService) {
+        await this.auditService.record(client, {
+          entityType: 'EVALUATION_ITEM',
+          entityId: targetItem.evaluation_item_id,
+          action: 'MANUAL_OVERRIDE',
+          oldValue: JSON.stringify({ manual_override_score: targetItem.manual_override_score }),
+          newValue: JSON.stringify({ manual_override_score: updatedItem.manual_override_score, override_reason: updatedItem.override_reason }),
+          performedBy: actor.userId,
+          source: 'API',
+        });
+      }
+
+      return updatedItem;
+    });
+  }
 }

@@ -35,4 +35,20 @@ export const evaluationApi = {
   recalculateEvaluation: async (id: string): Promise<void> => {
     return postApi(`${EVALUATIONS_BASE}/${id}/recalculate`, {});
   },
+
+  publishEvaluation: async (id: string): Promise<void> => {
+    return postApi(`${EVALUATIONS_BASE}/${id}/publish`, {});
+  },
+
+  lockEvaluation: async (id: string): Promise<void> => {
+    return postApi(`${EVALUATIONS_BASE}/${id}/lock`, {});
+  },
+
+  overrideKpiScore: async (
+    id: string,
+    kpiId: string,
+    payload: { manual_override_score: number; override_reason: string }
+  ): Promise<void> => {
+    return postApi(`${EVALUATIONS_BASE}/${id}/kpis/${kpiId}/override`, payload);
+  },
 };

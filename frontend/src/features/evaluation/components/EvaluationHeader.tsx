@@ -28,6 +28,9 @@ interface EvaluationHeaderProps {
   submitLabel?: string;
   submittingLabel?: string;
   mode?: 'self' | 'manager';
+  isHrAdmin?: boolean;
+  onPublish?: () => void;
+  onLock?: () => void;
 }
 
 export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
@@ -51,20 +54,33 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
   submitLabel = 'Nộp tự đánh giá',
   submittingLabel = 'Đang gửi...',
   mode = 'self',
+  isHrAdmin = false,
+  onPublish,
+  onLock,
 }) => {
   const navigate = useNavigate();
 
   const percentage = totalActiveItems > 0 ? Math.round((completedItems / totalActiveItems) * 100) : 0;
 
   let readOnlyReason = '';
+  let readOnlyTitle = 'Cycle Status: LOCKED';
+  let readOnlyColor = '#f87171'; // red for locked
+
   if (isLocked || status === EvaluationStatus.LOCKED) {
     readOnlyReason = 'Kỳ đánh giá đã bị KHÓA. Toàn bộ thông tin điểm số và phản hồi là cố định và không thể chỉnh sửa.';
+    readOnlyTitle = 'STATUS: LOCKED';
   } else if (mode === 'self' && (status === EvaluationStatus.SUBMITTED || (status as string) === 'MANAGER_ASSESSMENT')) {
     readOnlyReason = 'Bạn đã gửi tự đánh giá thành công. Đánh giá hiện đang ở trạng thái Chờ Quản lý (Manager Review) và ở chế độ Chỉ đọc.';
+    readOnlyTitle = 'STATUS: READ ONLY';
+    readOnlyColor = '#fbbf24'; // amber
   } else if ((status as string) === 'APPROVED') {
     readOnlyReason = 'Đánh giá đã được cấp quản lý phê duyệt. Kết quả sẽ được công bố chính thức theo lịch của công ty.';
+    readOnlyTitle = 'STATUS: APPROVED';
+    readOnlyColor = '#10b981'; // green
   } else if ((status as string) === 'PUBLISHED') {
     readOnlyReason = 'Đánh giá đã được công bố chính thức. Bạn có thể xem toàn bộ điểm số, nhận xét và kết quả cuối cùng bên dưới.';
+    readOnlyTitle = 'STATUS: PUBLISHED';
+    readOnlyColor = '#3b82f6'; // blue
   }
 
   return (
@@ -175,6 +191,47 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
                 </button>
               </div>
             )}
+
+            {isHrAdmin && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                {status === EvaluationStatus.APPROVED && onPublish && (
+                  <button
+                    type="button"
+                    onClick={onPublish}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: RADII.lg,
+                      backgroundColor: '#10b981',
+                      border: 'none',
+                      color: COLORS.neutral.white,
+                      fontSize: TYPOGRAPHY.fontSize.sm,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Publish Results
+                  </button>
+                )}
+                {(status === EvaluationStatus.APPROVED || status === EvaluationStatus.PUBLISHED) && onLock && (
+                  <button
+                    type="button"
+                    onClick={onLock}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: RADII.lg,
+                      backgroundColor: COLORS.neutral[800],
+                      border: 'none',
+                      color: COLORS.neutral.white,
+                      fontSize: TYPOGRAPHY.fontSize.sm,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Lock Evaluation
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -209,7 +266,7 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
 
       {/* Read-Only Notice Banner */}
       {!isEditable && readOnlyReason && (
-        <ReadOnlyBanner reason={readOnlyReason} />
+        <ReadOnlyBanner reason={readOnlyReason} title={readOnlyTitle} iconColor={readOnlyColor} />
       )}
     </div>
   );

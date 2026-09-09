@@ -23,6 +23,9 @@ export async function seedIamData(
     { code: 'evaluation:update', resource: 'evaluation', action: 'update', description: 'Update evaluation' },
     { code: 'evaluation:submit', resource: 'evaluation', action: 'submit', description: 'Submit evaluation' },
     { code: 'evaluation:approve', resource: 'evaluation', action: 'approve', description: 'Approve evaluation' },
+    { code: 'evaluation:manual_override', resource: 'evaluation', action: 'manual_override', description: 'Manual override KPI score (HR/Admin only)' },
+    { code: 'evaluation:publish', resource: 'evaluation', action: 'publish', description: 'Publish evaluation results' },
+    { code: 'evaluation:lock', resource: 'evaluation', action: 'lock', description: 'Lock evaluation' },
     { code: 'evaluation:adjust_score', resource: 'evaluation', action: 'adjust_score', description: 'Adjust evaluation score' },
 
     // employee
@@ -179,6 +182,9 @@ export async function seedIamData(
     { roleCode: 'HR_ADMIN', permCode: 'evaluation:update', scope: 'ORGANIZATION' },
     { roleCode: 'HR_ADMIN', permCode: 'evaluation:submit', scope: 'ORGANIZATION' },
     { roleCode: 'HR_ADMIN', permCode: 'evaluation:approve', scope: 'ORGANIZATION' },
+    { roleCode: 'HR_ADMIN', permCode: 'evaluation:manual_override', scope: 'ORGANIZATION' },
+    { roleCode: 'HR_ADMIN', permCode: 'evaluation:publish', scope: 'ORGANIZATION' },
+    { roleCode: 'HR_ADMIN', permCode: 'evaluation:lock', scope: 'ORGANIZATION' },
     { roleCode: 'HR_ADMIN', permCode: 'evaluation:adjust_score', scope: 'ORGANIZATION' },
     { roleCode: 'HR_ADMIN', permCode: 'import:create', scope: 'ORGANIZATION' },
     { roleCode: 'HR_ADMIN', permCode: 'import:read', scope: 'ORGANIZATION' },
