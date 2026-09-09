@@ -69,7 +69,7 @@ export async function seedTeamReviewsModule(pool: Pool): Promise<void> {
             c.name AS criterion_name,
             sr.rule_type,
             sr.rule_config
-     FROM template_criterion tc
+     FROM template_criteria tc
      JOIN criterion_version cv ON tc.criterion_version_id = cv.criterion_version_id
      JOIN criterion c ON cv.criterion_id = c.criterion_id
      JOIN scoring_rule sr ON cv.scoring_rule_id = sr.scoring_rule_id

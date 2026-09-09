@@ -10,7 +10,7 @@ import { Button } from '@/shared/ui/Button/Button';
 import { Badge } from '@/shared/ui/Badge/Badge';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
-import { evaluationCycleApi } from '../api/cycle-api';
+// import { evaluationCycleApi } from '../api/cycle-api';
 
 interface OptionItem {
   id: string;
@@ -267,26 +267,26 @@ export const EvaluationCycleForm: React.FC<EvaluationCycleFormProps> = ({
     });
   };
 
-  const handleDirectCreate = async () => {
-    if (!validate()) return;
+  // const handleDirectCreate = async () => {
+  //   if (!validate()) return;
 
-    const payload: CreateEvaluationCyclePayload = {
-      code: code.trim(),
-      name: name.trim(),
-      templateVersionId,
-      startDate,
-      endDate,
-      applicableTeamIds: scopeTeamIds,
-      applicableRoleIds: selectedEmployeeIds.length > 0
-        ? Array.from(new Set(availableEmployees.filter((emp) => selectedEmployeeIds.includes(emp.id)).map((emp) => emp.roleId).filter(Boolean)))
-        : selectedRoleIds,
-      applicableEmployeeIds: selectedEmployeeIds,
-      calibrationEnabled,
-      gracePeriodDays: Number(gracePeriodDays),
-    };
+  //   const payload: CreateEvaluationCyclePayload = {
+  //     code: code.trim(),
+  //     name: name.trim(),
+  //     templateVersionId,
+  //     startDate,
+  //     endDate,
+  //     applicableTeamIds: scopeTeamIds,
+  //     applicableRoleIds: selectedEmployeeIds.length > 0
+  //       ? Array.from(new Set(availableEmployees.filter((emp) => selectedEmployeeIds.includes(emp.id)).map((emp) => emp.roleId).filter(Boolean)))
+  //       : selectedRoleIds,
+  //     applicableEmployeeIds: selectedEmployeeIds,
+  //     calibrationEnabled,
+  //     gracePeriodDays: Number(gracePeriodDays),
+  //   };
 
-    await evaluationCycleApi.createCycle(payload);
-  };
+  //   await evaluationCycleApi.createCycle(payload);
+  // };
 
   return (
     <form
@@ -707,7 +707,8 @@ export const EvaluationCycleForm: React.FC<EvaluationCycleFormProps> = ({
         <Button variant="secondary" onClick={onCancel} disabled={isPending} type="button">
           Cancel
         </Button>
-        <Button type="button" onClick={handleDirectCreate} disabled={isPending}>
+        {/* <Button type="button" onClick={handleDirectCreate} disabled={isPending}> */}
+        <Button type="submit" disabled={isPending}>
           {isPending ? 'Saving Draft...' : 'Save Draft'}
         </Button>
       </div>

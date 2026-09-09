@@ -285,6 +285,12 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
 
   const completedCount = activeCriteria.length - missingCriteria.length;
 
+  const formatCriterionName = (value: unknown): string => {
+    if (typeof value === 'string') return value;
+    if (value && typeof value === 'object') return JSON.stringify(value);
+    return 'Tiêu chí';
+  };
+
   // Open submit confirmation modal
   const handleOpenSubmit = () => {
     setIsSubmitModalOpen(true);
@@ -565,7 +571,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
                       const item = detail.items.find((candidate) => candidate.evaluation_item_id === criterionResult.criterion_id);
                       return (
                         <tr key={criterionResult.criterion_id}>
-                          <td style={{ padding: '6px' }}>{item ? getLocalizedText(item.criterion_name_snapshot) : criterionResult.criterion_id}</td>
+                          <td style={{ padding: '6px' }}>{formatCriterionName(item?.criterion_name_snapshot ?? criterionResult.criterion_id)}</td>
                           <td style={{ padding: '6px' }}>{criterionResult.is_na ? 'N/A' : criterionResult.resolved_level ?? 'N/A'}</td>
                           <td style={{ padding: '6px' }}>{criterionResult.is_na ? 'N/A' : `${criterionResult.raw_score} / ${criterionResult.max_score}`}</td>
                           <td style={{ padding: '6px' }}>{criterionResult.normalized_score ?? 'N/A'}</td>
