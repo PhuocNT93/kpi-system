@@ -113,10 +113,10 @@ export class PostgresCriterionRepository implements ICriterionRepository {
     );
     const total = parseInt(countRes.rows[0].count, 10);
 
-    // Single JOIN query – replaces N+1 pattern
+    // Optimized JOIN query using Sub-query for pagination and LATERAL JOIN for latest version
     const queryParams = [...params, size, offset];
     const dataRes = await runner.query(
-      `SELECT DISTINCT ON (c.id)
+      `SELECT
          c.id, c.code, c.category, c.name, c.description, c.status, c.version,
          c.created_at, c.created_by, c.updated_at, c.updated_by,
          cv.id            AS cv_id,
@@ -132,12 +132,20 @@ export class PostgresCriterionRepository implements ICriterionRepository {
          sr.rule_type     AS sr_rule_type,
          sr.config        AS sr_config,
          sr.status        AS sr_status
-       FROM criteria c
-       LEFT JOIN criterion_versions cv ON cv.criterion_id = c.id
+       FROM (
+         SELECT * FROM criteria c
+         ${whereClause}
+         ORDER BY created_at DESC
+         LIMIT $${idx++} OFFSET $${idx++}
+       ) c
+       LEFT JOIN LATERAL (
+         SELECT * FROM criterion_versions
+         WHERE criterion_id = c.id
+         ORDER BY version_no DESC
+         LIMIT 1
+       ) cv ON true
        LEFT JOIN scoring_rules sr ON sr.id = cv.scoring_rule_id
-       ${whereClause}
-       ORDER BY c.id, cv.version_no DESC
-       LIMIT $${idx++} OFFSET $${idx++}`,
+       ORDER BY c.created_at DESC`,
       queryParams
     );
 
