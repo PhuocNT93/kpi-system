@@ -30,3 +30,14 @@ export function useUpdateEmployee() {
     },
   });
 }
+
+export function useBulkUpdateEmployees() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ employeeIds, status }: { employeeIds: string[]; status: 'ACTIVE' | 'INACTIVE' }) =>
+      employeeApi.bulkUpdateStatus(employeeIds, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: organizationKeys.employees.all });
+    },
+  });
+}

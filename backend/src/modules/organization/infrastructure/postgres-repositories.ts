@@ -23,11 +23,20 @@ export class PostgresDepartmentRepository implements DepartmentRepository {
     return this.mapRow(rows[0]);
   }
 
-  async findAll(skip = 0, limit = 100): Promise<[Department[], number]> {
-    const result = await this.pool.query(
-      'SELECT department_id, code, name, active, created_at, updated_at, count(*) OVER() as full_count FROM department ORDER BY name ASC LIMIT $1 OFFSET $2',
-      [limit, skip]
-    );
+  async findAll(filters?: { active?: boolean }, skip = 0, limit = 100): Promise<[Department[], number]> {
+    let query = 'SELECT department_id, code, name, active, created_at, updated_at, count(*) OVER() as full_count FROM department';
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (filters?.active !== undefined) {
+      query += ` WHERE active = $${paramIndex++}`;
+      params.push(filters.active);
+    }
+
+    query += ` ORDER BY name ASC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+    params.push(limit, skip);
+
+    const result = await this.pool.query(query, params);
     const count = result.rows.length > 0 ? parseInt(result.rows[0].full_count, 10) : 0;
     return [result.rows.map(this.mapRow), count];
   }
@@ -82,11 +91,20 @@ export class PostgresJobRoleRepository implements JobRoleRepository {
     return this.mapRow(rows[0]);
   }
 
-  async findAll(skip = 0, limit = 100): Promise<[JobRole[], number]> {
-    const result = await this.pool.query(
-      'SELECT role_id, code, name, description, active, created_at, updated_at, count(*) OVER() as full_count FROM role ORDER BY name ASC LIMIT $1 OFFSET $2',
-      [limit, skip]
-    );
+  async findAll(filters?: { active?: boolean }, skip = 0, limit = 100): Promise<[JobRole[], number]> {
+    let query = 'SELECT role_id, code, name, description, active, created_at, updated_at, count(*) OVER() as full_count FROM role';
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (filters?.active !== undefined) {
+      query += ` WHERE active = $${paramIndex++}`;
+      params.push(filters.active);
+    }
+
+    query += ` ORDER BY name ASC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+    params.push(limit, skip);
+
+    const result = await this.pool.query(query, params);
     const count = result.rows.length > 0 ? parseInt(result.rows[0].full_count, 10) : 0;
     return [result.rows.map(this.mapRow), count];
   }
@@ -142,11 +160,20 @@ export class PostgresJobLevelRepository implements JobLevelRepository {
     return this.mapRow(rows[0]);
   }
 
-  async findAll(skip = 0, limit = 100): Promise<[JobLevel[], number]> {
-    const result = await this.pool.query(
-      'SELECT job_level_id, code, name, rank, active, created_at, updated_at, count(*) OVER() as full_count FROM job_level ORDER BY rank ASC LIMIT $1 OFFSET $2',
-      [limit, skip]
-    );
+  async findAll(filters?: { active?: boolean }, skip = 0, limit = 100): Promise<[JobLevel[], number]> {
+    let query = 'SELECT job_level_id, code, name, rank, active, created_at, updated_at, count(*) OVER() as full_count FROM job_level';
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (filters?.active !== undefined) {
+      query += ` WHERE active = $${paramIndex++}`;
+      params.push(filters.active);
+    }
+
+    query += ` ORDER BY rank ASC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+    params.push(limit, skip);
+
+    const result = await this.pool.query(query, params);
     const count = result.rows.length > 0 ? parseInt(result.rows[0].full_count, 10) : 0;
     return [result.rows.map(this.mapRow), count];
   }

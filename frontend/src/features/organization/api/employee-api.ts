@@ -30,4 +30,8 @@ export const employeeApi = {
     const data = await patchApi<WireEmployee>(`/api/employees/${id}`, body);
     return mapWireEmployeeToDomain(data);
   },
+
+  bulkUpdateStatus: async (employeeIds: string[], status: 'ACTIVE' | 'INACTIVE'): Promise<{ updatedCount: number; status: string }> => {
+    return postApi<{ updatedCount: number; status: string }>('/api/employees/bulk-status', { employeeIds, status }, randomUUID());
+  },
 };

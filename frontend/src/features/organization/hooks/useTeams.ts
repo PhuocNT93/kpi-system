@@ -52,3 +52,14 @@ export function useDeactivateTeam() {
     },
   });
 }
+
+export function useBulkUpdateTeams() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ teamIds, active }: { teamIds: string[]; active: boolean }) =>
+      organizationApi.bulkUpdateTeams(teamIds, active),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: organizationKeys.teams.all });
+    },
+  });
+}

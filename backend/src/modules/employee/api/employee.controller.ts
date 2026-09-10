@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import type { Pool } from 'pg';
 import { sendSuccess, sendCollection, sendCreated } from '../../../api/http-response.js';
 import { parsePaginationQuery } from '../../../api/pagination.js';
-import { AppError, BadRequest, NotFound, Conflict, Forbidden } from '../../../api/app-error.js';
+import { AppError, BadRequest, NotFound, Conflict, Forbidden, Unprocessable } from '../../../api/app-error.js';
 import { EmployeeRepository, EmployeeAssignmentRepository } from '../domain/employee.repository.js';
 import { EmployeeContextService } from '../application/employee-context.service.js';
 import { TeamService } from '../application/team.service.js';
@@ -20,6 +20,17 @@ export class EmployeeController {
 
   private hasDb(): boolean {
     return !!(this.pool && typeof this.pool.query === 'function');
+  }
+
+  private async assertEntityActive(table: string, idColumn: string, id: string | null, label: string): Promise<void> {
+    if (!id || !this.hasDb()) return;
+    const res = await this.pool!.query(`SELECT active FROM ${table} WHERE ${idColumn} = $1`, [id]);
+    if (res.rows.length === 0) {
+      throw new NotFound(`${label} with ID ${id}`);
+    }
+    if (!res.rows[0].active) {
+      throw new Unprocessable(`${label} is inactive and cannot be assigned.`, `${label.toUpperCase().replace(/ /g, '_')}_INACTIVE`);
+    }
   }
 
   private calculateNextReviewDate(lastDateStr: string | null | undefined, cadence: string | null | undefined): string | null {
@@ -98,6 +109,21 @@ export class EmployeeController {
     const joinDate = join_date || new Date().toISOString().slice(0, 10);
 
     if (this.employeeRepo && this.hasDb()) {
+      const status = employment_status || EmploymentStatus.ACTIVE;
+      if (status === EmploymentStatus.ACTIVE) {
+        await this.assertEntityActive('department', 'department_id', department_id, 'Department');
+        await this.assertEntityActive('team', 'team_id', team_id, 'Team');
+        await this.assertEntityActive('role', 'role_id', role_id, 'Job Role');
+        await this.assertEntityActive('job_level', 'job_level_id', job_level_id, 'Job Level');
+      }
+
+      if (department_id && team_id) {
+        const teamRes = await this.pool!.query('SELECT department_id FROM team WHERE team_id = $1', [team_id]);
+        if (teamRes.rows.length > 0 && teamRes.rows[0].department_id !== department_id) {
+          throw new Unprocessable('Team does not belong to the selected Department', 'TEAM_DEPARTMENT_MISMATCH');
+        }
+      }
+
       const existingCode = await this.employeeRepo.findByCode(empCode);
       if (existingCode && employee_code) {
         throw new Conflict(`Employee with code ${empCode} already exists`, 'DUPLICATE_EMPLOYEE_CODE');
@@ -170,6 +196,34 @@ export class EmployeeController {
         await this.teamService.validateManagerAssignment(employeeId, newManagerId, newTeamId);
       }
 
+      const nextStatus = req.body.employment_status ?? existing.employmentStatus;
+      const targetDeptId = req.body.department_id !== undefined ? req.body.department_id : existing.departmentId;
+      const targetTeamId = newTeamId;
+      const targetRoleId = req.body.role_id !== undefined ? req.body.role_id : existing.roleId;
+      const targetJobLevelId = req.body.job_level_id !== undefined ? req.body.job_level_id : existing.jobLevelId;
+
+      if (targetDeptId && targetTeamId) {
+        const teamRes = await this.pool!.query('SELECT department_id FROM team WHERE team_id = $1', [targetTeamId]);
+        if (teamRes.rows.length > 0 && teamRes.rows[0].department_id !== targetDeptId) {
+          throw new Unprocessable('Team does not belong to the selected Department', 'TEAM_DEPARTMENT_MISMATCH');
+        }
+      }
+
+      if (nextStatus === EmploymentStatus.ACTIVE) {
+        if (existing.employmentStatus !== EmploymentStatus.ACTIVE || (req.body.department_id && req.body.department_id !== existing.departmentId)) {
+          await this.assertEntityActive('department', 'department_id', targetDeptId, 'Department');
+        }
+        if (existing.employmentStatus !== EmploymentStatus.ACTIVE || (req.body.team_id && req.body.team_id !== existing.teamId)) {
+          await this.assertEntityActive('team', 'team_id', targetTeamId, 'Team');
+        }
+        if (existing.employmentStatus !== EmploymentStatus.ACTIVE || (req.body.role_id && req.body.role_id !== existing.roleId)) {
+          await this.assertEntityActive('role', 'role_id', targetRoleId, 'Job Role');
+        }
+        if (existing.employmentStatus !== EmploymentStatus.ACTIVE || (req.body.job_level_id && req.body.job_level_id !== existing.jobLevelId)) {
+          await this.assertEntityActive('job_level', 'job_level_id', targetJobLevelId, 'Job Level');
+        }
+      }
+
       const updated = await this.employeeRepo.update({
         ...existing,
         fullName: req.body.full_name ?? existing.fullName,
@@ -217,6 +271,18 @@ export class EmployeeController {
       if (!existing) {
         throw new NotFound(`Employee with ID ${employeeId}`);
       }
+      if (existing.departmentId) {
+        await this.assertEntityActive('department', 'department_id', existing.departmentId, 'Department');
+      }
+      if (existing.teamId) {
+        await this.assertEntityActive('team', 'team_id', existing.teamId, 'Team');
+      }
+      if (existing.roleId) {
+        await this.assertEntityActive('role', 'role_id', existing.roleId, 'Job Role');
+      }
+      if (existing.jobLevelId) {
+        await this.assertEntityActive('job_level', 'job_level_id', existing.jobLevelId, 'Job Level');
+      }
       const updated = await this.employeeRepo.update({
         ...existing,
         employmentStatus: EmploymentStatus.ACTIVE,
@@ -247,6 +313,79 @@ export class EmployeeController {
       return;
     }
     sendSuccess(res, 200, 'Employee terminated successfully', { id: employeeId, status: 'TERMINATED' });
+  }
+
+  async bulkUpdateEmployeeStatus(req: Request, res: Response): Promise<void> {
+    const { employeeIds, status } = req.body || {};
+    if (!Array.isArray(employeeIds) || employeeIds.length === 0) {
+      throw new BadRequest('employeeIds array is required and must not be empty');
+    }
+    if (status !== 'ACTIVE' && status !== 'INACTIVE') {
+      throw new BadRequest('status must be either ACTIVE or INACTIVE');
+    }
+
+    if (this.hasDb()) {
+      if (status === 'ACTIVE') {
+        const checkQuery = `
+          SELECT e.employee_id, e.full_name, e.employee_code,
+                 d.active as dept_active, d.name as dept_name,
+                 t.active as team_active, t.name as team_name,
+                 r.active as role_active, r.name as role_name,
+                 jl.active as level_active, jl.name as level_name
+          FROM employee e
+          LEFT JOIN department d ON e.department_id = d.department_id
+          LEFT JOIN team t ON e.team_id = t.team_id
+          LEFT JOIN role r ON e.role_id = r.role_id
+          LEFT JOIN job_level jl ON e.job_level_id = jl.job_level_id
+          WHERE e.employee_id = ANY($1::uuid[])
+        `;
+        const checkRes = await this.pool!.query(checkQuery, [employeeIds]);
+        for (const row of checkRes.rows) {
+          if (row.dept_active === false) {
+            throw new Unprocessable(
+              `Cannot activate employee "${row.full_name}" (${row.employee_code}): Department "${row.dept_name}" is inactive.`,
+              'DEPARTMENT_INACTIVE'
+            );
+          }
+          if (row.team_active === false) {
+            throw new Unprocessable(
+              `Cannot activate employee "${row.full_name}" (${row.employee_code}): Team "${row.team_name}" is inactive.`,
+              'TEAM_INACTIVE'
+            );
+          }
+          if (row.role_active === false) {
+            throw new Unprocessable(
+              `Cannot activate employee "${row.full_name}" (${row.employee_code}): Role "${row.role_name}" is inactive.`,
+              'JOB_ROLE_INACTIVE'
+            );
+          }
+          if (row.level_active === false) {
+            throw new Unprocessable(
+              `Cannot activate employee "${row.full_name}" (${row.employee_code}): Job Level "${row.level_name}" is inactive.`,
+              'JOB_LEVEL_INACTIVE'
+            );
+          }
+        }
+      }
+
+      const updateRes = await this.pool!.query(
+        `UPDATE employee
+         SET employment_status = $1, updated_at = NOW()
+         WHERE employee_id = ANY($2::uuid[])`,
+        [status, employeeIds]
+      );
+
+      sendSuccess(res, 200, `Successfully updated ${updateRes.rowCount} employee(s) to ${status}`, {
+        updatedCount: updateRes.rowCount,
+        status,
+      });
+      return;
+    }
+
+    sendSuccess(res, 200, `Successfully updated ${employeeIds.length} employee(s)`, {
+      updatedCount: employeeIds.length,
+      status,
+    });
   }
 
   async getEmployeeAssignments(req: Request, res: Response): Promise<void> {
@@ -551,6 +690,18 @@ export class EmployeeController {
     const { departmentId } = req.params;
     if (!departmentId) throw new BadRequest('Department ID is required');
     if (this.hasDb()) {
+      const empCount = await this.pool!.query(
+        'SELECT COUNT(*) FROM employee WHERE department_id = $1 AND employment_status = $2',
+        [departmentId, 'ACTIVE']
+      );
+      const teamCount = await this.pool!.query(
+        'SELECT COUNT(*) FROM team WHERE department_id = $1 AND active = true',
+        [departmentId]
+      );
+      if (parseInt(empCount.rows[0].count) > 0 || parseInt(teamCount.rows[0].count) > 0) {
+        throw new Unprocessable('Cannot deactivate department while it has active employees or teams', 'DEPARTMENT_HAS_ACTIVE_MEMBERS');
+      }
+
       const resDb = await this.pool!.query(
         `UPDATE department SET active = false WHERE department_id = $1 RETURNING department_id, active`,
         [departmentId]
@@ -672,6 +823,74 @@ export class EmployeeController {
     throw new AppError(503, 'SERVICE_UNAVAILABLE', 'Database service is unavailable');
   }
 
+  async bulkUpdateTeamStatus(req: Request, res: Response): Promise<void> {
+    const actor = getActorFromContext(req);
+    if (!actor) throw new Forbidden();
+    if (actor.role !== 'HR_ADMIN' && actor.role !== 'SYSTEM_ADMIN') {
+      throw new Forbidden('Only HR Admin or System Admin can perform bulk team updates.');
+    }
+
+    const { teamIds, active } = req.body || {};
+    if (!Array.isArray(teamIds) || teamIds.length === 0) {
+      throw new BadRequest('teamIds array is required and must not be empty');
+    }
+    if (typeof active !== 'boolean') {
+      throw new BadRequest('active boolean is required');
+    }
+
+    if (this.hasDb()) {
+      if (!active) {
+        const countQuery = `
+          SELECT t.team_id, t.name, COUNT(e.employee_id) as active_count
+          FROM team t
+          LEFT JOIN employee e ON e.team_id = t.team_id AND e.employment_status = 'ACTIVE'
+          WHERE t.team_id = ANY($1::uuid[])
+          GROUP BY t.team_id, t.name
+          HAVING COUNT(e.employee_id) > 0
+        `;
+        const countRes = await this.pool!.query(countQuery, [teamIds]);
+        if (countRes.rows.length > 0) {
+          const names = countRes.rows.map(r => `"${r.name}" (${r.active_count} employee(s))`).join(', ');
+          throw new Unprocessable(
+            `Cannot deactivate team(s): ${names} still have active employees. Reassign or deactivate employees first.`,
+            'TEAM_HAS_ACTIVE_MEMBERS'
+          );
+        }
+      } else {
+        const deptQuery = `
+          SELECT t.name as team_name, d.name as dept_name, d.active as dept_active
+          FROM team t
+          JOIN department d ON t.department_id = d.department_id
+          WHERE t.team_id = ANY($1::uuid[]) AND d.active = false
+        `;
+        const deptRes = await this.pool!.query(deptQuery, [teamIds]);
+        if (deptRes.rows.length > 0) {
+          const names = deptRes.rows.map(r => `"${r.team_name}" (Department "${r.dept_name}" is inactive)`).join(', ');
+          throw new Unprocessable(
+            `Cannot activate team(s): ${names}. Activate their departments first.`,
+            'DEPARTMENT_INACTIVE'
+          );
+        }
+      }
+
+      const updateRes = await this.pool!.query(
+        `UPDATE team SET active = $1, updated_at = NOW() WHERE team_id = ANY($2::uuid[])`,
+        [active, teamIds]
+      );
+
+      sendSuccess(res, 200, `Successfully updated ${updateRes.rowCount} team(s) to ${active ? 'ACTIVE' : 'INACTIVE'}`, {
+        updatedCount: updateRes.rowCount,
+        active,
+      });
+      return;
+    }
+
+    sendSuccess(res, 200, `Successfully updated ${teamIds.length} team(s)`, {
+      updatedCount: teamIds.length,
+      active,
+    });
+  }
+
   // ── Role ─────────────────────────────────────────────────────────────────
 
   async getRoles(req: Request, res: Response): Promise<void> {
@@ -775,6 +994,14 @@ export class EmployeeController {
     const { roleId } = req.params;
     if (!roleId) throw new BadRequest('Role ID is required');
     if (this.hasDb()) {
+      const empCount = await this.pool!.query(
+        'SELECT COUNT(*) FROM employee WHERE role_id = $1 AND employment_status = $2',
+        [roleId, 'ACTIVE']
+      );
+      if (parseInt(empCount.rows[0].count) > 0) {
+        throw new Unprocessable('Cannot deactivate role while it has active employees', 'ROLE_HAS_ACTIVE_EMPLOYEES');
+      }
+
       const resDb = await this.pool!.query(
         `UPDATE role SET active = false WHERE role_id = $1 RETURNING role_id, active`,
         [roleId]
@@ -890,6 +1117,14 @@ export class EmployeeController {
     const { jobLevelId } = req.params;
     if (!jobLevelId) throw new BadRequest('Job level ID is required');
     if (this.hasDb()) {
+      const empCount = await this.pool!.query(
+        'SELECT COUNT(*) FROM employee WHERE job_level_id = $1 AND employment_status = $2',
+        [jobLevelId, 'ACTIVE']
+      );
+      if (parseInt(empCount.rows[0].count) > 0) {
+        throw new Unprocessable('Cannot deactivate job level while it has active employees', 'LEVEL_HAS_ACTIVE_EMPLOYEES');
+      }
+
       const resDb = await this.pool!.query(
         `UPDATE job_level SET active = false WHERE job_level_id = $1 RETURNING job_level_id, active`,
         [jobLevelId]

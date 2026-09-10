@@ -21,7 +21,12 @@ describe('Employee API Routes (MVP Scaffolding)', () => {
   beforeEach(async () => {
     // create a fake pool object for testing
     const fakePool = {
-      query: vi.fn().mockResolvedValue({ rows: [{ full_count: '0' }] })
+      query: vi.fn().mockImplementation((sql: string) => {
+        if (typeof sql === 'string' && sql.includes('SELECT active FROM')) {
+          return Promise.resolve({ rows: [{ active: true }] });
+        }
+        return Promise.resolve({ rows: [{ full_count: '0', count: '0' }] });
+      })
     } as unknown as import('pg').Pool;
     const userRoleRepo = new InMemoryUserRoleRepository();
     const roleRepo = new InMemoryRoleRepository();

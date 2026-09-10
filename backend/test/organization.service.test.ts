@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
-import { OrganizationService, BusinessRuleViolationError } from '../src/modules/organization/application/organization.service.js';
+import { OrganizationService } from '../src/modules/organization/application/organization.service.js';
+import { Conflict } from '../src/api/app-error.js';
 
 describe('OrganizationService', () => {
   let departmentRepo: Record<string, Mock>;
@@ -29,13 +30,13 @@ describe('OrganizationService', () => {
       create: vi.fn(),
       update: vi.fn(),
     };
-    service = new OrganizationService(departmentRepo, jobRoleRepo, jobLevelRepo);
+    service = new OrganizationService(departmentRepo, jobRoleRepo, jobLevelRepo, { query: vi.fn() } as unknown as import('pg').Pool);
   });
 
   describe('Department', () => {
     it('should get all departments', async () => {
       departmentRepo.findAll.mockResolvedValue([[{ id: '1', name: 'HR' }], 1]);
-      const res = await service.getDepartments(0, 10);
+      const res = await service.getDepartments(undefined, 0, 10);
       expect(res[0][0].name).toBe('HR');
       expect(res[1]).toBe(1);
     });
@@ -44,7 +45,7 @@ describe('OrganizationService', () => {
       departmentRepo.findByCode.mockResolvedValue({ id: '1', code: 'HR' });
       await expect(service.createDepartment({ code: 'HR', name: 'HR Dept', active: true }))
         .rejects
-        .toThrow(BusinessRuleViolationError);
+        .toThrow(Conflict);
     });
 
     it('should create department successfully', async () => {
@@ -61,7 +62,7 @@ describe('OrganizationService', () => {
       jobRoleRepo.findByCode.mockResolvedValue({ id: '1', code: 'DEV' });
       await expect(service.createJobRole({ code: 'DEV', name: 'Developer', active: true }))
         .rejects
-        .toThrow(BusinessRuleViolationError);
+        .toThrow(Conflict);
     });
   });
 
@@ -70,7 +71,7 @@ describe('OrganizationService', () => {
       jobLevelRepo.findByCode.mockResolvedValue({ id: '1', code: 'L1' });
       await expect(service.createJobLevel({ code: 'L1', name: 'Level 1', rank: 1, active: true }))
         .rejects
-        .toThrow(BusinessRuleViolationError);
+        .toThrow(Conflict);
     });
   });
 });

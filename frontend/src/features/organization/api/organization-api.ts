@@ -56,6 +56,10 @@ export const organizationApi = {
     return data;
   },
 
+  bulkUpdateTeams: async (teamIds: string[], active: boolean): Promise<{ updatedCount: number; active: boolean }> => {
+    return postApi<{ updatedCount: number; active: boolean }>('/api/teams/bulk-status', { teamIds, active }, randomUUID());
+  },
+
   // ── Departments ─────────────────────────────────────────────────────────────
 
   getDepartments: async (filters?: Record<string, unknown>): Promise<OrgDepartment[]> => {
@@ -78,6 +82,10 @@ export const organizationApi = {
   updateDepartment: async (id: string, body: UpdateDepartmentRequest): Promise<OrgDepartment> => {
     const data = await patchApi<WireDepartment>(`/api/org/departments/${id}`, body);
     return mapWireDepartmentToDomain(data);
+  },
+
+  bulkUpdateDepartments: async (departmentIds: string[], active: boolean): Promise<{ updatedCount: number; active: boolean }> => {
+    return postApi<{ updatedCount: number; active: boolean }>('/api/org/departments/bulk-status', { departmentIds, active }, randomUUID());
   },
 
   // ── Job Roles ─────────────────────────────────────────────────────────────
@@ -104,6 +112,10 @@ export const organizationApi = {
     return mapWireJobRoleToDomain(data);
   },
 
+  bulkUpdateJobRoles: async (roleIds: string[], active: boolean): Promise<{ updatedCount: number; active: boolean }> => {
+    return postApi<{ updatedCount: number; active: boolean }>('/api/org/roles/bulk-status', { roleIds, active }, randomUUID());
+  },
+
   // ── Job Levels ─────────────────────────────────────────────────────────────
 
   getJobLevels: async (filters?: Record<string, unknown>): Promise<OrgJobLevel[]> => {
@@ -126,5 +138,9 @@ export const organizationApi = {
   updateJobLevel: async (id: string, body: UpdateJobLevelRequest): Promise<OrgJobLevel> => {
     const data = await patchApi<WireJobLevel>(`/api/org/job-levels/${id}`, body);
     return mapWireJobLevelToDomain(data);
+  },
+
+  bulkUpdateJobLevels: async (levelIds: string[], active: boolean): Promise<{ updatedCount: number; active: boolean }> => {
+    return postApi<{ updatedCount: number; active: boolean }>('/api/org/job-levels/bulk-status', { levelIds, active }, randomUUID());
   },
 };

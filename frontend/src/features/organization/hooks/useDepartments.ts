@@ -30,3 +30,14 @@ export function useUpdateDepartment() {
     },
   });
 }
+
+export function useBulkUpdateDepartments() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ departmentIds, active }: { departmentIds: string[]; active: boolean }) =>
+      organizationApi.bulkUpdateDepartments(departmentIds, active),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: organizationKeys.departments.all });
+    },
+  });
+}

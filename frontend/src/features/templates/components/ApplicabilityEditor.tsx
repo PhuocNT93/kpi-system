@@ -17,8 +17,8 @@ export function ApplicabilityEditor({
   const rolesQuery = useJobRolesQuery();
   const teamsQuery = useTeamsQuery();
 
-  const roles = rolesQuery.data || [];
-  const teams = teamsQuery.data?.length ? teamsQuery.data : MOCK_TEAMS;
+  const roles = (rolesQuery.data || []).filter(r => r.isActive !== false);
+  const teams = (teamsQuery.data?.length ? teamsQuery.data : MOCK_TEAMS).filter(t => t.isActive !== false);
 
   const toggleRole = (roleId: string) => {
     if (isReadOnly) return;

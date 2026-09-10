@@ -59,12 +59,15 @@ export const EvaluationCycleUpsertPage: React.FC = () => {
     criteriaCount: t.criteriaCount ?? t.currentVersion?.criteria?.length,
   })).filter((template) => Boolean(template.id));
 
-  const teamsOptions = (teamsQuery.data || []).map((team: { id: string; name: string; departmentId: string }) => ({
-    id: team.id,
-    name: team.name,
-    parentId: team.departmentId,
-  }));
-  const rolesOptions = (rolesQuery.data || []).map((role: { id: string; name: string }) => ({ id: role.id, name: role.name }));
+  const teamsOptions = (teamsQuery.data || [])
+    .filter((team: { isActive?: boolean }) => team.isActive !== false)
+    .map((team: { id: string; name: string; departmentId: string }) => ({
+      id: team.id,
+      name: team.name,
+      parentId: team.departmentId,
+    }));
+  const rolesOptions = (rolesQuery.data || [])
+    .map((role: { id: string; name: string }) => ({ id: role.id, name: role.name }));
   const isAnyFetching =
     templatesQuery.isFetching || departmentsQuery.isFetching || teamsQuery.isFetching || rolesQuery.isFetching || levelsQuery.isFetching || employeesQuery.isFetching || createMutation.isPending || updateMutation.isPending;
     

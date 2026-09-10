@@ -171,9 +171,22 @@ export class TeamService {
       throw new Unprocessable('Team code cannot be changed after creation.', 'TEAM_CODE_IMMUTABLE');
     }
 
-    // Validate new department if provided
-    if (params.departmentId && params.departmentId !== existing.departmentId) {
-      await this.validateDepartment(params.departmentId);
+    // Validate deactivation rule: Cannot deactivate team if it has active employees
+    if (params.active === false && existing.active) {
+      const activeMembers = await this.teamRepo.countActiveMembers(teamId);
+      if (activeMembers > 0) {
+        throw new Unprocessable(
+          `Cannot deactivate team: it has ${activeMembers} active employee(s). Reassign them first.`,
+          'TEAM_HAS_ACTIVE_MEMBERS'
+        );
+      }
+    }
+
+    // Validate active hierarchy rule: An active team MUST belong to an active department
+    const willBeActive = params.active !== undefined ? params.active : existing.active;
+    const targetDeptId = params.departmentId ?? existing.departmentId;
+    if (willBeActive && (params.departmentId || (params.active === true && !existing.active))) {
+      await this.validateDepartment(targetDeptId);
     }
 
     const client = await this.pool.connect();
@@ -192,6 +205,9 @@ export class TeamService {
       }
       if (params.description !== undefined && params.description !== existing.description) {
         changedFields.push({ field: 'description', old: existing.description ?? null, new: updated.description ?? null });
+      }
+      if (params.active !== undefined && params.active !== existing.active) {
+        changedFields.push({ field: 'active', old: String(existing.active), new: String(updated.active) });
       }
 
       if (actor.userId) {

@@ -83,6 +83,11 @@ export function TeamFormModal({ isOpen, team, onClose }: TeamFormModalProps) {
             message: 'This team code is already in use.',
           });
         }
+        if (apiErr.code === 'DEPARTMENT_INACTIVE') {
+          setError('department_id', {
+            message: apiErr.message,
+          });
+        }
       }
     }
   });
@@ -155,8 +160,12 @@ export function TeamFormModal({ isOpen, team, onClose }: TeamFormModalProps) {
               style={{ display: 'block', width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
             >
               <option value="">Select a department…</option>
-              {departmentsQuery.data?.filter(d => d.isActive || d.id === team?.departmentId).map((dept) => (
-                <option key={dept.id} value={dept.id}>{dept.name} ({dept.code})</option>
+              {departmentsQuery.data
+                ?.filter(d => d.isActive || (!team?.isActive && d.id === team?.departmentId))
+                .map((dept) => (
+                  <option key={dept.id} value={dept.id}>
+                    {!dept.isActive ? `[Inactive] ${dept.name} (${dept.code})` : `${dept.name} (${dept.code})`}
+                  </option>
               ))}
             </select>
             {errors.department_id && (

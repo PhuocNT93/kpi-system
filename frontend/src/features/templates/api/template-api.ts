@@ -16,35 +16,37 @@ import {
 } from '../domain/template-mappers';
 
 export const MOCK_TEAMS = [
-  { id: 'team-a', code: 'team-a', name: 'Team A (Platform Core)' },
-  { id: 'team-b', code: 'team-b', name: 'Team B (Frontend Experience)' },
-  { id: 'team-c', code: 'team-c', name: 'Team C (Data Infrastructure)' },
+  { id: 'team-a', code: 'team-a', name: 'Team A (Platform Core)', isActive: true },
+  { id: 'team-b', code: 'team-b', name: 'Team B (Frontend Experience)', isActive: true },
+  { id: 'team-c', code: 'team-c', name: 'Team C (Data Infrastructure)', isActive: true },
 ];
 
-export async function fetchJobRoles(): Promise<Array<{ id: string; code: string; name: string }>> {
-  const res = await getApi<unknown>('/api/org/roles');
+export async function fetchJobRoles(): Promise<Array<{ id: string; code: string; name: string; isActive: boolean }>> {
+  const res = await getApi<unknown>('/api/org/roles?active=true');
   const items = Array.isArray(res) ? res : (res as { items?: unknown[] })?.items || (res as { data?: unknown[] })?.data || [];
   return items.map((r: unknown) => {
-    const role = r as { id?: string; role_id?: string; code?: string; name?: string };
+    const role = r as { id?: string; role_id?: string; code?: string; name?: string; active?: boolean; isActive?: boolean };
     return {
       id: role.id || role.role_id || role.code || '',
       code: role.code || role.id || '',
       name: role.name || role.code || '',
+      isActive: role.isActive ?? role.active ?? true,
     };
   });
 }
 
-export async function fetchTeams(): Promise<Array<{ id: string; code: string; name: string }>> {
+export async function fetchTeams(): Promise<Array<{ id: string; code: string; name: string; isActive: boolean }>> {
   try {
-    const res = await getApi<unknown>('/api/teams');
+    const res = await getApi<unknown>('/api/teams?active=true');
     const items = Array.isArray(res) ? res : (res as { teams?: unknown[] })?.teams || (res as { items?: unknown[] })?.items || (res as { data?: unknown[] })?.data || [];
     if (!items.length) return MOCK_TEAMS;
     return items.map((t: unknown) => {
-      const team = t as { id?: string; teamId?: string; team_id?: string; code?: string; name?: string };
+      const team = t as { id?: string; teamId?: string; team_id?: string; code?: string; name?: string; active?: boolean; isActive?: boolean };
       return {
         id: team.id || team.teamId || team.team_id || team.code || '',
         code: team.code || team.id || '',
         name: team.name || team.code || '',
+        isActive: team.isActive ?? team.active ?? true,
       };
     });
   } catch {

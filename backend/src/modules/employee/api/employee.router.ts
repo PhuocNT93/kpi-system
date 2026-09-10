@@ -13,6 +13,7 @@ export function createEmployeeRouter(
   // ── Employee Routes ────────────────────────────────────────────────────────
   router.get('/employees', (req, res, next) => { employeeController.getEmployees(req, res).catch(next); });
   router.post('/employees', (req, res, next) => { employeeController.createEmployee(req, res).catch(next); });
+  router.post('/employees/bulk-status', (req, res, next) => { employeeController.bulkUpdateEmployeeStatus(req, res).catch(next); });
   router.get('/employees/lookup', (req, res, next) => { employeeController.lookupEmployees(req, res).catch(next); });
   
   router.get('/employees/:employeeId', (req, res, next) => { employeeController.getEmployeeById(req, res).catch(next); });
@@ -34,6 +35,7 @@ export function createEmployeeRouter(
   // ── Team Routes ────────────────────────────────────────────────────────────
   router.get('/teams', (req, res, next) => { employeeController.getTeams(req, res).catch(next); });
   router.post('/teams', (req, res, next) => { employeeController.createTeam(req, res).catch(next); });
+  router.post('/teams/bulk-status', (req, res, next) => { employeeController.bulkUpdateTeamStatus(req, res).catch(next); });
   router.get('/teams/:teamId', (req, res, next) => { employeeController.getTeamById(req, res).catch(next); });
   router.patch('/teams/:teamId', (req, res, next) => { employeeController.updateTeam(req, res).catch(next); });
   router.post('/teams/:teamId/deactivate', (req, res, next) => { employeeController.deactivateTeam(req, res).catch(next); });
