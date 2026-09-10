@@ -38,30 +38,7 @@ export class ConfigurationSnapshotService {
     }
 
     const levels = await this.levelRepo.findAll();
-    const templateCriteria = await this.templateCriterionRepo.findByTemplateVersionId(versionId);
-
-    const snapshotCriteria: TemplateSnapshot['criteria'] = [];
-
-    for (const tc of templateCriteria) {
-      const cv = await this.criterionVersionRepo.findById(tc.criterion_version_id);
-      if (!cv) continue;
-
-      const criterion = await this.criterionRepo.findById(cv.criterion_id);
-      if (!criterion) continue;
-
-      let rule = undefined;
-      if (cv.scoring_rule_id) {
-        const sr = await this.scoringRuleRepo.findById(cv.scoring_rule_id);
-        if (sr) rule = sr;
-      }
-
-      snapshotCriteria.push({
-        criterion,
-        version: cv,
-        template_criterion: tc,
-        scoring_rule: rule,
-      });
-    }
+    const snapshotCriteria = await this.templateCriterionRepo.findSnapshotDataByVersionId(versionId);
 
     // Attempt to load active workflow definition
     let workflowSnapshot = undefined;

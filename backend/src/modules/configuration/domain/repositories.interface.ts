@@ -19,6 +19,7 @@ import {
   ScoringRuleType,
   TemplateKpi,
   TemplateCriterionWithDetails,
+  TemplateSnapshotCriterionData,
 } from './configuration.types.js';
 import { PoolClient } from 'pg';
 
@@ -117,6 +118,7 @@ export interface ITemplateCriterionRepository {
   findByTemplateVersionId(templateVersionId: string, client?: PoolClient): Promise<TemplateCriterion[]>;
   findByTemplateKpiId(templateKpiId: string, client?: PoolClient): Promise<TemplateCriterion[]>;
   findByTemplateVersionIdWithDetails(templateVersionId: string, client?: PoolClient): Promise<TemplateCriterionWithDetails[]>;
+  findSnapshotDataByVersionId(versionId: string, client?: PoolClient): Promise<TemplateSnapshotCriterionData[]>;
   create(tc: Partial<TemplateCriterion>, client?: PoolClient): Promise<TemplateCriterion>;
   update(id: string, tc: Partial<TemplateCriterion>, client?: PoolClient): Promise<TemplateCriterion>;
   delete(id: string, client?: PoolClient): Promise<void>;

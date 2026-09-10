@@ -1,5 +1,5 @@
 import { Pool, PoolClient } from 'pg';
-import { TemplateCriterion, ApplicabilityRule, TemplateCriterionWithDetails } from '../../domain/configuration.types.js';
+import { TemplateCriterion, ApplicabilityRule, TemplateCriterionWithDetails, TemplateSnapshotCriterionData } from '../../domain/configuration.types.js';
 import { ITemplateCriterionRepository } from '../../domain/repositories.interface.js';
 import { NotFound } from '../../../../api/app-error.js';
 
@@ -160,5 +160,86 @@ export class PostgresTemplateCriterionRepository implements ITemplateCriterionRe
       results.push(created);
     }
     return results;
+  }
+
+  async findSnapshotDataByVersionId(versionId: string, client?: PoolClient): Promise<TemplateSnapshotCriterionData[]> {
+    const runner = client || this.pool;
+    const res = await runner.query(
+      `SELECT 
+        tc.id as tc_id, tc.template_version_id as tc_template_version_id, tc.template_kpi_id as tc_template_kpi_id, tc.criterion_version_id as tc_criterion_version_id, tc.weight as tc_weight, tc.display_order as tc_display_order, tc.required as tc_required, tc.enabled as tc_enabled, tc.applicability as tc_applicability, tc.created_at as tc_created_at,
+        cv.id as cv_id, cv.criterion_id as cv_criterion_id, cv.version_no as cv_version_no, cv.default_weight as cv_default_weight, cv.measurement_unit as cv_measurement_unit, cv.measurement_source_label as cv_measurement_source_label, cv.scoring_rule_id as cv_scoring_rule_id, cv.status as cv_status, cv.created_at as cv_created_at, cv.created_by as cv_created_by,
+        c.id as c_id, c.code as c_code, c.category as c_category, c.name as c_name, c.description as c_description, c.status as c_status, c.created_at as c_created_at, c.updated_at as c_updated_at,
+        sr.id as sr_id, sr.code as sr_code, sr.name as sr_name, sr.rule_type as sr_rule_type, sr.config as sr_config, sr.status as sr_status, sr.version as sr_version, sr.created_at as sr_created_at, sr.updated_at as sr_updated_at, sr.created_by as sr_created_by, sr.updated_by as sr_updated_by
+       FROM template_criteria tc
+       JOIN criterion_versions cv ON tc.criterion_version_id = cv.id
+       JOIN criteria c ON cv.criterion_id = c.id
+       LEFT JOIN scoring_rules sr ON cv.scoring_rule_id = sr.id
+       WHERE tc.template_version_id = $1
+       ORDER BY tc.display_order ASC`,
+      [versionId]
+    );
+
+    return res.rows.map((row) => {
+      const template_criterion = {
+        id: row.tc_id,
+        template_version_id: row.tc_template_version_id,
+        template_kpi_id: row.tc_template_kpi_id,
+        criterion_version_id: row.tc_criterion_version_id,
+        weight: Number(row.tc_weight),
+        display_order: Number(row.tc_display_order),
+        required: Boolean(row.tc_required),
+        enabled: Boolean(row.tc_enabled),
+        applicability: typeof row.tc_applicability === 'string' ? JSON.parse(row.tc_applicability) : row.tc_applicability,
+        created_at: new Date(row.tc_created_at),
+      };
+
+      const version = {
+        id: row.cv_id,
+        criterion_id: row.cv_criterion_id,
+        version_no: Number(row.cv_version_no),
+        default_weight: Number(row.cv_default_weight),
+        measurement_unit: row.cv_measurement_unit,
+        measurement_source_label: row.cv_measurement_source_label,
+        scoring_rule_id: row.cv_scoring_rule_id,
+        status: row.cv_status,
+        created_at: new Date(row.cv_created_at),
+        created_by: row.cv_created_by,
+      };
+
+      const criterion = {
+        id: row.c_id,
+        code: row.c_code,
+        category: row.c_category,
+        name: row.c_name,
+        description: row.c_description,
+        status: row.c_status,
+        created_at: new Date(row.c_created_at),
+        updated_at: new Date(row.c_updated_at),
+      };
+
+      let scoring_rule = undefined;
+      if (row.sr_id) {
+        scoring_rule = {
+          id: row.sr_id,
+          code: row.sr_code,
+          name: row.sr_name,
+          rule_type: row.sr_rule_type,
+          config: typeof row.sr_config === 'string' ? JSON.parse(row.sr_config) : row.sr_config,
+          status: row.sr_status,
+          version: Number(row.sr_version),
+          created_at: new Date(row.sr_created_at),
+          updated_at: new Date(row.sr_updated_at),
+          created_by: row.sr_created_by,
+          updated_by: row.sr_updated_by,
+        };
+      }
+
+      return {
+        template_criterion,
+        version,
+        criterion,
+        scoring_rule,
+      };
+    });
   }
 }

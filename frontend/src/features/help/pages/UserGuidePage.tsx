@@ -1,12 +1,37 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import mermaid from 'mermaid';
+import { useEffect, useRef } from 'react';
 import userGuideContent from '@/assets/user-guide.md?raw';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
 
+const Mermaid = ({ chart }: { chart: string }) => {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'default',
+      securityLevel: 'loose',
+    });
+    if (ref.current) {
+      mermaid.render(`mermaid-${Math.random().toString(36).substr(2, 9)}`, chart)
+        .then(({ svg }) => {
+          if (ref.current) ref.current.innerHTML = svg;
+        })
+        .catch((e) => {
+          console.error('Mermaid rendering error', e);
+        });
+    }
+  }, [chart]);
+
+  return <div ref={ref} style={{ display: 'flex', justifyContent: 'center', margin: '24px 0' }} />;
+};
+
 export function UserGuidePage() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '24px', maxWidth: '900px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
       <div
         style={{
           backgroundColor: COLORS.neutral.white,
@@ -17,7 +42,24 @@ export function UserGuidePage() {
         }}
       >
         <div className="user-guide-content">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{userGuideContent}</ReactMarkdown>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              code({ node, inline, className, children, ...props }: any) {
+                const match = /language-(\w+)/.exec(className || '');
+                if (!inline && match && match[1] === 'mermaid') {
+                  return <Mermaid chart={String(children).replace(/\n$/, '')} />;
+                }
+                return (
+                  <code className={className} {...props}>
+                    {children}
+                  </code>
+                );
+              }
+            }}
+          >
+            {userGuideContent}
+          </ReactMarkdown>
         </div>
       </div>
 

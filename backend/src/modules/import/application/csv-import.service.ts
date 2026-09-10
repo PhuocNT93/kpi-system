@@ -11,7 +11,7 @@ export class CsvImportService {
     public importRepo: IImportRepository,
     private pool: Pool,
     private evaluationService: EvaluationService
-  ) {}
+  ) { }
 
   public async processUpload(
     cycleId: string,
@@ -39,7 +39,7 @@ export class CsvImportService {
 
     // 3. Resolve Template from Cycle
     const cycleRes = await this.pool.query(
-      `SELECT evaluation_template_version_id, status FROM evaluation_cycle WHERE evaluation_cycle_id = $1`,
+      `SELECT evaluation_template_version_id, status FROM evaluation_cycle WHERE code = $1`,
       [cycleId]
     );
     if (cycleRes.rows.length === 0) {
@@ -62,7 +62,7 @@ export class CsvImportService {
     const newJob: ImportJob = {
       import_job_id: jobId,
       csv_template_id: csvTemplateId,
-      evaluation_cycle_id: cycleId,
+      evaluation_cycle_id: cycle.evaluation_cycle_id,
       file_name: fileName,
       file_hash: fileHash,
       status: 'UPLOADED',
@@ -79,7 +79,7 @@ export class CsvImportService {
 
     // 5. Parse CSV
     const rows = await this.parseCsv(fileBuffer);
-    
+
     // 6. Pre-fetch Validation Data
     const validationData = await this.prefetchValidationData(cycle.evaluation_template_version_id, rows);
 
@@ -93,7 +93,7 @@ export class CsvImportService {
       const rawRow = rows[i];
       if (!rawRow) continue;
       const errors = this.validateRow(rawRow, rowNo, validationData);
-      
+
       const status = errors.length > 0 ? 'INVALID' : 'VALID';
       if (status === 'VALID') successCount++;
       else errorCount++;
@@ -116,7 +116,7 @@ export class CsvImportService {
     newJob.success_rows = successCount;
     newJob.error_rows = errorCount;
     newJob.status = 'PREVIEW';
-    
+
     await this.importRepo.updateImportJob(newJob);
 
     // Attach transient errors for the controller
@@ -190,13 +190,13 @@ export class CsvImportService {
   }
 
   private validateRow(
-    row: Record<string, string>, 
-    rowNo: number, 
+    row: Record<string, string>,
+    rowNo: number,
     data: { employees: Map<string, { employee_code: string; employee_id: string; employment_status: string }>; criterionMappings: Map<string, string[]>; seenRows: Set<string> }
   ) {
     const errors: ImportRow['error_messages'] = [];
     if (!errors) return [];
-    
+
     const { employees, criterionMappings, seenRows } = data;
 
     // Duplicate check in CSV
@@ -359,15 +359,15 @@ export class CsvImportService {
       }
 
       const finalStatus = hasErrors && !strictMode ? 'PARTIALLY_COMPLETED' : 'COMPLETED';
-      await this.importRepo.updateImportJob({ 
-        import_job_id: jobId, 
+      await this.importRepo.updateImportJob({
+        import_job_id: jobId,
         status: finalStatus,
         finished_at: new Date()
       });
     } catch (error) {
       console.error(`Error processing job ${jobId}:`, error);
-      await this.importRepo.updateImportJob({ 
-        import_job_id: jobId, 
+      await this.importRepo.updateImportJob({
+        import_job_id: jobId,
         status: 'FAILED',
         finished_at: new Date()
       });
@@ -375,18 +375,18 @@ export class CsvImportService {
   }
 
   private async processJobBatch(
-    jobId: string, 
-    rows: ImportRow[], 
+    jobId: string,
+    rows: ImportRow[],
     actor: { userId: string; role: string; employeeId?: string }
   ): Promise<boolean> {
     let hasErrors = false;
     // Map employee_id -> criterion_code -> row (we only take the latest per employee/criterion to avoid conflicts)
     // Wait, rows already passed validation. We need to update evaluation_item for each.
     // To do this, we need to map employee_id to evaluation_id.
-    
+
     // Extract employee IDs
     const employeeIds = [...new Set(rows.map(r => String(r.raw_data.employee_id)))];
-    
+
     // Fetch active evaluations for these employees in this cycle
     const job = await this.importRepo.getImportJobById(jobId);
     if (!job) return true;
@@ -409,7 +409,7 @@ export class CsvImportService {
         const criterionCode = String(row.raw_data.criterion_code);
         const measurementValue = row.raw_data.measurement_value ? Number(row.raw_data.measurement_value) : null;
         const comment = row.raw_data.comment ? String(row.raw_data.comment) : null;
-        
+
         const evaluationId = evalMap.get(employeeId);
         if (!evaluationId) {
           throw new Error('No active evaluation found for employee.');
