@@ -1,7 +1,7 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import mermaid from 'mermaid';
-import { useEffect, useRef, type ComponentPropsWithoutRef, type ReactNode } from 'react';
+import { useEffect, useRef } from 'react';
 import userGuideContent from '@/assets/user-guide.md?raw';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
