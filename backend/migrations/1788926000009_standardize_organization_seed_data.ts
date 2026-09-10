@@ -66,7 +66,7 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     WHERE role_id IN (SELECT role_id FROM role WHERE code = 'role-qa');
 
     UPDATE employee SET role_id = (SELECT role_id FROM role WHERE code = 'ROLE-SWE')
-    WHERE role_id IN (SELECT role_id FROM role WHERE code IN ('role-se', 'DEV-NX', 'ROLE-DEV'));
+    WHERE role_id IN (SELECT role_id FROM role WHERE code IN ('role-se', 'role-si', 'SWE', 'DEV-NX', 'ROLE-DEV'));
 
     UPDATE employee SET role_id = (SELECT role_id FROM role WHERE code = 'ROLE-ACCOUNTANT')
     WHERE role_id IN (SELECT role_id FROM role WHERE code = 'ROLE-ACC');
@@ -84,7 +84,7 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     WHERE role_id IN (SELECT role_id FROM role WHERE code = 'role-qa');
 
     UPDATE employee_assignment SET role_id = (SELECT role_id FROM role WHERE code = 'ROLE-SWE')
-    WHERE role_id IN (SELECT role_id FROM role WHERE code IN ('role-se', 'DEV-NX', 'ROLE-DEV'));
+    WHERE role_id IN (SELECT role_id FROM role WHERE code IN ('role-se', 'role-si', 'SWE', 'DEV-NX', 'ROLE-DEV'));
 
     UPDATE employee_assignment SET role_id = (SELECT role_id FROM role WHERE code = 'ROLE-ACCOUNTANT')
     WHERE role_id IN (SELECT role_id FROM role WHERE code = 'ROLE-ACC');
@@ -95,13 +95,13 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
 
   // Clean up user_role and role_permission mapping for obsolete/duplicate roles
   pgm.sql(`
-    DELETE FROM user_role WHERE role_id IN (SELECT role_id FROM role WHERE code IN ('role-ba', 'role-qa', 'role-se', 'DEV-NX', 'ROLE-ACC', 'ROLE-DEV', 'ROLE-DES'));
-    DELETE FROM role_permission WHERE role_id IN (SELECT role_id FROM role WHERE code IN ('role-ba', 'role-qa', 'role-se', 'DEV-NX', 'ROLE-ACC', 'ROLE-DEV', 'ROLE-DES'));
+    DELETE FROM user_role WHERE role_id IN (SELECT role_id FROM role WHERE code IN ('role-ba', 'role-qa', 'role-se', 'role-si', 'SWE', 'DEV-NX', 'ROLE-ACC', 'ROLE-DEV', 'ROLE-DES'));
+    DELETE FROM role_permission WHERE role_id IN (SELECT role_id FROM role WHERE code IN ('role-ba', 'role-qa', 'role-se', 'role-si', 'SWE', 'DEV-NX', 'ROLE-ACC', 'ROLE-DEV', 'ROLE-DES'));
   `);
 
   // Delete duplicate and test roles
   pgm.sql(`
-    DELETE FROM role WHERE code IN ('role-ba', 'role-qa', 'role-se', 'DEV-NX', 'ROLE-ACC', 'ROLE-DEV', 'ROLE-DES');
+    DELETE FROM role WHERE code IN ('role-ba', 'role-qa', 'role-se', 'role-si', 'SWE', 'DEV-NX', 'ROLE-ACC', 'ROLE-DEV', 'ROLE-DES');
   `);
 
   // ──────────────────────────────────────────────────────────────────────────
