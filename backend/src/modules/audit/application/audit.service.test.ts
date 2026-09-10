@@ -33,7 +33,13 @@ describe('AuditService', () => {
     await auditService.record(mockTx, payload);
 
     expect(auditRepo.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ entityType: 'KPI', action: 'CREATE' }),
+      expect.objectContaining({
+        entityType: 'KPI',
+        entityId: '123e4567-e89b-12d3-a456-426614174000',
+        action: 'CREATE',
+        performedBy: '123e4567-e89b-12d3-a456-426614174001',
+        source: 'API',
+      }),
       mockTx
     );
   });

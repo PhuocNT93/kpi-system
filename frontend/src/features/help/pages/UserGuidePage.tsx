@@ -1,7 +1,7 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import mermaid from 'mermaid';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ComponentPropsWithoutRef, type ReactNode } from 'react';
 import userGuideContent from '@/assets/user-guide.md?raw';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
@@ -17,10 +17,10 @@ const Mermaid = ({ chart }: { chart: string }) => {
     });
     if (ref.current) {
       mermaid.render(`mermaid-${Math.random().toString(36).substr(2, 9)}`, chart)
-        .then(({ svg }) => {
+        .then(({ svg }: { svg: string }) => {
           if (ref.current) ref.current.innerHTML = svg;
         })
-        .catch((e) => {
+        .catch((e: unknown) => {
           console.error('Mermaid rendering error', e);
         });
     }
