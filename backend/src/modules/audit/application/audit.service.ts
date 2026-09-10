@@ -15,6 +15,13 @@ export class AuditService {
     // Validate payload against schema (throws ZodError if invalid)
     const validParams = AuditRecordParamsSchema.parse(params);
     
+    // Auto-resolve performedBy from actor context to prevent employeeId vs userId FK errors
+    const { getActorFromContext } = await import('../../../shared/auth/actor-context.js');
+    const actor = getActorFromContext();
+    if (actor && actor.userId) {
+      validParams.performedBy = actor.userId;
+    }
+    
     // Explicitly pass the transaction client so it operates in the exact same transaction
     await this.auditRepo.insert(validParams, tx);
   }
