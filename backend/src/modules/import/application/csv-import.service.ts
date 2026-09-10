@@ -163,13 +163,13 @@ export class CsvImportService {
     // LLD: template_criteria has criterion_version_id, which connects to criterion.
     // Assuming kpi_criterion_mapping table exists from previous migrations.
     const criteriaRes = await this.pool.query(`
-      SELECT tc.template_criterion_id, c.code as criterion_code, k.code as kpi_code
+      SELECT tc.id as template_criterion_id, c.code as criterion_code, k.code as kpi_code
       FROM template_criteria tc
-      JOIN criterion_version cv ON tc.criterion_version_id = cv.criterion_version_id
-      JOIN criterion c ON cv.criterion_id = c.criterion_id
-      LEFT JOIN kpi_criterion_mapping kcm ON c.criterion_id = kcm.criterion_id
-      LEFT JOIN kpi k ON kcm.kpi_id = k.kpi_id
-      WHERE tc.evaluation_template_version_id = $1 AND tc.is_disabled = false
+      JOIN criterion_versions cv ON tc.criterion_version_id = cv.id
+      JOIN criteria c ON cv.criterion_id = c.id
+      LEFT JOIN template_kpi tk ON tc.template_kpi_id = tk.template_kpi_id
+      LEFT JOIN kpi k ON tk.kpi_id = k.kpi_id
+      WHERE tc.template_version_id = $1 AND tc.enabled = true
     `, [templateVersionId]);
 
     const criterionMappings = new Map<string, string[]>(); // criterion_code -> array of kpi_codes
@@ -420,9 +420,9 @@ export class CsvImportService {
         const itemRes = await this.pool.query(`
           SELECT ei.evaluation_item_id, ei.is_disabled_for_employee
           FROM evaluation_item ei
-          JOIN template_criteria tc ON ei.template_criterion_id = tc.template_criterion_id
-          JOIN criterion_version cv ON tc.criterion_version_id = cv.criterion_version_id
-          JOIN criterion c ON cv.criterion_id = c.criterion_id
+          JOIN template_criteria tc ON ei.template_criterion_id = tc.id
+          JOIN criterion_versions cv ON tc.criterion_version_id = cv.id
+          JOIN criteria c ON cv.criterion_id = c.id
           WHERE ei.evaluation_id = $1 AND c.code = $2
         `, [evaluationId, criterionCode]);
 
