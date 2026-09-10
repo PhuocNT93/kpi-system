@@ -33,7 +33,7 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
 
   const levelRes = await pool.query(
     `INSERT INTO job_level (code, name, rank)
-     VALUES ('L4', 'Mid-level', 4)
+     VALUES ('LVL-MID', 'Middle', 3)
      ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, rank = EXCLUDED.rank
      RETURNING job_level_id;`
   );

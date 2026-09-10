@@ -69,30 +69,43 @@ export async function seedOrganizationModule(pool: Pool): Promise<void> {
     await pool.query(
       `INSERT INTO role (code, name, description, active)
        VALUES ($1, $2, $3, true)
-       ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description`,
+       ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description, active = true`,
       [r.code, r.name, r.description]
     );
   }
 
-  // 4. Job Levels
+  // Clean up duplicate lowercase/test roles and duplicate departments
+  await pool.query(`DELETE FROM user_role WHERE role_id IN (SELECT role_id FROM role WHERE code IN ('role-ba', 'role-qa', 'role-se', 'DEV-NX'));`);
+  await pool.query(`DELETE FROM role_permission WHERE role_id IN (SELECT role_id FROM role WHERE code IN ('role-ba', 'role-qa', 'role-se', 'DEV-NX'));`);
+  await pool.query(`DELETE FROM role WHERE code IN ('role-ba', 'role-qa', 'role-se', 'DEV-NX');`);
+  await pool.query(`DELETE FROM department WHERE code = 'ENG';`);
+
+  // 4. Job Levels (Strictly 5 levels: Fresher, Junior, Middle, Senior, Principal)
   const levels = [
-    { code: 'L1', name: 'Intern', rank: 1 },
-    { code: 'L2', name: 'Probation', rank: 2 },
-    { code: 'L3', name: 'Junior', rank: 3 },
-    { code: 'L4', name: 'Mid-level', rank: 4 },
-    { code: 'L5', name: 'Senior', rank: 5 },
-    { code: 'L6', name: 'Lead', rank: 6 },
-    { code: 'L7', name: 'Principal', rank: 7 },
-    { code: 'L8', name: 'Manager', rank: 8 },
-    { code: 'L9', name: 'Director', rank: 9 },
+    { code: 'LVL-FRE', name: 'Fresher', rank: 1 },
+    { code: 'LVL-JR', name: 'Junior', rank: 2 },
+    { code: 'LVL-MID', name: 'Middle', rank: 3 },
+    { code: 'LVL-SR', name: 'Senior', rank: 4 },
+    { code: 'LVL-PRN', name: 'Principal', rank: 5 },
   ];
 
   for (const lvl of levels) {
     await pool.query(
       `INSERT INTO job_level (code, name, rank, active)
        VALUES ($1, $2, $3, true)
-       ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, rank = EXCLUDED.rank`,
+       ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, rank = EXCLUDED.rank, active = true`,
       [lvl.code, lvl.name, lvl.rank]
     );
   }
+
+  // Ensure only the 5 standard levels remain
+  await pool.query(`
+    UPDATE employee SET job_level_id = (SELECT job_level_id FROM job_level WHERE code = 'LVL-MID')
+    WHERE job_level_id NOT IN (SELECT job_level_id FROM job_level WHERE code IN ('LVL-FRE', 'LVL-JR', 'LVL-MID', 'LVL-SR', 'LVL-PRN'));
+
+    UPDATE employee_assignment SET job_level_id = (SELECT job_level_id FROM job_level WHERE code = 'LVL-MID')
+    WHERE job_level_id NOT IN (SELECT job_level_id FROM job_level WHERE code IN ('LVL-FRE', 'LVL-JR', 'LVL-MID', 'LVL-SR', 'LVL-PRN'));
+
+    DELETE FROM job_level WHERE code NOT IN ('LVL-FRE', 'LVL-JR', 'LVL-MID', 'LVL-SR', 'LVL-PRN');
+  `);
 }
