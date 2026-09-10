@@ -167,8 +167,8 @@ export class PostgresTemplateCriterionRepository implements ITemplateCriterionRe
     const res = await runner.query(
       `SELECT 
         tc.id as tc_id, tc.template_version_id as tc_template_version_id, tc.template_kpi_id as tc_template_kpi_id, tc.criterion_version_id as tc_criterion_version_id, tc.weight as tc_weight, tc.display_order as tc_display_order, tc.required as tc_required, tc.enabled as tc_enabled, tc.applicability as tc_applicability, tc.created_at as tc_created_at,
-        cv.id as cv_id, cv.criterion_id as cv_criterion_id, cv.version_no as cv_version_no, cv.default_weight as cv_default_weight, cv.measurement_unit as cv_measurement_unit, cv.measurement_source_label as cv_measurement_source_label, cv.scoring_rule_id as cv_scoring_rule_id, cv.status as cv_status, cv.created_at as cv_created_at, cv.created_by as cv_created_by,
-        c.id as c_id, c.code as c_code, c.category as c_category, c.name as c_name, c.description as c_description, c.status as c_status, c.created_at as c_created_at, c.updated_at as c_updated_at,
+        cv.id as cv_id, cv.criterion_id as cv_criterion_id, cv.version_no as cv_version_no, cv.default_weight as cv_default_weight, cv.measurement_unit as cv_measurement_unit, cv.measurement_source_label as cv_measurement_source_label, cv.scoring_rule_id as cv_scoring_rule_id, cv.status as cv_status, cv.version as cv_version, cv.created_at as cv_created_at, cv.created_by as cv_created_by,
+        c.id as c_id, c.code as c_code, c.category as c_category, c.name as c_name, c.description as c_description, c.score_value as c_score_value, c.status as c_status, c.version as c_version, c.created_at as c_created_at, c.updated_at as c_updated_at,
         sr.id as sr_id, sr.code as sr_code, sr.name as sr_name, sr.rule_type as sr_rule_type, sr.config as sr_config, sr.status as sr_status, sr.version as sr_version, sr.created_at as sr_created_at, sr.updated_at as sr_updated_at, sr.created_by as sr_created_by, sr.updated_by as sr_updated_by
        FROM template_criteria tc
        JOIN criterion_versions cv ON tc.criterion_version_id = cv.id
@@ -202,6 +202,7 @@ export class PostgresTemplateCriterionRepository implements ITemplateCriterionRe
         measurement_source_label: row.cv_measurement_source_label,
         scoring_rule_id: row.cv_scoring_rule_id,
         status: row.cv_status,
+        version: Number(row.cv_version),
         created_at: new Date(row.cv_created_at),
         created_by: row.cv_created_by,
       };
@@ -212,7 +213,9 @@ export class PostgresTemplateCriterionRepository implements ITemplateCriterionRe
         category: row.c_category,
         name: row.c_name,
         description: row.c_description,
+        score_value: Number(row.c_score_value),
         status: row.c_status,
+        version: Number(row.c_version),
         created_at: new Date(row.c_created_at),
         updated_at: new Date(row.c_updated_at),
       };
