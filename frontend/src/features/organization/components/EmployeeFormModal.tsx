@@ -133,8 +133,14 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
   }, [isOpen, employee?.id, initialDepartmentId, initialTeamId]);
 
   const selectedDeptId = watch('department_id');
+  
+  const filteredDepartments = departments?.filter(d => d.isActive || d.id === employee?.departmentId) ?? [];
+  const filteredTeams = teams?.filter(t => t.isActive || t.id === employee?.teamId) ?? [];
+  const filteredRoles = roles?.filter(r => r.isActive || r.id === employee?.roleId) ?? [];
+  const filteredLevels = levels?.filter(l => l.isActive || l.id === employee?.jobLevelId) ?? [];
+
   const teamsInDept = selectedDeptId 
-    ? teams?.filter(t => t.departmentId === selectedDeptId) ?? [] 
+    ? filteredTeams.filter(t => t.departmentId === selectedDeptId) 
     : [];
 
   if (!isOpen) return null;
@@ -154,6 +160,18 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
           setError('employee_code' as keyof CreateFormValues, {
             message: 'This employee code is already in use.',
           });
+        }
+        if (apiErr.code === 'DEPARTMENT_INACTIVE') {
+          setError('department_id', { message: apiErr.message });
+        }
+        if (apiErr.code === 'TEAM_INACTIVE' || apiErr.code === 'TEAM_DEPARTMENT_MISMATCH') {
+          setError('team_id', { message: apiErr.message });
+        }
+        if (apiErr.code === 'JOB_ROLE_INACTIVE') {
+          setError('role_id', { message: apiErr.message });
+        }
+        if (apiErr.code === 'JOB_LEVEL_INACTIVE') {
+          setError('job_level_id', { message: apiErr.message });
         }
       }
     }
@@ -278,8 +296,10 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
                   style={{ display: 'block', width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
                 >
                   <option value="">-- Select Department --</option>
-                  {departments?.map(d => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
+                  {filteredDepartments.map(d => (
+                    <option key={d.id} value={d.id}>
+                      {!d.isActive ? `[Inactive] ${d.name}` : d.name}
+                    </option>
                   ))}
                 </select>
                 {(errors as Record<string, { message?: string }>).department_id && (
@@ -304,10 +324,17 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
                   disabled={!selectedDeptId}
                 >
                   <option value="">-- No Team --</option>
-                  {teamsInDept.map((t: { id: string; name: string }) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
+                  {teamsInDept.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {!t.isActive ? `[Inactive] ${t.name}` : t.name}
+                    </option>
                   ))}
                 </select>
+                {(errors as Record<string, { message?: string }>).team_id && (
+                  <span role="alert" style={{ color: '#dc2626', fontSize: '0.875rem', marginTop: '0.25rem', display: 'block' }}>
+                    {(errors as Record<string, { message?: string }>).team_id?.message}
+                  </span>
+                )}
               </div>
             )}
             {isTeamLocked && <input type="hidden" {...register('team_id')} />}
@@ -322,8 +349,10 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
                 style={{ display: 'block', width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
               >
                 <option value="">-- Select Role --</option>
-                {roles?.map(r => (
-                  <option key={r.id} value={r.id}>{r.name}</option>
+                {filteredRoles.map(r => (
+                  <option key={r.id} value={r.id}>
+                    {!r.isActive ? `[Inactive] ${r.name}` : r.name}
+                  </option>
                 ))}
               </select>
               {(errors as Record<string, { message?: string }>).role_id && (
@@ -343,8 +372,10 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
                 style={{ display: 'block', width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
               >
                 <option value="">-- Select Level --</option>
-                {levels?.map(l => (
-                  <option key={l.id} value={l.id}>{l.name}</option>
+                {filteredLevels.map(l => (
+                  <option key={l.id} value={l.id}>
+                    {!l.isActive ? `[Inactive] ${l.name}` : l.name}
+                  </option>
                 ))}
               </select>
               {(errors as Record<string, { message?: string }>).job_level_id && (

@@ -30,3 +30,14 @@ export function useUpdateJobLevel() {
     },
   });
 }
+
+export function useBulkUpdateJobLevels() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ levelIds, active }: { levelIds: string[]; active: boolean }) =>
+      organizationApi.bulkUpdateJobLevels(levelIds, active),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: organizationKeys.jobLevels.all });
+    },
+  });
+}

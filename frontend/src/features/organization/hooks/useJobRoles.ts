@@ -30,3 +30,14 @@ export function useUpdateJobRole() {
     },
   });
 }
+
+export function useBulkUpdateJobRoles() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ roleIds, active }: { roleIds: string[]; active: boolean }) =>
+      organizationApi.bulkUpdateJobRoles(roleIds, active),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: organizationKeys.roles.all });
+    },
+  });
+}

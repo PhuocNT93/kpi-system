@@ -3,7 +3,6 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useCreateJobLevel, useUpdateJobLevel } from '../hooks/useJobLevels';
-import { ErrorAlert } from '../../../shared/components/ui';
 import { Button } from '../../../shared/ui/Button/Button';
 import type { OrgJobLevel } from '../domain/organization-models';
 
@@ -80,6 +79,11 @@ export function JobLevelFormModal({ isOpen, level, onClose }: JobLevelFormModalP
             message: 'This job level code is already in use.',
           });
         }
+        if (apiErr.code === 'LEVEL_HAS_ACTIVE_EMPLOYEES' || apiErr.code === 'JOB_LEVEL_HAS_ACTIVE_EMPLOYEES') {
+          setError('active' as keyof UpdateFormValues, {
+            message: apiErr.message,
+          });
+        }
       }
     }
   });
@@ -98,8 +102,6 @@ export function JobLevelFormModal({ isOpen, level, onClose }: JobLevelFormModalP
         <h2 id="level-form-dialog-title" style={{ margin: '0 0 1rem' }}>
           {isEditMode ? 'Edit Job Level' : 'Create Job Level'}
         </h2>
-
-        {mutationError && <ErrorAlert error={mutationError} />}
 
         <form onSubmit={onSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           
@@ -160,16 +162,29 @@ export function JobLevelFormModal({ isOpen, level, onClose }: JobLevelFormModalP
           </div>
 
           {isEditMode && (
-             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <input
-                  id="level-active"
-                  type="checkbox"
-                  {...register('active' as keyof UpdateFormValues)}
-                />
-                <label htmlFor="level-active" style={{ fontWeight: 500 }}>
-                  Active
-                </label>
+             <div>
+               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                 <input
+                   id="level-active"
+                   type="checkbox"
+                   {...register('active' as keyof UpdateFormValues)}
+                 />
+                 <label htmlFor="level-active" style={{ fontWeight: 500 }}>
+                   Active
+                 </label>
+               </div>
+               {(errors as Record<string, { message?: string }>).active && (
+                 <span role="alert" style={{ color: '#dc2626', fontSize: '0.875rem', marginTop: '0.25rem', display: 'block' }}>
+                   {(errors as Record<string, { message?: string }>).active?.message}
+                 </span>
+               )}
              </div>
+          )}
+
+          {mutationError && Object.keys(errors).length === 0 && (
+            <span role="alert" style={{ color: '#dc2626', fontSize: '0.875rem', display: 'block' }}>
+              {(mutationError as { message?: string })?.message || 'An error occurred'}
+            </span>
           )}
 
           <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>

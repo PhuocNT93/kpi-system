@@ -3,7 +3,6 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useCreateJobRole, useUpdateJobRole } from '../hooks/useJobRoles';
-import { ErrorAlert } from '../../../shared/components/ui';
 import { Button } from '../../../shared/ui/Button/Button';
 import type { OrgJobRole } from '../domain/organization-models';
 
@@ -80,6 +79,11 @@ export function OrgRoleFormModal({ isOpen, role, onClose }: OrgRoleFormModalProp
             message: 'This role code is already in use.',
           });
         }
+        if (apiErr.code === 'ROLE_HAS_ACTIVE_EMPLOYEES') {
+          setError('active' as keyof UpdateFormValues, {
+            message: apiErr.message,
+          });
+        }
       }
     }
   });
@@ -98,8 +102,6 @@ export function OrgRoleFormModal({ isOpen, role, onClose }: OrgRoleFormModalProp
         <h2 id="role-form-dialog-title" style={{ margin: '0 0 1rem' }}>
           {isEditMode ? 'Edit Role' : 'Create Role'}
         </h2>
-
-        {mutationError && <ErrorAlert error={mutationError} />}
 
         <form onSubmit={onSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           
@@ -159,16 +161,29 @@ export function OrgRoleFormModal({ isOpen, role, onClose }: OrgRoleFormModalProp
           </div>
 
           {isEditMode && (
-             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <input
-                  id="role-active"
-                  type="checkbox"
-                  {...register('active' as keyof UpdateFormValues)}
-                />
-                <label htmlFor="role-active" style={{ fontWeight: 500 }}>
-                  Active
-                </label>
+             <div>
+               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                 <input
+                   id="role-active"
+                   type="checkbox"
+                   {...register('active' as keyof UpdateFormValues)}
+                 />
+                 <label htmlFor="role-active" style={{ fontWeight: 500 }}>
+                   Active
+                 </label>
+               </div>
+               {(errors as Record<string, { message?: string }>).active && (
+                 <span role="alert" style={{ color: '#dc2626', fontSize: '0.875rem', marginTop: '0.25rem', display: 'block' }}>
+                   {(errors as Record<string, { message?: string }>).active?.message}
+                 </span>
+               )}
              </div>
+          )}
+
+          {mutationError && Object.keys(errors).length === 0 && (
+            <span role="alert" style={{ color: '#dc2626', fontSize: '0.875rem', display: 'block' }}>
+              {(mutationError as { message?: string })?.message || 'An error occurred'}
+            </span>
           )}
 
           <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>

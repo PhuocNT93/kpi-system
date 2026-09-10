@@ -19,7 +19,8 @@ export function createOrganizationModule(pool: Pool): OrganizationModule {
   const organizationService = new OrganizationService(
     departmentRepository,
     jobRoleRepository,
-    jobLevelRepository
+    jobLevelRepository,
+    pool
   );
 
   const organizationController = new OrganizationController(organizationService);

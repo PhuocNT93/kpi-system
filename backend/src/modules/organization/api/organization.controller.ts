@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { OrganizationService } from '../application/organization.service.js';
 import { sendSuccess, sendCollection } from '../../../api/http-response.js';
 import { parsePaginationQuery } from '../../../api/pagination.js';
-import { ValidationError } from '../../../api/app-error.js';
+import { ValidationError, BadRequest } from '../../../api/app-error.js';
 
 export class OrganizationController {
   constructor(private readonly organizationService: OrganizationService) {}
@@ -11,7 +11,8 @@ export class OrganizationController {
   getDepartments = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { limit, offset, buildPageMeta } = parsePaginationQuery(req.query as Record<string, unknown>);
-      const [departments, total] = await this.organizationService.getDepartments(offset, limit);
+      const activeFilter = req.query.active !== undefined ? req.query.active === 'true' : undefined;
+      const [departments, total] = await this.organizationService.getDepartments({ active: activeFilter }, offset, limit);
       sendCollection(res, 'Departments retrieved successfully', departments, buildPageMeta(total));
     } catch (err) {
       next(err);
@@ -66,11 +67,31 @@ export class OrganizationController {
     }
   };
 
+  bulkUpdateDepartmentStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { departmentIds, active } = req.body || {};
+      if (!Array.isArray(departmentIds) || departmentIds.length === 0) {
+        throw new BadRequest('departmentIds array is required and must not be empty');
+      }
+      if (typeof active !== 'boolean') {
+        throw new BadRequest('active boolean is required');
+      }
+      const count = await this.organizationService.bulkUpdateDepartments(departmentIds, active);
+      sendSuccess(res, 200, `Successfully updated ${count} department(s) to ${active ? 'ACTIVE' : 'INACTIVE'}`, {
+        updatedCount: count,
+        active,
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
   // --- JobRole ---
   getJobRoles = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { limit, offset, buildPageMeta } = parsePaginationQuery(req.query as Record<string, unknown>);
-      const [roles, total] = await this.organizationService.getJobRoles(offset, limit);
+      const activeFilter = req.query.active !== undefined ? req.query.active === 'true' : undefined;
+      const [roles, total] = await this.organizationService.getJobRoles({ active: activeFilter }, offset, limit);
       sendCollection(res, 'Job Roles retrieved successfully', roles, buildPageMeta(total));
     } catch (err) {
       next(err);
@@ -130,7 +151,8 @@ export class OrganizationController {
   getJobLevels = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { limit, offset, buildPageMeta } = parsePaginationQuery(req.query as Record<string, unknown>);
-      const [levels, total] = await this.organizationService.getJobLevels(offset, limit);
+      const activeFilter = req.query.active !== undefined ? req.query.active === 'true' : undefined;
+      const [levels, total] = await this.organizationService.getJobLevels({ active: activeFilter }, offset, limit);
       sendCollection(res, 'Job Levels retrieved successfully', levels, buildPageMeta(total));
     } catch (err) {
       next(err);
@@ -185,6 +207,44 @@ export class OrganizationController {
       }
       const level = await this.organizationService.updateJobLevel(id, { name, rank: parseInt(rank, 10), active: active !== undefined ? active : true });
       sendSuccess(res, 200, 'Job Level updated successfully', level);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  bulkUpdateJobRoleStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { roleIds, active } = req.body || {};
+      if (!Array.isArray(roleIds) || roleIds.length === 0) {
+        throw new BadRequest('roleIds array is required and must not be empty');
+      }
+      if (typeof active !== 'boolean') {
+        throw new BadRequest('active boolean is required');
+      }
+      const count = await this.organizationService.bulkUpdateJobRoles(roleIds, active);
+      sendSuccess(res, 200, `Successfully updated ${count} role(s) to ${active ? 'ACTIVE' : 'INACTIVE'}`, {
+        updatedCount: count,
+        active,
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  bulkUpdateJobLevelStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { levelIds, active } = req.body || {};
+      if (!Array.isArray(levelIds) || levelIds.length === 0) {
+        throw new BadRequest('levelIds array is required and must not be empty');
+      }
+      if (typeof active !== 'boolean') {
+        throw new BadRequest('active boolean is required');
+      }
+      const count = await this.organizationService.bulkUpdateJobLevels(levelIds, active);
+      sendSuccess(res, 200, `Successfully updated ${count} level(s) to ${active ? 'ACTIVE' : 'INACTIVE'}`, {
+        updatedCount: count,
+        active,
+      });
     } catch (err) {
       next(err);
     }
