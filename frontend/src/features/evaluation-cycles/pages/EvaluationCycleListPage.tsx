@@ -1,10 +1,12 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EvaluationCycleTable } from '../components/EvaluationCycleTable';
+import { PageToast } from '../components/PageToast';
 import {
   useEvaluationCyclesQuery,
   useLockCycleMutation,
 } from '../hooks/use-evaluation-cycles';
+import { usePageToast } from '../hooks/use-page-toast';
 import type { EvaluationCycleDTO } from '../types/cycle-types';
 import { LoadingSpinner, ErrorAlert } from '@/shared/components/ui';
 import { COLORS } from '@/lib/theme';
@@ -120,12 +122,14 @@ const MOCK_CYCLES: EvaluationCycleDTO[] = [
 export const EvaluationCycleListPage: React.FC = () => {
   const navigate = useNavigate();
   const { data, isLoading, error, refetch } = useEvaluationCyclesQuery();
+  const { toast, showToast } = usePageToast();
 
   const lockMutation = useLockCycleMutation();
 
   const cycles = data ?? MOCK_CYCLES;
 
   const handleOpen = (id: string) => {
+    showToast('info', 'Mở chi tiết kỳ đánh giá.');
     navigate(`/admin/cycles/${id}`);
   };
 
@@ -133,7 +137,9 @@ export const EvaluationCycleListPage: React.FC = () => {
     if (window.confirm('Are you sure you want to lock this cycle? All evaluations will become permanently read-only.')) {
       try {
         await lockMutation.mutateAsync(id);
+        showToast('success', 'Khóa kỳ đánh giá thành công.');
       } catch (err) {
+        showToast('error', err instanceof Error ? err.message : 'Failed to lock cycle');
         alert(err instanceof Error ? err.message : 'Failed to lock cycle');
       }
     }
@@ -141,6 +147,7 @@ export const EvaluationCycleListPage: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <PageToast toast={toast} />
       <div>
         <h1
           style={{
@@ -168,11 +175,20 @@ export const EvaluationCycleListPage: React.FC = () => {
 
       <EvaluationCycleTable
         cycles={cycles}
-        onView={(id) => navigate(`/admin/cycles/${id}`)}
-        onEdit={(id) => navigate(`/admin/cycles/${id}/edit`)}
+        onView={(id) => {
+          showToast('info', 'Đang mở trang chi tiết kỳ đánh giá.');
+          navigate(`/admin/cycles/${id}`);
+        }}
+        onEdit={(id) => {
+          showToast('info', 'Đang mở trang chỉnh sửa kỳ đánh giá.');
+          navigate(`/admin/cycles/${id}/edit`);
+        }}
         onOpen={handleOpen}
         onLock={handleLock}
-        onCreateNew={() => navigate('/admin/cycles/new')}
+        onCreateNew={() => {
+          showToast('info', 'Đang mở form tạo kỳ đánh giá mới.');
+          navigate('/admin/cycles/new');
+        }}
         templatesOptions={[
           { id: 'tpl-1', name: 'Engineering Evaluation Template' },
           { id: 'tpl-2', name: 'Management Evaluation Template' },

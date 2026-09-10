@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQueries } from '@tanstack/react-query';
 import {
   useEvaluationCycleDetailQuery,
   useScopePreviewQuery,
@@ -7,6 +8,7 @@ import {
   useLockCycleMutation,
   useTransitionCycleMutation,
 } from '../hooks/use-evaluation-cycles';
+import { PageToast } from '../components/PageToast';
 import { CycleStatusBadge } from '../components/CycleStatusBadge';
 import { CycleTimeline } from '../components/CycleTimeline';
 import { CycleConfigurationSummary } from '../components/CycleConfigurationSummary';
@@ -14,6 +16,7 @@ import { ScopePreviewCard } from '../components/ScopePreviewCard';
 import { OpenCycleConfirmationModal } from '../components/OpenCycleConfirmationModal';
 import { OpeningProgressBanner } from '../components/OpeningProgressBanner';
 import { ReadOnlyBanner } from '../components/ReadOnlyBanner';
+import { evaluationCycleApi } from '../api/cycle-api';
 import { Button } from '@/shared/ui/Button/Button';
 import { LoadingSpinner, ErrorAlert } from '@/shared/components/ui';
 import { COLORS } from '@/lib/theme';
@@ -32,6 +35,7 @@ import {
   Share2,
 } from 'lucide-react';
 import type { EvaluationCycleDTO, ScopePreviewDTO, CycleStatus } from '../types/cycle-types';
+import { usePageToast } from '../hooks/use-page-toast';
 
 const MOCK_DETAIL: EvaluationCycleDTO = {
   id: 'cyc-1',
@@ -93,12 +97,34 @@ export const EvaluationCycleDetailPage: React.FC = () => {
   const openMutation = useOpenCycleMutation();
   const lockMutation = useLockCycleMutation();
   const transitionMutation = useTransitionCycleMutation();
+  const { toast, showToast } = usePageToast();
 
   const [isOpenModalVisible, setIsOpenModalVisible] = useState(false);
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
 
   const cycle = detailData ?? MOCK_DETAIL;
   const scopePreview = scopeData ?? MOCK_SCOPE_PREVIEW;
+  const applicableEmployeeIds = cycle.applicableEmployeeIds ?? [];
+
+  const employeeQueries = useQueries({
+    queries: applicableEmployeeIds.map((employeeId) => ({
+      queryKey: ['employee', employeeId],
+      queryFn: () => evaluationCycleApi.getEmployeeById(employeeId),
+      enabled: Boolean(employeeId),
+    })),
+  });
+
+  const employeeRows = applicableEmployeeIds.map((employeeId, index) => {
+    const query = employeeQueries[index];
+    const employee = query?.data;
+    return {
+      id: employeeId,
+      name: employee?.full_name ?? employee?.employee_code ?? employeeId,
+      email: employee?.email,
+      isLoading: Boolean(query?.isLoading),
+      isError: Boolean(query?.isError),
+    };
+  });
 
   const isLocked = cycle.status === 'LOCKED';
   const canEdit = (cycle.allowedActions.includes('EDIT') || cycle.status === 'DRAFT') && !isLocked;
@@ -109,10 +135,14 @@ export const EvaluationCycleDetailPage: React.FC = () => {
     try {
       await openMutation.mutateAsync(cycle.id);
       setIsOpenModalVisible(false);
-      setActionSuccessMsg(`Cycle opened successfully! ${scopePreview.employeeCount} evaluation instances and criteria snapshots were generated.`);
+      const message = `Cycle opened successfully! ${scopePreview.employeeCount} evaluation instances and criteria snapshots were generated.`;
+      setActionSuccessMsg(message);
+      showToast('success', message);
     } catch {
       setIsOpenModalVisible(false);
-      setActionSuccessMsg(`Cycle opened successfully! ${scopePreview.employeeCount} evaluation instances and criteria snapshots were generated.`);
+      const message = 'Failed to open cycle.';
+      setActionSuccessMsg(message);
+      showToast('error', message);
     }
   };
 
@@ -120,9 +150,13 @@ export const EvaluationCycleDetailPage: React.FC = () => {
     if (window.confirm(`Are you sure you want to transition cycle to "${label}" (${targetStatus})?`)) {
       try {
         await transitionMutation.mutateAsync({ id: cycle.id, targetStatus });
-        setActionSuccessMsg(`Evaluation cycle successfully transitioned to ${targetStatus}.`);
+        const message = `Evaluation cycle successfully transitioned to ${targetStatus}.`;
+        setActionSuccessMsg(message);
+        showToast('success', message);
       } catch (err) {
-        alert(err instanceof Error ? err.message : 'Failed to transition cycle status');
+        const message = err instanceof Error ? err.message : 'Failed to transition cycle status';
+        showToast('error', message);
+        alert(message);
       }
     }
   };
@@ -131,15 +165,20 @@ export const EvaluationCycleDetailPage: React.FC = () => {
     if (window.confirm('Are you sure you want to lock this evaluation cycle? It will become permanently read-only.')) {
       try {
         await lockMutation.mutateAsync(cycle.id);
-        setActionSuccessMsg('Evaluation cycle is now locked and read-only.');
+        const message = 'Evaluation cycle is now locked and read-only.';
+        setActionSuccessMsg(message);
+        showToast('success', message);
       } catch (err) {
-        alert(err instanceof Error ? err.message : 'Failed to lock cycle');
+        const message = err instanceof Error ? err.message : 'Failed to lock cycle';
+        showToast('error', message);
+        alert(message);
       }
     }
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <PageToast toast={toast} />
       {/* Back Button */}
       <button
         onClick={() => navigate('/admin/cycles')}
@@ -342,6 +381,82 @@ export const EvaluationCycleDetailPage: React.FC = () => {
 
       {/* Scope Preview */}
       <ScopePreviewCard data={scopePreview} />
+
+      {/* Applicable Employees */}
+      <section
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+          backgroundColor: COLORS.neutral.white,
+          border: `1px solid ${COLORS.neutral[200]}`,
+          borderRadius: RADII.xl,
+          padding: '20px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+          <div>
+            <div style={{ fontSize: TYPOGRAPHY.fontSize.base, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
+              Employee List
+            </div>
+            <div style={{ fontSize: '0.875rem', color: COLORS.neutral.textSecondary }}>
+              Employees included in this evaluation cycle detail.
+            </div>
+          </div>
+          <span
+            style={{
+              fontSize: '0.875rem',
+              fontWeight: 700,
+              color: COLORS.primary.DEFAULT,
+              backgroundColor: COLORS.primary[50],
+              padding: '4px 12px',
+              borderRadius: RADII.full,
+            }}
+          >
+            {applicableEmployeeIds.length} Employees
+          </span>
+        </div>
+
+        {applicableEmployeeIds.length === 0 ? (
+          <div style={{ fontSize: '0.875rem', color: COLORS.neutral.textSecondary, fontStyle: 'italic' }}>
+            No applicable employees were attached to this cycle.
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
+            {employeeRows.map((employee) => (
+              <div
+                key={employee.id}
+                style={{
+                  border: `1px solid ${COLORS.neutral[200]}`,
+                  borderRadius: RADII.lg,
+                  padding: '14px',
+                  backgroundColor: COLORS.neutral[50],
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                }}
+              >
+                <div style={{ fontSize: '0.9375rem', fontWeight: 600, color: COLORS.neutral.textPrimary }}>
+                  {employee.isLoading ? 'Loading employee...' : employee.name}
+                </div>
+                <div style={{ fontSize: '0.8125rem', color: COLORS.neutral.textSecondary }}>
+                  ID: <span style={{ fontFamily: 'monospace' }}>{employee.id}</span>
+                </div>
+                {employee.email && (
+                  <div style={{ fontSize: '0.8125rem', color: COLORS.neutral.textSecondary }}>
+                    {employee.email}
+                  </div>
+                )}
+                {employee.isError && (
+                  <div style={{ fontSize: '0.8125rem', color: '#b91c1c' }}>
+                    Failed to load employee details.
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* Configuration Summary */}
       <CycleConfigurationSummary cycle={cycle} />

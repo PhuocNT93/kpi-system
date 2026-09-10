@@ -17,10 +17,10 @@ const Mermaid = ({ chart }: { chart: string }) => {
     });
     if (ref.current) {
       mermaid.render(`mermaid-${Math.random().toString(36).substr(2, 9)}`, chart)
-        .then(({ svg }) => {
+        .then(({ svg }: { svg: string }) => {
           if (ref.current) ref.current.innerHTML = svg;
         })
-        .catch((e) => {
+        .catch((e: unknown) => {
           console.error('Mermaid rendering error', e);
         });
     }
