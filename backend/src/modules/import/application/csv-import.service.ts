@@ -39,7 +39,7 @@ export class CsvImportService {
 
     // 3. Resolve Template from Cycle
     const cycleRes = await this.pool.query(
-      `SELECT evaluation_template_version_id, status FROM evaluation_cycle WHERE code = $1`,
+      `SELECT evaluation_template_version_id, status FROM evaluation_cycle WHERE evaluation_cycle_id = $1`,
       [cycleId]
     );
     if (cycleRes.rows.length === 0) {
@@ -62,7 +62,7 @@ export class CsvImportService {
     const newJob: ImportJob = {
       import_job_id: jobId,
       csv_template_id: csvTemplateId,
-      evaluation_cycle_id: cycle.evaluation_cycle_id,
+      evaluation_cycle_id: cycleId,
       file_name: fileName,
       file_hash: fileHash,
       status: 'UPLOADED',

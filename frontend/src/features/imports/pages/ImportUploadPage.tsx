@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { getCurrentCsvTemplate, downloadCurrentCsvTemplate } from '../api/csv-template-api';
 import { uploadCsvFile, confirmImport, getImportStatus, type ImportPreviewResponse } from '../api/import-api';
 import { csvTemplateKeys } from '../api/csv-template-keys';
+import { evaluationCycleApi } from '@/features/evaluation-cycles/api/cycle-api';
 import { LoadingSpinner, ErrorAlert, EmptyState } from '@/shared/components/ui';
 import { Button } from '@/shared/ui/Button/Button';
 import { Badge } from '@/shared/ui/Badge/Badge';
@@ -36,7 +37,7 @@ export function ImportUploadPage() {
   const [downloadError, setDownloadError] = useState<unknown | null>(null);
   
   // Upload State
-  const [cycleId, setCycleId] = useState('02d1847e-97ec-449e-b762-b94f923c5ed7'); // Pre-fill with a valid seed cycle ID
+  const [cycleId, setCycleId] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState(randomUUID());
   const [previewData, setPreviewData] = useState<ImportPreviewResponse | null>(null);
@@ -52,6 +53,13 @@ export function ImportUploadPage() {
     queryKey: csvTemplateKeys.current(),
     queryFn: getCurrentCsvTemplate,
   });
+
+  const { data: cycles = [], isLoading: isLoadingCycles } = useQuery({
+    queryKey: ['evaluation-cycles'],
+    queryFn: () => evaluationCycleApi.getCycles(),
+  });
+
+  const selectableCycles = cycles.filter(c => c.status !== 'LOCKED');
 
   const { data: jobStatus } = useQuery({
     queryKey: ['importJob', activeJobId],
@@ -281,18 +289,25 @@ export function ImportUploadPage() {
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, minWidth: '250px' }}>
             <label style={{ fontSize: TYPOGRAPHY.fontSize.sm, fontWeight: 500 }}>Evaluation Cycle ID</label>
-            <input 
-              type="text" 
+            <select
               value={cycleId}
               onChange={(e) => setCycleId(e.target.value)}
-              placeholder="e.g. 02d1847e-97ec-449e-b762-b94f923c5ed7"
+              disabled={isLoadingCycles}
               style={{
                 padding: '8px 12px',
                 border: `1px solid ${COLORS.neutral[300]}`,
                 borderRadius: RADII.md,
-                fontSize: TYPOGRAPHY.fontSize.sm
+                fontSize: TYPOGRAPHY.fontSize.sm,
+                backgroundColor: COLORS.neutral.white,
               }}
-            />
+            >
+              <option value="" disabled>-- Select Evaluation Cycle --</option>
+              {selectableCycles.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.code}) - {c.status}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 2, minWidth: '300px' }}>
