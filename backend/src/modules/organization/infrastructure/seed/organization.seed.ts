@@ -75,9 +75,9 @@ export async function seedOrganizationModule(pool: Pool): Promise<void> {
   }
 
   // Clean up duplicate lowercase/test roles and duplicate departments
-  await pool.query(`DELETE FROM user_role WHERE role_id IN (SELECT role_id FROM role WHERE code IN ('role-ba', 'role-qa', 'role-se', 'DEV-NX'));`);
-  await pool.query(`DELETE FROM role_permission WHERE role_id IN (SELECT role_id FROM role WHERE code IN ('role-ba', 'role-qa', 'role-se', 'DEV-NX'));`);
-  await pool.query(`DELETE FROM role WHERE code IN ('role-ba', 'role-qa', 'role-se', 'DEV-NX');`);
+  await pool.query(`DELETE FROM user_role WHERE role_id IN (SELECT role_id FROM role WHERE code IN ('role-ba', 'role-qa', 'role-se', 'role-si', 'SWE', 'DEV-NX', 'ROLE-ACC', 'ROLE-DEV', 'ROLE-DES'));`);
+  await pool.query(`DELETE FROM role_permission WHERE role_id IN (SELECT role_id FROM role WHERE code IN ('role-ba', 'role-qa', 'role-se', 'role-si', 'SWE', 'DEV-NX', 'ROLE-ACC', 'ROLE-DEV', 'ROLE-DES'));`);
+  await pool.query(`DELETE FROM role WHERE code IN ('role-ba', 'role-qa', 'role-se', 'role-si', 'SWE', 'DEV-NX', 'ROLE-ACC', 'ROLE-DEV', 'ROLE-DES');`);
   await pool.query(`DELETE FROM department WHERE code = 'ENG';`);
 
   // 4. Job Levels (Strictly 5 levels: Fresher, Junior, Middle, Senior, Principal)
