@@ -45,13 +45,14 @@ export function UserGuidePage() {
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
-              code({ inline, className, children, ...props }: { inline?: boolean, className?: string, children?: React.ReactNode, [key: string]: unknown }) {
+              code({ inline, className, children, ...props }: React.HTMLAttributes<HTMLElement> & { inline?: boolean; node?: unknown }) {
                 const match = /language-(\w+)/.exec(className || '');
                 if (!inline && match && match[1] === 'mermaid') {
                   return <Mermaid chart={String(children).replace(/\n$/, '')} />;
                 }
+                const { node: _node, ...restProps } = props;
                 return (
-                  <code className={className} {...props}>
+                  <code className={className} {...restProps}>
                     {children}
                   </code>
                 );
