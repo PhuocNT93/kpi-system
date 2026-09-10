@@ -25,7 +25,7 @@ export class PostgresDepartmentRepository implements DepartmentRepository {
 
   async findAll(filters?: { active?: boolean }, skip = 0, limit = 100): Promise<[Department[], number]> {
     let query = 'SELECT department_id, code, name, active, created_at, updated_at, count(*) OVER() as full_count FROM department';
-    const params: any[] = [];
+    const params: unknown[] = [];
     let paramIndex = 1;
 
     if (filters?.active !== undefined) {
@@ -93,7 +93,7 @@ export class PostgresJobRoleRepository implements JobRoleRepository {
 
   async findAll(filters?: { active?: boolean }, skip = 0, limit = 100): Promise<[JobRole[], number]> {
     let query = 'SELECT role_id, code, name, description, active, created_at, updated_at, count(*) OVER() as full_count FROM role';
-    const params: any[] = [];
+    const params: unknown[] = [];
     let paramIndex = 1;
 
     if (filters?.active !== undefined) {
@@ -162,7 +162,7 @@ export class PostgresJobLevelRepository implements JobLevelRepository {
 
   async findAll(filters?: { active?: boolean }, skip = 0, limit = 100): Promise<[JobLevel[], number]> {
     let query = 'SELECT job_level_id, code, name, rank, active, created_at, updated_at, count(*) OVER() as full_count FROM job_level';
-    const params: any[] = [];
+    const params: unknown[] = [];
     let paramIndex = 1;
 
     if (filters?.active !== undefined) {
