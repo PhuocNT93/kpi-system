@@ -138,13 +138,13 @@ export class TeamService {
         client
       );
 
-      if (actor.employeeId) {
+      if (actor.userId) {
         await this.auditService.record(client, {
           entityType: 'TEAM',
           entityId: team.teamId,
           action: 'TEAM_CREATED',
           newValue: JSON.stringify({ code: team.code, name: team.name, department_id: team.departmentId }),
-          performedBy: actor.employeeId,
+          performedBy: actor.userId,
         });
       }
 
@@ -194,7 +194,7 @@ export class TeamService {
         changedFields.push({ field: 'description', old: existing.description ?? null, new: updated.description ?? null });
       }
 
-      if (actor.employeeId) {
+      if (actor.userId) {
         for (const field of changedFields) {
           await this.auditService.record(client, {
             entityType: 'TEAM',
@@ -203,7 +203,7 @@ export class TeamService {
             fieldName: field.field,
             oldValue: field.old,
             newValue: field.new,
-            performedBy: actor.employeeId,
+            performedBy: actor.userId,
           });
         }
       }
@@ -243,14 +243,14 @@ export class TeamService {
 
       const updated = await this.teamRepo.update(teamId, { active: false }, actor.employeeId ?? null, client);
 
-      if (actor.employeeId) {
+      if (actor.userId) {
         await this.auditService.record(client, {
           entityType: 'TEAM',
           entityId: teamId,
           action: 'TEAM_DEACTIVATED',
           oldValue: 'true',
           newValue: 'false',
-          performedBy: actor.employeeId,
+          performedBy: actor.userId,
         });
       }
 
