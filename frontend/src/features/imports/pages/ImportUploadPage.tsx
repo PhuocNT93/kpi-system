@@ -143,14 +143,14 @@ export function ImportUploadPage() {
   const handleConfirmClick = () => {
     if (!previewData) return;
     
-    if (importMode === 'STRICT' && previewData.data.error_rows > 0) {
-      if (!window.confirm(`You selected Strict Mode but there are ${previewData.data.error_rows} errors. This will fail the import. Proceed?`)) {
+    if (importMode === 'STRICT' && previewData.error_rows > 0) {
+      if (!window.confirm(`You selected Strict Mode but there are ${previewData.error_rows} errors. This will fail the import. Proceed?`)) {
         return;
       }
     }
 
     confirmMutation.mutate({ 
-      jobId: previewData.data.import_job_id, 
+      jobId: previewData.import_job_id, 
       strict: importMode === 'STRICT' 
     });
   };
@@ -351,19 +351,19 @@ export function ImportUploadPage() {
             <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
               <div style={{ padding: '16px', background: COLORS.neutral[50], borderRadius: RADII.md, flex: 1, border: `1px solid ${COLORS.neutral[200]}` }}>
                 <div style={{ fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary }}>Total Rows</div>
-                <div style={{ fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: 600 }}>{previewData.data.total_rows}</div>
+                <div style={{ fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: 600 }}>{previewData.total_rows}</div>
               </div>
               <div style={{ padding: '16px', background: COLORS.semantic.success[50], borderRadius: RADII.md, flex: 1, border: `1px solid ${COLORS.semantic.success[100]}` }}>
                 <div style={{ fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.semantic.success[700] }}>Valid Rows</div>
-                <div style={{ fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: 600, color: COLORS.semantic.success[700] }}>{previewData.data.success_rows}</div>
+                <div style={{ fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: 600, color: COLORS.semantic.success[700] }}>{previewData.success_rows}</div>
               </div>
               <div style={{ padding: '16px', background: COLORS.semantic.danger[50], borderRadius: RADII.md, flex: 1, border: `1px solid ${COLORS.semantic.danger[100]}` }}>
                 <div style={{ fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.semantic.danger[700] }}>Errors</div>
-                <div style={{ fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: 600, color: COLORS.semantic.danger[700] }}>{previewData.data.error_rows}</div>
+                <div style={{ fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: 600, color: COLORS.semantic.danger[700] }}>{previewData.error_rows}</div>
               </div>
             </div>
 
-            {previewData.meta.row_errors && previewData.meta.row_errors.length > 0 && (
+            {previewData.row_errors && previewData.row_errors.length > 0 && (
               <div>
                 <h4 style={{ margin: '0 0 12px 0', fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.semantic.danger[700], display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <AlertCircle size={14} />
@@ -380,7 +380,7 @@ export function ImportUploadPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {previewData.meta.row_errors.slice(0, 100).map((err, i) => (
+                      {previewData.row_errors.slice(0, 100).map((err, i) => (
                         <tr key={i} style={{ borderBottom: `1px solid ${COLORS.neutral[100]}` }}>
                           <td style={{ padding: '8px 12px', color: COLORS.neutral.textSecondary }}>{err.row_no}</td>
                           <td style={{ padding: '8px 12px', fontFamily: 'monospace' }}>{err.field}</td>
@@ -393,7 +393,7 @@ export function ImportUploadPage() {
                     </tbody>
                   </table>
                 </div>
-                {previewData.meta.row_errors.length > 100 && (
+                {previewData.row_errors.length > 100 && (
                   <div style={{ marginTop: '8px', fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
                     Showing first 100 errors.
                   </div>
@@ -401,13 +401,13 @@ export function ImportUploadPage() {
               </div>
             )}
             
-            {previewData.data.error_rows === 0 && previewData.data.total_rows > 0 && (
+            {previewData.error_rows === 0 && previewData.total_rows > 0 && (
               <div style={{ marginTop: '16px', padding: '12px', background: COLORS.semantic.success[50], color: COLORS.semantic.success[700], borderRadius: RADII.md, fontSize: TYPOGRAPHY.fontSize.sm }}>
                 All rows passed validation successfully! You may proceed with the import.
               </div>
             )}
 
-            {!activeJobId && previewData.data.total_rows > 0 && (
+            {!activeJobId && previewData.total_rows > 0 && (
               <div style={{ marginTop: '24px', padding: '16px', border: `1px solid ${COLORS.neutral[200]}`, borderRadius: RADII.md }}>
                 <h4 style={{ margin: '0 0 12px 0', fontSize: TYPOGRAPHY.fontSize.base }}>Import Settings</h4>
                 
@@ -455,7 +455,7 @@ export function ImportUploadPage() {
 
                 <Button 
                   onClick={handleConfirmClick} 
-                  disabled={confirmMutation.isPending || (importMode === 'STRICT' && previewData.data.error_rows > 0)}
+                  disabled={confirmMutation.isPending || (importMode === 'STRICT' && previewData.error_rows > 0)}
                   variant="primary"
                 >
                   {confirmMutation.isPending ? 'Starting Import...' : 'Confirm and Import'}

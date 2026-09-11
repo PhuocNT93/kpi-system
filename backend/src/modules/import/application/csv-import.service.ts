@@ -135,7 +135,7 @@ export class CsvImportService {
 
   private parseCsv(buffer: Buffer): Promise<Record<string, string>[]> {
     return new Promise((resolve, reject) => {
-      parse(buffer, { columns: true, skip_empty_lines: true }, (err, records: Record<string, string>[]) => {
+      parse(buffer, { columns: true, skip_empty_lines: true, trim: true }, (err, records: Record<string, string>[]) => {
         if (err) return reject(err);
         resolve(records);
       });
@@ -213,7 +213,7 @@ export class CsvImportService {
     } else {
       const emp = employees.get(row.employee_id);
       if (!emp) {
-        errors.push({ row_no: rowNo, field: 'employee_id', code: 'EMPLOYEE_NOT_FOUND', message: 'Employee not found.' });
+        errors.push({ row_no: rowNo, field: 'employee_id', code: 'EMPLOYEE_NOT_FOUND', message: `Employee not found (ID in CSV: '${row.employee_id}').` });
       } else if (emp.employment_status !== 'ACTIVE') {
         errors.push({ row_no: rowNo, field: 'employee_id', code: 'EMPLOYEE_OUT_OF_SCOPE', message: 'Employee is not active.' });
       }
@@ -249,7 +249,7 @@ export class CsvImportService {
     } else {
       const mappedKpis = criterionMappings.get(criterionCode);
       if (!mappedKpis) {
-        errors.push({ row_no: rowNo, field: 'criterion_code', code: 'CRITERION_NOT_IN_TEMPLATE', message: 'Criterion is not part of the selected template version.' });
+        errors.push({ row_no: rowNo, field: 'criterion_code', code: 'CRITERION_NOT_IN_TEMPLATE', message: `Criterion '${criterionCode}' is not part of the selected template version.` });
       } else {
         if (kpiCode) {
           if (!mappedKpis.includes(kpiCode)) {

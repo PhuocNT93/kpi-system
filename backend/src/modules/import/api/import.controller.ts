@@ -152,11 +152,11 @@ export class ImportController {
           evaluation_cycle_id: job.evaluation_cycle_id,
           total_rows: job.total_rows,
           success_rows: job.success_rows,
-          error_rows: job.error_rows
+          error_rows: job.error_rows,
+          row_errors: (job as unknown as { transient_row_errors?: unknown[] }).transient_row_errors || []
         },
         meta: {
-          request_id: requestId,
-          row_errors: (job as unknown as { transient_row_errors?: unknown[] }).transient_row_errors || []
+          request_id: requestId
         }
       });
     } catch (err: unknown) {
