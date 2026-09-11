@@ -5,6 +5,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useCreateJobRole, useUpdateJobRole } from '../hooks/useJobRoles';
 import { Button } from '../../../shared/ui/Button/Button';
 import type { OrgJobRole } from '../domain/organization-models';
+import { AutoCodeButton } from '../../../shared/components/AutoCodeButton';
+import { generateCode } from '../../../shared/utils/code-generator';
 
 const createSchema = z.object({
   code: z.string().min(1, 'Role code is required').max(50, 'Code must be 50 characters or less'),
@@ -37,6 +39,8 @@ export function OrgRoleFormModal({ isOpen, role, onClose }: OrgRoleFormModalProp
 
   const {
     register,
+    watch,
+    setValue,
     handleSubmit,
     reset,
     setError,
@@ -107,9 +111,17 @@ export function OrgRoleFormModal({ isOpen, role, onClose }: OrgRoleFormModalProp
           
           {!isEditMode && (
             <div>
-              <label htmlFor="role-code" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
-                Role Code *
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                <label htmlFor="role-code" style={{ fontWeight: 500 }}>
+                  Role Code *
+                </label>
+                <AutoCodeButton
+                  onClick={() => {
+                    const code = generateCode('ROLE', watch('name'));
+                    setValue('code' as keyof CreateFormValues, code);
+                  }}
+                />
+              </div>
               <input 
                 id="role-code" 
                 type="text" 

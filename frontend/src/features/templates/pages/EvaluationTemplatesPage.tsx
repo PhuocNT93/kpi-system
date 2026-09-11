@@ -20,6 +20,8 @@ import type {
 } from '../index';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
+import { AutoCodeButton } from '../../../shared/components/AutoCodeButton';
+import { generateCode } from '../../../shared/utils/code-generator';
 
 // ── Create Template Modal ─────────────────────────────────────────────────────
 interface CreateTemplateModalProps {
@@ -74,7 +76,15 @@ function CreateTemplateModal({ isOpen, isLoading, onClose, onSubmit }: CreateTem
         </h2>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
-            <label style={labelStyle}>Code <span style={{ color: '#ef4444' }}>*</span></label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <label style={{ ...labelStyle, marginBottom: 0 }}>Code <span style={{ color: '#ef4444' }}>*</span></label>
+              <AutoCodeButton
+                onClick={() => {
+                  const gen = generateCode('TPL', name);
+                  setCode(gen);
+                }}
+              />
+            </div>
             <input
               id="template-code"
               value={code}

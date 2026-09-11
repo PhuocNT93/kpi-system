@@ -10,6 +10,8 @@ import { useDepartments } from '../hooks/useDepartments';
 import { useTeams } from '../hooks/useTeams';
 import { useJobRoles } from '../hooks/useJobRoles';
 import { useJobLevels } from '../hooks/useJobLevels';
+import { AutoCodeButton } from '../../../shared/components/AutoCodeButton';
+import { generateCode } from '../../../shared/utils/code-generator';
 
 const createSchema = z.object({
   employee_code: z.string().optional(),
@@ -66,6 +68,7 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
   const {
     register,
     watch,
+    setValue,
     handleSubmit,
     reset,
     setError,
@@ -195,13 +198,37 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
         {mutationError && <ErrorAlert error={mutationError} />}
 
         <form onSubmit={onSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          
+          {!isEditMode && (
+            <div style={{
+              padding: '0.65rem 0.85rem',
+              backgroundColor: '#eff6ff',
+              border: '1px solid #bfdbfe',
+              borderRadius: 6,
+              color: '#1e40af',
+              fontSize: '0.8125rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+            }}>
+              <span>ℹ️</span>
+              <span>A default user account will be created automatically with password <strong>Welcome@123</strong>.</span>
+            </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             {!isEditMode && (
               <div>
-                <label htmlFor="emp-code" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
-                  Employee Code
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                  <label htmlFor="emp-code" style={{ fontWeight: 500 }}>
+                    Employee Code
+                  </label>
+                  <AutoCodeButton
+                    onClick={() => {
+                      const code = generateCode('EMP', watch('full_name'));
+                      setValue('employee_code' as keyof CreateFormValues, code);
+                    }}
+                  />
+                </div>
                 <input 
                   id="emp-code" 
                   type="text" 

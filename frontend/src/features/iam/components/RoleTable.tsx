@@ -6,6 +6,8 @@ import { useRoles, useCreateRole, useUpdateRole } from '../hooks/useRoles';
 import { ErrorAlert, LoadingSpinner, EmptyState } from '../../../shared/components/ui';
 import { Button } from '../../../shared/ui/Button/Button';
 import type { IamRole } from '../domain/iam-models';
+import { AutoCodeButton } from '../../../shared/components/AutoCodeButton';
+import { generateCode } from '../../../shared/utils/code-generator';
 
 const roleSchema = z.object({
   code: z.string().min(1, 'Code is required').regex(/^[A-Z_]+$/, 'Code must be UPPERCASE_SNAKE_CASE'),
@@ -28,7 +30,7 @@ function RoleFormDialog({ isOpen, role, onClose }: RoleFormDialogProps) {
   const isPending = createMutation.isPending || updateMutation.isPending;
   const mutationError = createMutation.error ?? updateMutation.error;
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<RoleFormValues>({
+  const { register, watch, setValue, handleSubmit, reset, formState: { errors } } = useForm<RoleFormValues>({
     resolver: zodResolver(roleSchema),
     defaultValues: role
       ? { code: role.code, name: role.name, description: role.description ?? '' }
@@ -72,7 +74,17 @@ function RoleFormDialog({ isOpen, role, onClose }: RoleFormDialogProps) {
 
         <form onSubmit={onSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <div>
-            <label htmlFor="role-code">Code * (e.g. HR_ADMIN)</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+              <label htmlFor="role-code">Code * (e.g. HR_ADMIN)</label>
+              {!isEditMode && (
+                <AutoCodeButton
+                  onClick={() => {
+                    const code = generateCode('ROLE', watch('name')).replace(/-/g, '_');
+                    setValue('code', code);
+                  }}
+                />
+              )}
+            </div>
             <input id="role-code" type="text" aria-required="true" disabled={isEditMode} {...register('code')} style={{ display: 'block', width: '100%' }} />
             {errors.code && <span role="alert" style={{ color: '#dc2626', fontSize: '0.8rem' }}>{errors.code.message}</span>}
           </div>

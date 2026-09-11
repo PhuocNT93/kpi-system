@@ -5,6 +5,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useCreateJobLevel, useUpdateJobLevel } from '../hooks/useJobLevels';
 import { Button } from '../../../shared/ui/Button/Button';
 import type { OrgJobLevel } from '../domain/organization-models';
+import { AutoCodeButton } from '../../../shared/components/AutoCodeButton';
+import { generateCode } from '../../../shared/utils/code-generator';
 
 const createSchema = z.object({
   code: z.string().min(1, 'Level code is required').max(50, 'Code must be 50 characters or less'),
@@ -37,6 +39,8 @@ export function JobLevelFormModal({ isOpen, level, onClose }: JobLevelFormModalP
 
   const {
     register,
+    watch,
+    setValue,
     handleSubmit,
     reset,
     setError,
@@ -107,9 +111,17 @@ export function JobLevelFormModal({ isOpen, level, onClose }: JobLevelFormModalP
           
           {!isEditMode && (
             <div>
-              <label htmlFor="level-code" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
-                Job Level Code *
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                <label htmlFor="level-code" style={{ fontWeight: 500 }}>
+                  Job Level Code *
+                </label>
+                <AutoCodeButton
+                  onClick={() => {
+                    const code = generateCode('LVL', watch('name'));
+                    setValue('code' as keyof CreateFormValues, code);
+                  }}
+                />
+              </div>
               <input 
                 id="level-code" 
                 type="text" 
