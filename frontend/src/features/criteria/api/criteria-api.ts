@@ -37,6 +37,16 @@ export async function updateCriterion(id: string, data: UpdateCriterionDto) {
   return res;
 }
 
+export async function activateCriterion(id: string) {
+  const res = await postApi<Criterion>(`${CONFIG_BASE}/criteria/${id}/activate`, {});
+  return res;
+}
+
+export async function deactivateCriterion(id: string) {
+  const res = await postApi<Criterion>(`${CONFIG_BASE}/criteria/${id}/deactivate`, {});
+  return res;
+}
+
 export async function fetchCriterionVersions(id: string) {
   const res = await getApi<CriterionVersion[]>(`${CONFIG_BASE}/criteria/${id}/versions`);
   return res;

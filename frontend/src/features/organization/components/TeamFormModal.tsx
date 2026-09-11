@@ -7,6 +7,8 @@ import { useDepartments } from '../hooks/useDepartments';
 import { ErrorAlert } from '../../../shared/components/ui';
 import { Button } from '../../../shared/ui/Button/Button';
 import type { OrgTeam } from '../domain/organization-models';
+import { AutoCodeButton } from '../../../shared/components/AutoCodeButton';
+import { generateCode } from '../../../shared/utils/code-generator';
 
 const createSchema = z.object({
   code: z.string().min(1, 'Team code is required').max(20, 'Code must be 20 characters or less'),
@@ -41,6 +43,8 @@ export function TeamFormModal({ isOpen, team, onClose }: TeamFormModalProps) {
 
   const {
     register,
+    watch,
+    setValue,
     handleSubmit,
     reset,
     setError,
@@ -113,9 +117,17 @@ export function TeamFormModal({ isOpen, team, onClose }: TeamFormModalProps) {
           
           {!isEditMode && (
             <div>
-              <label htmlFor="team-code" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
-                Team Code *
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                <label htmlFor="team-code" style={{ fontWeight: 500 }}>
+                  Team Code *
+                </label>
+                <AutoCodeButton
+                  onClick={() => {
+                    const code = generateCode('TEAM', watch('name'));
+                    setValue('code' as keyof CreateFormValues, code);
+                  }}
+                />
+              </div>
               <input 
                 id="team-code" 
                 type="text" 

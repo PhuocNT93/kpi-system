@@ -60,6 +60,28 @@ export function useCreateCriterionMutation() {
   });
 }
 
+export function useActivateCriterionMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => import('./criteria-api').then(m => m.activateCriterion(id)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: criteriaKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['templates', 'criteria-library'] });
+    },
+  });
+}
+
+export function useDeactivateCriterionMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => import('./criteria-api').then(m => m.deactivateCriterion(id)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: criteriaKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['templates', 'criteria-library'] });
+    },
+  });
+}
+
 export function useUpdateCriterionVersionMutation() {
   const queryClient = useQueryClient();
   return useMutation({

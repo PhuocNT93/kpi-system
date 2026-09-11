@@ -39,25 +39,29 @@ export class KpiService {
     return updated!;
   }
 
+  async deactivateKpi(id: string): Promise<Kpi> {
+    const kpi = await this.kpiRepo.findById(id);
+    if (!kpi) {
+      throw new NotFound(`KPI with id "${id}" not found`);
+    }
+    const deactivated = await this.kpiRepo.deactivate(id);
+    return deactivated!;
+  }
+
+  async activateKpi(id: string): Promise<Kpi> {
+    const kpi = await this.kpiRepo.findById(id);
+    if (!kpi) {
+      throw new NotFound(`KPI with id "${id}" not found`);
+    }
+    const activated = await this.kpiRepo.activate(id);
+    return activated!;
+  }
+
   async deleteKpi(id: string): Promise<void> {
     const kpi = await this.kpiRepo.findById(id);
     if (!kpi) {
       throw new NotFound(`KPI with id "${id}"`);
     }
-    const hasRelationships = await this.kpiRepo.hasActiveRelationships(id);
-    if (hasRelationships) {
-      throw new BadRequest(
-        `KPI "${kpi.code}" has active relationships. Remove all relationships before deleting.`
-      );
-    }
-    
-    const isUsed = await this.kpiRepo.isUsedInTemplates(id);
-    if (isUsed) {
-      throw new BadRequest(
-        `KPI "${kpi.code}" is used in one or more evaluation templates and cannot be deleted.`
-      );
-    }
-
-    await this.kpiRepo.delete(id);
+    throw new BadRequest('KPIs cannot be deleted; they can only be deactivated.');
   }
 }

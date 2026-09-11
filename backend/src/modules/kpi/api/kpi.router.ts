@@ -49,11 +49,13 @@ export function createKpiRouter(
   router.get('/relationships', requirePermission('CONFIGURATION_READ'), relationshipController.getAll);
   router.delete('/relationships/:id', requirePermission('CONFIGURATION_UPDATE'), relationshipController.delete);
 
-  // KPI CRUD
+  // KPI CRUD & Status
   router.get('/', requirePermission('CONFIGURATION_READ'), kpiController.list);
   router.post('/', requirePermission('CONFIGURATION_CREATE'), kpiController.create);
   router.get('/:id', requirePermission('CONFIGURATION_READ'), kpiController.getById);
   router.put('/:id', requirePermission('CONFIGURATION_UPDATE'), kpiController.update);
+  router.post('/:id/activate', requirePermission('CONFIGURATION_UPDATE'), kpiController.activate);
+  router.post('/:id/deactivate', requirePermission('CONFIGURATION_UPDATE'), kpiController.deactivate);
   router.delete('/:id', requirePermission('CONFIGURATION_UPDATE'), kpiController.delete);
 
   // KPI Criterion Mapping

@@ -3,6 +3,7 @@ import { Kpi } from '../domain/kpi.model.js';
 
 export interface KpiFilter {
   search?: string;
+  active?: boolean;
   page?: number;
   size?: number;
 }
@@ -16,6 +17,7 @@ export interface KpiCreateDTO {
 export interface KpiUpdateDTO {
   name?: string;
   description?: string | null;
+  active?: boolean;
 }
 
 export class PostgresKpiRepository {
@@ -27,6 +29,7 @@ export class PostgresKpiRepository {
       code: row.code as string,
       name: row.name as string,
       description: row.description ? (row.description as string) : null,
+      active: row.active !== false,
       createdAt: new Date(row.created_at as string),
       updatedAt: new Date(row.updated_at as string),
     };
@@ -35,8 +38,8 @@ export class PostgresKpiRepository {
   async create(data: KpiCreateDTO, client?: PoolClient): Promise<Kpi> {
     const runner = client || this.pool;
     const res = await runner.query(
-      `INSERT INTO kpi (code, name, description)
-       VALUES ($1, $2, $3)
+      `INSERT INTO kpi (code, name, description, active)
+       VALUES ($1, $2, $3, true)
        RETURNING *`,
       [data.code, data.name, data.description ?? null]
     );
@@ -110,6 +113,10 @@ export class PostgresKpiRepository {
       sets.push(`description = $${idx++}`);
       params.push(data.description);
     }
+    if (data.active !== undefined) {
+      sets.push(`active = $${idx++}`);
+      params.push(data.active);
+    }
 
     if (sets.length === 0) return this.findById(id);
 
@@ -122,10 +129,31 @@ export class PostgresKpiRepository {
     return this.mapRow(res.rows[0]);
   }
 
-  async delete(id: string, client?: PoolClient): Promise<boolean> {
+  async deactivate(id: string, client?: PoolClient): Promise<Kpi | null> {
     const runner = client || this.pool;
     const res = await runner.query(
-      'DELETE FROM kpi WHERE kpi_id = $1 RETURNING kpi_id',
+      'UPDATE kpi SET active = false, updated_at = NOW() WHERE kpi_id = $1 RETURNING *',
+      [id]
+    );
+    if (res.rows.length === 0) return null;
+    return this.mapRow(res.rows[0]);
+  }
+
+  async activate(id: string, client?: PoolClient): Promise<Kpi | null> {
+    const runner = client || this.pool;
+    const res = await runner.query(
+      'UPDATE kpi SET active = true, updated_at = NOW() WHERE kpi_id = $1 RETURNING *',
+      [id]
+    );
+    if (res.rows.length === 0) return null;
+    return this.mapRow(res.rows[0]);
+  }
+
+  async delete(id: string, client?: PoolClient): Promise<boolean> {
+    // Soft delete: deactivate only
+    const runner = client || this.pool;
+    const res = await runner.query(
+      'UPDATE kpi SET active = false, updated_at = NOW() WHERE kpi_id = $1 RETURNING kpi_id',
       [id]
     );
     return res.rowCount !== null && res.rowCount > 0;

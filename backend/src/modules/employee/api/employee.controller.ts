@@ -8,6 +8,7 @@ import { EmployeeContextService } from '../application/employee-context.service.
 import { TeamService } from '../application/team.service.js';
 import { EmploymentStatus, Employee, EmployeeAssignment, EvaluationOrganizationContext, Team, TeamWithContext } from '../domain/employee.domain.js';
 import { getActorFromContext } from '../../../shared/auth/actor-context.js';
+import { SimplePasswordHasher } from '../../auth/services/password-hasher.service.js';
 
 export class EmployeeController {
   constructor(
@@ -159,6 +160,55 @@ export class EmployeeController {
         });
       }
 
+      // Automatically create or link default app_user account
+      if (this.hasDb() && this.pool) {
+        try {
+          const normalizedEmail = empEmail.toLowerCase().trim();
+          const userRes = await this.pool.query(
+            'SELECT id, employee_id FROM app_user WHERE LOWER(email) = $1',
+            [normalizedEmail]
+          );
+
+          let userId: string;
+          if (userRes.rows.length > 0) {
+            userId = userRes.rows[0].id;
+            if (!userRes.rows[0].employee_id) {
+              await this.pool.query(
+                'UPDATE app_user SET employee_id = $1, name = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
+                [created.employeeId, fullName, userId]
+              );
+            }
+          } else {
+            const hasher = new SimplePasswordHasher();
+            const defaultPassword = 'Welcome@123';
+            const passwordHash = await hasher.hash(defaultPassword);
+            const insertUserRes = await this.pool.query(
+              `INSERT INTO app_user (id, email, name, password_hash, employee_id, created_at, updated_at)
+               VALUES (gen_random_uuid(), $1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+               RETURNING id`,
+              [normalizedEmail, fullName, passwordHash, created.employeeId]
+            );
+            userId = insertUserRes.rows[0].id;
+          }
+
+          // Assign default EMPLOYEE system role if not already assigned
+          const roleRes = await this.pool.query(
+            "SELECT role_id FROM role WHERE code = 'EMPLOYEE' LIMIT 1"
+          );
+          if (roleRes.rows.length > 0 && userId) {
+            const roleId = roleRes.rows[0].role_id;
+            await this.pool.query(
+              `INSERT INTO user_role (user_id, role_id)
+               VALUES ($1, $2)
+               ON CONFLICT DO NOTHING`,
+              [userId, roleId]
+            );
+          }
+        } catch (accountErr) {
+          console.error('Failed to auto-create default app_user for employee:', accountErr);
+        }
+      }
+
       sendSuccess(res, 201, 'Employee created successfully', this.mapEmployeeToResponse(created));
       return;
     }
@@ -239,6 +289,22 @@ export class EmployeeController {
         lastEvaluationCompletedAt: req.body.last_evaluation_completed_at ?? existing.lastEvaluationCompletedAt,
         nextReviewDueDate: req.body.next_review_due_date ?? this.calculateNextReviewDate(req.body.last_evaluation_completed_at ?? existing.lastEvaluationCompletedAt, req.body.review_cadence ?? existing.reviewCadence) ?? existing.nextReviewDueDate,
       });
+
+      // Sync app_user name and email if changed
+      if (this.hasDb() && this.pool && (req.body.full_name || req.body.email)) {
+        try {
+          await this.pool.query(
+            `UPDATE app_user
+             SET name = COALESCE($1, name),
+                 email = COALESCE(LOWER($2), email),
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE employee_id = $3`,
+            [req.body.full_name?.trim() || null, req.body.email?.toLowerCase().trim() || null, employeeId]
+          );
+        } catch (syncErr) {
+          console.error('Failed to sync app_user for updated employee:', syncErr);
+        }
+      }
 
       sendSuccess(res, 200, 'Employee updated successfully', this.mapEmployeeToResponse(updated));
       return;

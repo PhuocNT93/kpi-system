@@ -5,6 +5,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useCreateDepartment, useUpdateDepartment } from '../hooks/useDepartments';
 import { Button } from '../../../shared/ui/Button/Button';
 import type { OrgDepartment } from '../domain/organization-models';
+import { AutoCodeButton } from '../../../shared/components/AutoCodeButton';
+import { generateCode } from '../../../shared/utils/code-generator';
 
 const createSchema = z.object({
   code: z.string().min(1, 'Department code is required').max(20, 'Code must be 20 characters or less'),
@@ -35,6 +37,8 @@ export function DepartmentFormModal({ isOpen, department, onClose }: DepartmentF
 
   const {
     register,
+    watch,
+    setValue,
     handleSubmit,
     reset,
     setError,
@@ -105,9 +109,17 @@ export function DepartmentFormModal({ isOpen, department, onClose }: DepartmentF
           
           {!isEditMode && (
             <div>
-              <label htmlFor="dept-code" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
-                Department Code *
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                <label htmlFor="dept-code" style={{ fontWeight: 500 }}>
+                  Department Code *
+                </label>
+                <AutoCodeButton
+                  onClick={() => {
+                    const code = generateCode('DEPT', watch('name'));
+                    setValue('code' as keyof CreateFormValues, code);
+                  }}
+                />
+              </div>
               <input 
                 id="dept-code" 
                 type="text" 

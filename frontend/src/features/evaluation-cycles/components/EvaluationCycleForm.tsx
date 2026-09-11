@@ -10,6 +10,8 @@ import { Button } from '@/shared/ui/Button/Button';
 import { Badge } from '@/shared/ui/Badge/Badge';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
+import { AutoCodeButton } from '@/shared/components/AutoCodeButton';
+import { generateCode } from '@/shared/utils/code-generator';
 // import { evaluationCycleApi } from '../api/cycle-api';
 
 interface OptionItem {
@@ -311,9 +313,17 @@ export const EvaluationCycleForm: React.FC<EvaluationCycleFormProps> = ({
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '16px' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '6px' }}>
-              Cycle Code *
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <label style={{ fontSize: '0.8125rem', fontWeight: 600 }}>
+                Cycle Code *
+              </label>
+              <AutoCodeButton
+                onClick={() => {
+                  const gen = generateCode('CYCLE', name);
+                  setCode(gen);
+                }}
+              />
+            </div>
             <input
               type="text"
               required

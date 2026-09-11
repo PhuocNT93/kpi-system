@@ -68,9 +68,21 @@ If a Render migration fails, the new backend release does not start; do not auto
 ---
 ### List of 4 seed accounts for user login
 
-| Role Code | Role Name | Email | Mật khẩu | Tên người dùng |
+| Role Code | Role Name | Email | Password | User Name |
 | :--- | :--- | :--- | :--- | :--- |
 | `EMPLOYEE` | Employee | `employee@kpi.com` | `Password123!` | Employee User |
 | `MANAGER` | Manager | `manager@kpi.com` | `Password123!` | Manager User |
 | `HR_ADMIN` | HR Administrator | `hradmin@kpi.com` | `Password123!` | HR Admin User |
 | `SYSTEM_ADMIN` | System Administrator | `admin@kpi.com` | `Password123!` | System Admin User |
+
+---
+### Default Account Creation for New Employees
+
+When creating a new employee in the system (via the **Add Employee** modal in the UI or the `POST /api/employees` API):
+
+- **User Account (`app_user`)**: The system automatically provisions an application user account using the employee's **Email**.
+- **Default Password**: **`Welcome@123`**
+- **Default System Role**: **`EMPLOYEE`** (automatically mapped in the `user_role` table).
+- **Employee Association**: The `employee_id` field in `app_user` is immediately linked to the newly created employee.
+- **Existing Email Handling**: If an `app_user` with the given email already exists, the system automatically associates the user record with the new employee without modifying their existing password.
+

@@ -73,6 +73,26 @@ export class KpiController {
     }
   };
 
+  activate = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = req.params.id as string;
+      const result = await this.service.activateKpi(id);
+      sendSuccess(res, 200, 'KPI activated successfully', result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  deactivate = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = req.params.id as string;
+      const result = await this.service.deactivateKpi(id);
+      sendSuccess(res, 200, 'KPI deactivated successfully', result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
   delete = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params.id as string;

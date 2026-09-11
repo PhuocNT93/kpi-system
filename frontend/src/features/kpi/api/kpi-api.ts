@@ -5,6 +5,7 @@ export interface Kpi {
   code: string;
   name: string;
   description: string | null;
+  active: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -91,6 +92,14 @@ export async function createKpi(dto: KpiCreateDTO): Promise<Kpi> {
 
 export async function updateKpi(id: string, dto: KpiUpdateDTO): Promise<Kpi> {
   return putApi<Kpi>(`/api/kpis/${id}`, dto);
+}
+
+export async function activateKpi(id: string): Promise<Kpi> {
+  return postApi<Kpi>(`/api/kpis/${id}/activate`, {});
+}
+
+export async function deactivateKpi(id: string): Promise<Kpi> {
+  return postApi<Kpi>(`/api/kpis/${id}/deactivate`, {});
 }
 
 export async function deleteKpi(id: string): Promise<void> {

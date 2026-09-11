@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import type { Kpi, KpiCreateDTO, KpiUpdateDTO } from '../api/kpi-api';
 import { useCreateKpiMutation, useUpdateKpiMutation } from '../api/use-kpi';
+import { AutoCodeButton } from '../../../shared/components/AutoCodeButton';
+import { generateCode } from '../../../shared/utils/code-generator';
 
 interface Props {
   isOpen: boolean;
@@ -74,9 +76,17 @@ export function KpiFormModal({ isOpen, onClose, editingKpi }: Props) {
         <form onSubmit={handleSubmit}>
           {!isEditing && (
             <div style={{ marginBottom: '1rem' }}>
-              <label style={{ display: 'block', marginBottom: 4, fontSize: '0.875rem', fontWeight: 500 }}>
-                Code <span style={{ color: '#dc2626' }}>*</span>
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>
+                  Code <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                <AutoCodeButton
+                  onClick={() => {
+                    const gen = generateCode('KPI', name);
+                    setCode(gen);
+                  }}
+                />
+              </div>
               <input
                 type="text"
                 value={code}

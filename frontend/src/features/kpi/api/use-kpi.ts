@@ -4,6 +4,8 @@ import {
   fetchKpiById,
   createKpi,
   updateKpi,
+  activateKpi,
+  deactivateKpi,
   deleteKpi,
   fetchKpiRelationships,
   createRelationship,
@@ -66,6 +68,26 @@ export function useUpdateKpiMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, dto }: { id: string; dto: KpiUpdateDTO }) => updateKpi(id, dto),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: kpiKeys.all });
+    },
+  });
+}
+
+export function useActivateKpiMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => activateKpi(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: kpiKeys.all });
+    },
+  });
+}
+
+export function useDeactivateKpiMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deactivateKpi(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: kpiKeys.all });
     },
