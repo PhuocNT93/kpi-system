@@ -384,8 +384,20 @@ export class CsvImportService {
     // Wait, rows already passed validation. We need to update evaluation_item for each.
     // To do this, we need to map employee_id to evaluation_id.
 
-    // Extract employee IDs
-    const employeeIds = [...new Set(rows.map(r => String(r.raw_data.employee_id)))];
+    // Extract employee IDs (which are actually employee_codes from the CSV)
+    const employeeCodes = [...new Set(rows.map(r => String(r.raw_data.employee_id).trim()))].filter(Boolean);
+
+    // Fetch actual UUIDs for these codes
+    const empRes = await this.pool.query(
+      `SELECT employee_code, employee_id FROM employee WHERE employee_code = ANY($1)`,
+      [employeeCodes]
+    );
+
+    const codeToUuidMap = new Map<string, string>();
+    for (const e of empRes.rows) {
+      codeToUuidMap.set(e.employee_code, e.employee_id);
+    }
+    const employeeUuids = Array.from(codeToUuidMap.values());
 
     // Fetch active evaluations for these employees in this cycle
     const job = await this.importRepo.getImportJobById(jobId);
@@ -393,7 +405,7 @@ export class CsvImportService {
 
     const evaluationsRes = await this.pool.query(
       `SELECT evaluation_id, employee_id FROM evaluation WHERE evaluation_cycle_id = $1 AND employee_id = ANY($2)`,
-      [job.evaluation_cycle_id, employeeIds]
+      [job.evaluation_cycle_id, employeeUuids]
     );
     const evalMap = new Map<string, string>();
     for (const e of evaluationsRes.rows) {
@@ -405,12 +417,17 @@ export class CsvImportService {
     // Process each row
     for (const row of rows) {
       try {
-        const employeeId = String(row.raw_data.employee_id);
-        const criterionCode = String(row.raw_data.criterion_code);
+        const employeeCode = String(row.raw_data.employee_id).trim();
+        const criterionCode = String(row.raw_data.criterion_code).trim();
         const measurementValue = row.raw_data.measurement_value ? Number(row.raw_data.measurement_value) : null;
         const comment = row.raw_data.comment ? String(row.raw_data.comment) : null;
 
-        const evaluationId = evalMap.get(employeeId);
+        const employeeUuid = codeToUuidMap.get(employeeCode);
+        if (!employeeUuid) {
+          throw new Error(`Employee mapping failed for code ${employeeCode}.`);
+        }
+
+        const evaluationId = evalMap.get(employeeUuid);
         if (!evaluationId) {
           throw new Error('No active evaluation found for employee.');
         }
