@@ -35,6 +35,7 @@ export class EvaluationCycleOpeningService {
     return withTransaction(this.pool, async (client: unknown) => {
       const dbClient = client as unknown as PoolClient;
       const validActorEmployeeId = await this.resolveValidEmployeeId(dbClient, actorEmployeeId);
+      const validActorUserId = await this.resolveValidUserId(dbClient, actorEmployeeId, validActorEmployeeId);
 
       // 1. Lock cycle row for update
       const cycle = await this.cycleRepo.findByIdForUpdate(cycleId, dbClient);
@@ -694,7 +695,7 @@ export class EvaluationCycleOpeningService {
             evaluation_count: createdEvaluations.length,
             template_version_id: cycle.evaluationTemplateVersionId,
           }),
-          performedBy: validActorEmployeeId,
+          performedBy: validActorUserId,
           source: 'API',
         });
       }
@@ -726,5 +727,46 @@ export class EvaluationCycleOpeningService {
     }
     const fallback = await client.query('SELECT employee_id FROM employee ORDER BY created_at ASC LIMIT 1');
     return fallback.rows[0]?.employee_id || null;
+  }
+
+  private async resolveValidUserId(
+    client: PoolClient,
+    actorId: string | null,
+    actorEmployeeId: string | null
+  ): Promise<string> {
+    if (actorId) {
+      const checkUser = await client.query('SELECT id FROM app_user WHERE id = $1', [actorId]);
+      if (checkUser.rows.length > 0) {
+        return actorId;
+      }
+
+      const checkEmployeeUser = await client.query('SELECT id FROM app_user WHERE employee_id = $1', [actorId]);
+      if (checkEmployeeUser.rows.length > 0) {
+        return checkEmployeeUser.rows[0].id;
+      }
+
+      if (actorEmployeeId) {
+        const mappedUser = await client.query('SELECT id FROM app_user WHERE employee_id = $1', [actorEmployeeId]);
+        if (mappedUser.rows.length > 0) {
+          return mappedUser.rows[0].id;
+        }
+
+        const employeeEmailRes = await client.query('SELECT email FROM employee WHERE employee_id = $1', [actorEmployeeId]);
+        const email = employeeEmailRes.rows[0]?.email as string | undefined;
+        if (email) {
+          const emailUser = await client.query('SELECT id FROM app_user WHERE LOWER(email) = LOWER($1)', [email]);
+          if (emailUser.rows.length > 0) {
+            return emailUser.rows[0].id;
+          }
+        }
+      }
+    }
+
+    const fallback = await client.query('SELECT id FROM app_user ORDER BY created_at ASC LIMIT 1');
+    if (fallback.rows[0]?.id) {
+      return fallback.rows[0].id;
+    }
+
+    throw new Error('No app_user available for audit logging');
   }
 }

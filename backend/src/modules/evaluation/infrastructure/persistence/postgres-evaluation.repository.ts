@@ -47,19 +47,36 @@ export class PostgresEvaluationRepository implements IEvaluationRepository {
     return this.mapRow(res.rows[0]);
   }
 
-  async findMyEvaluations(userId: string, client?: PoolClient): Promise<MyEvaluationListItem[]> {
+  async findMyEvaluations(params: { userId?: string; includeAll?: boolean }, client?: PoolClient): Promise<MyEvaluationListItem[]> {
     const runner = client || this.pool;
-    const res = await runner.query(
-      `SELECT e.*,
+    const queryParams: unknown[] = [];
+    let query = `
+      SELECT e.*,
               c.name as cycle_name,
               c.start_date as cycle_start_date,
               c.end_date as cycle_end_date,
-              c.status as cycle_status
+              c.status as cycle_status,
+              emp.full_name as employee_name,
+              emp.employee_code as employee_code,
+              emp.email as employee_email
        FROM evaluation e
        JOIN evaluation_cycle c ON e.evaluation_cycle_id = c.evaluation_cycle_id
-       WHERE e.employee_id = $1
-       ORDER BY c.end_date DESC, e.created_at DESC`,
-      [userId]
+       JOIN employee emp ON e.employee_id = emp.employee_id
+    `;
+
+    if (!params.includeAll) {
+      if (!params.userId) {
+        return [];
+      }
+      query += ` WHERE e.employee_id = $1`;
+      queryParams.push(params.userId);
+    }
+
+    query += ` ORDER BY c.end_date DESC, e.created_at DESC`;
+
+    const res = await runner.query(
+      query,
+      queryParams
     );
     return res.rows.map(row => ({
       evaluation: this.mapRow(row),
@@ -68,6 +85,12 @@ export class PostgresEvaluationRepository implements IEvaluationRepository {
         start_date: row.cycle_start_date,
         end_date: row.cycle_end_date,
         status: row.cycle_status,
+      },
+      employee: {
+        employee_id: row.employee_id,
+        full_name: row.employee_name,
+        employee_code: row.employee_code,
+        email: row.employee_email,
       }
     }));
   }
