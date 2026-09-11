@@ -62,7 +62,7 @@ const mockCriteria: TemplateCriterion[] = [
 
 describe('template-mappers domain logic', () => {
   it('correctly calculates total configured weight', () => {
-    const total = calculateConfiguredWeightTotal(mockKpis);
+    const total = calculateConfiguredWeightTotal(mockCriteria);
     expect(total).toBe(100);
   });
 
@@ -83,6 +83,37 @@ describe('template-mappers domain logic', () => {
     expect(result.isValid).toBe(false);
     expect(result.errors[0].code).toBe('WEIGHT_TOTAL_NOT_100');
     expect(result.configuredWeightTotal).toBe(85);
+  });
+
+  it('returns WEIGHT_TOTAL_NOT_100 error when a KPI child criteria total is not 100%', () => {
+    const kpis = [
+      {
+        ...mockKpis[0],
+        weight: 100,
+      },
+    ];
+    const criteriaWithInvalidChildTotal = [
+      {
+        ...mockCriteria[0],
+        effectiveWeight: 60,
+      },
+      {
+        ...mockCriteria[1],
+        effectiveWeight: 30,
+      },
+    ];
+
+    const result = validateTemplateClientSide(kpis, criteriaWithInvalidChildTotal);
+
+    expect(result.isValid).toBe(false);
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'WEIGHT_TOTAL_NOT_100',
+          criterionCode: 'kpi-1',
+        }),
+      ])
+    );
   });
 
   it('validates backend-compatible range scoring rule config', () => {

@@ -87,6 +87,12 @@ export const ActiveEvaluationCard: React.FC<ActiveEvaluationCardProps> = ({
           <h2 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
             {cycle.name}
           </h2>
+          {evaluation.employee?.full_name && (
+            <div style={{ marginTop: '4px', fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary }}>
+              Employee: {evaluation.employee.full_name}
+              {evaluation.employee.employee_code ? ` (${evaluation.employee.employee_code})` : ''}
+            </div>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px', color: COLORS.neutral.textSecondary, fontSize: TYPOGRAPHY.fontSize.sm }}>
             <Calendar size={15} />
             <span>Thời gian: {startDate} — {endDate}</span>

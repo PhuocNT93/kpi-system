@@ -8,9 +8,10 @@ import { Calendar, ChevronRight, History } from 'lucide-react';
 
 interface EvaluationHistoryTableProps {
   evaluations: MyEvaluation[];
+  showEmployee?: boolean;
 }
 
-export const EvaluationHistoryTable: React.FC<EvaluationHistoryTableProps> = ({ evaluations }) => {
+export const EvaluationHistoryTable: React.FC<EvaluationHistoryTableProps> = ({ evaluations, showEmployee = false }) => {
   const navigate = useNavigate();
 
   if (evaluations.length === 0) {
@@ -45,6 +46,7 @@ export const EvaluationHistoryTable: React.FC<EvaluationHistoryTableProps> = ({ 
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: TYPOGRAPHY.fontSize.sm }}>
           <thead>
             <tr style={{ backgroundColor: COLORS.neutral[50], borderBottom: `1px solid ${COLORS.neutral[200]}` }}>
+              {showEmployee && <th style={{ padding: '14px 20px', fontWeight: 600, color: COLORS.neutral[700] }}>Employee</th>}
               <th style={{ padding: '14px 20px', fontWeight: 600, color: COLORS.neutral[700] }}>Kỳ đánh giá (Cycle)</th>
               <th style={{ padding: '14px 20px', fontWeight: 600, color: COLORS.neutral[700] }}>Thời gian</th>
               <th style={{ padding: '14px 20px', fontWeight: 600, color: COLORS.neutral[700] }}>Trạng thái</th>
@@ -72,6 +74,16 @@ export const EvaluationHistoryTable: React.FC<EvaluationHistoryTableProps> = ({ 
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = COLORS.neutral[50])}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                 >
+                  {showEmployee && (
+                    <td style={{ padding: '16px 20px', fontWeight: 600, color: COLORS.neutral.textPrimary }}>
+                      {item.employee?.full_name || '—'}
+                      {item.employee?.employee_code ? (
+                        <div style={{ marginTop: '4px', fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
+                          {item.employee.employee_code}
+                        </div>
+                      ) : null}
+                    </td>
+                  )}
                   <td style={{ padding: '16px 20px', fontWeight: 600, color: COLORS.neutral.textPrimary }}>
                     {cycle.name}
                   </td>

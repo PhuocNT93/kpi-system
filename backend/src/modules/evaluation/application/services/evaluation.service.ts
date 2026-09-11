@@ -18,8 +18,12 @@ export class EvaluationService {
     private ruleEngine?: RuleEngine
   ) {}
 
-  async getMyEvaluations(userId: string): Promise<MyEvaluationListItem[]> {
-    return this.evaluationRepo.findMyEvaluations(userId);
+  async getMyEvaluations(actor: Actor): Promise<MyEvaluationListItem[]> {
+    const isSuperAdminOrHr = actor.role === 'SYSTEM_ADMIN' || actor.role === 'HR_ADMIN';
+    return this.evaluationRepo.findMyEvaluations({
+      userId: actor.employeeId || actor.userId,
+      includeAll: isSuperAdminOrHr,
+    });
   }
 
   async getTeamEvaluations(actor: Actor): Promise<TeamEvaluationListItem[]> {
