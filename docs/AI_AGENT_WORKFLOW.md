@@ -309,7 +309,7 @@ Failures / Blockers:
 
 ### Required review
 
-Review requirement correctness, LLD compliance, architecture, business rules, security, RBAC/scope, data integrity, errors, concurrency, audit/history, maintainability, eslint check, type error, remove import not use, and regression risk.
+Review requirement correctness, LLD compliance, architecture, business rules, security, RBAC/scope, data integrity, errors, concurrency, audit/history, maintainability, eslint check, type error, remove import not use, and regression risk, do not use type any.
 
 ### Required output
 
@@ -325,6 +325,7 @@ Review Checklist:
 - Data integrity, audit, and history: PASS / FAIL
 - Error handling and concurrency: PASS / FAIL
 - Type error: PASS / FAIL
+- Do not use type any: PASS / FAIL
 - Remove import not use: PASS / FAIL
 - Regression risk: PASS / FAIL
 

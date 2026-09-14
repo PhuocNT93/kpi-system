@@ -2,6 +2,7 @@ import React from 'react';
 import { useEvaluationCyclesQuery } from '../../evaluation-cycles/hooks/use-evaluation-cycles';
 import { LoadingSpinner } from '@/shared/components/ui';
 import { TYPOGRAPHY, COLORS, RADII } from '@/shared/theme';
+import type { EvaluationCycleDTO } from '../../evaluation-cycles/types/cycle-types';
 
 export interface CycleSelectorProps {
   value: string;
@@ -16,6 +17,13 @@ export const CycleSelector: React.FC<CycleSelectorProps> = ({
 }) => {
   const { data: cycles, isLoading, isError } = useEvaluationCyclesQuery();
 
+  // React Hook must be called unconditionally before early returns
+  React.useEffect(() => {
+    if (value === '00000000-0000-0000-0000-000000000000' && cycles && cycles.length > 0) {
+      onChange(cycles[0].id);
+    }
+  }, [value, cycles, onChange]);
+
   if (isLoading) {
     return <div style={{ display: 'flex', alignItems: 'center', height: '40px' }}><LoadingSpinner label="" /></div>;
   }
@@ -23,13 +31,6 @@ export const CycleSelector: React.FC<CycleSelectorProps> = ({
   if (isError || !cycles) {
     return <div style={{ color: COLORS.semantic.danger.DEFAULT, fontSize: TYPOGRAPHY.fontSize.sm }}>Failed to load cycles</div>;
   }
-
-  // If no value is provided but we have cycles, default to the first one (usually latest/active)
-  React.useEffect(() => {
-    if (value === '00000000-0000-0000-0000-000000000000' && cycles.length > 0) {
-      onChange(cycles[0].id);
-    }
-  }, [value, cycles, onChange]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -54,7 +55,7 @@ export const CycleSelector: React.FC<CycleSelectorProps> = ({
         }}
       >
         <option value="00000000-0000-0000-0000-000000000000" disabled>Select a cycle...</option>
-        {cycles.map((cycle: any) => (
+        {cycles.map((cycle: EvaluationCycleDTO) => (
           <option key={cycle.id} value={cycle.id}>
             {cycle.name} ({cycle.code}) - {cycle.status}
           </option>
