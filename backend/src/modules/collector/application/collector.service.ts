@@ -821,8 +821,8 @@ export class CollectorService {
       return {
         id: ds.id,
         name: ds.name,
-        username: (ds.auth_config?.username as string) || 'khoadang',
-        password: (ds.auth_config?.password as string) || 'Khoa@69',
+        username: (ds.auth_config?.username as string) || 'kyluong',
+        password: (ds.auth_config?.password as string) || '19901991',
         baseUrl: (ds.auth_config?.baseUrl as string) || 'https://blueprint.cyberlogitec.com.vn',
         month: (ds.auth_config?.month as string) || '2026-09',
         projectFilter: (ds.auth_config?.projectFilter as string) || 'Allegro NX',
@@ -830,8 +830,8 @@ export class CollectorService {
       };
     }
     return {
-      username: 'khoadang',
-      password: 'Khoa@69',
+      username: 'kyluong',
+      password: '19901991',
       baseUrl: 'https://blueprint.cyberlogitec.com.vn',
       month: '2026-09',
       projectFilter: 'Allegro NX',
@@ -851,7 +851,7 @@ export class CollectorService {
 
     const authConfig = {
       username: data.username,
-      password: data.password || 'Khoa@69',
+      password: data.password || '19901991',
       baseUrl: data.baseUrl || 'https://blueprint.cyberlogitec.com.vn',
       month: data.month || '2026-09',
       projectFilter: data.projectFilter || 'Allegro NX',
