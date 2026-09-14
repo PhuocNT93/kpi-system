@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { getCurrentCsvTemplate, downloadCurrentCsvTemplate } from '../api/csv-template-api';
 import { uploadCsvFile, confirmImport, getImportStatus, type ImportPreviewResponse } from '../api/import-api';
 import { csvTemplateKeys } from '../api/csv-template-keys';
+import { evaluationCycleApi } from '@/features/evaluation-cycles/api/cycle-api';
 import { LoadingSpinner, ErrorAlert, EmptyState } from '@/shared/components/ui';
 import { Button } from '@/shared/ui/Button/Button';
 import { Badge } from '@/shared/ui/Badge/Badge';
@@ -36,7 +37,7 @@ export function ImportUploadPage() {
   const [downloadError, setDownloadError] = useState<unknown | null>(null);
   
   // Upload State
-  const [cycleId, setCycleId] = useState('02d1847e-97ec-449e-b762-b94f923c5ed7'); // Pre-fill with a valid seed cycle ID
+  const [cycleId, setCycleId] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState(randomUUID());
   const [previewData, setPreviewData] = useState<ImportPreviewResponse | null>(null);
@@ -52,6 +53,13 @@ export function ImportUploadPage() {
     queryKey: csvTemplateKeys.current(),
     queryFn: getCurrentCsvTemplate,
   });
+
+  const { data: cycles = [], isLoading: isLoadingCycles } = useQuery({
+    queryKey: ['evaluation-cycles'],
+    queryFn: () => evaluationCycleApi.getCycles(),
+  });
+
+  const selectableCycles = cycles.filter(c => c.status !== 'LOCKED');
 
   const { data: jobStatus } = useQuery({
     queryKey: ['importJob', activeJobId],
@@ -135,14 +143,14 @@ export function ImportUploadPage() {
   const handleConfirmClick = () => {
     if (!previewData) return;
     
-    if (importMode === 'STRICT' && previewData.data.error_rows > 0) {
-      if (!window.confirm(`You selected Strict Mode but there are ${previewData.data.error_rows} errors. This will fail the import. Proceed?`)) {
+    if (importMode === 'STRICT' && previewData.error_rows > 0) {
+      if (!window.confirm(`You selected Strict Mode but there are ${previewData.error_rows} errors. This will fail the import. Proceed?`)) {
         return;
       }
     }
 
     confirmMutation.mutate({ 
-      jobId: previewData.data.import_job_id, 
+      jobId: previewData.import_job_id, 
       strict: importMode === 'STRICT' 
     });
   };
@@ -281,18 +289,25 @@ export function ImportUploadPage() {
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, minWidth: '250px' }}>
             <label style={{ fontSize: TYPOGRAPHY.fontSize.sm, fontWeight: 500 }}>Evaluation Cycle ID</label>
-            <input 
-              type="text" 
+            <select
               value={cycleId}
               onChange={(e) => setCycleId(e.target.value)}
-              placeholder="e.g. 02d1847e-97ec-449e-b762-b94f923c5ed7"
+              disabled={isLoadingCycles}
               style={{
                 padding: '8px 12px',
                 border: `1px solid ${COLORS.neutral[300]}`,
                 borderRadius: RADII.md,
-                fontSize: TYPOGRAPHY.fontSize.sm
+                fontSize: TYPOGRAPHY.fontSize.sm,
+                backgroundColor: COLORS.neutral.white,
               }}
-            />
+            >
+              <option value="" disabled>-- Select Evaluation Cycle --</option>
+              {selectableCycles.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.code}) - {c.status}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 2, minWidth: '300px' }}>
@@ -336,19 +351,19 @@ export function ImportUploadPage() {
             <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
               <div style={{ padding: '16px', background: COLORS.neutral[50], borderRadius: RADII.md, flex: 1, border: `1px solid ${COLORS.neutral[200]}` }}>
                 <div style={{ fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary }}>Total Rows</div>
-                <div style={{ fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: 600 }}>{previewData.data.total_rows}</div>
+                <div style={{ fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: 600 }}>{previewData.total_rows}</div>
               </div>
               <div style={{ padding: '16px', background: COLORS.semantic.success[50], borderRadius: RADII.md, flex: 1, border: `1px solid ${COLORS.semantic.success[100]}` }}>
                 <div style={{ fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.semantic.success[700] }}>Valid Rows</div>
-                <div style={{ fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: 600, color: COLORS.semantic.success[700] }}>{previewData.data.success_rows}</div>
+                <div style={{ fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: 600, color: COLORS.semantic.success[700] }}>{previewData.success_rows}</div>
               </div>
               <div style={{ padding: '16px', background: COLORS.semantic.danger[50], borderRadius: RADII.md, flex: 1, border: `1px solid ${COLORS.semantic.danger[100]}` }}>
                 <div style={{ fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.semantic.danger[700] }}>Errors</div>
-                <div style={{ fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: 600, color: COLORS.semantic.danger[700] }}>{previewData.data.error_rows}</div>
+                <div style={{ fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: 600, color: COLORS.semantic.danger[700] }}>{previewData.error_rows}</div>
               </div>
             </div>
 
-            {previewData.meta.row_errors && previewData.meta.row_errors.length > 0 && (
+            {previewData.row_errors && previewData.row_errors.length > 0 && (
               <div>
                 <h4 style={{ margin: '0 0 12px 0', fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.semantic.danger[700], display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <AlertCircle size={14} />
@@ -365,7 +380,7 @@ export function ImportUploadPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {previewData.meta.row_errors.slice(0, 100).map((err, i) => (
+                      {previewData.row_errors.slice(0, 100).map((err, i) => (
                         <tr key={i} style={{ borderBottom: `1px solid ${COLORS.neutral[100]}` }}>
                           <td style={{ padding: '8px 12px', color: COLORS.neutral.textSecondary }}>{err.row_no}</td>
                           <td style={{ padding: '8px 12px', fontFamily: 'monospace' }}>{err.field}</td>
@@ -378,7 +393,7 @@ export function ImportUploadPage() {
                     </tbody>
                   </table>
                 </div>
-                {previewData.meta.row_errors.length > 100 && (
+                {previewData.row_errors.length > 100 && (
                   <div style={{ marginTop: '8px', fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
                     Showing first 100 errors.
                   </div>
@@ -386,13 +401,13 @@ export function ImportUploadPage() {
               </div>
             )}
             
-            {previewData.data.error_rows === 0 && previewData.data.total_rows > 0 && (
+            {previewData.error_rows === 0 && previewData.total_rows > 0 && (
               <div style={{ marginTop: '16px', padding: '12px', background: COLORS.semantic.success[50], color: COLORS.semantic.success[700], borderRadius: RADII.md, fontSize: TYPOGRAPHY.fontSize.sm }}>
                 All rows passed validation successfully! You may proceed with the import.
               </div>
             )}
 
-            {!activeJobId && previewData.data.total_rows > 0 && (
+            {!activeJobId && previewData.total_rows > 0 && (
               <div style={{ marginTop: '24px', padding: '16px', border: `1px solid ${COLORS.neutral[200]}`, borderRadius: RADII.md }}>
                 <h4 style={{ margin: '0 0 12px 0', fontSize: TYPOGRAPHY.fontSize.base }}>Import Settings</h4>
                 
@@ -440,7 +455,7 @@ export function ImportUploadPage() {
 
                 <Button 
                   onClick={handleConfirmClick} 
-                  disabled={confirmMutation.isPending || (importMode === 'STRICT' && previewData.data.error_rows > 0)}
+                  disabled={confirmMutation.isPending || (importMode === 'STRICT' && previewData.error_rows > 0)}
                   variant="primary"
                 >
                   {confirmMutation.isPending ? 'Starting Import...' : 'Confirm and Import'}

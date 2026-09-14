@@ -14,7 +14,8 @@ import {
   ChevronLeft,
   ChevronRight,
   GitFork,
-  Activity
+  Activity,
+  BookOpen
 } from 'lucide-react';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY, SHADOWS } from '@/shared/theme';
@@ -72,6 +73,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           id: 'dashboard',
           label: 'Dashboard',
           icon: <LayoutDashboard size={18} />
+        },
+        {
+          id: 'user-guide',
+          label: 'User Guide',
+          icon: <BookOpen size={18} />
         }
       ]
     },

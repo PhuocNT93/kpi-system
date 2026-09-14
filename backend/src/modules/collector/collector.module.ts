@@ -18,29 +18,31 @@ export function createCollectorModule(pool: Pool): CollectorModule {
   const controller = new CollectorController(service, scheduler);
   const router = createCollectorRouter(controller);
 
-  // Automatically seed default Blueprint source if not existing
-  (async () => {
-    try {
-      const sources = await service.listDataSources();
-      if (sources.length === 0) {
-        await service.createDataSource({
-          name: 'Blueprint CLV Attendance (UI_TAT_028)',
-          source_type: 'BLUEPRINT',
-          auth_config: {
-            baseUrl: 'https://blueprint.cyberlogitec.com.vn',
-            username: 'khoadang',
-            password: 'Khoa@69',
-          },
-        });
-        console.log('[CollectorModule] Seeded initial Blueprint data source');
-      }
+  // Automatically seed default Blueprint source if not existing (skip in test environment)
+  if (process.env.NODE_ENV !== 'test') {
+    (async () => {
+      try {
+        const sources = await service.listDataSources();
+        if (sources.length === 0) {
+          await service.createDataSource({
+            name: 'Blueprint CLV Attendance (UI_TAT_028)',
+            source_type: 'BLUEPRINT',
+            auth_config: {
+              baseUrl: 'https://blueprint.cyberlogitec.com.vn',
+              username: 'khoadang',
+              password: 'Khoa@69',
+            },
+          });
+          console.log('[CollectorModule] Seeded initial Blueprint data source');
+        }
 
-      // Initialize scheduler
-      await scheduler.start();
-    } catch (err) {
-      console.error('[CollectorModule] Initialization error:', err);
-    }
-  })();
+        // Initialize scheduler
+        await scheduler.start();
+      } catch (err) {
+        console.error('[CollectorModule] Initialization error:', err);
+      }
+    })();
+  }
 
   return { service, scheduler, controller, router };
 }

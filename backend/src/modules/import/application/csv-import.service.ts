@@ -11,7 +11,7 @@ export class CsvImportService {
     public importRepo: IImportRepository,
     private pool: Pool,
     private evaluationService: EvaluationService
-  ) {}
+  ) { }
 
   public async processUpload(
     cycleId: string,
@@ -79,7 +79,7 @@ export class CsvImportService {
 
     // 5. Parse CSV
     const rows = await this.parseCsv(fileBuffer);
-    
+
     // 6. Pre-fetch Validation Data
     const validationData = await this.prefetchValidationData(cycle.evaluation_template_version_id, rows);
 
@@ -93,7 +93,7 @@ export class CsvImportService {
       const rawRow = rows[i];
       if (!rawRow) continue;
       const errors = this.validateRow(rawRow, rowNo, validationData);
-      
+
       const status = errors.length > 0 ? 'INVALID' : 'VALID';
       if (status === 'VALID') successCount++;
       else errorCount++;
@@ -116,7 +116,7 @@ export class CsvImportService {
     newJob.success_rows = successCount;
     newJob.error_rows = errorCount;
     newJob.status = 'PREVIEW';
-    
+
     await this.importRepo.updateImportJob(newJob);
 
     // Attach transient errors for the controller
@@ -135,7 +135,7 @@ export class CsvImportService {
 
   private parseCsv(buffer: Buffer): Promise<Record<string, string>[]> {
     return new Promise((resolve, reject) => {
-      parse(buffer, { columns: true, skip_empty_lines: true }, (err, records: Record<string, string>[]) => {
+      parse(buffer, { columns: true, skip_empty_lines: true, trim: true }, (err, records: Record<string, string>[]) => {
         if (err) return reject(err);
         resolve(records);
       });
@@ -163,13 +163,13 @@ export class CsvImportService {
     // LLD: template_criteria has criterion_version_id, which connects to criterion.
     // Assuming kpi_criterion_mapping table exists from previous migrations.
     const criteriaRes = await this.pool.query(`
-      SELECT tc.template_criterion_id, c.code as criterion_code, k.code as kpi_code
+      SELECT tc.id as template_criterion_id, c.code as criterion_code, k.code as kpi_code
       FROM template_criteria tc
-      JOIN criterion_version cv ON tc.criterion_version_id = cv.criterion_version_id
-      JOIN criterion c ON cv.criterion_id = c.criterion_id
-      LEFT JOIN kpi_criterion_mapping kcm ON c.criterion_id = kcm.criterion_id
-      LEFT JOIN kpi k ON kcm.kpi_id = k.kpi_id
-      WHERE tc.evaluation_template_version_id = $1 AND tc.is_disabled = false
+      JOIN criterion_versions cv ON tc.criterion_version_id = cv.id
+      JOIN criteria c ON cv.criterion_id = c.id
+      LEFT JOIN template_kpi tk ON tc.template_kpi_id = tk.template_kpi_id
+      LEFT JOIN kpi k ON tk.kpi_id = k.kpi_id
+      WHERE tc.template_version_id = $1 AND tc.enabled = true
     `, [templateVersionId]);
 
     const criterionMappings = new Map<string, string[]>(); // criterion_code -> array of kpi_codes
@@ -190,13 +190,13 @@ export class CsvImportService {
   }
 
   private validateRow(
-    row: Record<string, string>, 
-    rowNo: number, 
+    row: Record<string, string>,
+    rowNo: number,
     data: { employees: Map<string, { employee_code: string; employee_id: string; employment_status: string }>; criterionMappings: Map<string, string[]>; seenRows: Set<string> }
   ) {
     const errors: ImportRow['error_messages'] = [];
     if (!errors) return [];
-    
+
     const { employees, criterionMappings, seenRows } = data;
 
     // Duplicate check in CSV
@@ -213,7 +213,7 @@ export class CsvImportService {
     } else {
       const emp = employees.get(row.employee_id);
       if (!emp) {
-        errors.push({ row_no: rowNo, field: 'employee_id', code: 'EMPLOYEE_NOT_FOUND', message: 'Employee not found.' });
+        errors.push({ row_no: rowNo, field: 'employee_id', code: 'EMPLOYEE_NOT_FOUND', message: `Employee not found (ID in CSV: '${row.employee_id}').` });
       } else if (emp.employment_status !== 'ACTIVE') {
         errors.push({ row_no: rowNo, field: 'employee_id', code: 'EMPLOYEE_OUT_OF_SCOPE', message: 'Employee is not active.' });
       }
@@ -249,7 +249,7 @@ export class CsvImportService {
     } else {
       const mappedKpis = criterionMappings.get(criterionCode);
       if (!mappedKpis) {
-        errors.push({ row_no: rowNo, field: 'criterion_code', code: 'CRITERION_NOT_IN_TEMPLATE', message: 'Criterion is not part of the selected template version.' });
+        errors.push({ row_no: rowNo, field: 'criterion_code', code: 'CRITERION_NOT_IN_TEMPLATE', message: `Criterion '${criterionCode}' is not part of the selected template version.` });
       } else {
         if (kpiCode) {
           if (!mappedKpis.includes(kpiCode)) {
@@ -359,15 +359,15 @@ export class CsvImportService {
       }
 
       const finalStatus = hasErrors && !strictMode ? 'PARTIALLY_COMPLETED' : 'COMPLETED';
-      await this.importRepo.updateImportJob({ 
-        import_job_id: jobId, 
+      await this.importRepo.updateImportJob({
+        import_job_id: jobId,
         status: finalStatus,
         finished_at: new Date()
       });
     } catch (error) {
       console.error(`Error processing job ${jobId}:`, error);
-      await this.importRepo.updateImportJob({ 
-        import_job_id: jobId, 
+      await this.importRepo.updateImportJob({
+        import_job_id: jobId,
         status: 'FAILED',
         finished_at: new Date()
       });
@@ -375,25 +375,37 @@ export class CsvImportService {
   }
 
   private async processJobBatch(
-    jobId: string, 
-    rows: ImportRow[], 
+    jobId: string,
+    rows: ImportRow[],
     actor: { userId: string; role: string; employeeId?: string }
   ): Promise<boolean> {
     let hasErrors = false;
     // Map employee_id -> criterion_code -> row (we only take the latest per employee/criterion to avoid conflicts)
     // Wait, rows already passed validation. We need to update evaluation_item for each.
     // To do this, we need to map employee_id to evaluation_id.
-    
-    // Extract employee IDs
-    const employeeIds = [...new Set(rows.map(r => String(r.raw_data.employee_id)))];
-    
+
+    // Extract employee IDs (which are actually employee_codes from the CSV)
+    const employeeCodes = [...new Set(rows.map(r => String(r.raw_data.employee_id).trim()))].filter(Boolean);
+
+    // Fetch actual UUIDs for these codes
+    const empRes = await this.pool.query(
+      `SELECT employee_code, employee_id FROM employee WHERE employee_code = ANY($1)`,
+      [employeeCodes]
+    );
+
+    const codeToUuidMap = new Map<string, string>();
+    for (const e of empRes.rows) {
+      codeToUuidMap.set(e.employee_code, e.employee_id);
+    }
+    const employeeUuids = Array.from(codeToUuidMap.values());
+
     // Fetch active evaluations for these employees in this cycle
     const job = await this.importRepo.getImportJobById(jobId);
     if (!job) return true;
 
     const evaluationsRes = await this.pool.query(
       `SELECT evaluation_id, employee_id FROM evaluation WHERE evaluation_cycle_id = $1 AND employee_id = ANY($2)`,
-      [job.evaluation_cycle_id, employeeIds]
+      [job.evaluation_cycle_id, employeeUuids]
     );
     const evalMap = new Map<string, string>();
     for (const e of evaluationsRes.rows) {
@@ -405,12 +417,17 @@ export class CsvImportService {
     // Process each row
     for (const row of rows) {
       try {
-        const employeeId = String(row.raw_data.employee_id);
-        const criterionCode = String(row.raw_data.criterion_code);
+        const employeeCode = String(row.raw_data.employee_id).trim();
+        const criterionCode = String(row.raw_data.criterion_code).trim();
         const measurementValue = row.raw_data.measurement_value ? Number(row.raw_data.measurement_value) : null;
         const comment = row.raw_data.comment ? String(row.raw_data.comment) : null;
-        
-        const evaluationId = evalMap.get(employeeId);
+
+        const employeeUuid = codeToUuidMap.get(employeeCode);
+        if (!employeeUuid) {
+          throw new Error(`Employee mapping failed for code ${employeeCode}.`);
+        }
+
+        const evaluationId = evalMap.get(employeeUuid);
         if (!evaluationId) {
           throw new Error('No active evaluation found for employee.');
         }
@@ -420,9 +437,9 @@ export class CsvImportService {
         const itemRes = await this.pool.query(`
           SELECT ei.evaluation_item_id, ei.is_disabled_for_employee
           FROM evaluation_item ei
-          JOIN template_criteria tc ON ei.template_criterion_id = tc.template_criterion_id
-          JOIN criterion_version cv ON tc.criterion_version_id = cv.criterion_version_id
-          JOIN criterion c ON cv.criterion_id = c.criterion_id
+          JOIN template_criteria tc ON ei.template_criterion_id = tc.id
+          JOIN criterion_versions cv ON tc.criterion_version_id = cv.id
+          JOIN criteria c ON cv.criterion_id = c.id
           WHERE ei.evaluation_id = $1 AND c.code = $2
         `, [evaluationId, criterionCode]);
 

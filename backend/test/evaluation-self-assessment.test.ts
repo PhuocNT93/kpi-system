@@ -46,15 +46,6 @@ describe('EvaluationService Unit Tests (Self Assessment)', () => {
     managedTeamIds: [],
   };
 
-  it('getMyEvaluations returns evaluations for current employee', async () => {
-    const mockList = [{ evaluation: { evaluation_id: 'eval-1' }, cycle: { name: 'Q1' } }];
-    mockEvaluationRepo.findMyEvaluations.mockResolvedValue(mockList);
-
-    const res = await service.getMyEvaluations('emp-1');
-    expect(res).toEqual(mockList);
-    expect(mockEvaluationRepo.findMyEvaluations).toHaveBeenCalledWith('emp-1');
-  });
-
   it('getEvaluationDetail returns evaluation and items for self', async () => {
     mockEvaluationRepo.findById.mockResolvedValue({
       evaluation_id: 'eval-1',

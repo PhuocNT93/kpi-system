@@ -1,4 +1,5 @@
 
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './app/query-client';
@@ -32,6 +33,10 @@ import { ImportUploadPage } from './features/imports/pages/ImportUploadPage';
 import { ImportHistoryPage } from './features/imports/pages/ImportHistoryPage';
 import { ImportDetailPage } from './features/imports/pages/ImportDetailPage';
 import { CollectorPage } from './features/collector/pages/CollectorPage';
+// Lazy-loaded: pulls in react-markdown/remark-gfm, kept out of the main bundle
+const UserGuidePage = lazy(() =>
+  import('./features/help/pages/UserGuidePage').then((m) => ({ default: m.UserGuidePage }))
+);
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
 import { LayoutTemplate } from 'lucide-react';
@@ -52,6 +57,7 @@ const ADMIN_PAGE_TITLES: Record<string, string> = {
   cycles: 'Evaluation Cycles',
   'my-evaluations': 'My Evaluations',
   'team-evaluations': 'Team Evaluations',
+  'user-guide': 'User Guide',
 };
 
 function ProtectedLayout() {
@@ -233,6 +239,13 @@ export default function App() {
               <Route path="/admin/cycles/:id/edit" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
                   <EvaluationCycleEditPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/user-guide" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
+                  <Suspense fallback={null}>
+                    <UserGuidePage />
+                  </Suspense>
                 </ProtectedRoute>
               } />
               <Route path="/draft" element={

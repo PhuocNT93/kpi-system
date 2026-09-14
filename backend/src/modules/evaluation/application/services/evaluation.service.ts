@@ -8,6 +8,7 @@ import { withTransaction } from '../../../../shared/database/transaction.js';
 import { AuditService } from '../../../audit/application/audit.service.js';
 import { ScoringEngine, type ScoringKpiInput } from '../../domain/scoring/scoring-engine.js';
 import { RuleEngine } from '../../../rule-engine/domain/rule-engine.js';
+import { appEventEmitter, AppEvent } from '../../../../shared/events/index.js';
 
 export class EvaluationService {
   constructor(
@@ -18,8 +19,12 @@ export class EvaluationService {
     private ruleEngine?: RuleEngine
   ) {}
 
-  async getMyEvaluations(userId: string): Promise<MyEvaluationListItem[]> {
-    return this.evaluationRepo.findMyEvaluations(userId);
+  async getMyEvaluations(actor: Actor): Promise<MyEvaluationListItem[]> {
+    const isSuperAdminOrHr = actor.role === 'SYSTEM_ADMIN' || actor.role === 'HR_ADMIN';
+    return this.evaluationRepo.findMyEvaluations({
+      userId: actor.employeeId || actor.userId,
+      includeAll: isSuperAdminOrHr,
+    });
   }
 
   async getTeamEvaluations(actor: Actor): Promise<TeamEvaluationListItem[]> {
@@ -262,6 +267,8 @@ export class EvaluationService {
           source: 'API',
       });
 
+      appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId });
+
       return {
         ...scoringResult,
         evaluation_id: evaluationId,
@@ -374,6 +381,8 @@ export class EvaluationService {
           source: 'API',
         });
       }
+
+      appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId });
 
       return updatedItem;
     });

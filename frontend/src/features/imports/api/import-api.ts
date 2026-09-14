@@ -19,12 +19,8 @@ export interface ImportJobPreview {
   error_rows: number;
 }
 
-export interface ImportPreviewResponse {
-  data: ImportJobPreview;
-  meta: {
-    request_id: string;
-    row_errors: ImportRowError[];
-  };
+export interface ImportPreviewResponse extends ImportJobPreview {
+  row_errors: ImportRowError[];
 }
 
 // Shape returned by the backend controller for paginated endpoints:

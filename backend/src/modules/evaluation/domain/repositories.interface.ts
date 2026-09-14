@@ -11,6 +11,12 @@ export interface EvaluationCycleSummary {
 export interface MyEvaluationListItem {
   evaluation: Evaluation;
   cycle: EvaluationCycleSummary;
+  employee?: {
+    employee_id: string;
+    full_name: string;
+    employee_code: string;
+    email: string;
+  };
 }
 
 export interface TeamEvaluationListItem extends MyEvaluationListItem {
@@ -27,7 +33,7 @@ export interface TeamEvaluationListItem extends MyEvaluationListItem {
 export interface IEvaluationRepository {
   findById(id: string, client?: PoolClient): Promise<Evaluation | null>;
   findByIdForUpdate(id: string, client: PoolClient): Promise<Evaluation | null>;
-  findMyEvaluations(userId: string, client?: PoolClient): Promise<MyEvaluationListItem[]>;
+  findMyEvaluations(params: { userId?: string; includeAll?: boolean }, client?: PoolClient): Promise<MyEvaluationListItem[]>;
   findTeamEvaluations(params: { managerEmployeeId?: string; isSuperAdminOrHr?: boolean }, client?: PoolClient): Promise<TeamEvaluationListItem[]>;
   update(id: string, evaluation: Partial<Evaluation>, client?: PoolClient): Promise<Evaluation>;
 }

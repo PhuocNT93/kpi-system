@@ -1,11 +1,13 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { EvaluationCycleForm } from '../components/EvaluationCycleForm';
+import { PageToast } from '../components/PageToast';
 import {
   useEvaluationCycleDetailQuery,
   useUpdateEvaluationCycleMutation,
   useCreateEvaluationCycleMutation,
 } from '../hooks/use-evaluation-cycles';
+import { usePageToast } from '../hooks/use-page-toast';
 import type { CreateEvaluationCyclePayload, TemplateReferenceDTO } from '../types/cycle-types';
 import { useTemplatesQuery } from '@/features/templates/api/use-templates';
 import { useDepartments } from '@/features/organization/hooks/useDepartments';
@@ -24,6 +26,7 @@ export const EvaluationCycleUpsertPage: React.FC = () => {
   const isEdit = Boolean(id);
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { toast, showToast } = usePageToast();
 
   const templatesQuery = useTemplatesQuery();
   const departmentsQuery = useDepartments();
@@ -41,12 +44,15 @@ export const EvaluationCycleUpsertPage: React.FC = () => {
       if (isEdit) {
         if (!id) return;
         await updateMutation.mutateAsync(payload);
+        showToast('success', 'Đã cập nhật kỳ đánh giá thành công.');
         navigate(`/admin/cycles/${id}`);
       } else {
         const created = await createMutation.mutateAsync(payload);
+        showToast('success', 'Đã tạo kỳ đánh giá thành công.');
         navigate(`/admin/cycles/${created.id ?? 'cyc-1'}`);
       }
     } catch (_err) {
+      showToast('error', isEdit ? 'Không thể cập nhật kỳ đánh giá.' : 'Không thể tạo kỳ đánh giá.');
       navigate(isEdit ? `/admin/cycles/${id}` : '/admin/cycles');
     }
   };
@@ -74,6 +80,7 @@ export const EvaluationCycleUpsertPage: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <PageToast toast={toast} />
       <button
         onClick={() => navigate(isEdit ? `/admin/cycles/${id}` : '/admin/cycles')}
         style={{

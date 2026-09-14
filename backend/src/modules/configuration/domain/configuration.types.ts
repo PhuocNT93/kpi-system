@@ -264,6 +264,13 @@ export interface TemplateCriterionWithDetails extends TemplateCriterion {
   criterion: CriterionDetail | null;
 }
 
+export interface TemplateSnapshotCriterionData {
+  template_criterion: TemplateCriterion;
+  version: CriterionVersion;
+  criterion: Criterion;
+  scoring_rule?: ScoringRule;
+}
+
 export interface TemplateKpi {
   id: string;
   template_version_id: string;

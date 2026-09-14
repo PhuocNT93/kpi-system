@@ -28,7 +28,7 @@ export class EvaluationController {
 
   getMyEvaluations = async (req: Request, res: Response): Promise<void> => {
     const actor = this.getActor(req);
-    const evaluations = await this.evaluationService.getMyEvaluations(actor.employeeId || actor.userId);
+    const evaluations = await this.evaluationService.getMyEvaluations(actor);
     sendSuccess(res, 200, 'My evaluations retrieved successfully.', evaluations);
   };
 

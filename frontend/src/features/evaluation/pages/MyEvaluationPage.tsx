@@ -7,8 +7,11 @@ import { EvaluationHistoryTable } from '../components/EvaluationHistoryTable';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
 import { LayoutTemplate, AlertCircle, RefreshCw, History } from 'lucide-react';
+import { useAuth } from '@/shared/auth/auth-context';
 
 export function MyEvaluationPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'HR_ADMIN' || user?.role === 'SYSTEM_ADMIN';
   const {
     data: evaluations = [],
     isLoading,
@@ -169,6 +172,11 @@ export function MyEvaluationPage() {
         <h1 style={{ margin: '0 0 8px 0', fontSize: TYPOGRAPHY.fontSize['2xl'], fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
           My Evaluation
         </h1>
+        {isAdmin && (
+          <p style={{ margin: '0 0 8px 0', color: COLORS.neutral.textSecondary, fontSize: TYPOGRAPHY.fontSize.sm }}>
+            Danh sách toàn bộ đánh giá theo employee, chỉ hiển thị tên employee cho admin.
+          </p>
+        )}
         <p style={{ margin: 0, color: COLORS.neutral.textSecondary, fontSize: TYPOGRAPHY.fontSize.sm }}>
           Quản lý quá trình tự đánh giá hiệu suất, theo dõi tiến độ và xem kết quả chính thức của bạn.
         </p>
@@ -190,7 +198,7 @@ export function MyEvaluationPage() {
           </h2>
         </div>
 
-        <EvaluationHistoryTable evaluations={pastEvaluations.length > 0 ? pastEvaluations : evaluations} />
+        <EvaluationHistoryTable evaluations={pastEvaluations.length > 0 ? pastEvaluations : evaluations} showEmployee={isAdmin} />
       </section>
     </div>
   );

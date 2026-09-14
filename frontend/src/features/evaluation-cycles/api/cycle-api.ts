@@ -182,4 +182,10 @@ export const evaluationCycleApi = {
     );
     return evaluationCycleApi.getCycleById(id);
   },
+
+  getEmployeeById: async (
+    id: string
+  ): Promise<{ id: string; full_name?: string; employee_code?: string; email?: string }> => {
+    return getApi<{ id: string; full_name?: string; employee_code?: string; email?: string }>(`/api/employees/${id}`);
+  },
 };

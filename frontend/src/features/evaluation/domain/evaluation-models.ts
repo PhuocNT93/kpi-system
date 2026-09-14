@@ -28,6 +28,7 @@ export interface MyEvaluation {
     is_locked: boolean;
   };
   cycle: EvaluationCycle;
+  employee?: EmployeeSummary;
 }
 
 export interface EvaluationItem {

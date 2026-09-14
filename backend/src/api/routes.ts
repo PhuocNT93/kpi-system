@@ -22,7 +22,8 @@ import { createEvaluationRouter } from '../modules/evaluation/api/evaluation.rou
 import { I18nController, createI18nRouter } from '../modules/i18n/index.js';
 import { ImportController } from '../modules/import/api/import.controller.js';
 import { createImportRouter } from '../modules/import/api/import.routes.js';
-
+import { ReportsController } from '../modules/reports/api/reports.controller.js';
+import { createReportsRouter } from '../modules/reports/api/reports.router.js';
 export interface RegisterRoutesOptions {
   authController?: AuthController;
   jwtMiddleware: RequestHandler;
@@ -39,6 +40,7 @@ export interface RegisterRoutesOptions {
   i18nController?: I18nController;
   importController?: ImportController;
   collectorRouter?: Router;
+  reportsController?: ReportsController;
 }
 
 export function createApiRouter(options: RegisterRoutesOptions): Router {
@@ -109,6 +111,11 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
   // ── Import Module Routes ──────────────────────────────────────────────────
   if (options.importController) {
     router.use('/', createImportRouter(options.importController, options.authorizationService, options.jwtMiddleware));
+  }
+
+  // ── Reports Module Routes ─────────────────────────────────────────────────
+  if (options.reportsController) {
+    router.use('/reports', createReportsRouter(options.reportsController));
   }
 
   // ── Sample: single-resource response ──────────────────────────────────────

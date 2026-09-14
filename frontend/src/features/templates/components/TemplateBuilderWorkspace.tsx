@@ -86,7 +86,7 @@ export function TemplateBuilderWorkspace({
     }
   }, [saveError]);
 
-  const configuredTotalWeight = calculateConfiguredWeightTotal(kpis);
+  const configuredTotalWeight = calculateConfiguredWeightTotal(criteria);
 
   // Handlers
   const handleWeightChange = (id: string, newWeight: number) => {

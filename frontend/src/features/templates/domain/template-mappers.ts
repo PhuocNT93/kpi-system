@@ -13,8 +13,10 @@ import type {
 } from './template-models';
 import { normalizeRuleConfig, validateRuleConfig } from './rule-config';
 
-export function calculateConfiguredWeightTotal(kpis: TemplateKpi[]): number {
-  return kpis.reduce((sum, k) => sum + (Number(k.weight) || 0), 0);
+export function calculateConfiguredWeightTotal(criteria: TemplateCriterion[]): number {
+  return criteria
+    .filter((criterion) => !criterion.isDisabled)
+    .reduce((sum, criterion) => sum + (Number(criterion.effectiveWeight) || 0), 0);
 }
 
 export function validateTemplateClientSide(
@@ -22,7 +24,7 @@ export function validateTemplateClientSide(
   criteria: TemplateCriterion[]
 ): TemplateValidationResult {
   const activeCriteria = criteria.filter((c) => !c.isDisabled);
-  const totalWeight = Math.round(calculateConfiguredWeightTotal(kpis) * 100) / 100;
+  const totalWeight = Math.round(calculateConfiguredWeightTotal(criteria) * 100) / 100;
   const errors: ValidationErrorItem[] = [];
   const warnings: ValidationErrorItem[] = [];
 
@@ -36,6 +38,32 @@ export function validateTemplateClientSide(
       expected: 100,
     });
   }
+
+  // Validate that each KPI's child criteria also sum to 100% when present.
+  kpis.forEach((kpi) => {
+    const kpiCriteria = activeCriteria.filter((criterion) => criterion.templateKpiId === kpi.id);
+    if (kpiCriteria.length === 0) {
+      return;
+    }
+
+    const criterionWeightTotal =
+      Math.round(
+        kpiCriteria.reduce((sum, criterion) => sum + (Number(criterion.effectiveWeight) || 0), 0) * 100
+      ) / 100;
+
+    if (Math.abs(criterionWeightTotal - 100) > 0.01) {
+      const kpiName = (kpi.kpi as { name?: string } | undefined)?.name || kpi.kpiId;
+      errors.push({
+        code: 'WEIGHT_TOTAL_NOT_100',
+        category: 'WEIGHT',
+        criterionCode: kpi.kpiId,
+        criterionName: kpiName,
+        message: `KPI "${kpiName}" criteria total is ${criterionWeightTotal}%. Expected exactly 100%.`,
+        actual: criterionWeightTotal,
+        expected: 100,
+      });
+    }
+  });
 
   // Scoring Rule & Applicability validation
   activeCriteria.forEach((tc) => {

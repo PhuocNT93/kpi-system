@@ -315,25 +315,6 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
     );
   }
 
-  // 4. Seed Cycles (2026-Q3 DRAFT, 2026-Q2 OPEN, 2026-Q1 LOCKED)
-  const q3Cycle = await cycleModule.cycleRepo.findByCode('2026-Q3');
-  if (!q3Cycle) {
-    await cycleModule.cycleService.createCycle(
-      {
-        code: '2026-Q3',
-        name: '2026 Q3 Engineering Performance Evaluation',
-        start_date: '2026-07-01',
-        end_date: '2026-09-30',
-        evaluation_template_version_id: templateVersionId,
-        applicable_team_ids: [],
-        applicable_role_ids: [],
-        applicable_employee_ids: [],
-      },
-      managerId
-    );
-    console.log('Seeded evaluation cycle: 2026-Q3 (DRAFT)');
-  }
-
   const q2Cycle = await cycleModule.cycleRepo.findByCode('2026-Q2');
   if (!q2Cycle) {
     const created = await cycleModule.cycleService.createCycle(
