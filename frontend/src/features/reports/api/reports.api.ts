@@ -14,22 +14,22 @@ const camelize = (obj: unknown): unknown => {
 };
 
 export const fetchEmployeeReport = async (employeeId: string, cycleId: string): Promise<ReportResponse<EmployeeReport>> => {
-  const data = await getApi<unknown>(`/reports/employees/${employeeId}?cycleId=${cycleId}`);
+  const data = await getApi<unknown>(`/api/reports/employees/${employeeId}?cycleId=${cycleId}`);
   return camelize(data) as ReportResponse<EmployeeReport>;
 };
 
 export const fetchTeamReport = async (teamId: string, cycleId: string): Promise<ReportResponse<TeamReport>> => {
-  const data = await getApi<unknown>(`/reports/teams/${teamId}?cycleId=${cycleId}`);
+  const data = await getApi<unknown>(`/api/reports/teams/${teamId}?cycleId=${cycleId}`);
   return camelize(data) as ReportResponse<TeamReport>;
 };
 
 export const fetchTeamKpiReport = async (teamId: string, cycleId: string): Promise<ReportResponse<{ data: TeamKpiAggregate[] }>> => {
-  const data = await getApi<unknown>(`/reports/kpi/team/${teamId}?cycleId=${cycleId}`);
+  const data = await getApi<unknown>(`/api/reports/kpi/team/${teamId}?cycleId=${cycleId}`);
   return camelize(data) as ReportResponse<{ data: TeamKpiAggregate[] }>;
 };
 
 export const fetchKpiTrend = async (currentCycleId: string, previousCycleId: string, teamId?: string, employeeId?: string): Promise<ReportResponse<{ data: KpiTrendResponse[] }>> => {
-  let url = `/reports/kpi/trend?currentCycleId=${currentCycleId}&previousCycleId=${previousCycleId}`;
+  let url = `/api/reports/kpi/trend?currentCycleId=${currentCycleId}&previousCycleId=${previousCycleId}`;
   if (teamId) url += `&teamId=${teamId}`;
   if (employeeId) url += `&employeeId=${employeeId}`;
   const data = await getApi<unknown>(url);
@@ -37,6 +37,6 @@ export const fetchKpiTrend = async (currentCycleId: string, previousCycleId: str
 };
 
 export const fetchOrganizationReport = async (cycleId: string): Promise<ReportResponse<{ data: OrganizationAggregate[] }>> => {
-  const data = await getApi<unknown>(`/reports/organization?cycleId=${cycleId}`);
+  const data = await getApi<unknown>(`/api/reports/organization?cycleId=${cycleId}`);
   return camelize(data) as ReportResponse<{ data: OrganizationAggregate[] }>;
 };
