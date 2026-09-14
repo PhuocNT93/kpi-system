@@ -94,12 +94,12 @@ export class CollectorController {
       let { username, password, baseUrl } = req.body;
       if (!username || !password) {
         const saved = await this.collectorService.getBlueprintConfig();
-        username = username || saved?.username || 'kyluong';
-        password = password || saved?.password || '19901991';
+        username = username || saved?.username;
+        password = password || saved?.password;
         baseUrl = baseUrl || saved?.baseUrl;
       }
       if (!username || !password) {
-        sendFailure(res, 400, 'Username and password are required', 'BAD_REQUEST');
+        sendFailure(res, 400, 'Tài khoản và mật khẩu Blueprint là bắt buộc. Vui lòng nhập thông tin trên giao diện.', 'BAD_REQUEST');
         return;
       }
       const summary = await this.collectorService.previewBlueprintTeamAttendance(
@@ -139,12 +139,12 @@ export class CollectorController {
       let { username, password, baseUrl } = req.body;
       if (!username || !password) {
         const saved = await this.collectorService.getBlueprintConfig();
-        username = username || saved?.username || 'khoadang';
-        password = password || saved?.password || 'Khoa@69';
+        username = username || saved?.username;
+        password = password || saved?.password;
         baseUrl = baseUrl || saved?.baseUrl;
       }
       if (!username || !password) {
-        sendFailure(res, 400, 'Username and password are required', 'BAD_REQUEST');
+        sendFailure(res, 400, 'Tài khoản và mật khẩu Blueprint là bắt buộc. Vui lòng nhập thông tin trên giao diện.', 'BAD_REQUEST');
         return;
       }
       const tasksSummary = await this.collectorService.previewBlueprintTasks(
@@ -195,12 +195,12 @@ export class CollectorController {
       let { username, password, baseUrl } = req.body;
       if (!username || !password) {
         const saved = await this.collectorService.getBlueprintConfig();
-        username = username || saved?.username || 'khoadang';
-        password = password || saved?.password || 'Khoa@69';
+        username = username || saved?.username;
+        password = password || saved?.password;
         baseUrl = baseUrl || saved?.baseUrl;
       }
       if (!username || !password) {
-        sendFailure(res, 400, 'Username and password are required', 'BAD_REQUEST');
+        sendFailure(res, 400, 'Tài khoản và mật khẩu Blueprint là bắt buộc. Vui lòng nhập thông tin trên giao diện.', 'BAD_REQUEST');
         return;
       }
       const summary = await this.collectorService.previewBlueprintVacation(
