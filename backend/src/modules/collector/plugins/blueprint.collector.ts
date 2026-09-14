@@ -22,21 +22,32 @@ export class BlueprintCollector {
     this.baseUrl = (credentials.baseUrl || 'https://blueprint.cyberlogitec.com.vn').replace(/\/$/, '');
   }
 
+  private isLoggedIn = false;
+
   private storeCookies(response: Response) {
     const headersWithCookies = response.headers as unknown as { getSetCookie?: () => string[] };
-    const rawCookies = typeof headersWithCookies.getSetCookie === 'function'
-      ? headersWithCookies.getSetCookie()
-      : ([response.headers.get('set-cookie')].filter(Boolean) as string[]);
+    let rawCookies: string[] = [];
+    if (typeof headersWithCookies.getSetCookie === 'function') {
+      rawCookies = headersWithCookies.getSetCookie() || [];
+    } else {
+      const header = response.headers.get('set-cookie');
+      if (header) {
+        rawCookies = [header];
+      }
+    }
 
     for (const c of rawCookies) {
       if (!c) continue;
-      const nameVal = c.split(';')[0];
-      if (!nameVal) continue;
-      const idx = nameVal.indexOf('=');
-      if (idx > -1) {
-        const name = nameVal.substring(0, idx).trim();
-        const val = nameVal.substring(idx + 1).trim();
-        this.cookies.set(name, val);
+      const parts = c.split(/,\s*(?=[A-Za-z0-9_-]+=)/);
+      for (const part of parts) {
+        const nameVal = part.split(';')[0];
+        if (!nameVal) continue;
+        const idx = nameVal.indexOf('=');
+        if (idx > -1) {
+          const name = nameVal.substring(0, idx).trim();
+          const val = nameVal.substring(idx + 1).trim();
+          this.cookies.set(name, val);
+        }
       }
     }
   }
@@ -52,6 +63,13 @@ export class BlueprintCollector {
     const cookieHeader = this.getCookieHeader();
     if (cookieHeader) {
       (options.headers as Record<string, string>)['Cookie'] = cookieHeader;
+    }
+    if (!(options.headers as Record<string, string>)['User-Agent']) {
+      (options.headers as Record<string, string>)['User-Agent'] =
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36';
+    }
+    if (!(options.headers as Record<string, string>)['Accept-Language']) {
+      (options.headers as Record<string, string>)['Accept-Language'] = 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7';
     }
     options.redirect = 'manual';
 
@@ -81,10 +99,20 @@ export class BlueprintCollector {
   }
 
   /**
+   * Ensure user is authenticated, reuse active session cookies without redundant login calls
+   */
+  public async ensureLoggedIn(): Promise<void> {
+    if (!this.isLoggedIn || this.cookies.size === 0) {
+      await this.login();
+    }
+  }
+
+  /**
    * Authenticate with Blueprint via Keycloak SSO
    */
   public async login(): Promise<boolean> {
     this.cookies.clear();
+    this.isLoggedIn = false;
 
     const startUrl = `${this.baseUrl}/UI_TAT_028`;
     const initialRes = await this.fetchWithCookies(startUrl);
@@ -99,6 +127,7 @@ export class BlueprintCollector {
     if (!formMatch) {
       // Maybe already logged in or unexpected page
       if (keycloakUrl.includes('/UI_TAT_028') || keycloakUrl === `${this.baseUrl}/`) {
+        this.isLoggedIn = true;
         return true;
       }
       throw new Error('Could not find Keycloak login form action');
@@ -133,13 +162,17 @@ export class BlueprintCollector {
     const { res: postLoginRes, finalUrl: postLoginUrl } = await this.followRedirects(loginSubmitRes, formAction);
 
     // If redirected back to Keycloak with error, login failed
-    if (postLoginUrl.includes('auth.cyberlogitec.com.vn') && postLoginRes.status === 200) {
+    if (postLoginUrl.includes('auth.cyberlogitec.com.vn')) {
       const errHtml = await postLoginRes.text();
-      if (errHtml.includes('Invalid username or password') || errHtml.includes('kc-feedback-text')) {
-        throw new Error('Invalid Blueprint username or password');
+      let errorDetail = 'Invalid User ID / Password';
+      const feedbackMatch = errHtml.match(/class="[^"]*(?:kc-feedback-text|kc-invalid-credential)[^"]*"[^>]*>([\s\S]*?)<\//i);
+      if (feedbackMatch && feedbackMatch[1]) {
+        errorDetail = feedbackMatch[1].replace(/<[^>]+>/g, '').trim();
       }
+      throw new Error(`Blueprint login failed: ${errorDetail}`);
     }
 
+    this.isLoggedIn = true;
     return true;
   }
 
@@ -148,7 +181,7 @@ export class BlueprintCollector {
    * @param monthString e.g. "2026-09" or "202609"
    */
   public async fetchAttendance(monthString: string = '2026-09'): Promise<BlueprintAttendanceSummary> {
-    await this.login();
+    await this.ensureLoggedIn();
 
     const cleanMonth = monthString.replace(/-/g, '').slice(0, 6); // e.g. "202609"
     const wrkDt = `${cleanMonth}01`;
@@ -162,7 +195,7 @@ export class BlueprintCollector {
     };
 
     const apiUrl = `${this.baseUrl}/api/checkInOut/searchDailyAttendanceCheckInOut`;
-    const res = await this.fetchWithCookies(apiUrl, {
+    let res = await this.fetchWithCookies(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -172,6 +205,20 @@ export class BlueprintCollector {
       },
       body: JSON.stringify(apiPayload),
     });
+
+    if (res.status === 401) {
+      await this.login();
+      res = await this.fetchWithCookies(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json, text/plain, */*',
+          'Origin': this.baseUrl,
+          'Referer': `${this.baseUrl}/UI_TAT_028`,
+        },
+        body: JSON.stringify(apiPayload),
+      });
+    }
 
     if (!res.ok) {
       throw new Error(`Failed to fetch Blueprint attendance API. Status: ${res.status}`);
@@ -275,7 +322,7 @@ export class BlueprintCollector {
     filterRole: 'requester' | 'assignee' | 'both' = 'requester',
     dateType: 'registered' | 'due' | 'finished' = 'registered'
   ): Promise<BlueprintTaskSummary> {
-    await this.login();
+    await this.ensureLoggedIn();
 
     // 1. Root project is ALLEGRO (PJT20190724000000001)
     const rootProjectId = 'PJT20190724000000001';
@@ -574,7 +621,7 @@ export class BlueprintCollector {
    */
   public async fetchMembers(): Promise<Array<{ id: string; name: string; role: string }>> {
     try {
-      await this.login();
+      await this.ensureLoggedIn();
       const catRes = await this.fetchWithCookies(`${this.baseUrl}/api/uiPim001/searchCategory`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -612,7 +659,7 @@ export class BlueprintCollector {
    * Fetch Vacation & Leave Discipline profile from UI_TAT_011
    */
   public async fetchVacationProfile(year?: string, targetMember?: string): Promise<BlueprintVacationSummary> {
-    await this.login();
+    await this.ensureLoggedIn();
     const vctYr = year || '2026';
     const member = targetMember || this.credentials.username;
 
@@ -725,7 +772,7 @@ export class BlueprintCollector {
    * Fetch Managed Teams Tree from UI_TAT_029 (Daily Team Status Face)
    */
   public async fetchOrgTree(): Promise<BlueprintOrgTeam[]> {
-    await this.login();
+    await this.ensureLoggedIn();
     try {
       const res = await this.fetchWithCookies(`${this.baseUrl}/api/dailyTeamStatusFace/searchOrgTree?coCd=V100`);
       if (!res.ok) return [];
@@ -753,7 +800,7 @@ export class BlueprintCollector {
     toDate?: string,
     employeeName?: string
   ): Promise<BlueprintTeamAttendanceSummary> {
-    await this.login();
+    await this.ensureLoggedIn();
 
     // Convert date string YYYY-MM-DD -> MM/DD/YYYY required by Blueprint API
     const formatDate = (d?: string) => {
@@ -788,7 +835,11 @@ export class BlueprintCollector {
 
     const url = `${this.baseUrl}/api/dailyTeamStatusFace/searchAttendanceTime?siteCd=V100&orzId=${targetOrzId}&fmDt=${fmDt}&toDt=${toDt}&empeName=${empeName}&noneTeam=0&start=0&size=100`;
 
-    const res = await this.fetchWithCookies(url);
+    let res = await this.fetchWithCookies(url);
+    if (res.status === 401) {
+      await this.login();
+      res = await this.fetchWithCookies(url);
+    }
     if (!res.ok) {
       throw new Error(`Failed to fetch Team Attendance from UI_TAT_029. Status: ${res.status}`);
     }

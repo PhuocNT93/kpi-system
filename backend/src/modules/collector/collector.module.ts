@@ -29,8 +29,8 @@ export function createCollectorModule(pool: Pool): CollectorModule {
             source_type: 'BLUEPRINT',
             auth_config: {
               baseUrl: 'https://blueprint.cyberlogitec.com.vn',
-              username: 'khoadang',
-              password: 'Khoa@69',
+              username: '',
+              password: '',
             },
           });
           console.log('[CollectorModule] Seeded initial Blueprint data source');
