@@ -32,6 +32,7 @@ import { KpiPage } from './features/kpi/pages/KpiPage';
 import { ImportUploadPage } from './features/imports/pages/ImportUploadPage';
 import { ImportHistoryPage } from './features/imports/pages/ImportHistoryPage';
 import { ImportDetailPage } from './features/imports/pages/ImportDetailPage';
+import { CollectorPage } from './features/collector/pages/CollectorPage';
 // Lazy-loaded: pulls in react-markdown/remark-gfm, kept out of the main bundle
 const UserGuidePage = lazy(() =>
   import('./features/help/pages/UserGuidePage').then((m) => ({ default: m.UserGuidePage }))
@@ -52,6 +53,7 @@ const ADMIN_PAGE_TITLES: Record<string, string> = {
   i18n: 'Translation Settings',
   kpis: 'KPI Management',
   imports: 'CSV Imports',
+  collectors: 'Auto Data Collection',
   cycles: 'Evaluation Cycles',
   'my-evaluations': 'My Evaluations',
   'team-evaluations': 'Team Evaluations',
@@ -116,6 +118,14 @@ function ProtectedLayout() {
   );
 }
 
+function SmartHomeRedirect() {
+  const { user, isAuthenticated } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.role === 'EMPLOYEE') return <Navigate to="/admin/my-evaluations" replace />;
+  if (user?.role === 'MANAGER') return <Navigate to="/admin/team-evaluations" replace />;
+  return <Navigate to="/admin/iam" replace />;
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -129,6 +139,7 @@ export default function App() {
                 <ProtectedLayout />
               </ProtectedRoute>
             }>
+              <Route path="/admin" element={<SmartHomeRedirect />} />
               <Route path="/admin/iam" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
                   <IamPage />
@@ -183,6 +194,11 @@ export default function App() {
               <Route path="/admin/imports/:id" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
                   <ImportDetailPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/collectors" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER']}>
+                  <CollectorPage />
                 </ProtectedRoute>
               } />
               <Route path="/admin/cycles" element={
@@ -263,7 +279,7 @@ export default function App() {
               } />
             </Route>
 
-            <Route path="/" element={<Navigate to="/admin/iam" replace />} />
+            <Route path="/" element={<SmartHomeRedirect />} />
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </BrowserRouter>

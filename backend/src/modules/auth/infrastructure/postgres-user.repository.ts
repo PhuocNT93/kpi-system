@@ -51,14 +51,19 @@ export class PostgresUserRepository implements UserRepository {
     return this.mapToUser(result.rows[0]!);
   }
 
-  async findByEmail(email: string): Promise<User | null> {
-    const normalizedEmail = email.toLowerCase().trim();
+  async findByEmail(identifier: string): Promise<User | null> {
+    const normalized = identifier.toLowerCase().trim();
     const query = `
-      SELECT id, email, name, password_hash, employee_id, google_subject, created_at, updated_at
-      FROM app_user
-      WHERE LOWER(email) = $1
+      SELECT u.id, u.email, u.name, u.password_hash, u.employee_id, u.google_subject, u.created_at, u.updated_at
+      FROM app_user u
+      LEFT JOIN employee e ON u.employee_id = e.employee_id
+      WHERE LOWER(u.email) = $1
+         OR LOWER(u.email) = LOWER($1 || '@kpi.com')
+         OR LOWER(u.name) = $1
+         OR LOWER(COALESCE(e.employee_code, '')) = $1
+      LIMIT 1
     `;
-    const result = await this.pool.query<UserRow>(query, [normalizedEmail]);
+    const result = await this.pool.query<UserRow>(query, [normalized]);
     if (result.rows.length === 0) {
       return null;
     }

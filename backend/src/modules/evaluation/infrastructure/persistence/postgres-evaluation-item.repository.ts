@@ -31,6 +31,12 @@ export class PostgresEvaluationItemRepository implements IEvaluationItemReposito
       override_by: row.override_by as string | undefined,
       override_at: row.override_at ? new Date(row.override_at as string) : undefined,
       comment: row.comment as string,
+      system_note: row.system_note as string | undefined,
+      system_suggested_level: row.system_suggested_level == null ? undefined : Number(row.system_suggested_level),
+      system_suggested_score: row.system_suggested_score == null ? undefined : Number(row.system_suggested_score),
+      system_source: row.system_source as string | undefined,
+      measurement_key: row.measurement_key as string | undefined,
+      measurement_unit: row.measurement_unit as string | undefined,
       reviewer_id: row.reviewer_id as string,
       review_date: row.review_date ? new Date(row.review_date as string) : undefined,
       created_at: new Date(row.created_at as string),
@@ -44,10 +50,14 @@ export class PostgresEvaluationItemRepository implements IEvaluationItemReposito
   async findByEvaluationId(evaluationId: string, client?: PoolClient): Promise<EvaluationItem[]> {
     const runner = client || this.pool;
     const res = await runner.query(
-      `SELECT ei.*, latest_measurement.measurement_value
+      `SELECT ei.*, 
+              latest_measurement.measurement_value,
+              latest_measurement.measurement_key,
+              latest_measurement.measurement_unit,
+              latest_measurement.source_label as measurement_source_label
        FROM evaluation_item ei
        LEFT JOIN LATERAL (
-         SELECT m.measurement_value
+         SELECT m.measurement_value, m.measurement_key, m.measurement_unit, m.source_label
          FROM measurement m
          WHERE m.evaluation_item_id = ei.evaluation_item_id
          ORDER BY m.recorded_at DESC

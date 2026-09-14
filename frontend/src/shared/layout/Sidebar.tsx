@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   GitFork,
+  Activity,
   BookOpen
 } from 'lucide-react';
 import { COLORS } from '@/lib/theme';
@@ -112,6 +113,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           id: 'imports',
           label: 'Import Center',
           icon: <FileSpreadsheet size={18} />
+        },
+        {
+          id: 'collectors',
+          label: 'Auto Collect',
+          icon: <Activity size={18} />
         },
         {
           id: 'i18n',

@@ -9,7 +9,7 @@ import { CriterionCard } from '../components/CriterionCard';
 import { SubmitConfirmModal } from '../components/SubmitConfirmModal';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
-import { AlertCircle, ArrowLeft, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, ArrowLeft, RefreshCw, CheckCircle2, Sparkles } from 'lucide-react';
 import { useAuth } from '@/shared/auth/auth-context';
 import { OverrideScoreModal } from '../components/OverrideScoreModal';
 import { getLocalizedText } from '../domain/evaluation-models';
@@ -286,9 +286,43 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
   const completedCount = activeCriteria.length - missingCriteria.length;
 
   const formatCriterionName = (value: unknown): string => {
-    if (typeof value === 'string') return value;
-    if (value && typeof value === 'object') return JSON.stringify(value);
-    return 'Tiêu chí';
+    return getLocalizedText(value as any);
+  };
+
+  const totalSystemScore = useMemo(() => {
+    if (!detail?.items) return null;
+    const systemItems = detail.items.filter(
+      (i) => i.system_suggested_score !== undefined && i.system_suggested_score !== null
+    );
+    if (systemItems.length === 0) return null;
+    const score = systemItems.reduce((sum, i) => {
+      const w = Number(i.weight_snapshot) <= 1 ? Number(i.weight_snapshot) : Number(i.weight_snapshot) / 100;
+      return sum + (Number(i.system_suggested_score) * w);
+    }, 0);
+    return Math.round(score * 100) / 100;
+  }, [detail?.items]);
+
+  const handleApplyAllSystemSuggestions = () => {
+    if (!detail?.items) return;
+    const updated: Record<string, DraftItemState> = { ...draftItems };
+    let appliedCount = 0;
+
+    detail.items.forEach((item) => {
+      if (item.system_suggested_level) {
+        appliedCount++;
+        const currentDraft = updated[item.evaluation_item_id] || { resolved_level: null, comment: '', isDirty: false };
+        const sampleComment = `Tôi xác nhận và đồng ý với dữ liệu đo lường từ ${item.system_source || 'hệ thống Blueprint'}: Đề xuất mức ${item.system_suggested_level} (${item.system_suggested_score}/10 điểm).`;
+        updated[item.evaluation_item_id] = {
+          ...currentDraft,
+          resolved_level: item.system_suggested_level,
+          comment: currentDraft.comment && currentDraft.comment.trim() !== '' ? currentDraft.comment : sampleComment,
+          isDirty: true,
+        };
+      }
+    });
+
+    setDraftItems(updated);
+    showToast('success', `Đã áp dụng nhanh gợi ý hệ thống cho ${appliedCount} tiêu chí! Hãy xem lại và nhấn 'Lưu nháp' hoặc 'Nộp tự đánh giá'.`);
   };
 
   // Open submit confirmation modal
@@ -495,6 +529,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
         selfScore={detail.self_score}
         managerScore={detail.manager_score}
         finalScore={detail.final_score}
+        systemScore={totalSystemScore}
       />
 
       {isManagerMode && isEditable && !detail.is_locked && (
@@ -619,6 +654,75 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
             </span>
           )}
         </div>
+
+        {/* Smart Auto-Fill Banner for Self Evaluation */}
+        {mode === 'self' && isEditable && detail.items.some((i) => i.system_suggested_level) && (
+          <div
+            style={{
+              padding: '16px 20px',
+              borderRadius: RADII.xl,
+              backgroundColor: '#f5f3ff',
+              border: '1.5px solid #ddd6fe',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '12px',
+              boxShadow: '0 1px 3px rgba(99, 102, 241, 0.08)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '50%',
+                  backgroundColor: '#6366f1',
+                  color: '#ffffff',
+                  flexShrink: 0,
+                }}
+              >
+                <Sparkles size={18} />
+              </span>
+              <div>
+                <div style={{ fontSize: TYPOGRAPHY.fontSize.sm, fontWeight: 700, color: '#312e81' }}>
+                  Hệ thống đã tự động đối soát {detail.items.filter((i) => i.system_suggested_level).length}/{detail.items.length} tiêu chí từ Blueprint
+                </div>
+                <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#4338ca', marginTop: '3px' }}>
+                  Bạn có thể áp dụng toàn bộ mức đánh giá do hệ thống đề xuất chỉ với 1 cú nhấp chuột hoặc tự tùy chỉnh từng tiêu chí.
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleApplyAllSystemSuggestions}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '9px 18px',
+                borderRadius: RADII.lg,
+                backgroundColor: '#6366f1',
+                color: '#ffffff',
+                border: 'none',
+                fontSize: TYPOGRAPHY.fontSize.sm,
+                fontWeight: 600,
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(99, 102, 241, 0.3)',
+                transition: 'background-color 0.15s ease',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#4f46e5')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#6366f1')}
+            >
+              <Sparkles size={15} />
+              ⚡ Nạp nhanh toàn bộ gợi ý hệ thống
+            </button>
+          </div>
+        )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {detail.items.map((item, index) => {

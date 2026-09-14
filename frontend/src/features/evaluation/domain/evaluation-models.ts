@@ -53,6 +53,13 @@ export interface EvaluationItem {
   manual_override_score?: number | null;
   override_reason?: string | null;
   comment?: string;
+  system_note?: string | null;
+  system_suggested_level?: number | null;
+  system_suggested_score?: number | null;
+  system_source?: string | null;
+  measurement_value?: number;
+  measurement_key?: string;
+  measurement_unit?: string;
 }
 
 export interface ScoringCriterionResult {
