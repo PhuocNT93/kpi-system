@@ -23,13 +23,15 @@ export class BlueprintCollector {
   }
 
   private storeCookies(response: Response) {
-    const rawCookies = (response.headers as any).getSetCookie
-      ? (response.headers as any).getSetCookie()
-      : [response.headers.get('set-cookie')].filter(Boolean);
+    const headersWithCookies = response.headers as unknown as { getSetCookie?: () => string[] };
+    const rawCookies = typeof headersWithCookies.getSetCookie === 'function'
+      ? headersWithCookies.getSetCookie()
+      : ([response.headers.get('set-cookie')].filter(Boolean) as string[]);
 
     for (const c of rawCookies) {
       if (!c) continue;
-      const [nameVal] = c.split(';');
+      const nameVal = c.split(';')[0];
+      if (!nameVal) continue;
       const idx = nameVal.indexOf('=');
       if (idx > -1) {
         const name = nameVal.substring(0, idx).trim();
@@ -279,7 +281,12 @@ export class BlueprintCollector {
     const rootProjectId = 'PJT20190724000000001';
 
     // 2. Fetch categories under project
-    let categories: any[] = [];
+    interface BlueprintCategory {
+      pjtId: string;
+      pjtNm?: string;
+      [key: string]: unknown;
+    }
+    let categories: BlueprintCategory[] = [];
     try {
       const catRes = await this.fetchWithCookies(`${this.baseUrl}/api/uiPim001/searchCategory`, {
         method: 'POST',
@@ -301,23 +308,23 @@ export class BlueprintCollector {
 
       if (catRes.ok) {
         const catData = await catRes.json();
-        categories = catData.requirementCategory || [];
+        categories = (catData.requirementCategory || []) as BlueprintCategory[];
       }
     } catch {
       // Fallback
     }
 
     // 3. Find target category: Allegro NX (PJT20230208000000001) or custom filter
-    let targetCategory = categories.find((c: any) => c.pjtId === 'PJT20230208000000001'); // Allegro NX
+    let targetCategory = categories.find((c) => c.pjtId === 'PJT20230208000000001'); // Allegro NX
     if (projectFilter) {
-      const match = categories.find((c: any) =>
+      const match = categories.find((c) =>
         c.pjtNm?.toLowerCase().includes(projectFilter.toLowerCase()) ||
         c.pjtId === projectFilter
       );
       if (match) targetCategory = match;
     }
     if (!targetCategory) {
-      targetCategory = categories.find((c: any) => c.pjtNm?.toLowerCase().includes('nx')) || categories[0] || { pjtId: 'PJT20190724000000001', pjtNm: 'Allegro NX' };
+      targetCategory = categories.find((c) => c.pjtNm?.toLowerCase().includes('nx')) || categories[0] || { pjtId: 'PJT20190724000000001', pjtNm: 'Allegro NX' };
     }
 
     let member = targetMember || this.credentials.username;
@@ -331,7 +338,7 @@ export class BlueprintCollector {
 
     // 4. Query searchRequirement with advance search
     const reqStatuses = ['REQ_STS_CDPRC', 'REQ_STS_CDOPN', 'REQ_STS_CDFIN', 'REQ_STS_CDPD', 'REQ_STS_CDCC'];
-    const basePayload: any = {
+    const basePayload: Record<string, unknown> = {
       pjtId: targetCategory.pjtId,
       seqNo: '',
       reqNm: '',
@@ -362,7 +369,25 @@ export class BlueprintCollector {
       basePayload.regstEndDt = cleanToDate;
     }
 
-    let rawTasks: any[] = [];
+    interface BlueprintRawTask {
+      reqId: string;
+      seqNo?: string;
+      reqNm?: string;
+      jbTpNm?: string;
+      createDate?: string;
+      plnDueDt?: string;
+      actFinDt?: string;
+      currentPhsDueDt?: string;
+      reqStsCd?: string;
+      reqStsNm?: string;
+      delayProc?: string;
+      createUserId?: string;
+      createUser?: string;
+      assignee?: string;
+      assiUsrId?: string;
+      [key: string]: unknown;
+    }
+    const rawTasks: BlueprintRawTask[] = [];
 
     // A. Query as requester (creUsrId) - default per user request
     if (filterRole === 'requester' || filterRole === 'both') {
@@ -374,7 +399,7 @@ export class BlueprintCollector {
 
       if (reqRes.ok) {
         const reqData = await reqRes.json();
-        if (Array.isArray(reqData.lstReq)) rawTasks.push(...reqData.lstReq);
+        if (Array.isArray(reqData.lstReq)) rawTasks.push(...(reqData.lstReq as BlueprintRawTask[]));
       }
     }
 
@@ -389,8 +414,8 @@ export class BlueprintCollector {
       if (picRes.ok) {
         const picData = await picRes.json();
         if (Array.isArray(picData.lstReq)) {
-          const existingIds = new Set(rawTasks.map((t: any) => t.reqId));
-          for (const t of picData.lstReq) {
+          const existingIds = new Set(rawTasks.map((t) => t.reqId));
+          for (const t of picData.lstReq as BlueprintRawTask[]) {
             if (!existingIds.has(t.reqId)) {
               rawTasks.push(t);
               existingIds.add(t.reqId);
@@ -405,7 +430,7 @@ export class BlueprintCollector {
     const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
     const normMember = normalize(memberLower);
 
-    const filteredRawTasks = rawTasks.filter((t: any) => {
+    const filteredRawTasks = rawTasks.filter((t) => {
       const cId = (t.createUserId || '').toLowerCase();
       const cNm = (t.createUser || '').toLowerCase();
       const aNm = (t.assignee || '').toLowerCase();
@@ -460,7 +485,7 @@ export class BlueprintCollector {
     let onTimeTasks = 0;
     let delayedTasks = 0;
 
-    const formattedTasks = filteredRawTasks.map((t: any) => {
+    const formattedTasks = filteredRawTasks.map((t) => {
       const plnDue = t.plnDueDt ? String(t.plnDueDt).substring(0, 8) : null;
       const actFin = t.currentPhsDueDt ? String(t.currentPhsDueDt).substring(0, 8) : t.actFinDt ? String(t.actFinDt).substring(0, 8) : null;
       const regDt = t.createDate ? String(t.createDate).substring(0, 8) : null;
@@ -478,18 +503,18 @@ export class BlueprintCollector {
       }
 
       return {
-        id: t.reqId || t.id,
+        id: String(t.reqId || t.id || ''),
         seqNo: t.seqNo ? `#${t.seqNo}` : undefined,
-        title: t.reqTitNm || t.reqNm || 'Untitled Task',
-        category: t.cateNm || targetCategory.pjtNm || 'Allegro NX',
+        title: String(t.reqTitNm || t.reqNm || 'Untitled Task'),
+        category: String(t.cateNm || targetCategory.pjtNm || 'Allegro NX'),
         registeredDate: regDt ? `${regDt.slice(0, 4)}-${regDt.slice(4, 6)}-${regDt.slice(6, 8)}` : null,
         plannedDue: plnDue ? `${plnDue.slice(0, 4)}-${plnDue.slice(4, 6)}-${plnDue.slice(6, 8)}` : null,
         actualFinish: actFin ? `${actFin.slice(0, 4)}-${actFin.slice(4, 6)}-${actFin.slice(6, 8)}` : null,
-        status: t.reqStsNm || 'In Progress',
+        status: String(t.reqStsNm || 'In Progress'),
         isOnTime,
         delayHours: isOnTime ? 0 : 24,
-        assignee: t.assignee || '—',
-        requester: t.createUser || t.createUserId || this.credentials.username,
+        assignee: String(t.assignee || '—'),
+        requester: String(t.createUser || t.createUserId || this.credentials.username),
       };
     });
 
@@ -571,7 +596,7 @@ export class BlueprintCollector {
       if (!catRes.ok) return [];
       const catData = await catRes.json();
       if (Array.isArray(catData.lstUsr)) {
-        return catData.lstUsr.map((u: any) => ({
+        return catData.lstUsr.map((u: { usrId: string; usrNm: string }) => ({
           id: u.usrId,
           name: u.usrNm,
           role: 'Allegro NX Member',
@@ -608,8 +633,8 @@ export class BlueprintCollector {
         const item = vacData?.listVacation?.[0];
         if (item) {
           if (Array.isArray(item.vacationDetail)) {
-            item.vacationDetail.forEach((d: any) => {
-              const days = parseFloat(d.totalLeaveDt) || 0;
+            item.vacationDetail.forEach((d: { totalLeaveDt?: string; leaveTpCd?: string }) => {
+              const days = parseFloat(d.totalLeaveDt || '0') || 0;
               const tp = d.leaveTpCd || 'Other';
               vacationDetails.push({ leaveType: tp, days });
               if (tp.toLowerCase().includes('annual')) {
@@ -639,7 +664,7 @@ export class BlueprintCollector {
       if (dedRes.ok) {
         const dedData = await dedRes.json();
         if (Array.isArray(dedData?.lstBrdyCmt)) {
-          dedData.lstBrdyCmt.forEach((c: any) => {
+          dedData.lstBrdyCmt.forEach((c: { cmtCtnt?: string; strCmtDt?: string; cmtDt?: string; lveTypeNm?: string; deductDy?: string; adjDays?: string }) => {
             const cmt = c.cmtCtnt || '';
             if (cmt.toLowerCase().includes('late in') || cmt.toLowerCase().includes('early out')) {
               lateInEarlyOutCount++;
@@ -706,7 +731,7 @@ export class BlueprintCollector {
       if (!res.ok) return [];
       const data = await res.json();
       if (Array.isArray(data)) {
-        return data.map((t: any) => ({
+        return data.map((t: { orzId: string; orzNm: string; teamLvl?: number }) => ({
           orzId: t.orzId,
           orzNm: t.orzNm,
           teamLvl: t.teamLvl,

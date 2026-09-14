@@ -286,7 +286,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
   const completedCount = activeCriteria.length - missingCriteria.length;
 
   const formatCriterionName = (value: unknown): string => {
-    return getLocalizedText(value as any);
+    return getLocalizedText(value as Record<string, string> | string | undefined);
   };
 
   const totalSystemScore = useMemo(() => {

@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { CollectorService } from '../application/collector.service.js';
 import { CollectorSchedulerService } from '../application/collector-scheduler.service.js';
-import { sendSuccess, sendCreated, sendDeleted, sendFailure } from '../../../api/http-response.js';
+import { sendSuccess, sendDeleted, sendFailure } from '../../../api/http-response.js';
 
 export class CollectorController {
   constructor(
@@ -15,8 +15,8 @@ export class CollectorController {
     try {
       const sources = await this.collectorService.listDataSources();
       sendSuccess(res, 200, 'Data sources retrieved successfully', sources);
-    } catch (err: any) {
-      sendFailure(res, 500, err.message, 'INTERNAL_ERROR');
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
   };
 
@@ -33,8 +33,8 @@ export class CollectorController {
         auth_config: auth_config || {},
       });
       sendSuccess(res, 201, 'Data source created successfully', source);
-    } catch (err: any) {
-      sendFailure(res, 500, err.message, 'INTERNAL_ERROR');
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
   };
 
@@ -43,8 +43,8 @@ export class CollectorController {
       const id = req.params.id as string;
       const updated = await this.collectorService.updateDataSource(id, req.body);
       sendSuccess(res, 200, 'Data source updated successfully', updated);
-    } catch (err: any) {
-      sendFailure(res, 500, err.message, 'INTERNAL_ERROR');
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
   };
 
@@ -53,8 +53,8 @@ export class CollectorController {
       const id = req.params.id as string;
       await this.collectorService.deleteDataSource(id);
       sendDeleted(res, 'Data source deleted successfully');
-    } catch (err: any) {
-      sendFailure(res, 500, err.message, 'INTERNAL_ERROR');
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
   };
 
@@ -64,8 +64,8 @@ export class CollectorController {
       const overrideCreds = username && password ? { username, password, baseUrl } : undefined;
       const result = await this.collectorService.testConnection(source_id, overrideCreds);
       sendSuccess(res, 200, result.message, result);
-    } catch (err: any) {
-      sendFailure(res, 500, err.message, 'INTERNAL_ERROR');
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
   };
 
@@ -83,14 +83,15 @@ export class CollectorController {
         month || '2026-09'
       );
       sendSuccess(res, 200, 'Blueprint attendance retrieved successfully', summary);
-    } catch (err: any) {
-      sendFailure(res, 500, err.message, 'INTERNAL_ERROR');
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
   };
 
   previewBlueprintTeamAttendance = async (req: Request, res: Response): Promise<void> => {
     try {
-      let { username, password, baseUrl, teamId, fromDate, toDate, employeeName } = req.body;
+      const { teamId, fromDate, toDate, employeeName } = req.body;
+      let { username, password, baseUrl } = req.body;
       if (!username || !password) {
         const saved = await this.collectorService.getBlueprintConfig();
         username = username || saved?.username || 'kyluong';
@@ -109,8 +110,8 @@ export class CollectorController {
         employeeName
       );
       sendSuccess(res, 200, 'Blueprint team attendance retrieved successfully', summary);
-    } catch (err: any) {
-      sendFailure(res, 500, err.message, 'INTERNAL_ERROR');
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
   };
 
@@ -118,8 +119,8 @@ export class CollectorController {
     try {
       const result = await this.collectorService.syncBlueprintTeamAttendance(req.body);
       sendSuccess(res, 200, 'Team attendance synchronized to KPI #18 successfully', result);
-    } catch (err: any) {
-      sendFailure(res, 500, err.message, 'INTERNAL_ERROR');
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
   };
 
@@ -127,14 +128,15 @@ export class CollectorController {
     try {
       const teams = await this.collectorService.getBlueprintTeams();
       sendSuccess(res, 200, 'Danh sách Team quản lý tải thành công', teams);
-    } catch (err: any) {
-      sendFailure(res, 500, err.message, 'INTERNAL_ERROR');
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
   };
 
   previewBlueprintTasks = async (req: Request, res: Response): Promise<void> => {
     try {
-      let { username, password, baseUrl, projectFilter, member, fromDate, toDate, filterRole, dateType } = req.body;
+      const { projectFilter, member, fromDate, toDate, filterRole, dateType } = req.body;
+      let { username, password, baseUrl } = req.body;
       if (!username || !password) {
         const saved = await this.collectorService.getBlueprintConfig();
         username = username || saved?.username || 'khoadang';
@@ -155,8 +157,8 @@ export class CollectorController {
         dateType
       );
       sendSuccess(res, 200, 'Blueprint tasks retrieved successfully', tasksSummary);
-    } catch (err: any) {
-      sendFailure(res, 500, err.message, 'INTERNAL_ERROR');
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
   };
 
@@ -164,8 +166,8 @@ export class CollectorController {
     try {
       const members = await this.collectorService.getBlueprintMembers();
       sendSuccess(res, 200, 'Danh sách thành viên Blueprint tải thành công', members);
-    } catch (err: any) {
-      sendFailure(res, 500, err.message, 'INTERNAL_ERROR');
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
   };
 
@@ -173,8 +175,8 @@ export class CollectorController {
     try {
       const result = await this.collectorService.syncBlueprintAttendance(req.body);
       sendSuccess(res, 200, 'Attendance synchronized to KPI #18 successfully', result);
-    } catch (err: any) {
-      sendFailure(res, 500, err.message, 'INTERNAL_ERROR');
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
   };
 
@@ -182,14 +184,15 @@ export class CollectorController {
     try {
       const result = await this.collectorService.syncBlueprintTasks(req.body);
       sendSuccess(res, 200, 'Tasks synchronized to KPI #1 successfully', result);
-    } catch (err: any) {
-      sendFailure(res, 500, err.message, 'INTERNAL_ERROR');
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
   };
 
   previewBlueprintVacation = async (req: Request, res: Response): Promise<void> => {
     try {
-      let { username, password, baseUrl, year, member } = req.body;
+      const { year, member } = req.body;
+      let { username, password, baseUrl } = req.body;
       if (!username || !password) {
         const saved = await this.collectorService.getBlueprintConfig();
         username = username || saved?.username || 'khoadang';
@@ -206,8 +209,8 @@ export class CollectorController {
         member
       );
       sendSuccess(res, 200, 'Blueprint vacation & discipline retrieved successfully', summary);
-    } catch (err: any) {
-      sendFailure(res, 500, err.message, 'INTERNAL_ERROR');
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
   };
 
@@ -215,8 +218,8 @@ export class CollectorController {
     try {
       const result = await this.collectorService.syncBlueprintVacation(req.body);
       sendSuccess(res, 200, 'Vacation & discipline synchronized to KPI successfully', result);
-    } catch (err: any) {
-      sendFailure(res, 500, err.message, 'INTERNAL_ERROR');
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
   };
 
@@ -224,8 +227,8 @@ export class CollectorController {
     try {
       const result = await this.collectorService.syncAllBlueprint(req.body);
       sendSuccess(res, 200, 'Tất cả KPI (Điểm danh & Task) đã được đồng bộ thành công', result);
-    } catch (err: any) {
-      sendFailure(res, 500, err.message, 'INTERNAL_ERROR');
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
   };
 
@@ -233,8 +236,8 @@ export class CollectorController {
     try {
       const config = await this.collectorService.getBlueprintConfig();
       sendSuccess(res, 200, 'Cấu hình Blueprint đã tải thành công', config);
-    } catch (err: any) {
-      sendFailure(res, 500, err.message, 'INTERNAL_ERROR');
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
   };
 
@@ -242,8 +245,8 @@ export class CollectorController {
     try {
       const config = await this.collectorService.saveBlueprintConfig(req.body);
       sendSuccess(res, 200, 'Cấu hình Blueprint đã lưu thành công', config);
-    } catch (err: any) {
-      sendFailure(res, 500, err.message, 'INTERNAL_ERROR');
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
   };
 
@@ -253,8 +256,8 @@ export class CollectorController {
     try {
       const jobs = await this.collectorService.listJobs();
       sendSuccess(res, 200, 'Collector jobs retrieved successfully', jobs);
-    } catch (err: any) {
-      sendFailure(res, 500, err.message, 'INTERNAL_ERROR');
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
   };
 
@@ -265,8 +268,8 @@ export class CollectorController {
         await this.schedulerService.reloadJobs();
       }
       sendSuccess(res, 201, 'Collector job created successfully', job);
-    } catch (err: any) {
-      sendFailure(res, 500, err.message, 'INTERNAL_ERROR');
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
   };
 
@@ -278,8 +281,8 @@ export class CollectorController {
         await this.schedulerService.reloadJobs();
       }
       sendSuccess(res, 200, 'Collector job updated successfully', updated);
-    } catch (err: any) {
-      sendFailure(res, 500, err.message, 'INTERNAL_ERROR');
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
   };
 
@@ -291,8 +294,8 @@ export class CollectorController {
         await this.schedulerService.reloadJobs();
       }
       sendDeleted(res, 'Collector job deleted successfully');
-    } catch (err: any) {
-      sendFailure(res, 500, err.message, 'INTERNAL_ERROR');
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
   };
 
@@ -301,8 +304,8 @@ export class CollectorController {
       const id = req.params.id as string;
       const result = await this.collectorService.runJob(id);
       sendSuccess(res, 200, 'Job executed successfully', result);
-    } catch (err: any) {
-      sendFailure(res, 500, err.message, 'INTERNAL_ERROR');
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
   };
 
@@ -313,8 +316,8 @@ export class CollectorController {
       const limit = parseInt(req.query.limit as string, 10) || 30;
       const logs = await this.collectorService.listRunLogs(limit);
       sendSuccess(res, 200, 'Run logs retrieved successfully', logs);
-    } catch (err: any) {
-      sendFailure(res, 500, err.message, 'INTERNAL_ERROR');
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
   };
 }

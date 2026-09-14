@@ -4,7 +4,7 @@ export interface CollectorDataSource {
   id: string;
   name: string;
   source_type: CollectorSourceType;
-  auth_config: Record<string, any>;
+  auth_config: Record<string, unknown>;
   is_active: boolean;
   created_at: Date;
   updated_at: Date;
@@ -17,7 +17,7 @@ export interface CollectorJob {
   evaluation_cycle_id?: string | null;
   target_criterion_code: string;
   cron_expression?: string | null;
-  params: Record<string, any>;
+  params: Record<string, unknown>;
   is_active: boolean;
   last_run_at?: Date | null;
   last_status?: string | null;
@@ -32,7 +32,7 @@ export interface CollectorRunLog {
   finished_at?: Date | null;
   status: 'RUNNING' | 'SUCCESS' | 'FAILED';
   records_count: number;
-  summary?: Record<string, any> | null;
+  summary?: Record<string, unknown> | null;
   error_message?: string | null;
 }
 
