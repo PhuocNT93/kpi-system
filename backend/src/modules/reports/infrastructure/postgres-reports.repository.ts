@@ -1,4 +1,4 @@
-import { Pool, PoolClient } from 'pg';
+import { Pool } from 'pg';
 import { IReportsRepository, EmployeeEvaluationScore, EmployeeKpiScore, TeamEvaluationAggregate, TeamKpiAggregate, OrganizationAggregate } from '../domain/reports.types.js';
 
 export class PostgresReportsRepository implements IReportsRepository {
@@ -104,7 +104,7 @@ export class PostgresReportsRepository implements IReportsRepository {
     await this.pool.query(query, params);
   }
 
-  async upsertOrganizationAggregate(agg: Partial<OrganizationAggregate>): Promise<void> {
+  async upsertOrganizationAggregate(_agg: Partial<OrganizationAggregate>): Promise<void> {
     // simplified for brevity. we might not need all logic unless specified
   }
 

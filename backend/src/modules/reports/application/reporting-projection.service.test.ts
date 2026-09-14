@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 import { ReportingProjectionService } from './reporting-projection.service.js';
 import { IReportsRepository } from '../domain/reports.types.js';
 import { Pool } from 'pg';
@@ -7,10 +7,15 @@ import { EvaluationStatus } from '../../evaluation/domain/evaluation.types.js';
 
 describe('ReportingProjectionService', () => {
   let service: ReportingProjectionService;
-  let poolMock: any;
-  let reportsRepoMock: any;
-  let evaluationRepoMock: any;
-  let evaluationItemRepoMock: any;
+  let poolMock: { query: Mock };
+  let reportsRepoMock: {
+    upsertEmployeeEvaluationScore: Mock;
+    upsertEmployeeKpiScore: Mock;
+    upsertTeamEvaluationAggregate: Mock;
+    upsertTeamKpiAggregate: Mock;
+  };
+  let evaluationRepoMock: { findById: Mock };
+  let evaluationItemRepoMock: { findByEvaluationId: Mock };
 
   beforeEach(() => {
     poolMock = {

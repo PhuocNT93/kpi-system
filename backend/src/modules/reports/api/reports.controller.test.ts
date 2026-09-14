@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import { ReportsController } from './reports.controller.js';
@@ -8,7 +8,11 @@ import { AppError } from '../../../api/app-error.js';
 
 describe('ReportsController API', () => {
   let app: express.Express;
-  let queryServiceMock: any;
+  let queryServiceMock: {
+    getEmployeeReport: Mock;
+    getTeamReport: Mock;
+    getOrganizationReport: Mock;
+  };
 
   beforeEach(() => {
     queryServiceMock = {
@@ -24,7 +28,7 @@ describe('ReportsController API', () => {
     app.use(express.json());
     app.use('/reports', router);
     // basic error handler to avoid console spew
-    app.use((err: any, req: any, res: any, next: any) => {
+    app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
       if (err instanceof AppError) {
         res.status(err.status || 400).json({ success: false, message: err.message });
       } else {

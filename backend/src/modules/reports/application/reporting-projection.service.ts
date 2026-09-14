@@ -2,7 +2,6 @@ import { Pool } from 'pg';
 import { IReportsRepository } from '../domain/reports.types.js';
 import { appEventEmitter, AppEvent } from '../../../shared/events/index.js';
 import { IEvaluationRepository, IEvaluationItemRepository } from '../../evaluation/domain/repositories.interface.js';
-import { EvaluationStatus } from '../../evaluation/domain/evaluation.types.js';
 
 export class ReportingProjectionService {
   constructor(
