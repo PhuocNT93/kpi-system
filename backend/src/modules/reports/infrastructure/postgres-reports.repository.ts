@@ -138,8 +138,14 @@ export class PostgresReportsRepository implements IReportsRepository {
     };
   }
 
+  async getTeamKpiReport(teamId: string, cycleId: string): Promise<TeamKpiAggregate[]> {
+    const kpisRes = await this.pool.query('SELECT * FROM team_kpi_aggregate_read_model WHERE team_id = $1 AND evaluation_cycle_id = $2', [teamId, cycleId]);
+    return kpisRes.rows;
+  }
+
   async getOrganizationReport(cycleId: string): Promise<OrganizationAggregate[]> {
     const res = await this.pool.query('SELECT * FROM organization_aggregate_read_model WHERE evaluation_cycle_id = $1', [cycleId]);
     return res.rows;
   }
 }
+

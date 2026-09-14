@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { ReportsQueryService } from '../application/reports-query.service.js';
 import { sendSuccess } from '../../../api/http-response.js';
-import { AppError } from '../../../api/app-error.js';
+import { getReportQuerySchema } from './reports.dto.js';
+import { z } from 'zod';
 
 export class ReportsController {
   constructor(private queryService: ReportsQueryService) {}
@@ -9,14 +10,12 @@ export class ReportsController {
   public getEmployeeReport = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const employeeId = req.params.employeeId as string;
-      const cycleId = req.query.cycleId as string | undefined;
+      const { cycleId } = getReportQuerySchema.parse(req.query);
 
-      if (!cycleId) {
-        throw new AppError(400, 'BAD_REQUEST', 'cycleId is required');
-      }
-
-      const report = await this.queryService.getEmployeeReport(employeeId, cycleId as string);
-      sendSuccess(res, 200, 'Report retrieved successfully.', report);
+      const report = await this.queryService.getEmployeeReport(employeeId, cycleId);
+      
+      const dataAsOf = report.score.last_refreshed_at;
+      sendSuccess(res, 200, 'Employee report retrieved successfully.', { ...report, data_as_of: dataAsOf });
     } catch (err) {
       next(err);
     }
@@ -25,14 +24,12 @@ export class ReportsController {
   public getTeamReport = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const teamId = req.params.teamId as string;
-      const cycleId = req.query.cycleId as string | undefined;
+      const { cycleId } = getReportQuerySchema.parse(req.query);
 
-      if (!cycleId) {
-        throw new AppError(400, 'BAD_REQUEST', 'cycleId is required');
-      }
-
-      const report = await this.queryService.getTeamReport(teamId, cycleId as string);
-      sendSuccess(res, 200, 'Report retrieved successfully.', report);
+      const report = await this.queryService.getTeamReport(teamId, cycleId);
+      
+      const dataAsOf = report.aggregate.last_refreshed_at;
+      sendSuccess(res, 200, 'Team report retrieved successfully.', { ...report, data_as_of: dataAsOf });
     } catch (err) {
       next(err);
     }
@@ -40,14 +37,54 @@ export class ReportsController {
 
   public getOrganizationReport = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const cycleId = req.query.cycleId as string | undefined;
+      const { cycleId } = getReportQuerySchema.parse(req.query);
 
-      if (!cycleId) {
-        throw new AppError(400, 'BAD_REQUEST', 'cycleId is required');
-      }
+      const report = await this.queryService.getOrganizationReport(cycleId);
+      
+      const dataAsOf = report.length > 0 ? report[0]?.last_refreshed_at : null;
+      sendSuccess(res, 200, 'Organization report retrieved successfully.', { data: report, data_as_of: dataAsOf });
+    } catch (err) {
+      next(err);
+    }
+  };
 
-      const report = await this.queryService.getOrganizationReport(cycleId as string);
-      sendSuccess(res, 200, 'Report retrieved successfully.', report);
+  public getTeamKpiReport = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const teamId = req.params.teamId as string;
+      const { cycleId } = getReportQuerySchema.parse(req.query);
+
+      const report = await this.queryService.getTeamKpiReport(teamId, cycleId);
+      
+      const dataAsOf = report.length > 0 ? report[0]?.last_refreshed_at : null;
+      sendSuccess(res, 200, 'Team KPI report retrieved successfully.', { data: report, data_as_of: dataAsOf });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  public getKpiTrend = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      // For KPI trend, we need base cycle and previous cycle, and scope ID (team/employee)
+      const trendQuerySchema = z.object({
+        currentCycleId: z.string().uuid(),
+        previousCycleId: z.string().uuid(),
+        teamId: z.string().uuid().optional(),
+        employeeId: z.string().uuid().optional(),
+      }).refine(data => data.teamId || data.employeeId, {
+        message: "Either teamId or employeeId must be provided for trend scope",
+        path: ["teamId"]
+      });
+
+      const query = trendQuerySchema.parse(req.query);
+
+      const trend = await this.queryService.getKpiTrend(
+        query.currentCycleId, 
+        query.previousCycleId, 
+        query.teamId, 
+        query.employeeId
+      );
+      
+      sendSuccess(res, 200, 'KPI Trend retrieved successfully.', { data: trend });
     } catch (err) {
       next(err);
     }

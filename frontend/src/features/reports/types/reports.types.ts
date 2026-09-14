@@ -84,3 +84,21 @@ export interface OrganizationAggregate {
   scoreDistribution?: Record<string, unknown>;
   lastRefreshedAt: string;
 }
+
+export interface KpiTrendResponse {
+  kpiCode: string;
+  kpiName: string;
+  category?: string;
+  status: 'MATCHED' | 'NEW' | 'REMOVED';
+  previousScore?: number;
+  currentScore?: number;
+  delta?: number;
+}
+
+export interface ReportResponse<T> {
+  success: boolean;
+  message: string;
+  data: T;
+  dataAsOf: string;
+  meta: Record<string, unknown>;
+}

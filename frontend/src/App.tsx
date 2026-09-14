@@ -37,6 +37,9 @@ import { CollectorPage } from './features/collector/pages/CollectorPage';
 const UserGuidePage = lazy(() =>
   import('./features/help/pages/UserGuidePage').then((m) => ({ default: m.UserGuidePage }))
 );
+import { EmployeeReportPage } from './features/reports/pages/EmployeeReportPage';
+import { TeamReportPage } from './features/reports/pages/TeamReportPage';
+import { OrganizationReportPage } from './features/reports/pages/OrganizationReportPage';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
 import { LayoutTemplate } from 'lucide-react';
@@ -246,6 +249,21 @@ export default function App() {
                   <Suspense fallback={null}>
                     <UserGuidePage />
                   </Suspense>
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/my-report/:employeeId" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
+                  <EmployeeReportPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/team-report/:teamId" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER']}>
+                  <TeamReportPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/org-report" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
+                  <OrganizationReportPage />
                 </ProtectedRoute>
               } />
               <Route path="/draft" element={

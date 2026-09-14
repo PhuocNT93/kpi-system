@@ -81,6 +81,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }
       ]
     },
+    {
+      title: 'Performance',
+      items: [
+        {
+          id: 'team-evaluations',
+          label: 'Team Reviews',
+          icon: <UserCheck size={18} />
+        },
+        {
+          id: 'my-evaluations',
+          label: 'My Evaluation',
+          icon: <ClipboardCheck size={18} />
+        }
+      ]
+    },
+    {
+      title: 'Reporting',
+      items: [
+        {
+          id: `my-report/${user?.id || 'me'}`,
+          label: 'My Report',
+          icon: <ClipboardCheck size={18} />
+        },
+        ...(user?.role === 'MANAGER' || canViewConfig ? [{
+          id: 'team-report/my-team',
+          label: 'Team Report',
+          icon: <Users size={18} />
+        }] : []),
+        ...(canViewConfig ? [{
+          id: 'org-report',
+          label: 'Org Report',
+          icon: <LayoutDashboard size={18} />
+        }] : []),
+      ]
+    },
     ...(canViewConfig ? [{
       title: 'Configuration',
       items: [
@@ -135,22 +170,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: <ShieldCheck size={18} />
         }
       ]
-    }] : []),
-    {
-      title: 'Performance',
-      items: [
-        {
-          id: 'team-evaluations',
-          label: 'Team Reviews',
-          icon: <UserCheck size={18} />
-        },
-        {
-          id: 'my-evaluations',
-          label: 'My Evaluation',
-          icon: <ClipboardCheck size={18} />
-        }
-      ]
-    }
+    }] : [])
   ];
 
   return (
