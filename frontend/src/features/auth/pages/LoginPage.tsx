@@ -7,7 +7,7 @@ import { useAuth } from '../../../shared/auth/auth-context';
 import { ApiClientError } from '../../../shared/api/api-client';
 
 const loginSchema = z.object({
-  email: z.string().email('Invalid email format'),
+  email: z.string().min(1, 'Email or username is required'),
   password: z.string().min(1, 'Password is required'),
 });
 
@@ -31,7 +31,23 @@ export function LoginPage() {
   const onSubmit = handleSubmit(async ({ email, password }) => {
     try {
       await login(email, password);
-      navigate(from, { replace: true });
+      let target = from;
+      if (from === '/' || from === '/admin/iam') {
+        const storedUser = localStorage.getItem('kpi_auth_user');
+        try {
+          const u = storedUser ? JSON.parse(storedUser) : null;
+          if (u?.role === 'EMPLOYEE') {
+            target = '/admin/my-evaluations';
+          } else if (u?.role === 'MANAGER') {
+            target = '/admin/team-evaluations';
+          } else {
+            target = '/admin/iam';
+          }
+        } catch {
+          target = '/admin/my-evaluations';
+        }
+      }
+      navigate(target, { replace: true });
     } catch (err) {
       if (err instanceof ApiClientError && err.statusCode === 401) {
         setError('root', { message: err.message });
@@ -102,12 +118,13 @@ export function LoginPage() {
         <form onSubmit={onSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div>
             <label htmlFor="login-email" style={{ display: 'block', fontWeight: 500, marginBottom: '0.25rem' }}>
-              Email
+              Email / Tên đăng nhập / Mã NV
             </label>
             <input
-              id="login-email" type="email" aria-required="true"
+              id="login-email" type="text" aria-required="true"
+              placeholder="khoadang hoặc khoadang@kpi.com"
               aria-describedby={errors.email ? 'login-email-error' : undefined}
-              autoComplete="email" {...register('email')}
+              autoComplete="username" {...register('email')}
               style={{ display: 'block', width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: 4 }}
             />
             {errors.email && (

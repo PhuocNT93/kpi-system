@@ -2,13 +2,14 @@ import React from 'react';
 import { EvaluationStatus } from '../domain/evaluation-models';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
-import { Award, UserCheck, ShieldCheck, CheckCircle2, FileCheck } from 'lucide-react';
+import { Award, UserCheck, ShieldCheck, CheckCircle2, FileCheck, Cpu } from 'lucide-react';
 
 interface EvaluationSummaryPanelProps {
   status: EvaluationStatus | string;
   selfScore?: number | null;
   managerScore?: number | null;
   finalScore?: number | null;
+  systemScore?: number | null;
   approvedAt?: string | null;
   categoryBreakdown?: Array<{
     categoryName: string;
@@ -22,6 +23,7 @@ export const EvaluationSummaryPanel: React.FC<EvaluationSummaryPanelProps> = ({
   selfScore,
   managerScore,
   finalScore,
+  systemScore,
   approvedAt,
   categoryBreakdown,
 }) => {
@@ -58,6 +60,45 @@ export const EvaluationSummaryPanel: React.FC<EvaluationSummaryPanelProps> = ({
           gap: '16px',
         }}
       >
+        {/* System Benchmark Score Card (if auto collected data exists) */}
+        {systemScore !== undefined && systemScore !== null && (
+          <div
+            style={{
+              padding: '16px',
+              borderRadius: RADII.lg,
+              backgroundColor: '#f5f3ff',
+              border: '1px solid #ddd6fe',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+            }}
+          >
+            <div
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: RADII.md,
+                backgroundColor: '#ede9fe',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#6366f1',
+                flexShrink: 0,
+              }}
+            >
+              <Cpu size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 600, color: '#5b21b6' }}>
+                Điểm Gợi Ý Hệ Thống (Auto Benchmark)
+              </div>
+              <div style={{ fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: 700, color: '#4c1d95' }}>
+                {systemScore.toFixed(2)}đ
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Self Score Card */}
         <div
           style={{

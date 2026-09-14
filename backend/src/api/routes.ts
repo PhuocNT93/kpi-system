@@ -38,10 +38,16 @@ export interface RegisterRoutesOptions {
   evaluationController?: EvaluationController;
   i18nController?: I18nController;
   importController?: ImportController;
+  collectorRouter?: Router;
 }
 
 export function createApiRouter(options: RegisterRoutesOptions): Router {
   const router = Router();
+
+  // ── Collector Module Routes ───────────────────────────────────────────────
+  if (options.collectorRouter) {
+    router.use('/collectors', options.collectorRouter);
+  }
 
   // ── Auth Module Routes ───────────────────────────────────────────────────
   if (options.authController) {

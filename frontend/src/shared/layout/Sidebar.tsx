@@ -13,7 +13,8 @@ import {
   Shield,
   ChevronLeft,
   ChevronRight,
-  GitFork
+  GitFork,
+  Activity
 } from 'lucide-react';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY, SHADOWS } from '@/shared/theme';
@@ -106,6 +107,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           id: 'imports',
           label: 'Import Center',
           icon: <FileSpreadsheet size={18} />
+        },
+        {
+          id: 'collectors',
+          label: 'Auto Collect',
+          icon: <Activity size={18} />
         },
         {
           id: 'i18n',
