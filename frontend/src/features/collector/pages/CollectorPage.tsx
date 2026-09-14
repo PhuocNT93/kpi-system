@@ -8,6 +8,7 @@ import {
   type BlueprintVacationSummary,
   type BlueprintOrgTeam,
   type BlueprintTeamAttendanceSummary,
+  type BlueprintTeamMemberAttendance,
 } from '../api/collector-api';
 import {
   RefreshCw,
@@ -20,7 +21,6 @@ import {
   Layers,
   Activity,
   User,
-  Check,
   ClipboardCheck,
   Settings,
   Users,
@@ -31,6 +31,8 @@ import {
   FolderGit2,
   ShieldAlert,
   Search,
+  Award,
+  Sparkles,
 } from 'lucide-react';
 import { COLORS } from '@/lib/theme';
 import { RADII, SHADOWS, TYPOGRAPHY } from '@/shared/theme';
@@ -53,21 +55,35 @@ export function CollectorPage() {
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  // Sync All state
-  const [isSyncingAll, setIsSyncingAll] = useState(false);
-  const [syncAllSuccess, setSyncAllSuccess] = useState<{
-    totalScore: number;
-    attendance: { score10: number; grade: string; weightedScore: number; comment: string };
-    tasks: { totalTasks?: number; onTimeRate: number; score10: number; grade: string; weightedScore: number; comment: string };
-  } | null>(null);
-  const [syncAllError, setSyncAllError] = useState<string | null>(null);
+  // Global Unified Filter Bar State
+  const [unifiedMember, setUnifiedMember] = useState<string>('ALL');
+  const [customUnifiedMember, setCustomUnifiedMember] = useState<string>('');
+  const [unifiedFromDate, setUnifiedFromDate] = useState<string>('2026-09-01');
+  const [unifiedToDate, setUnifiedToDate] = useState<string>('2026-09-14');
+  const [isUnifiedFetching, setIsUnifiedFetching] = useState<boolean>(false);
+  const [selectedInspectMember, setSelectedInspectMember] = useState<BlueprintTeamMemberAttendance | null>(null);
+
+  // Bottom Summary & Unified Single Sync State
+  const [isSyncingUnifiedAll, setIsSyncingUnifiedAll] = useState<boolean>(false);
+  const [unifiedSyncSuccess, setUnifiedSyncSuccess] = useState<string | null>(null);
+
+  // Helper: Individual Attendance Score (1-10 strictly)
+  const getIndividualAttendanceScore = (r: BlueprintTeamMemberAttendance): number => {
+    if (r.status === 'ON_TIME' || r.status === 'LEAVE') return 10;
+    if (r.status === 'LATE') {
+      if (r.lateMinutes <= 5) return 9;
+      if (r.lateMinutes <= 15) return 8;
+      if (r.lateMinutes <= 30) return 6;
+      return 4;
+    }
+    if (r.status === 'ABSENT') return 0;
+    return 10;
+  };
 
   // Module 1: Daily Team Status State (UI_TAT_029 - Manager Team Check-in/out)
   const [isFetchingTeamAttendance, setIsFetchingTeamAttendance] = useState(false);
   const [previewTeamAttendance, setPreviewTeamAttendance] = useState<BlueprintTeamAttendanceSummary | null>(null);
   const [teamAttendanceError, setTeamAttendanceError] = useState<string | null>(null);
-  const [isSyncingTeamAttendance, setIsSyncingTeamAttendance] = useState(false);
-  const [teamAttendanceSyncSuccess, setTeamAttendanceSyncSuccess] = useState<string | null>(null);
   const [showTeamAttendanceTable, setShowTeamAttendanceTable] = useState(true);
   const [selectedTeamOrzId, setSelectedTeamOrzId] = useState<string>(''); // '' for All Teams (NX & Maritime)
   const [teamSearchDate, setTeamSearchDate] = useState<string>('09/14/2026');
@@ -76,22 +92,17 @@ export function CollectorPage() {
     { orzId: 'ATM202310170003', orzNm: 'ALLEGRO NX Part' },
     { orzId: 'ATM202310170004', orzNm: 'Maritime Solutions Part' },
   ]);
-  const [syncingMemberEmpeNo, setSyncingMemberEmpeNo] = useState<string | null>(null);
 
   // Module 2: Tasks State (UI_PIM_001)
   const [isFetchingTasks, setIsFetchingTasks] = useState(false);
   const [previewTasks, setPreviewTasks] = useState<BlueprintTasksSummary | null>(null);
   const [tasksError, setTasksError] = useState<string | null>(null);
-  const [isSyncingTasks, setIsSyncingTasks] = useState(false);
-  const [tasksSyncSuccess, setTasksSyncSuccess] = useState<string | null>(null);
   const [showTasksTable, setShowTasksTable] = useState(false);
 
   // Module 3: Vacation & Leave Discipline State (UI_TAT_011)
   const [isFetchingVacation, setIsFetchingVacation] = useState(false);
   const [previewVacation, setPreviewVacation] = useState<BlueprintVacationSummary | null>(null);
   const [vacationError, setVacationError] = useState<string | null>(null);
-  const [isSyncingVacation, setIsSyncingVacation] = useState(false);
-  const [vacationSyncSuccess, setVacationSyncSuccess] = useState<string | null>(null);
   const [showVacationTable, setShowVacationTable] = useState(false);
   const [vacationYear, setVacationYear] = useState<string>('2026');
   const [selectedVacationMember, setSelectedVacationMember] = useState<string>('khoadang');
@@ -227,53 +238,185 @@ export function CollectorPage() {
     }
   };
 
-  // 1-Click Sync All (Attendance + Tasks)
-  const handleSyncAll = async () => {
+  // Unified Fetch: Fetches all criteria concurrently based on global filter
+  const handleUnifiedFetch = async () => {
     if (!username.trim() || !password.trim()) {
-      setSyncAllError('Vui lòng nhập Tài khoản và Mật khẩu Blueprint ở phần Cấu hình kết nối bên trên trước khi đồng bộ.');
+      alert('Vui lòng nhập Tài khoản và Mật khẩu Blueprint ở phần Cấu hình kết nối bên trên trước khi lọc dữ liệu.');
       return;
     }
-    setIsSyncingAll(true);
-    setSyncAllSuccess(null);
-    setSyncAllError(null);
+    setIsUnifiedFetching(true);
+    setTeamAttendanceError(null);
+    setTasksError(null);
+    setVacationError(null);
+    setUnifiedSyncSuccess(null);
+
+    const targetMember = unifiedMember === 'custom' ? customUnifiedMember.trim() : unifiedMember;
+
+    const formatDateToMDY = (d: string) => {
+      if (!d) return '09/14/2026';
+      if (d.includes('/')) return d;
+      const parts = d.split('-');
+      if (parts.length === 3) {
+        return `${parts[1]}/${parts[2]}/${parts[0]}`;
+      }
+      return d;
+    };
+
+    const fromMDY = formatDateToMDY(unifiedFromDate);
+    const toMDY = formatDateToMDY(unifiedToDate);
+    const yr = unifiedToDate ? unifiedToDate.split('-')[0] : '2026';
+
     try {
-      const memberTarget = selectedTaskMember === 'custom' ? customTaskMember.trim() : selectedTaskMember;
-      const res = await collectorApi.syncAllBlueprint({
-        username: username.trim(),
-        password: password.trim(),
-        baseUrl,
-        month,
-        projectFilter,
-        member: memberTarget || 'hieudao',
-        filterRole: taskFilterRole,
-        dateType: taskDateType,
-        fromDate: taskFromDate,
-        toDate: taskToDate,
-      });
-      if (res.success) {
-        setSyncAllSuccess({
-          totalScore: res.totalScore,
-          attendance: res.attendance,
-          tasks: {
-            totalTasks: res.tasks.summary?.totalTasks,
-            onTimeRate: res.tasks.onTimeRate,
-            score10: res.tasks.score10,
-            grade: res.tasks.grade,
-            weightedScore: res.tasks.weightedScore,
-            comment: res.tasks.comment,
-          },
+      const promises: Promise<unknown>[] = [];
+
+      // 1. Team Attendance (Module 1)
+      promises.push(
+        collectorApi.previewBlueprintTeamAttendance({
+          username: username.trim(),
+          password: password.trim(),
+          baseUrl,
+          teamId: selectedTeamOrzId || undefined,
+          fromDate: fromMDY,
+          toDate: toMDY,
+          employeeName: targetMember !== 'ALL' ? targetMember : undefined,
+        }).then((data) => {
+          setPreviewTeamAttendance(data);
+          if (targetMember !== 'ALL' && data.records && data.records.length > 0) {
+            setSelectedInspectMember(data.records[0]);
+          } else {
+            setSelectedInspectMember(null);
+          }
+        }).catch((err) => {
+          setTeamAttendanceError((err as Error).message || 'Lỗi khi tải dữ liệu chuyên cần');
+        })
+      );
+
+      // 2. Tasks (Module 2)
+      const taskUser = targetMember !== 'ALL' ? targetMember : (selectedTaskMember !== 'custom' ? selectedTaskMember : 'hieudao');
+      promises.push(
+        collectorApi.previewBlueprintTasks({
+          username: username.trim(),
+          password: password.trim(),
+          projectFilter,
+          member: taskUser,
+          filterRole: taskFilterRole,
+          dateType: taskDateType,
+          fromDate: unifiedFromDate,
+          toDate: unifiedToDate,
+        }).then((data) => {
+          setPreviewTasks(data);
+          setShowTasksTable(true);
+        }).catch((err) => {
+          setTasksError((err as Error).message || 'Lỗi khi tải dữ liệu task');
+        })
+      );
+
+      // 3. Vacation (Module 3)
+      const vacUser = targetMember !== 'ALL' ? targetMember : (selectedVacationMember !== 'custom' ? selectedVacationMember : 'khoadang');
+      promises.push(
+        collectorApi.previewBlueprintVacation({
+          username: username.trim(),
+          password: password.trim(),
+          baseUrl,
+          year: yr,
+          member: vacUser,
+        }).then((data) => {
+          setPreviewVacation(data);
+          setShowVacationTable(true);
+        }).catch((err) => {
+          setVacationError((err as Error).message || 'Lỗi khi tải dữ liệu nghỉ phép');
+        })
+      );
+
+      await Promise.allSettled(promises);
+    } finally {
+      setIsUnifiedFetching(false);
+    }
+  };
+
+  // Unified Single Sync: Syncs all criteria in one click from Summary Board
+  const handleUnifiedSyncAll = async (avgScore: number, gradeLetter: string) => {
+    if (!username.trim() || !password.trim()) {
+      alert('Vui lòng nhập Tài khoản và Mật khẩu Blueprint ở phần Cấu hình kết nối trước khi đồng bộ.');
+      return;
+    }
+    setIsSyncingUnifiedAll(true);
+    setUnifiedSyncSuccess(null);
+
+    const targetMember = selectedInspectMember
+      ? (selectedInspectMember.usrId || selectedInspectMember.empeName)
+      : (unifiedMember !== 'ALL' ? (unifiedMember === 'custom' ? customUnifiedMember : unifiedMember) : 'hieudao');
+
+    const targetMemberName = selectedInspectMember ? selectedInspectMember.empeName : targetMember;
+
+    try {
+      const syncResults: string[] = [];
+
+      // 1. Sync Attendance
+      try {
+        const attRes = await collectorApi.syncBlueprintTeamAttendance({
+          username,
+          password,
+          baseUrl,
+          teamId: selectedTeamOrzId || undefined,
+          fromDate: teamSearchDate || undefined,
+          toDate: teamSearchDate || undefined,
+          targetMember: targetMember,
         });
-        // Populate preview summaries
-        handleFetchTeamAttendance();
-        setPreviewTasks(res.tasks.summary);
+        if (attRes.success) {
+          syncResults.push(`Chuyên cần: ${attRes.score10}/10 (+${attRes.weightedScore.toFixed(2)}đ)`);
+        }
+      } catch (e) {
+        console.warn('Sync attendance failed:', e);
+      }
+
+      // 2. Sync Tasks
+      try {
+        const taskRes = await collectorApi.syncBlueprintTasks({
+          username,
+          password,
+          projectFilter,
+          member: targetMember,
+          filterRole: taskFilterRole,
+          dateType: taskDateType,
+          fromDate: unifiedFromDate,
+          toDate: unifiedToDate,
+        });
+        if (taskRes.success) {
+          syncResults.push(`Tasks: ${taskRes.score10}/10 (+${taskRes.weightedScore.toFixed(2)}đ)`);
+        }
+      } catch (e) {
+        console.warn('Sync tasks failed:', e);
+      }
+
+      // 3. Sync Vacation
+      try {
+        const vacRes = await collectorApi.syncBlueprintVacation({
+          username,
+          password,
+          baseUrl,
+          year: vacationYear,
+          member: targetMember,
+        });
+        if (vacRes.success) {
+          syncResults.push(`Kỷ luật: ${vacRes.score10}/10 (+${vacRes.weightedScore.toFixed(2)}đ)`);
+        }
+      } catch (e) {
+        console.warn('Sync vacation failed:', e);
+      }
+
+      if (syncResults.length > 0) {
+        setUnifiedSyncSuccess(
+          `🎉 Đã đồng bộ thành công ${syncResults.length} tiêu chí cho nhân sự ${targetMemberName}! Điểm TB: ${avgScore}/10 [Hạng ${gradeLetter}]. (${syncResults.join(' | ')})`
+        );
       } else {
-        setSyncAllError('Đồng bộ thất bại, vui lòng kiểm tra kỳ đánh giá của nhân viên.');
+        alert('Không có tiêu chí nào được đồng bộ thành công. Vui lòng kiểm tra kỳ đánh giá đang mở của nhân viên.');
       }
       await loadSourcesAndJobs();
     } catch (err: unknown) {
-      setSyncAllError(`Lỗi đồng bộ: ${(err as Error).message}`);
+      alert(`Lỗi đồng bộ: ${(err as Error).message}`);
     } finally {
-      setIsSyncingAll(false);
+      setIsSyncingUnifiedAll(false);
     }
   };
 
@@ -308,34 +451,6 @@ export function CollectorPage() {
       setTeamAttendanceError((err as Error).message || 'Lỗi khi kéo dữ liệu Daily Team Status từ Blueprint');
     } finally {
       setIsFetchingTeamAttendance(false);
-    }
-  };
-
-  const handleSyncTeamAttendance = async (targetMember?: string, empeNo?: string) => {
-    if (empeNo) setSyncingMemberEmpeNo(empeNo);
-    else setIsSyncingTeamAttendance(true);
-    setTeamAttendanceSyncSuccess(null);
-    try {
-      const res = await collectorApi.syncBlueprintTeamAttendance({
-        username,
-        password,
-        baseUrl,
-        teamId: selectedTeamOrzId || undefined,
-        fromDate: teamSearchDate || undefined,
-        toDate: teamSearchDate || undefined,
-        targetMember: targetMember || undefined,
-      });
-      if (res.success) {
-        setTeamAttendanceSyncSuccess(
-          `🎉 Đã cập nhật vào KPI #18! Điểm chuyên cần nhóm: ${res.score10}/10 | Hạng: ${res.grade} | Trọng số: 4% (+${res.weightedScore.toFixed(2)}đ).`
-        );
-      }
-      await loadSourcesAndJobs();
-    } catch (err: unknown) {
-      alert(`Lỗi đồng bộ: ${(err as Error).message}`);
-    } finally {
-      setIsSyncingTeamAttendance(false);
-      setSyncingMemberEmpeNo(null);
     }
   };
 
@@ -379,37 +494,6 @@ export function CollectorPage() {
     }
   };
 
-  // Quick sync Tasks only
-  const handleSyncTasks = async () => {
-    const memberTarget = selectedTaskMember === 'custom' ? customTaskMember.trim() : selectedTaskMember;
-    setIsSyncingTasks(true);
-    setTasksSyncSuccess(null);
-    try {
-      const res = await collectorApi.syncBlueprintTasks({
-        username,
-        password,
-        projectFilter,
-        member: memberTarget || 'hieudao',
-        filterRole: taskFilterRole,
-        dateType: taskDateType,
-        fromDate: taskFromDate,
-        toDate: taskToDate,
-      });
-      if (res.success) {
-        const memberInfo = taskMemberList.find((m) => m.id === memberTarget);
-        const displayName = memberInfo?.name || memberTarget;
-        setTasksSyncSuccess(
-          `🎉 Đã cập nhật vào KPI #1 cho ${displayName} (${memberTarget})! Điểm hệ 10: ${res.score10}/10 (KPI Cốt lõi ★, Hạng ${res.grade}) | Trọng số: 10% (+${res.weightedScore.toFixed(2)}đ).`
-        );
-      }
-      await loadSourcesAndJobs();
-    } catch (err: unknown) {
-      alert(`Lỗi đồng bộ: ${(err as Error).message}`);
-    } finally {
-      setIsSyncingTasks(false);
-    }
-  };
-
   // Fetch Vacation & Discipline preview
   const handleFetchVacation = async (targetOverride?: string, yearOverride?: string) => {
     if (!username.trim() || !password.trim()) {
@@ -435,34 +519,6 @@ export function CollectorPage() {
       setVacationError((err as Error).message || 'Lỗi khi kéo dữ liệu nghỉ phép & kỷ luật từ Blueprint UI_TAT_011');
     } finally {
       setIsFetchingVacation(false);
-    }
-  };
-
-  // Sync Vacation & Discipline
-  const handleSyncVacation = async () => {
-    const memberTarget = selectedVacationMember === 'custom' ? customVacationMember.trim() : selectedVacationMember;
-    setIsSyncingVacation(true);
-    setVacationSyncSuccess(null);
-    try {
-      const res = await collectorApi.syncBlueprintVacation({
-        username,
-        password,
-        baseUrl,
-        year: vacationYear,
-        member: memberTarget || 'khoadang',
-      });
-      if (res.success) {
-        const memberInfo = taskMemberList.find((m) => m.id === memberTarget);
-        const displayName = memberInfo?.name || memberTarget;
-        setVacationSyncSuccess(
-          `🎉 Đã cập nhật vào KPI Kỷ luật & Văn hóa cho ${displayName} (${memberTarget})! Điểm hệ 10: ${res.score10}/10 (Hạng ${res.grade}) | Trọng số: 4% (+${res.weightedScore.toFixed(2)}đ).`
-        );
-      }
-      await loadSourcesAndJobs();
-    } catch (err: unknown) {
-      alert(`Lỗi đồng bộ: ${(err as Error).message}`);
-    } finally {
-      setIsSyncingVacation(false);
     }
   };
 
@@ -820,107 +876,225 @@ export function CollectorPage() {
       {/* TAB 1: UNIFIED KPI COLLECTOR HUB */}
       {activeTab === 'hub' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {/* Central 1-Click Action Card */}
+          {/* UNIFIED GLOBAL FILTER BAR */}
           <div
             style={{
               backgroundColor: '#f8fafc',
-              border: `1.5px solid #cbd5e1`,
+              border: `2px solid #93c5fd`,
               borderRadius: RADII['2xl'],
               padding: '24px 28px',
               display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
+              flexDirection: 'column',
               gap: '16px',
-              boxShadow: SHADOWS.sm,
+              boxShadow: '0 4px 12px rgba(59, 130, 246, 0.08)',
             }}
           >
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981' }} />
-                <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 700, color: '#047857', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Unified Pipeline
-                </span>
-                <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
-                  | Tài khoản: <strong>{username}</strong> | Chuyên mục: <strong>{projectFilter}</strong> | Tháng: <strong>{month}</strong>
-                </span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#2563eb' }} />
+                  <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Bộ Lọc Chung Dữ Liệu KPI
+                  </span>
+                  <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
+                    | Áp dụng đồng thời cho tất cả tiêu chí: Chuyên cần, Task & Tiến độ, Nghỉ phép & Kỷ luật
+                  </span>
+                </div>
+                <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.lg, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
+                  Lọc Dữ Liệu & Đối Soát Tiêu Chí KPI Tự Động
+                </h3>
               </div>
-              <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.lg, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
-                Đồng bộ Toàn bộ KPI với 1 cú nhấp chuột
-              </h3>
-              <p style={{ margin: '4px 0 0 0', fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
-                Hệ thống đăng nhập Blueprint một lần duy nhất, đồng thời thu thập <strong>Chuyên cần (UI_TAT_028)</strong> và <strong>48 Task dự án (UI_PIM_001)</strong>, tự động quy đổi thang điểm 10 và cập nhật phiếu đánh giá.
-              </p>
-            </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <button
-                onClick={handleSyncAll}
-                disabled={isSyncingAll}
+                onClick={handleUnifiedFetch}
+                disabled={isUnifiedFetching}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '10px',
+                  gap: '8px',
                   padding: '12px 24px',
-                  backgroundColor: '#10b981',
+                  backgroundColor: '#2563eb',
                   color: COLORS.neutral.white,
                   border: 'none',
                   borderRadius: RADII.xl,
                   fontSize: TYPOGRAPHY.fontSize.sm,
                   fontWeight: 700,
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                  cursor: isUnifiedFetching ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)',
+                  opacity: isUnifiedFetching ? 0.7 : 1,
+                  transition: 'all 0.2s',
                 }}
               >
-                <Zap size={18} />
-                {isSyncingAll ? 'Đang đồng bộ tất cả...' : '⚡ Thu thập & Đồng bộ Toàn bộ KPI'}
+                <Search size={16} className={isUnifiedFetching ? 'spin' : ''} />
+                {isUnifiedFetching ? 'Đang lọc & thu thập tất cả tiêu chí...' : '🔍 Lọc & Thu thập toàn bộ tiêu chí'}
               </button>
             </div>
-          </div>
 
-          {/* Sync All Result Banner */}
-          {syncAllSuccess && (
             <div
               style={{
-                padding: '18px 24px',
-                borderRadius: RADII.xl,
-                backgroundColor: '#ecfdf5',
-                border: '1px solid #a7f3d0',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#065f46', fontWeight: 700, fontSize: TYPOGRAPHY.fontSize.base }}>
-                <CheckCircle2 size={20} color="#059669" />
-                🎉 Đã cập nhật thành công toàn bộ KPI vào phiếu đánh giá của {username}!
-              </div>
-              <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', fontSize: TYPOGRAPHY.fontSize.sm, color: '#047857', paddingTop: '4px' }}>
-                <span>• <strong>KPI #18 (Thái độ 4%):</strong> {syncAllSuccess.attendance.score10}/10 (Hạng {syncAllSuccess.attendance.grade}) → +{syncAllSuccess.attendance.weightedScore.toFixed(2)}đ</span>
-                <span>• <strong>KPI #1 (Tiến độ 10% - Cốt lõi ★):</strong> {syncAllSuccess.tasks.score10}/10 (Hạng {syncAllSuccess.tasks.grade}) → +{syncAllSuccess.tasks.weightedScore.toFixed(2)}đ ({syncAllSuccess.tasks.onTimeRate}% đúng hạn)</span>
-                <span>• <strong>Tổng điểm đóng góp:</strong> <strong>+{syncAllSuccess.totalScore.toFixed(2)}đ</strong></span>
-              </div>
-            </div>
-          )}
-
-          {syncAllError && (
-            <div
-              style={{
-                padding: '14px 20px',
-                borderRadius: RADII.xl,
-                backgroundColor: '#fef2f2',
-                color: '#991b1b',
-                border: '1px solid #fecaca',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
-                fontSize: TYPOGRAPHY.fontSize.sm,
+                flexWrap: 'wrap',
+                gap: '16px',
+                paddingTop: '8px',
+                borderTop: '1px solid #e2e8f0',
               }}
             >
-              <AlertCircle size={18} />
-              {syncAllError}
+              {/* Member Selector */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 280px' }}>
+                <label style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 700, color: '#334155', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Users size={16} color="#2563eb" /> Nhân sự:
+                </label>
+                <select
+                  value={unifiedMember}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setUnifiedMember(val);
+                    if (val !== 'custom') {
+                      if (val !== 'ALL') {
+                        setSelectedTaskMember(val);
+                        setSelectedVacationMember(val);
+                        const matchRec = previewTeamAttendance?.records.find(
+                          (r) => r.empeNo === val || r.usrId === val || r.empeName.toLowerCase().includes(val.toLowerCase())
+                        );
+                        if (matchRec) setSelectedInspectMember(matchRec);
+                      } else {
+                        setSelectedInspectMember(null);
+                      }
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: RADII.md,
+                    border: '1px solid #94a3b8',
+                    fontSize: TYPOGRAPHY.fontSize.xs,
+                    fontWeight: 600,
+                    color: '#0f172a',
+                    backgroundColor: '#ffffff',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <option value="ALL">👥 Tất cả thành viên ({previewTeamAttendance ? previewTeamAttendance.records.length : 21} nhân sự)</option>
+                  {taskMemberList.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                  <option value="custom">-- Nhập mã / username khác --</option>
+                </select>
+
+                {unifiedMember === 'custom' && (
+                  <input
+                    type="text"
+                    placeholder="Mã NV / Username..."
+                    value={customUnifiedMember}
+                    onChange={(e) => setCustomUnifiedMember(e.target.value)}
+                    style={{
+                      width: '140px',
+                      padding: '7px 10px',
+                      fontSize: TYPOGRAPHY.fontSize.xs,
+                      borderRadius: RADII.md,
+                      border: '1px solid #94a3b8',
+                      backgroundColor: '#ffffff',
+                    }}
+                  />
+                )}
+              </div>
+
+              {/* Date Range: From Date */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 700, color: '#334155', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Calendar size={15} color="#2563eb" /> Từ ngày:
+                </label>
+                <input
+                  type="date"
+                  value={unifiedFromDate}
+                  onChange={(e) => {
+                    setUnifiedFromDate(e.target.value);
+                    setTaskFromDate(e.target.value);
+                  }}
+                  style={{
+                    padding: '7px 10px',
+                    borderRadius: RADII.md,
+                    border: '1px solid #94a3b8',
+                    fontSize: TYPOGRAPHY.fontSize.xs,
+                    fontWeight: 600,
+                    backgroundColor: '#ffffff',
+                  }}
+                />
+              </div>
+
+              {/* Date Range: To Date */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 700, color: '#334155', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  Đến ngày:
+                </label>
+                <input
+                  type="date"
+                  value={unifiedToDate}
+                  onChange={(e) => {
+                    setUnifiedToDate(e.target.value);
+                    setTaskToDate(e.target.value);
+                  }}
+                  style={{
+                    padding: '7px 10px',
+                    borderRadius: RADII.md,
+                    border: '1px solid #94a3b8',
+                    fontSize: TYPOGRAPHY.fontSize.xs,
+                    fontWeight: 600,
+                    backgroundColor: '#ffffff',
+                  }}
+                />
+              </div>
+
+              {/* Quick Presets */}
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUnifiedFromDate('2026-09-01');
+                    setUnifiedToDate('2026-09-14');
+                    setTaskFromDate('2026-09-01');
+                    setTaskToDate('2026-09-14');
+                  }}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: RADII.md,
+                    border: '1px solid #bfdbfe',
+                    backgroundColor: '#eff6ff',
+                    color: '#1d4ed8',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Kỳ Tháng 9/2026
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUnifiedFromDate('2026-09-14');
+                    setUnifiedToDate('2026-09-14');
+                    setTaskFromDate('2026-09-14');
+                    setTaskToDate('2026-09-14');
+                  }}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: RADII.md,
+                    border: '1px solid #e2e8f0',
+                    backgroundColor: '#ffffff',
+                    color: '#475569',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Hôm nay (14/09)
+                </button>
+              </div>
             </div>
-          )}
+          </div>
 
           {/* MODULE 1: DAILY TEAM STATUS (UI_TAT_029 -> KPI #18) */}
           <div
@@ -986,27 +1160,6 @@ export function CollectorPage() {
                 >
                   <Search size={14} />
                   {isFetchingTeamAttendance ? 'Đang kéo...' : '🔍 Lấy dữ liệu Team Check-in'}
-                </button>
-
-                <button
-                  onClick={() => handleSyncTeamAttendance()}
-                  disabled={isSyncingTeamAttendance}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 16px',
-                    backgroundColor: '#10b981',
-                    color: COLORS.neutral.white,
-                    border: 'none',
-                    borderRadius: RADII.md,
-                    fontSize: TYPOGRAPHY.fontSize.xs,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <Check size={14} />
-                  {isSyncingTeamAttendance ? 'Đang cập nhật...' : '⚡ Cập nhật KPI Chuyên cần Team (#18)'}
                 </button>
               </div>
             </div>
@@ -1137,64 +1290,154 @@ export function CollectorPage() {
               </button>
             </div>
 
-            {/* Success and Error messages */}
-            {teamAttendanceSyncSuccess && (
-              <div style={{ padding: '10px 14px', borderRadius: RADII.md, backgroundColor: '#ecfdf5', color: '#065f46', fontSize: TYPOGRAPHY.fontSize.xs, border: '1px solid #a7f3d0' }}>
-                {teamAttendanceSyncSuccess}
-              </div>
-            )}
+            {/* Error message */}
             {teamAttendanceError && (
               <div style={{ padding: '10px 14px', borderRadius: RADII.md, backgroundColor: '#fef2f2', color: '#991b1b', fontSize: TYPOGRAPHY.fontSize.xs, border: '1px solid #fecaca' }}>
                 {teamAttendanceError}
               </div>
             )}
 
-            {/* Team Attendance Metric Cards */}
+            {/* Individual Inspect Banner if selected */}
+            {selectedInspectMember && (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '12px 18px',
+                  backgroundColor: '#eff6ff',
+                  border: '1.5px solid #93c5fd',
+                  borderRadius: RADII.xl,
+                  boxShadow: '0 2px 6px rgba(59, 130, 246, 0.1)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#2563eb', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <User size={16} />
+                  </div>
+                  <div>
+                    <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#1e40af', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      👤 Đang xem điểm chuyên cần cá nhân
+                    </span>
+                    <div style={{ fontSize: TYPOGRAPHY.fontSize.sm, fontWeight: 700, color: '#1e3a8a' }}>
+                      {selectedInspectMember.empeName} <span style={{ fontWeight: 500, color: '#475569' }}>(Mã NV: {selectedInspectMember.empeNo} | {selectedInspectMember.orzNm})</span>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedInspectMember(null)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #bfdbfe',
+                    borderRadius: RADII.md,
+                    color: '#1d4ed8',
+                    fontSize: TYPOGRAPHY.fontSize.xs,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  ✕ Xem lại toàn nhóm
+                </button>
+              </div>
+            )}
+
+            {/* Team / Individual Attendance Metric Cards */}
             {previewTeamAttendance ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' }}>
-                <div style={{ backgroundColor: '#f0fdf4', padding: '14px 18px', borderRadius: RADII.lg, border: '1px solid #bbf7d0' }}>
-                  <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#166534', fontWeight: 600 }}>Tỷ lệ đúng giờ nhóm</div>
-                  <div style={{ fontSize: '24px', fontWeight: 700, color: '#15803d', marginTop: '2px' }}>{previewTeamAttendance.punctualityRate}%</div>
-                  <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#166534', marginTop: '2px' }}>Mục tiêu: 100% check-in trước 08:30</div>
-                </div>
+                {selectedInspectMember ? (
+                  // INDIVIDUAL INSPECTION CARDS
+                  <>
+                    <div style={{ backgroundColor: selectedInspectMember.status === 'ON_TIME' ? '#f0fdf4' : '#fff1f2', padding: '14px 18px', borderRadius: RADII.lg, border: `1px solid ${selectedInspectMember.status === 'ON_TIME' ? '#bbf7d0' : '#fecdd3'}` }}>
+                      <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: selectedInspectMember.status === 'ON_TIME' ? '#166534' : '#9f1239', fontWeight: 600 }}>Trạng thái Check-in cá nhân</div>
+                      <div style={{ fontSize: '24px', fontWeight: 700, color: selectedInspectMember.status === 'ON_TIME' ? '#15803d' : '#e11d48', marginTop: '2px' }}>
+                        {selectedInspectMember.status === 'ON_TIME' ? 'Đúng giờ' : selectedInspectMember.status === 'LATE' ? `Đi muộn ${selectedInspectMember.lateMinutes}p` : selectedInspectMember.status === 'LEAVE' ? 'Nghỉ phép' : 'Vắng mặt'}
+                      </div>
+                      <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, marginTop: '2px' }}>
+                        Punch In lúc: <strong>{selectedInspectMember.punchIn || 'Chưa ghi nhận'}</strong>
+                      </div>
+                    </div>
 
-                <div style={{ backgroundColor: '#f0fdf4', padding: '14px 18px', borderRadius: RADII.lg, border: '1px solid #bbf7d0' }}>
-                  <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#166534', fontWeight: 600 }}>Quy đổi Thang 10 (4%)</div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginTop: '2px' }}>
-                    <span style={{ fontSize: '24px', fontWeight: 700, color: '#15803d' }}>
-                      {previewTeamAttendance.score10}/10
-                    </span>
-                    <span style={{ padding: '2px 6px', borderRadius: RADII.full, backgroundColor: '#15803d', color: '#fff', fontSize: '11px', fontWeight: 700 }}>
-                      Hạng {previewTeamAttendance.grade}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#166534', marginTop: '2px' }}>
-                    Đóng góp: +{(previewTeamAttendance.score10 * 0.04).toFixed(2)}đ (4%)
-                  </div>
-                </div>
+                    <div style={{ backgroundColor: '#f0fdf4', padding: '14px 18px', borderRadius: RADII.lg, border: '1px solid #bbf7d0' }}>
+                      <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#166534', fontWeight: 600 }}>Điểm Chuyên cần cá nhân (4%)</div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginTop: '2px' }}>
+                        <span style={{ fontSize: '24px', fontWeight: 700, color: '#15803d' }}>
+                          {getIndividualAttendanceScore(selectedInspectMember)}/10
+                        </span>
+                      </div>
+                      <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#166534', marginTop: '2px' }}>
+                        Đóng góp: +{(getIndividualAttendanceScore(selectedInspectMember) * 0.04).toFixed(2)}đ (4% KPI #18)
+                      </div>
+                    </div>
 
-                <div style={{ backgroundColor: COLORS.neutral[50], padding: '14px 18px', borderRadius: RADII.lg, border: `1px solid ${COLORS.neutral[200]}` }}>
-                  <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, fontWeight: 500 }}>Đúng giờ / Đi muộn</div>
-                  <div style={{ fontSize: '24px', fontWeight: 700, color: '#10b981', marginTop: '2px' }}>
-                    {previewTeamAttendance.onTimeMembers}{' '}
-                    <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 400, color: previewTeamAttendance.lateMembers > 0 ? '#dc2626' : COLORS.neutral.textSecondary }}>
-                      / trễ {previewTeamAttendance.lateMembers}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, marginTop: '2px' }}>
-                    {previewTeamAttendance.lateMembers > 0 ? 'Phát hiện nhân viên check-in sau 08:30' : 'Tất cả nhân sự đúng giờ'}
-                  </div>
-                </div>
+                    <div style={{ backgroundColor: COLORS.neutral[50], padding: '14px 18px', borderRadius: RADII.lg, border: `1px solid ${COLORS.neutral[200]}` }}>
+                      <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, fontWeight: 500 }}>Punch In / Punch Out thực tế</div>
+                      <div style={{ fontSize: '20px', fontWeight: 700, color: COLORS.neutral.textPrimary, marginTop: '4px' }}>
+                        {selectedInspectMember.punchIn || '—'} / {selectedInspectMember.punchOut || '—'}
+                      </div>
+                      <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, marginTop: '2px' }}>
+                        Ca làm việc: {selectedInspectMember.workShift}
+                      </div>
+                    </div>
 
-                <div style={{ backgroundColor: COLORS.neutral[50], padding: '14px 18px', borderRadius: RADII.lg, border: `1px solid ${COLORS.neutral[200]}` }}>
-                  <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, fontWeight: 500 }}>Tổng quân số quản lý</div>
-                  <div style={{ fontSize: '24px', fontWeight: 700, color: COLORS.neutral.textPrimary, marginTop: '2px' }}>
-                    {previewTeamAttendance.attendedMembers} / {previewTeamAttendance.totalMembers}
-                  </div>
-                  <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, marginTop: '2px' }}>
-                    Team: {previewTeamAttendance.teamName}
-                  </div>
-                </div>
+                    <div style={{ backgroundColor: COLORS.neutral[50], padding: '14px 18px', borderRadius: RADII.lg, border: `1px solid ${COLORS.neutral[200]}` }}>
+                      <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, fontWeight: 500 }}>Đơn vị & Loại phép</div>
+                      <div style={{ fontSize: '18px', fontWeight: 700, color: COLORS.neutral.textPrimary, marginTop: '4px' }}>
+                        {selectedInspectMember.leaveType || 'Làm việc bình thường'}
+                      </div>
+                      <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, marginTop: '2px' }}>
+                        Bộ phận: {selectedInspectMember.orzNm}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  // TEAM OVERVIEW CARDS (Strictly 1-10, NO letter grade)
+                  <>
+                    <div style={{ backgroundColor: '#f0fdf4', padding: '14px 18px', borderRadius: RADII.lg, border: '1px solid #bbf7d0' }}>
+                      <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#166534', fontWeight: 600 }}>Tỷ lệ đúng giờ nhóm</div>
+                      <div style={{ fontSize: '24px', fontWeight: 700, color: '#15803d', marginTop: '2px' }}>{previewTeamAttendance.punctualityRate}%</div>
+                      <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#166534', marginTop: '2px' }}>Mục tiêu: 100% check-in trước 08:30</div>
+                    </div>
+
+                    <div style={{ backgroundColor: '#f0fdf4', padding: '14px 18px', borderRadius: RADII.lg, border: '1px solid #bbf7d0' }}>
+                      <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#166534', fontWeight: 600 }}>Quy đổi Thang 10 (4%)</div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginTop: '2px' }}>
+                        <span style={{ fontSize: '24px', fontWeight: 700, color: '#15803d' }}>
+                          {previewTeamAttendance.score10}/10
+                        </span>
+                      </div>
+                      <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#166534', marginTop: '2px' }}>
+                        Đóng góp: +{(previewTeamAttendance.score10 * 0.04).toFixed(2)}đ (4%)
+                      </div>
+                    </div>
+
+                    <div style={{ backgroundColor: COLORS.neutral[50], padding: '14px 18px', borderRadius: RADII.lg, border: `1px solid ${COLORS.neutral[200]}` }}>
+                      <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, fontWeight: 500 }}>Đúng giờ / Đi muộn</div>
+                      <div style={{ fontSize: '24px', fontWeight: 700, color: '#10b981', marginTop: '2px' }}>
+                        {previewTeamAttendance.onTimeMembers}{' '}
+                        <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 400, color: previewTeamAttendance.lateMembers > 0 ? '#dc2626' : COLORS.neutral.textSecondary }}>
+                          / trễ {previewTeamAttendance.lateMembers}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, marginTop: '2px' }}>
+                        {previewTeamAttendance.lateMembers > 0 ? 'Phát hiện nhân viên check-in sau 08:30' : 'Tất cả nhân sự đúng giờ'}
+                      </div>
+                    </div>
+
+                    <div style={{ backgroundColor: COLORS.neutral[50], padding: '14px 18px', borderRadius: RADII.lg, border: `1px solid ${COLORS.neutral[200]}` }}>
+                      <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, fontWeight: 500 }}>Tổng quân số quản lý</div>
+                      <div style={{ fontSize: '24px', fontWeight: 700, color: COLORS.neutral.textPrimary, marginTop: '2px' }}>
+                        {previewTeamAttendance.attendedMembers} / {previewTeamAttendance.totalMembers}
+                      </div>
+                      <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, marginTop: '2px' }}>
+                        Team: {previewTeamAttendance.teamName}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             ) : (
               <div style={{ padding: '16px', backgroundColor: COLORS.neutral[50], borderRadius: RADII.lg, color: COLORS.neutral.textSecondary, fontSize: TYPOGRAPHY.fontSize.xs, textAlign: 'center' }}>
@@ -1232,7 +1475,7 @@ export function CollectorPage() {
                       if (!teamSearchEmployeeName) return true;
                       const q = teamSearchEmployeeName.toLowerCase();
                       return r.empeName.toLowerCase().includes(q) || r.empeNo.toLowerCase().includes(q);
-                    }).length}</strong> / {previewTeamAttendance.records.length} nhân sự
+                    }).length}</strong> / {previewTeamAttendance.records.length} nhân sự (Click vào từng dòng để xem điểm cá nhân)
                   </span>
                 </div>
 
@@ -1250,7 +1493,7 @@ export function CollectorPage() {
                           <th style={{ padding: '10px 14px', fontWeight: 700, color: '#334155' }}>Work Shift</th>
                           <th style={{ padding: '10px 14px', fontWeight: 700, color: '#334155' }}>Leave Type</th>
                           <th style={{ padding: '10px 14px', fontWeight: 700, color: '#334155' }}>Trạng thái</th>
-                          <th style={{ padding: '10px 14px', fontWeight: 700, color: '#334155', textAlign: 'center' }}>Thao tác</th>
+                          <th style={{ padding: '10px 14px', fontWeight: 700, color: '#334155', textAlign: 'center' }}>Điểm chuyên cần (1-10)</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1262,17 +1505,40 @@ export function CollectorPage() {
                           })
                           .map((r, idx) => {
                             const isLate = r.status === 'LATE';
+                            const indScore = getIndividualAttendanceScore(r);
+                            const isSelected = selectedInspectMember?.empeNo === r.empeNo;
                             return (
                               <tr
                                 key={idx}
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSelectedInspectMember(null);
+                                  } else {
+                                    setSelectedInspectMember(r);
+                                    if (r.usrId) {
+                                      setSelectedTaskMember(r.usrId);
+                                      setSelectedVacationMember(r.usrId);
+                                      handleFetchTasks(r.usrId);
+                                      handleFetchVacation(r.usrId);
+                                    }
+                                  }
+                                }}
+                                title="Click để chọn và xem điểm số của nhân sự này"
                                 style={{
+                                  cursor: 'pointer',
                                   borderBottom: `1px solid ${COLORS.neutral[100]}`,
-                                  backgroundColor: idx % 2 === 0 ? COLORS.neutral.white : '#f8fafc',
+                                  backgroundColor: isSelected ? '#eff6ff' : idx % 2 === 0 ? COLORS.neutral.white : '#f8fafc',
+                                  outline: isSelected ? '2px solid #3b82f6' : 'none',
+                                  outlineOffset: '-1px',
+                                  transition: 'all 0.15s ease',
                                 }}
                               >
                                 <td style={{ padding: '8px 14px', fontWeight: 500, color: '#334155' }}>{r.orzNm}</td>
                                 <td style={{ padding: '8px 14px', fontWeight: 600, color: '#64748b' }}>{r.empeNo}</td>
-                                <td style={{ padding: '8px 14px', fontWeight: 600, color: COLORS.neutral.textPrimary }}>{r.empeName}</td>
+                                <td style={{ padding: '8px 14px', fontWeight: 600, color: isSelected ? '#1d4ed8' : COLORS.neutral.textPrimary }}>
+                                  {r.empeName}
+                                  {isSelected && <span style={{ marginLeft: '6px', fontSize: '10px', color: '#2563eb', fontWeight: 700 }}>(Đang chọn)</span>}
+                                </td>
                                 <td style={{ padding: '8px 14px', color: COLORS.neutral.textSecondary }}>{r.date}</td>
                                 
                                 {/* Punch In: Highlight in PINK if LATE (> 08:30) exactly like Blueprint UI_TAT_029 */}
@@ -1283,7 +1549,7 @@ export function CollectorPage() {
                                         display: 'inline-block',
                                         padding: isLate ? '3px 8px' : '2px 0px',
                                         borderRadius: RADII.sm,
-                                        backgroundColor: isLate ? '#fbcfe8' : 'transparent', // Soft pink background matching screenshot
+                                        backgroundColor: isLate ? '#fbcfe8' : 'transparent',
                                         color: isLate ? '#9d174d' : '#0f172a',
                                         fontWeight: isLate ? 700 : 600,
                                       }}
@@ -1315,22 +1581,22 @@ export function CollectorPage() {
                                   </span>
                                 </td>
                                 <td style={{ padding: '8px 14px', textAlign: 'center' }}>
-                                  <button
-                                    onClick={() => handleSyncTeamAttendance(r.usrId || r.empeName, r.empeNo)}
-                                    disabled={syncingMemberEmpeNo === r.empeNo}
+                                  <span
                                     style={{
-                                      padding: '4px 10px',
-                                      borderRadius: RADII.sm,
-                                      backgroundColor: '#eff6ff',
-                                      color: '#2563eb',
-                                      border: '1px solid #bfdbfe',
-                                      fontSize: '11px',
-                                      fontWeight: 600,
-                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      padding: '3px 10px',
+                                      borderRadius: RADII.full,
+                                      fontWeight: 700,
+                                      fontSize: '12px',
+                                      backgroundColor: indScore >= 9 ? '#dcfce7' : indScore >= 7 ? '#fef3c7' : '#fee2e2',
+                                      color: indScore >= 9 ? '#15803d' : indScore >= 7 ? '#b45309' : '#dc2626',
+                                      border: `1px solid ${indScore >= 9 ? '#bbf7d0' : indScore >= 7 ? '#fde68a' : '#fecaca'}`,
                                     }}
                                   >
-                                    {syncingMemberEmpeNo === r.empeNo ? 'Đang lưu...' : 'Đồng bộ KPI'}
-                                  </button>
+                                    {indScore}/10
+                                  </span>
                                 </td>
                               </tr>
                             );
@@ -1634,36 +1900,10 @@ export function CollectorPage() {
                     <Play size={12} />
                     {isFetchingTasks ? 'Đang kéo...' : '🔍 Lọc Task (UI_PIM_001)'}
                   </button>
-
-                  <button
-                    onClick={handleSyncTasks}
-                    disabled={isSyncingTasks}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '8px 16px',
-                      backgroundColor: '#10b981',
-                      color: COLORS.neutral.white,
-                      border: 'none',
-                      borderRadius: RADII.md,
-                      fontSize: TYPOGRAPHY.fontSize.xs,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <Check size={12} />
-                    {isSyncingTasks ? 'Đang cập nhật...' : '⚡ Cập nhật KPI #1'}
-                  </button>
                 </div>
               </div>
             </div>
 
-            {tasksSyncSuccess && (
-              <div style={{ padding: '10px 14px', borderRadius: RADII.md, backgroundColor: '#ecfdf5', color: '#065f46', fontSize: TYPOGRAPHY.fontSize.xs, border: '1px solid #a7f3d0' }}>
-                {tasksSyncSuccess}
-              </div>
-            )}
             {tasksError && (
               <div style={{ padding: '10px 14px', borderRadius: RADII.md, backgroundColor: '#fef2f2', color: '#991b1b', fontSize: TYPOGRAPHY.fontSize.xs, border: '1px solid #fecaca' }}>
                 {tasksError}
@@ -1684,9 +1924,6 @@ export function CollectorPage() {
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginTop: '2px' }}>
                     <span style={{ fontSize: '24px', fontWeight: 700, color: '#15803d' }}>
                       {previewTasks.onTimeRate === 100 ? 10 : previewTasks.onTimeRate >= 90 ? 9 : previewTasks.onTimeRate >= 80 ? 6 : previewTasks.onTimeRate >= 70 ? 5 : 3}/10
-                    </span>
-                    <span style={{ padding: '2px 6px', borderRadius: RADII.full, backgroundColor: '#15803d', color: '#fff', fontSize: '11px', fontWeight: 700 }}>
-                      Hạng {previewTasks.onTimeRate === 100 ? 'S' : previewTasks.onTimeRate >= 90 ? 'A' : previewTasks.onTimeRate >= 80 ? 'B' : previewTasks.onTimeRate >= 70 ? 'C' : 'D'}
                     </span>
                   </div>
                   <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#166534', marginTop: '2px' }}>
@@ -1996,51 +2233,8 @@ export function CollectorPage() {
                   <RefreshCw size={14} className={isFetchingVacation ? 'animate-spin' : ''} />
                   {isFetchingVacation ? 'Đang kéo...' : 'Lấy dữ liệu Nghỉ phép'}
                 </button>
-
-                <button
-                  onClick={handleSyncVacation}
-                  disabled={isSyncingVacation}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 14px',
-                    borderRadius: RADII.md,
-                    backgroundColor: '#047857',
-                    color: '#ffffff',
-                    fontSize: TYPOGRAPHY.fontSize.xs,
-                    fontWeight: 600,
-                    border: 'none',
-                    cursor: isSyncingVacation ? 'not-allowed' : 'pointer',
-                    opacity: isSyncingVacation ? 0.7 : 1,
-                    boxShadow: '0 2px 4px rgba(4, 120, 87, 0.2)',
-                  }}
-                >
-                  <Play size={14} />
-                  {isSyncingVacation ? 'Đang lưu...' : 'Cập nhật KPI Kỷ luật'}
-                </button>
               </div>
             </div>
-
-            {/* NOTIFICATIONS */}
-            {vacationSyncSuccess && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '12px 16px',
-                  borderRadius: RADII.md,
-                  backgroundColor: '#ecfdf5',
-                  color: '#065f46',
-                  fontSize: TYPOGRAPHY.fontSize.sm,
-                  border: '1px solid #6ee7b7',
-                }}
-              >
-                <CheckCircle2 size={18} color="#059669" />
-                {vacationSyncSuccess}
-              </div>
-            )}
 
             {vacationError && (
               <div
@@ -2161,9 +2355,6 @@ export function CollectorPage() {
                   <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#047857', fontWeight: 600 }}>🏆 Điểm Kỷ luật quy đổi (Hệ 10)</div>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '2px' }}>
                     <span style={{ fontSize: '24px', fontWeight: 800, color: '#065f46' }}>{previewVacation.score10}/10</span>
-                    <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 700, color: '#047857', backgroundColor: '#a7f3d0', padding: '2px 8px', borderRadius: RADII.full }}>
-                      Hạng {previewVacation.grade} (Bậc {previewVacation.suggestedLevel}/5)
-                    </span>
                   </div>
                   <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#047857', fontWeight: 600, marginTop: '4px' }}>
                     Đóng góp: +{(previewVacation.score10 * 0.04).toFixed(2)}đ (4% Văn hóa)
@@ -2292,6 +2483,339 @@ export function CollectorPage() {
               </div>
             )}
           </div>
+
+          {/* BOTTOM KPI EVALUATION SUMMARY BOARD & SINGLE AUTHORITATIVE SYNC BUTTON */}
+          {(() => {
+            const m1Score = selectedInspectMember
+              ? getIndividualAttendanceScore(selectedInspectMember)
+              : previewTeamAttendance?.score10 ?? null;
+
+            const m2Score = previewTasks?.score10 ?? (previewTasks ? (previewTasks.onTimeRate === 100 ? 10 : previewTasks.onTimeRate >= 90 ? 9 : previewTasks.onTimeRate >= 80 ? 6 : previewTasks.onTimeRate >= 70 ? 5 : 3) : null);
+
+            const m3Score = previewVacation?.score10 ?? null;
+
+            const evaluatedRules: Array<{
+              name: string;
+              code: string;
+              weight: string;
+              score: number;
+              note: string;
+            }> = [];
+
+            if (m1Score !== null && m1Score !== undefined) {
+              evaluatedRules.push({
+                name: 'Chuyên cần & Kỷ luật giờ giấc (Daily Check-in UI_TAT_029)',
+                code: 'RULE #18',
+                weight: '4%',
+                score: m1Score,
+                note: selectedInspectMember
+                  ? `Nhân sự: ${selectedInspectMember.empeName} (${selectedInspectMember.status === 'ON_TIME' ? 'Đúng giờ' : selectedInspectMember.status === 'LATE' ? `Trễ ${selectedInspectMember.lateMinutes}p` : selectedInspectMember.status})`
+                  : `Tỷ lệ đúng giờ nhóm đạt ${previewTeamAttendance?.punctualityRate}% (${previewTeamAttendance?.onTimeMembers}/${previewTeamAttendance?.attendedMembers} đúng giờ)`,
+              });
+            }
+
+            if (m2Score !== null && m2Score !== undefined) {
+              evaluatedRules.push({
+                name: 'Tiến độ & Chất lượng hoàn thành Task (UI_PIM_001)',
+                code: 'RULE #1 (Cốt lõi ★)',
+                weight: '10%',
+                score: m2Score,
+                note: previewTasks
+                  ? `Tỷ lệ đúng hạn: ${previewTasks.onTimeRate}% (${previewTasks.onTimeTasks}/${previewTasks.totalTasks} tasks đúng hạn)`
+                  : '',
+              });
+            }
+
+            if (m3Score !== null && m3Score !== undefined) {
+              evaluatedRules.push({
+                name: 'Kỷ luật lao động & Tuân thủ nghỉ phép (UI_TAT_011)',
+                code: 'VĂN HÓA',
+                weight: '4%',
+                score: m3Score,
+                note: previewVacation
+                  ? `Phép năm: ${previewVacation.annualVacationDays} ngày | Không lương: ${previewVacation.absentWithoutPayDays} ngày | Trừ phép: ${previewVacation.lateInEarlyOutCount} lần`
+                  : '',
+              });
+            }
+
+            const ruleCount = evaluatedRules.length;
+            const avgScore = ruleCount > 0
+              ? Number((evaluatedRules.reduce((sum, r) => sum + r.score, 0) / ruleCount).toFixed(2))
+              : 0;
+
+            const getGrade = (score: number) => {
+              if (score >= 9.5) return { grade: 'S', title: 'Xuất sắc', color: '#15803d', bg: '#dcfce7', border: '#86efac' };
+              if (score >= 8.5) return { grade: 'A', title: 'Hoàn thành tốt', color: '#1d4ed8', bg: '#dbeafe', border: '#93c5fd' };
+              if (score >= 7.0) return { grade: 'B', title: 'Đạt yêu cầu', color: '#b45309', bg: '#fef3c7', border: '#fde68a' };
+              if (score >= 5.0) return { grade: 'C', title: 'Cần cải thiện', color: '#c2410c', bg: '#ffedd5', border: '#fed7aa' };
+              return { grade: 'D', title: 'Chưa đạt', color: '#b91c1c', bg: '#fee2e2', border: '#fca5a5' };
+            };
+
+            const currentGrade = getGrade(avgScore);
+
+            const currentTargetName = selectedInspectMember
+              ? `${selectedInspectMember.empeName} (${selectedInspectMember.empeNo})`
+              : unifiedMember !== 'ALL'
+              ? (taskMemberList.find((m) => m.id === unifiedMember)?.name || unifiedMember)
+              : 'Toàn thể Team quản lý (21 nhân sự)';
+
+            return (
+              <div
+                style={{
+                  backgroundColor: COLORS.neutral.white,
+                  borderRadius: RADII['2xl'],
+                  padding: '28px 32px',
+                  boxShadow: '0 8px 30px rgba(15, 23, 42, 0.08)',
+                  border: '2px solid #3b82f6',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '24px',
+                }}
+              >
+                {/* Top Header of Summary Board */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div
+                      style={{
+                        width: '46px',
+                        height: '46px',
+                        borderRadius: RADII.xl,
+                        backgroundColor: '#eff6ff',
+                        color: '#2563eb',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 2px 8px rgba(37, 99, 235, 0.15)',
+                      }}
+                    >
+                      <Award size={26} />
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <h2 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
+                          Bảng Tổng Hợp Đánh Giá Điểm KPI & Xếp Loại
+                        </h2>
+                        <span style={{ padding: '3px 10px', borderRadius: RADII.full, backgroundColor: '#dbeafe', color: '#1e40af', fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 700 }}>
+                          Summary Board
+                        </span>
+                      </div>
+                      <p style={{ margin: '4px 0 0 0', fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
+                        Tổng kết trung bình các rule tiêu chí đã thu thập (<code>Điểm TB = Tổng điểm / {ruleCount || 3} tiêu chí</code>) và xếp hạng A/B/C/S chính thức.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, fontWeight: 500 }}>
+                      Đối tượng đánh giá:
+                    </span>
+                    <span
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: RADII.lg,
+                        backgroundColor: '#f1f5f9',
+                        border: '1px solid #cbd5e1',
+                        color: '#0f172a',
+                        fontWeight: 700,
+                        fontSize: TYPOGRAPHY.fontSize.xs,
+                      }}
+                    >
+                      👤 {currentTargetName}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Summary Metric Showcase */}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                    gap: '20px',
+                    backgroundColor: '#f8fafc',
+                    padding: '20px 24px',
+                    borderRadius: RADII.xl,
+                    border: '1px solid #e2e8f0',
+                  }}
+                >
+                  {/* Big Score Display */}
+                  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Điểm Trung Bình Tất Cả Tiêu Chí ({ruleCount} Rule)
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginTop: '6px' }}>
+                      <span style={{ fontSize: '42px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                        {ruleCount > 0 ? avgScore : '—'}
+                      </span>
+                      <span style={{ fontSize: '20px', fontWeight: 700, color: '#64748b' }}>/ 10</span>
+                    </div>
+                    <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#64748b', marginTop: '6px' }}>
+                      {ruleCount > 0
+                        ? `Tổng điểm: ${evaluatedRules.reduce((s, r) => s + r.score, 0)}đ ÷ ${ruleCount} tiêu chí = ${avgScore}đ`
+                        : 'Chưa có tiêu chí nào được tải dữ liệu'}
+                    </div>
+                  </div>
+
+                  {/* Official Letter Grade Badge */}
+                  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start' }}>
+                    <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Xếp Loại Đánh Giá Chính Thức (A B C S)
+                    </div>
+                    <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      {ruleCount > 0 ? (
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '8px 20px',
+                            borderRadius: RADII.xl,
+                            backgroundColor: currentGrade.bg,
+                            border: `2px solid ${currentGrade.border}`,
+                            boxShadow: `0 4px 12px ${currentGrade.border}`,
+                          }}
+                        >
+                          <Sparkles size={22} color={currentGrade.color} />
+                          <span style={{ fontSize: '24px', fontWeight: 900, color: currentGrade.color }}>
+                            HẠNG {currentGrade.grade}
+                          </span>
+                          <span style={{ fontSize: TYPOGRAPHY.fontSize.sm, fontWeight: 700, color: currentGrade.color, borderLeft: `1px solid ${currentGrade.border}`, paddingLeft: '8px' }}>
+                            {currentGrade.title}
+                          </span>
+                        </div>
+                      ) : (
+                        <span style={{ color: '#94a3b8', fontSize: TYPOGRAPHY.fontSize.sm }}>Chưa xác định xếp loại</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '6px' }}>
+                      Quy tắc xếp hạng: S (≥9.5) | A (8.5-9.4) | B (7.0-8.4) | C (5.0-6.9) | D (&lt;5.0)
+                    </div>
+                  </div>
+                </div>
+
+                {/* Breakdown Table */}
+                <div>
+                  <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 700, color: '#334155', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Chi tiết Điểm Số Từng Tiêu Chí Thành Phần:
+                  </div>
+                  <div style={{ overflowX: 'auto', border: `1px solid ${COLORS.neutral[200]}`, borderRadius: RADII.lg }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: TYPOGRAPHY.fontSize.xs }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#f1f5f9', borderBottom: `1px solid ${COLORS.neutral[300]}` }}>
+                          <th style={{ padding: '10px 14px', fontWeight: 700, color: '#334155' }}>Mã Tiêu chí / Rule</th>
+                          <th style={{ padding: '10px 14px', fontWeight: 700, color: '#334155' }}>Nội dung đánh giá</th>
+                          <th style={{ padding: '10px 14px', fontWeight: 700, color: '#334155' }}>Trọng số</th>
+                          <th style={{ padding: '10px 14px', fontWeight: 700, color: '#334155', textAlign: 'center' }}>Điểm tiêu chí (1-10)</th>
+                          <th style={{ padding: '10px 14px', fontWeight: 700, color: '#334155' }}>Ghi chú đối soát</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {evaluatedRules.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: COLORS.neutral.textSecondary }}>
+                              Vui lòng sử dụng thanh "Bộ Lọc Chung Dữ Liệu KPI" phía trên và bấm "Lọc & Thu thập toàn bộ tiêu chí" để đối soát điểm.
+                            </td>
+                          </tr>
+                        ) : (
+                          evaluatedRules.map((rule, idx) => (
+                            <tr
+                              key={idx}
+                              style={{
+                                borderBottom: `1px solid ${COLORS.neutral[100]}`,
+                                backgroundColor: idx % 2 === 0 ? COLORS.neutral.white : '#f8fafc',
+                              }}
+                            >
+                              <td style={{ padding: '10px 14px', fontWeight: 700, color: '#1e40af' }}>
+                                <span style={{ padding: '2px 8px', borderRadius: RADII.sm, backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                                  {rule.code}
+                                </span>
+                              </td>
+                              <td style={{ padding: '10px 14px', fontWeight: 600, color: COLORS.neutral.textPrimary }}>
+                                {rule.name}
+                              </td>
+                              <td style={{ padding: '10px 14px', fontWeight: 600, color: '#475569' }}>
+                                {rule.weight}
+                              </td>
+                              <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                                <span
+                                  style={{
+                                    display: 'inline-block',
+                                    padding: '3px 12px',
+                                    borderRadius: RADII.full,
+                                    fontWeight: 800,
+                                    fontSize: '13px',
+                                    backgroundColor: rule.score >= 9 ? '#dcfce7' : rule.score >= 7 ? '#fef3c7' : '#fee2e2',
+                                    color: rule.score >= 9 ? '#15803d' : rule.score >= 7 ? '#b45309' : '#dc2626',
+                                    border: `1px solid ${rule.score >= 9 ? '#86efac' : rule.score >= 7 ? '#fde68a' : '#fca5a5'}`,
+                                  }}
+                                >
+                                  {rule.score}/10
+                                </span>
+                              </td>
+                              <td style={{ padding: '10px 14px', color: COLORS.neutral.textSecondary, fontSize: '11px' }}>
+                                {rule.note || '—'}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Sync Notification if success */}
+                {unifiedSyncSuccess && (
+                  <div
+                    style={{
+                      padding: '14px 20px',
+                      borderRadius: RADII.xl,
+                      backgroundColor: '#ecfdf5',
+                      border: '1.5px solid #a7f3d0',
+                      color: '#065f46',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      fontSize: TYPOGRAPHY.fontSize.sm,
+                      fontWeight: 600,
+                    }}
+                  >
+                    <CheckCircle2 size={20} color="#059669" />
+                    {unifiedSyncSuccess}
+                  </div>
+                )}
+
+                {/* The ONE AND ONLY Sync Action Button */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', paddingTop: '8px', borderTop: `1px solid ${COLORS.neutral[200]}` }}>
+                  <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
+                    Nhấn nút bên cạnh để ghi nhận đồng thời cả {ruleCount} tiêu chí trên vào Phiếu Đánh Giá Chính Thức của <strong>{currentTargetName}</strong>:
+                  </span>
+                  <button
+                    onClick={() => handleUnifiedSyncAll(avgScore, currentGrade.grade)}
+                    disabled={isSyncingUnifiedAll || evaluatedRules.length === 0}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '14px 28px',
+                      backgroundColor: evaluatedRules.length === 0 ? '#94a3b8' : '#10b981',
+                      color: COLORS.neutral.white,
+                      border: 'none',
+                      borderRadius: RADII.xl,
+                      fontSize: TYPOGRAPHY.fontSize.base,
+                      fontWeight: 700,
+                      cursor: isSyncingUnifiedAll || evaluatedRules.length === 0 ? 'not-allowed' : 'pointer',
+                      boxShadow: evaluatedRules.length === 0 ? 'none' : '0 4px 16px rgba(16, 185, 129, 0.4)',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <Zap size={20} />
+                    {isSyncingUnifiedAll
+                      ? 'Đang đồng bộ tất cả tiêu chí...'
+                      : `⚡ Đồng bộ tất cả tiêu chí vào Phiếu Đánh Giá KPI`}
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
