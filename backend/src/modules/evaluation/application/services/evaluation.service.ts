@@ -8,6 +8,7 @@ import { withTransaction } from '../../../../shared/database/transaction.js';
 import { AuditService } from '../../../audit/application/audit.service.js';
 import { ScoringEngine, type ScoringKpiInput } from '../../domain/scoring/scoring-engine.js';
 import { RuleEngine } from '../../../rule-engine/domain/rule-engine.js';
+import { appEventEmitter, AppEvent } from '../../../../shared/events/index.js';
 
 export class EvaluationService {
   constructor(
@@ -266,6 +267,8 @@ export class EvaluationService {
           source: 'API',
       });
 
+      appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId });
+
       return {
         ...scoringResult,
         evaluation_id: evaluationId,
@@ -378,6 +381,8 @@ export class EvaluationService {
           source: 'API',
         });
       }
+
+      appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId });
 
       return updatedItem;
     });
