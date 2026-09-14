@@ -2,6 +2,7 @@ import React from 'react';
 import { useOrganizationReport } from '../hooks/use-reports';
 import { ScoreCard } from '../components/ScoreCard';
 import { DataAsOf } from '../components/DataAsOf';
+import { CycleSelector } from '../components/CycleSelector';
 import { PageHeader, LoadingSpinner, ErrorAlert as ErrorDisplay } from '@/shared/components/ui';
 import { Building2, CheckCircle, PieChart } from 'lucide-react';
 import { Card } from '@/shared/components/Card';
@@ -9,7 +10,7 @@ import { TYPOGRAPHY, RADII, SHADOWS } from '@/shared/theme';
 import { COLORS } from '@/lib/theme';
 
 export const OrganizationReportPage: React.FC = () => {
-  const cycleId = '00000000-0000-0000-0000-000000000000'; 
+  const [cycleId, setCycleId] = React.useState('00000000-0000-0000-0000-000000000000'); 
 
   const { data: orgReport, isLoading, isError, error, refetch } = useOrganizationReport(cycleId);
 
@@ -32,12 +33,17 @@ export const OrganizationReportPage: React.FC = () => {
 
   return (
     <div style={{ padding: '32px', maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
         <PageHeader 
-          title="Organization Performance Report" 
-          description="View organization-wide aggregate evaluation scores."
+          title="Organization Dashboard" 
+          description="View organizational performance and completion metrics across all departments and teams."
         />
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '12px' }}>
+          <CycleSelector 
+            label="" 
+            value={cycleId} 
+            onChange={setCycleId} 
+          />
           <DataAsOf timestamp={orgReport.dataAsOf} />
         </div>
       </div>

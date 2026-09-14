@@ -4,14 +4,14 @@ import { useEmployeeReport } from '../hooks/use-reports';
 import { ScoreCard } from '../components/ScoreCard';
 import { KpiBreakdown } from '../components/KpiBreakdown';
 import { DataAsOf } from '../components/DataAsOf';
+import { CycleSelector } from '../components/CycleSelector';
 import { PageHeader, LoadingSpinner, ErrorAlert as ErrorDisplay } from '@/shared/components/ui';
 import { Award, Target, CalendarDays, Lock } from 'lucide-react';
 import { TYPOGRAPHY } from '@/shared/theme';
 
 export const EmployeeReportPage: React.FC = () => {
   const { employeeId } = useParams<{ employeeId: string }>();
-  // In a real scenario, cycleId would come from context or a cycle selector
-  const cycleId = '00000000-0000-0000-0000-000000000000'; 
+  const [cycleId, setCycleId] = React.useState('00000000-0000-0000-0000-000000000000'); 
 
   const { data: response, isLoading, isError, error, refetch } = useEmployeeReport(employeeId!, cycleId);
 
@@ -34,12 +34,17 @@ export const EmployeeReportPage: React.FC = () => {
 
   return (
     <div style={{ padding: '32px', maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
         <PageHeader 
           title="Performance Report" 
-          description="View your evaluation scores and KPI breakdown for the current cycle."
+          description="View your evaluation scores and KPI breakdown for the selected cycle."
         />
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '12px' }}>
+          <CycleSelector 
+            label="" 
+            value={cycleId} 
+            onChange={setCycleId} 
+          />
           <DataAsOf timestamp={response.dataAsOf} />
           {score.isLocked && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#b45309', fontSize: TYPOGRAPHY.fontSize.sm }}>
