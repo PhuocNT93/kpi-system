@@ -10,7 +10,7 @@ import { TYPOGRAPHY, RADII, SHADOWS } from '@/shared/theme';
 import { COLORS } from '@/lib/theme';
 
 export const OrganizationReportPage: React.FC = () => {
-  const [cycleId, setCycleId] = React.useState('00000000-0000-0000-0000-000000000000'); 
+  const [cycleId, setCycleId] = React.useState('');
 
   const { data: orgReport, isLoading, isError, error, refetch } = useOrganizationReport(cycleId);
 

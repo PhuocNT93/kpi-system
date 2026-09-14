@@ -17,9 +17,9 @@ export const CycleSelector: React.FC<CycleSelectorProps> = ({
 }) => {
   const { data: cycles, isLoading, isError } = useEvaluationCyclesQuery();
 
-  // React Hook must be called unconditionally before early returns
+  // Auto-select the first cycle as soon as cycles are available and no value is set yet
   React.useEffect(() => {
-    if (value === '00000000-0000-0000-0000-000000000000' && cycles && cycles.length > 0) {
+    if (!value && cycles && cycles.length > 0) {
       onChange(cycles[0].id);
     }
   }, [value, cycles, onChange]);
@@ -48,13 +48,15 @@ export const CycleSelector: React.FC<CycleSelectorProps> = ({
           border: `1px solid ${COLORS.neutral[300]}`,
           backgroundColor: COLORS.neutral.white,
           fontSize: TYPOGRAPHY.fontSize.sm,
-          color: COLORS.neutral[900],
+          color: value ? COLORS.neutral[900] : COLORS.neutral[500],
           outline: 'none',
           minWidth: '200px',
           cursor: 'pointer'
         }}
       >
-        <option value="00000000-0000-0000-0000-000000000000" disabled>Select a cycle...</option>
+        {!value && (
+          <option value="" disabled>Loading cycle...</option>
+        )}
         {cycles.map((cycle: EvaluationCycleDTO) => (
           <option key={cycle.id} value={cycle.id}>
             {cycle.name} ({cycle.code}) - {cycle.status}

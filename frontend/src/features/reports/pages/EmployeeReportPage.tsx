@@ -11,7 +11,7 @@ import { TYPOGRAPHY } from '@/shared/theme';
 
 export const EmployeeReportPage: React.FC = () => {
   const { employeeId } = useParams<{ employeeId: string }>();
-  const [cycleId, setCycleId] = React.useState('00000000-0000-0000-0000-000000000000'); 
+  const [cycleId, setCycleId] = React.useState('');
 
   const { data: response, isLoading, isError, error, refetch } = useEmployeeReport(employeeId!, cycleId);
 

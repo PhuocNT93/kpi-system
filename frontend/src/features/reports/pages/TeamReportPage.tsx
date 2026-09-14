@@ -11,8 +11,8 @@ import { Users, CheckCircle, TrendingUp } from 'lucide-react';
 
 export const TeamReportPage: React.FC = () => {
   const { teamId } = useParams<{ teamId: string }>();
-  const [currentCycleId, setCurrentCycleId] = React.useState('00000000-0000-0000-0000-000000000000');
-  const [previousCycleId, setPreviousCycleId] = React.useState('00000000-0000-0000-0000-000000000000');
+  const [currentCycleId, setCurrentCycleId] = React.useState('');
+  const [previousCycleId, setPreviousCycleId] = React.useState('');
 
   const { data: teamReport, isLoading: isTeamLoading, isError: isTeamError, error: teamError } = useTeamReport(teamId!, currentCycleId);
   const { data: kpiReport, isLoading: isKpiLoading } = useTeamKpiReport(teamId!, currentCycleId);
