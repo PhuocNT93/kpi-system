@@ -6,7 +6,6 @@ import {
   type CollectorRunLog,
   type BlueprintTasksSummary,
   type BlueprintVacationSummary,
-  type BlueprintOrgTeam,
   type BlueprintTeamAttendanceSummary,
   type BlueprintTeamMemberAttendance,
 } from '../api/collector-api';
@@ -81,40 +80,25 @@ export function CollectorPage() {
   };
 
   // Module 1: Daily Team Status State (UI_TAT_029 - Manager Team Check-in/out)
-  const [isFetchingTeamAttendance, setIsFetchingTeamAttendance] = useState(false);
   const [previewTeamAttendance, setPreviewTeamAttendance] = useState<BlueprintTeamAttendanceSummary | null>(null);
   const [teamAttendanceError, setTeamAttendanceError] = useState<string | null>(null);
   const [showTeamAttendanceTable, setShowTeamAttendanceTable] = useState(true);
-  const [selectedTeamOrzId, setSelectedTeamOrzId] = useState<string>(''); // '' for All Teams (NX & Maritime)
-  const [teamSearchDate, setTeamSearchDate] = useState<string>('09/14/2026');
-  const [teamSearchEmployeeName, setTeamSearchEmployeeName] = useState<string>('');
-  const [teamList, setTeamList] = useState<BlueprintOrgTeam[]>([
-    { orzId: 'ATM202310170003', orzNm: 'ALLEGRO NX Part' },
-    { orzId: 'ATM202310170004', orzNm: 'Maritime Solutions Part' },
-  ]);
 
   // Module 2: Tasks State (UI_PIM_001)
-  const [isFetchingTasks, setIsFetchingTasks] = useState(false);
   const [previewTasks, setPreviewTasks] = useState<BlueprintTasksSummary | null>(null);
   const [tasksError, setTasksError] = useState<string | null>(null);
   const [showTasksTable, setShowTasksTable] = useState(false);
 
   // Module 3: Vacation & Leave Discipline State (UI_TAT_011)
-  const [isFetchingVacation, setIsFetchingVacation] = useState(false);
   const [previewVacation, setPreviewVacation] = useState<BlueprintVacationSummary | null>(null);
   const [vacationError, setVacationError] = useState<string | null>(null);
   const [showVacationTable, setShowVacationTable] = useState(false);
-  const [vacationYear, setVacationYear] = useState<string>('2026');
   const [selectedVacationMember, setSelectedVacationMember] = useState<string>('khoadang');
-  const [customVacationMember, setCustomVacationMember] = useState<string>('');
 
-  // Member, Role, and Date filters for Module 2 (UI_PIM_001)
+  // Member and default filter options for Module 2 (UI_PIM_001)
   const [selectedTaskMember, setSelectedTaskMember] = useState<string>('hieudao');
-  const [customTaskMember, setCustomTaskMember] = useState<string>('');
-  const [taskFilterRole, setTaskFilterRole] = useState<'requester' | 'assignee' | 'both'>('requester');
-  const [taskDateType, setTaskDateType] = useState<'registered' | 'due' | 'finished'>('registered');
-  const [taskFromDate, setTaskFromDate] = useState<string>('');
-  const [taskToDate, setTaskToDate] = useState<string>('');
+  const taskFilterRole: 'requester' | 'assignee' | 'both' = 'requester';
+  const taskDateType: 'registered' | 'due' | 'finished' = 'registered';
   const [taskMemberList, setTaskMemberList] = useState<Array<{ id: string; name: string; role: string }>>([
     { id: 'hieudao', name: 'Hieu Dao (hieudao)', role: 'Người đăng kí / Requester' },
     { id: 'thienvo', name: 'Thien Vo (thienvo)', role: 'Người đăng kí / Requester' },
@@ -152,11 +136,6 @@ export function CollectorPage() {
         if (cfg.month) setMonth(cfg.month);
         if (cfg.projectFilter) setProjectFilter(cfg.projectFilter);
       }
-      collectorApi.getBlueprintTeams().then((teams) => {
-        if (Array.isArray(teams) && teams.length > 0) {
-          setTeamList(teams);
-        }
-      }).catch(() => {});
       collectorApi.getBlueprintMembers().then((members) => {
         if (Array.isArray(members) && members.length > 0) {
           setTaskMemberList(members);
@@ -275,7 +254,7 @@ export function CollectorPage() {
           username: username.trim(),
           password: password.trim(),
           baseUrl,
-          teamId: selectedTeamOrzId || undefined,
+          teamId: undefined,
           fromDate: fromMDY,
           toDate: toMDY,
           employeeName: targetMember !== 'ALL' ? targetMember : undefined,
@@ -292,7 +271,7 @@ export function CollectorPage() {
       );
 
       // 2. Tasks (Module 2)
-      const taskUser = targetMember !== 'ALL' ? targetMember : (selectedTaskMember !== 'custom' ? selectedTaskMember : 'hieudao');
+      const taskUser = targetMember !== 'ALL' ? targetMember : (selectedTaskMember || 'hieudao');
       promises.push(
         collectorApi.previewBlueprintTasks({
           username: username.trim(),
@@ -312,7 +291,7 @@ export function CollectorPage() {
       );
 
       // 3. Vacation (Module 3)
-      const vacUser = targetMember !== 'ALL' ? targetMember : (selectedVacationMember !== 'custom' ? selectedVacationMember : 'khoadang');
+      const vacUser = targetMember !== 'ALL' ? targetMember : (selectedVacationMember || 'khoadang');
       promises.push(
         collectorApi.previewBlueprintVacation({
           username: username.trim(),
@@ -349,6 +328,20 @@ export function CollectorPage() {
 
     const targetMemberName = selectedInspectMember ? selectedInspectMember.empeName : targetMember;
 
+    const formatDateToMDY = (d: string) => {
+      if (!d) return '09/14/2026';
+      if (d.includes('/')) return d;
+      const parts = d.split('-');
+      if (parts.length === 3) {
+        return `${parts[1]}/${parts[2]}/${parts[0]}`;
+      }
+      return d;
+    };
+
+    const fromMDY = formatDateToMDY(unifiedFromDate);
+    const toMDY = formatDateToMDY(unifiedToDate);
+    const yr = unifiedToDate ? unifiedToDate.split('-')[0] : '2026';
+
     try {
       const syncResults: string[] = [];
 
@@ -358,9 +351,9 @@ export function CollectorPage() {
           username,
           password,
           baseUrl,
-          teamId: selectedTeamOrzId || undefined,
-          fromDate: teamSearchDate || undefined,
-          toDate: teamSearchDate || undefined,
+          teamId: undefined,
+          fromDate: fromMDY,
+          toDate: toMDY,
           targetMember: targetMember,
         });
         if (attRes.success) {
@@ -395,7 +388,7 @@ export function CollectorPage() {
           username,
           password,
           baseUrl,
-          year: vacationYear,
+          year: yr,
           member: targetMember,
         });
         if (vacRes.success) {
@@ -420,90 +413,40 @@ export function CollectorPage() {
     }
   };
 
-  // Module 1: Daily Team Status (UI_TAT_029) Handlers
-  const handleFetchTeamAttendance = async (
-    teamIdOverride?: string,
-    dateOverride?: string,
-    employeeOverride?: string
-  ) => {
+  // Fetch Tasks preview (used when clicking row in attendance table)
+  const handleFetchTasks = async (targetOverride?: string) => {
     if (!username.trim() || !password.trim()) {
-      setTeamAttendanceError('Vui lòng nhập Tài khoản và Mật khẩu Blueprint ở phần Cấu hình kết nối bên trên trước khi lấy dữ liệu.');
       return;
     }
-    setIsFetchingTeamAttendance(true);
-    setTeamAttendanceError(null);
-    try {
-      const targetTeam = teamIdOverride !== undefined ? teamIdOverride : selectedTeamOrzId;
-      const targetDate = dateOverride !== undefined ? dateOverride : teamSearchDate;
-      const targetEmp = employeeOverride !== undefined ? employeeOverride : teamSearchEmployeeName;
+    const memberTarget = targetOverride || selectedTaskMember || 'hieudao';
 
-      const data = await collectorApi.previewBlueprintTeamAttendance({
-        username: username.trim(),
-        password: password.trim(),
-        baseUrl,
-        teamId: targetTeam || undefined,
-        fromDate: targetDate || undefined,
-        toDate: targetDate || undefined,
-        employeeName: targetEmp || undefined,
-      });
-      setPreviewTeamAttendance(data);
-    } catch (err: unknown) {
-      setTeamAttendanceError((err as Error).message || 'Lỗi khi kéo dữ liệu Daily Team Status từ Blueprint');
-    } finally {
-      setIsFetchingTeamAttendance(false);
-    }
-  };
-
-  // Fetch Tasks preview only
-  const handleFetchTasks = async (
-    targetOverride?: string,
-    roleOverride?: 'requester' | 'assignee' | 'both',
-    fromOverride?: string,
-    toOverride?: string,
-    dateTypeOverride?: 'registered' | 'due' | 'finished'
-  ) => {
-    if (!username.trim() || !password.trim()) {
-      setTasksError('Vui lòng nhập Tài khoản và Mật khẩu Blueprint ở phần Cấu hình kết nối bên trên trước khi xem dữ liệu.');
-      return;
-    }
-    const memberTarget = targetOverride || (selectedTaskMember === 'custom' ? customTaskMember.trim() : selectedTaskMember);
-    const roleTarget = roleOverride !== undefined ? roleOverride : taskFilterRole;
-    const fromTarget = fromOverride !== undefined ? fromOverride : taskFromDate;
-    const toTarget = toOverride !== undefined ? toOverride : taskToDate;
-    const dateTypeTarget = dateTypeOverride !== undefined ? dateTypeOverride : taskDateType;
-
-    setIsFetchingTasks(true);
     setTasksError(null);
     try {
       const data = await collectorApi.previewBlueprintTasks({
         username: username.trim(),
         password: password.trim(),
         projectFilter,
-        member: memberTarget || 'hieudao',
-        filterRole: roleTarget,
-        dateType: dateTypeTarget,
-        fromDate: fromTarget,
-        toDate: toTarget,
+        member: memberTarget,
+        filterRole: taskFilterRole,
+        dateType: taskDateType,
+        fromDate: unifiedFromDate,
+        toDate: unifiedToDate,
       });
       setPreviewTasks(data);
       setShowTasksTable(true);
     } catch (err: unknown) {
       setTasksError((err as Error).message || 'Lỗi khi kéo dữ liệu task từ Blueprint UI_PIM_001');
-    } finally {
-      setIsFetchingTasks(false);
     }
   };
 
-  // Fetch Vacation & Discipline preview
-  const handleFetchVacation = async (targetOverride?: string, yearOverride?: string) => {
+  // Fetch Vacation & Discipline preview (used when clicking row in attendance table)
+  const handleFetchVacation = async (targetOverride?: string) => {
     if (!username.trim() || !password.trim()) {
-      setVacationError('Vui lòng nhập Tài khoản và Mật khẩu Blueprint ở phần Cấu hình kết nối bên trên trước khi xem dữ liệu.');
       return;
     }
-    const memberTarget = targetOverride || (selectedVacationMember === 'custom' ? customVacationMember.trim() : selectedVacationMember);
-    const yr = yearOverride || vacationYear;
+    const memberTarget = targetOverride || selectedVacationMember || 'khoadang';
+    const yr = unifiedToDate ? unifiedToDate.split('-')[0] : '2026';
 
-    setIsFetchingVacation(true);
     setVacationError(null);
     try {
       const data = await collectorApi.previewBlueprintVacation({
@@ -511,14 +454,12 @@ export function CollectorPage() {
         password: password.trim(),
         baseUrl,
         year: yr,
-        member: memberTarget || 'khoadang',
+        member: memberTarget,
       });
       setPreviewVacation(data);
       setShowVacationTable(true);
     } catch (err: unknown) {
       setVacationError((err as Error).message || 'Lỗi khi kéo dữ liệu nghỉ phép & kỷ luật từ Blueprint UI_TAT_011');
-    } finally {
-      setIsFetchingVacation(false);
     }
   };
 
@@ -1012,7 +953,6 @@ export function CollectorPage() {
                   value={unifiedFromDate}
                   onChange={(e) => {
                     setUnifiedFromDate(e.target.value);
-                    setTaskFromDate(e.target.value);
                   }}
                   style={{
                     padding: '7px 10px',
@@ -1035,7 +975,6 @@ export function CollectorPage() {
                   value={unifiedToDate}
                   onChange={(e) => {
                     setUnifiedToDate(e.target.value);
-                    setTaskToDate(e.target.value);
                   }}
                   style={{
                     padding: '7px 10px',
@@ -1055,8 +994,6 @@ export function CollectorPage() {
                   onClick={() => {
                     setUnifiedFromDate('2026-09-01');
                     setUnifiedToDate('2026-09-14');
-                    setTaskFromDate('2026-09-01');
-                    setTaskToDate('2026-09-14');
                   }}
                   style={{
                     padding: '6px 10px',
@@ -1076,8 +1013,6 @@ export function CollectorPage() {
                   onClick={() => {
                     setUnifiedFromDate('2026-09-14');
                     setUnifiedToDate('2026-09-14');
-                    setTaskFromDate('2026-09-14');
-                    setTaskToDate('2026-09-14');
                   }}
                   style={{
                     padding: '6px 10px',
@@ -1141,153 +1076,6 @@ export function CollectorPage() {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button
-                  onClick={() => handleFetchTeamAttendance()}
-                  disabled={isFetchingTeamAttendance}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 16px',
-                    backgroundColor: COLORS.neutral.white,
-                    border: `1px solid ${COLORS.neutral.border}`,
-                    borderRadius: RADII.md,
-                    fontSize: TYPOGRAPHY.fontSize.xs,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <Search size={14} />
-                  {isFetchingTeamAttendance ? 'Đang kéo...' : '🔍 Lấy dữ liệu Team Check-in'}
-                </button>
-              </div>
-            </div>
-
-            {/* Filter Bar styled faithfully like Blueprint UI_TAT_029 */}
-            <div
-              style={{
-                backgroundColor: '#f8fafc',
-                padding: '14px 18px',
-                borderRadius: RADII.xl,
-                border: `1px solid #e2e8f0`,
-                display: 'flex',
-                flexWrap: 'wrap',
-                alignItems: 'center',
-                gap: '14px',
-              }}
-            >
-              {/* Company */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 600, color: COLORS.neutral.textSecondary }}>Company:</span>
-                <span
-                  style={{
-                    padding: '5px 10px',
-                    backgroundColor: COLORS.neutral.white,
-                    border: '1px solid #cbd5e1',
-                    borderRadius: RADII.md,
-                    fontSize: TYPOGRAPHY.fontSize.xs,
-                    fontWeight: 600,
-                    color: COLORS.neutral.textPrimary,
-                  }}
-                >
-                  CyberLogitec Vietnam
-                </span>
-              </div>
-
-              {/* Team Name Dropdown */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 600, color: COLORS.neutral.textSecondary }}>Team Name:</span>
-                <select
-                  value={selectedTeamOrzId}
-                  onChange={(e) => {
-                    setSelectedTeamOrzId(e.target.value);
-                    handleFetchTeamAttendance(e.target.value, teamSearchDate, teamSearchEmployeeName);
-                  }}
-                  style={{
-                    padding: '6px 12px',
-                    fontSize: TYPOGRAPHY.fontSize.xs,
-                    borderRadius: RADII.md,
-                    border: '1px solid #cbd5e1',
-                    backgroundColor: COLORS.neutral.white,
-                    fontWeight: 600,
-                    color: '#1e293b',
-                    cursor: 'pointer',
-                    minWidth: '220px',
-                  }}
-                >
-                  <option value="">Tất cả Team quản lý (NX & Maritime - 21 mems)</option>
-                  {teamList.map((t) => (
-                    <option key={t.orzId} value={t.orzId}>
-                      {t.orzNm} {t.orzId === 'ATM202310170003' ? '(12 mems)' : t.orzId === 'ATM202310170004' ? '(9 mems)' : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Employee Filter */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 200px' }}>
-                <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 600, color: COLORS.neutral.textSecondary }}>Nhân viên:</span>
-                <div style={{ position: 'relative', width: '100%' }}>
-                  <input
-                    type="text"
-                    value={teamSearchEmployeeName}
-                    onChange={(e) => setTeamSearchEmployeeName(e.target.value)}
-                    placeholder="Enter Employee's Name Or Employee Code..."
-                    style={{
-                      width: '100%',
-                      padding: '6px 12px',
-                      paddingLeft: '28px',
-                      fontSize: TYPOGRAPHY.fontSize.xs,
-                      borderRadius: RADII.md,
-                      border: '1px solid #cbd5e1',
-                      backgroundColor: COLORS.neutral.white,
-                      outline: 'none',
-                    }}
-                  />
-                  <Search size={13} style={{ position: 'absolute', left: '9px', top: '8px', color: '#94a3b8' }} />
-                </div>
-              </div>
-
-              {/* Date */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 600, color: COLORS.neutral.textSecondary }}>Ngày:</span>
-                <input
-                  type="text"
-                  value={teamSearchDate}
-                  onChange={(e) => setTeamSearchDate(e.target.value)}
-                  placeholder="MM/DD/YYYY"
-                  style={{
-                    width: '105px',
-                    padding: '6px 10px',
-                    fontSize: TYPOGRAPHY.fontSize.xs,
-                    borderRadius: RADII.md,
-                    border: '1px solid #cbd5e1',
-                    backgroundColor: COLORS.neutral.white,
-                    fontWeight: 600,
-                    textAlign: 'center',
-                  }}
-                />
-              </div>
-
-              {/* Search Button */}
-              <button
-                onClick={() => handleFetchTeamAttendance()}
-                disabled={isFetchingTeamAttendance}
-                style={{
-                  padding: '6px 18px',
-                  backgroundColor: '#3b82f6',
-                  color: COLORS.neutral.white,
-                  border: 'none',
-                  borderRadius: RADII.md,
-                  fontSize: TYPOGRAPHY.fontSize.xs,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 6px rgba(59, 130, 246, 0.3)',
-                }}
-              >
-                Search
-              </button>
             </div>
 
             {/* Error message */}
@@ -1441,9 +1229,9 @@ export function CollectorPage() {
               </div>
             ) : (
               <div style={{ padding: '16px', backgroundColor: COLORS.neutral[50], borderRadius: RADII.lg, color: COLORS.neutral.textSecondary, fontSize: TYPOGRAPHY.fontSize.xs, textAlign: 'center' }}>
-                {isFetchingTeamAttendance
+                {isUnifiedFetching
                   ? `Đang nạp dữ liệu check-in/out của các Team quản lý (${username || 'Blueprint'})...`
-                  : 'Chưa có dữ liệu Team check-in. Vui lòng nhập tài khoản và nhấn "Lấy dữ liệu Team Check-in" hoặc "Search".'}
+                  : 'Chưa có dữ liệu Team check-in. Vui lòng nhấn "Lọc & Thu thập toàn bộ tiêu chí" ở bộ lọc chung bên trên.'}
               </div>
             )}
 
@@ -1472,9 +1260,10 @@ export function CollectorPage() {
 
                   <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
                     Hiển thị <strong>{previewTeamAttendance.records.filter((r) => {
-                      if (!teamSearchEmployeeName) return true;
-                      const q = teamSearchEmployeeName.toLowerCase();
-                      return r.empeName.toLowerCase().includes(q) || r.empeNo.toLowerCase().includes(q);
+                      if (unifiedMember === 'ALL') return true;
+                      const q = (unifiedMember === 'custom' ? customUnifiedMember : unifiedMember).toLowerCase().trim();
+                      if (!q) return true;
+                      return r.empeName.toLowerCase().includes(q) || r.empeNo.toLowerCase().includes(q) || (r.usrId && r.usrId.toLowerCase().includes(q));
                     }).length}</strong> / {previewTeamAttendance.records.length} nhân sự (Click vào từng dòng để xem điểm cá nhân)
                   </span>
                 </div>
@@ -1499,9 +1288,10 @@ export function CollectorPage() {
                       <tbody>
                         {previewTeamAttendance.records
                           .filter((r) => {
-                            if (!teamSearchEmployeeName) return true;
-                            const q = teamSearchEmployeeName.toLowerCase();
-                            return r.empeName.toLowerCase().includes(q) || r.empeNo.toLowerCase().includes(q);
+                            if (unifiedMember === 'ALL') return true;
+                            const q = (unifiedMember === 'custom' ? customUnifiedMember : unifiedMember).toLowerCase().trim();
+                            if (!q) return true;
+                            return r.empeName.toLowerCase().includes(q) || r.empeNo.toLowerCase().includes(q) || (r.usrId && r.usrId.toLowerCase().includes(q));
                           })
                           .map((r, idx) => {
                             const isLate = r.status === 'LATE';
@@ -1650,256 +1440,6 @@ export function CollectorPage() {
                   <p style={{ margin: '2px 0 0 0', fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
                     API <code>/api/uiPim001/searchRequirement</code> | Chuyên mục: <strong>{projectFilter}</strong> | Đang đối soát cho: <strong style={{ color: '#7e22ce' }}>{taskMemberList.find(m => m.id === (previewTasks?.username || selectedTaskMember))?.name || (previewTasks?.username || selectedTaskMember)} ({previewTasks?.username || selectedTaskMember})</strong>
                   </p>
-                </div>
-              </div>
-
-              {/* FILTER TOOLBAR: MEMBER + ROLE + DATE RANGE */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                  {/* MEMBER SELECTOR DROPDOWN */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      backgroundColor: '#faf5ff',
-                      padding: '6px 12px',
-                      borderRadius: RADII.md,
-                      border: '1.5px solid #c084fc',
-                      boxShadow: '0 1px 3px rgba(147, 51, 234, 0.1)',
-                    }}
-                  >
-                    <label style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 700, color: '#6b21a8', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
-                      <Users size={15} color="#9333ea" /> Thành viên:
-                    </label>
-                    <select
-                      value={selectedTaskMember}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setSelectedTaskMember(val);
-                        if (val !== 'custom') {
-                          handleFetchTasks(val);
-                        }
-                      }}
-                      style={{
-                        padding: '5px 10px',
-                        borderRadius: RADII.md,
-                        border: '1px solid #a855f7',
-                        fontSize: TYPOGRAPHY.fontSize.xs,
-                        fontWeight: 700,
-                        color: '#581c87',
-                        backgroundColor: '#ffffff',
-                        outline: 'none',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {taskMemberList.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.name} {m.role ? `— ${m.role}` : ''}
-                        </option>
-                      ))}
-                      <option value="custom">-- Nhập username khác --</option>
-                    </select>
-
-                    {selectedTaskMember === 'custom' && (
-                      <input
-                        type="text"
-                        placeholder="Username..."
-                        value={customTaskMember}
-                        onChange={(e) => setCustomTaskMember(e.target.value)}
-                        style={{
-                          padding: '4px 8px',
-                          borderRadius: RADII.md,
-                          border: '1px solid #cbd5e1',
-                          fontSize: TYPOGRAPHY.fontSize.xs,
-                          width: '120px',
-                          outline: 'none',
-                        }}
-                      />
-                    )}
-                  </div>
-
-                  {/* ROLE FILTER: Requester vs Assignee vs Both */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      backgroundColor: '#f8fafc',
-                      padding: '6px 12px',
-                      borderRadius: RADII.md,
-                      border: '1.5px solid #cbd5e1',
-                    }}
-                  >
-                    <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 700, color: '#334155', whiteSpace: 'nowrap' }}>
-                      Lọc theo vai trò:
-                    </span>
-                    <select
-                      value={taskFilterRole}
-                      onChange={(e) => {
-                        const val = e.target.value as 'requester' | 'assignee' | 'both';
-                        setTaskFilterRole(val);
-                        handleFetchTasks(undefined, val);
-                      }}
-                      style={{
-                        padding: '5px 10px',
-                        borderRadius: RADII.md,
-                        border: '1px solid #94a3b8',
-                        fontSize: TYPOGRAPHY.fontSize.xs,
-                        fontWeight: 700,
-                        color: '#0f172a',
-                        backgroundColor: '#ffffff',
-                        outline: 'none',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <option value="requester">📌 Người đăng kí (Requester - Chuẩn UI_PIM_001)</option>
-                      <option value="assignee">👤 Người thực hiện (Assignee / PIC)</option>
-                      <option value="both">🔄 Cả hai (Tất cả vai trò)</option>
-                    </select>
-                  </div>
-
-                  {/* DATE RANGE FILTER: Từ ngày - Đến ngày */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      backgroundColor: '#f0fdf4',
-                      padding: '6px 12px',
-                      borderRadius: RADII.md,
-                      border: '1.5px solid #86efac',
-                    }}
-                  >
-                    <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 700, color: '#166534', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Calendar size={14} color="#16a34a" /> Lọc theo:
-                    </span>
-                    <select
-                      value={taskDateType}
-                      onChange={(e) => {
-                        const val = e.target.value as 'registered' | 'due' | 'finished';
-                        setTaskDateType(val);
-                        handleFetchTasks(undefined, undefined, undefined, undefined, val);
-                      }}
-                      style={{
-                        padding: '3px 6px',
-                        borderRadius: RADII.sm,
-                        border: '1px solid #86efac',
-                        fontSize: TYPOGRAPHY.fontSize.xs,
-                        fontWeight: 700,
-                        color: '#166534',
-                        backgroundColor: '#ffffff',
-                        outline: 'none',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <option value="registered">📅 Ngày đăng kí (Registered)</option>
-                      <option value="due">⏰ Hạn chót (Due Date)</option>
-                      <option value="finished">🏁 Ngày hoàn thành (Finished)</option>
-                    </select>
-                    <label style={{ fontSize: '11px', color: '#15803d', fontWeight: 600 }}>Từ</label>
-                    <input
-                      type="date"
-                      value={taskFromDate}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setTaskFromDate(val);
-                        handleFetchTasks(undefined, undefined, val, taskToDate);
-                      }}
-                      style={{
-                        padding: '4px 6px',
-                        borderRadius: RADII.sm,
-                        border: '1px solid #86efac',
-                        fontSize: TYPOGRAPHY.fontSize.xs,
-                        outline: 'none',
-                        backgroundColor: '#ffffff',
-                      }}
-                    />
-                    <label style={{ fontSize: '11px', color: '#15803d', fontWeight: 600 }}>Đến</label>
-                    <input
-                      type="date"
-                      value={taskToDate}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setTaskToDate(val);
-                        handleFetchTasks(undefined, undefined, taskFromDate, val);
-                      }}
-                      style={{
-                        padding: '4px 6px',
-                        borderRadius: RADII.sm,
-                        border: '1px solid #86efac',
-                        fontSize: TYPOGRAPHY.fontSize.xs,
-                        outline: 'none',
-                        backgroundColor: '#ffffff',
-                      }}
-                    />
-
-                    {/* Quick date presets */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTaskFromDate('2026-09-01');
-                        setTaskToDate('2026-09-30');
-                        handleFetchTasks(undefined, undefined, '2026-09-01', '2026-09-30');
-                      }}
-                      style={{
-                        padding: '3px 8px',
-                        borderRadius: RADII.sm,
-                        border: '1px solid #86efac',
-                        backgroundColor: '#dcfce7',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        color: '#15803d',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Tháng 9/2026
-                    </button>
-                    {(taskFromDate || taskToDate) && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTaskFromDate('');
-                          setTaskToDate('');
-                          handleFetchTasks(undefined, undefined, '', '');
-                        }}
-                        style={{
-                          padding: '3px 8px',
-                          borderRadius: RADII.sm,
-                          border: '1px solid #cbd5e1',
-                          backgroundColor: '#f1f5f9',
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          color: '#475569',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        ✕ Xóa lọc ngày
-                      </button>
-                    )}
-                  </div>
-
-                  {/* ACTION BUTTONS */}
-                  <button
-                    onClick={() => handleFetchTasks()}
-                    disabled={isFetchingTasks}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '8px 16px',
-                      backgroundColor: COLORS.primary.DEFAULT,
-                      color: COLORS.neutral.white,
-                      border: 'none',
-                      borderRadius: RADII.md,
-                      fontSize: TYPOGRAPHY.fontSize.xs,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <Play size={12} />
-                    {isFetchingTasks ? 'Đang kéo...' : '🔍 Lọc Task (UI_PIM_001)'}
-                  </button>
                 </div>
               </div>
             </div>
@@ -2104,136 +1644,6 @@ export function CollectorPage() {
                   </p>
                 </div>
               </div>
-
-              {/* TOOLBAR CONTROLS: YEAR + MEMBER + BUTTONS */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                {/* YEAR SELECTOR */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    backgroundColor: '#f0fdf4',
-                    padding: '6px 12px',
-                    borderRadius: RADII.md,
-                    border: '1px solid #86efac',
-                  }}
-                >
-                  <label style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 700, color: '#166534', whiteSpace: 'nowrap' }}>
-                    <Calendar size={14} style={{ display: 'inline', verticalAlign: 'text-bottom', marginRight: '4px' }} />
-                    Năm:
-                  </label>
-                  <select
-                    value={vacationYear}
-                    onChange={(e) => {
-                      const yr = e.target.value;
-                      setVacationYear(yr);
-                      handleFetchVacation(undefined, yr);
-                    }}
-                    style={{
-                      padding: '4px 8px',
-                      borderRadius: RADII.md,
-                      border: '1px solid #4ade80',
-                      fontSize: TYPOGRAPHY.fontSize.xs,
-                      fontWeight: 700,
-                      color: '#14532d',
-                      backgroundColor: '#ffffff',
-                      cursor: 'pointer',
-                      outline: 'none',
-                    }}
-                  >
-                    <option value="2026">2026 (Hiện tại)</option>
-                    <option value="2025">2025</option>
-                    <option value="2024">2024</option>
-                  </select>
-                </div>
-
-                {/* MEMBER SELECTOR */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    backgroundColor: '#f0fdf4',
-                    padding: '6px 12px',
-                    borderRadius: RADII.md,
-                    border: '1px solid #86efac',
-                  }}
-                >
-                  <label style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 700, color: '#166534', whiteSpace: 'nowrap' }}>
-                    <Users size={14} style={{ display: 'inline', verticalAlign: 'text-bottom', marginRight: '4px' }} />
-                    Nhân viên:
-                  </label>
-                  <select
-                    value={selectedVacationMember}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setSelectedVacationMember(val);
-                      if (val !== 'custom') {
-                        handleFetchVacation(val);
-                      }
-                    }}
-                    style={{
-                      padding: '4px 8px',
-                      borderRadius: RADII.md,
-                      border: '1px solid #4ade80',
-                      fontSize: TYPOGRAPHY.fontSize.xs,
-                      fontWeight: 700,
-                      color: '#14532d',
-                      backgroundColor: '#ffffff',
-                      cursor: 'pointer',
-                      outline: 'none',
-                    }}
-                  >
-                    {taskMemberList.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name}
-                      </option>
-                    ))}
-                    <option value="custom">-- Nhập username khác --</option>
-                  </select>
-
-                  {selectedVacationMember === 'custom' && (
-                    <input
-                      type="text"
-                      placeholder="Username..."
-                      value={customVacationMember}
-                      onChange={(e) => setCustomVacationMember(e.target.value)}
-                      style={{
-                        padding: '4px 8px',
-                        borderRadius: RADII.md,
-                        border: '1px solid #86efac',
-                        fontSize: TYPOGRAPHY.fontSize.xs,
-                        width: '110px',
-                        outline: 'none',
-                      }}
-                    />
-                  )}
-                </div>
-
-                {/* ACTION BUTTONS */}
-                <button
-                  onClick={() => handleFetchVacation()}
-                  disabled={isFetchingVacation}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 14px',
-                    borderRadius: RADII.md,
-                    backgroundColor: '#059669',
-                    color: '#ffffff',
-                    fontSize: TYPOGRAPHY.fontSize.xs,
-                    fontWeight: 600,
-                    border: 'none',
-                    cursor: isFetchingVacation ? 'not-allowed' : 'pointer',
-                    opacity: isFetchingVacation ? 0.7 : 1,
-                  }}
-                >
-                  <RefreshCw size={14} className={isFetchingVacation ? 'animate-spin' : ''} />
-                  {isFetchingVacation ? 'Đang kéo...' : 'Lấy dữ liệu Nghỉ phép'}
-                </button>
-              </div>
             </div>
 
             {vacationError && (
@@ -2373,7 +1783,7 @@ export function CollectorPage() {
                   fontSize: TYPOGRAPHY.fontSize.sm,
                 }}
               >
-                Nhấn "<strong>Lấy dữ liệu Nghỉ phép</strong>" để kiểm tra số ngày phép năm, số ngày nghỉ không lương và nhật ký vi phạm đi muộn/về sớm của thành viên từ Blueprint UI_TAT_011.
+                Vui lòng nhấn "<strong>Lọc & Thu thập toàn bộ tiêu chí</strong>" ở bộ lọc chung bên trên để kiểm tra số ngày phép năm, số ngày nghỉ không lương và nhật ký vi phạm đi muộn/về sớm của thành viên từ Blueprint UI_TAT_011.
               </div>
             )}
 
