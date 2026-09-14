@@ -105,7 +105,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: <ClipboardCheck size={18} />
         },
         ...(user?.role === 'MANAGER' || canViewConfig ? [{
-          id: 'team-report/my-team',
+          id: 'team-report/00000000-0000-0000-0000-000000000000',
           label: 'Team Report',
           icon: <Users size={18} />
         }] : []),

@@ -11,7 +11,7 @@ import { TYPOGRAPHY } from '@/shared/theme';
 export const EmployeeReportPage: React.FC = () => {
   const { employeeId } = useParams<{ employeeId: string }>();
   // In a real scenario, cycleId would come from context or a cycle selector
-  const cycleId = 'default-cycle-id'; 
+  const cycleId = '00000000-0000-0000-0000-000000000000'; 
 
   const { data: response, isLoading, isError, error, refetch } = useEmployeeReport(employeeId!, cycleId);
 
