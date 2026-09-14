@@ -38,9 +38,9 @@ import { RADII, SHADOWS, TYPOGRAPHY } from '@/shared/theme';
 export function CollectorPage() {
   const [activeTab, setActiveTab] = useState<'hub' | 'jobs' | 'logs'>('hub');
 
-  // Unified Connection Config State - Blueprint Manager Account (kyluong)
-  const [username, setUsername] = useState('kyluong');
-  const [password, setPassword] = useState('19901991');
+  // Unified Connection Config State - User inputs on UI or loads from saved configuration
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [baseUrl, setBaseUrl] = useState('https://blueprint.cyberlogitec.com.vn');
   const [month, setMonth] = useState('2026-09');
   const [projectFilter, setProjectFilter] = useState('Allegro NX');
@@ -151,13 +151,18 @@ export function CollectorPage() {
           setTaskMemberList(members);
         }
       }).catch(() => {});
-      // Automatically preview team attendance for default date
-      collectorApi.previewBlueprintTeamAttendance({
-        fromDate: '09/14/2026',
-        toDate: '09/14/2026',
-      }).then((summary) => {
-        setPreviewTeamAttendance(summary);
-      }).catch(() => {});
+      // Automatically preview team attendance ONLY if credentials are saved
+      if (cfg?.username && cfg?.password) {
+        collectorApi.previewBlueprintTeamAttendance({
+          username: cfg.username,
+          password: cfg.password,
+          baseUrl: cfg.baseUrl,
+          fromDate: '09/14/2026',
+          toDate: '09/14/2026',
+        }).then((summary) => {
+          setPreviewTeamAttendance(summary);
+        }).catch(() => {});
+      }
     } catch {
       // Fallback defaults already set
     }
@@ -182,12 +187,16 @@ export function CollectorPage() {
   };
 
   const handleSaveConfig = async () => {
+    if (!username.trim() || !password.trim()) {
+      alert('Vui lòng nhập Tài khoản và Mật khẩu Blueprint trước khi lưu.');
+      return;
+    }
     setIsSavingConfig(true);
     setConfigSaveSuccess(null);
     try {
       await collectorApi.saveBlueprintConfig({
-        username,
-        password,
+        username: username.trim(),
+        password: password.trim(),
         baseUrl,
         month,
         projectFilter,
@@ -202,10 +211,14 @@ export function CollectorPage() {
   };
 
   const handleTestConnection = async () => {
+    if (!username.trim() || !password.trim()) {
+      setTestResult({ success: false, message: 'Vui lòng nhập Tài khoản và Mật khẩu Blueprint để kiểm tra kết nối.' });
+      return;
+    }
     setIsTesting(true);
     setTestResult(null);
     try {
-      const res = await collectorApi.testConnection({ username, password, baseUrl });
+      const res = await collectorApi.testConnection({ username: username.trim(), password: password.trim(), baseUrl });
       setTestResult(res);
     } catch (err: unknown) {
       setTestResult({ success: false, message: (err as Error).message || 'Kết nối thất bại' });
@@ -216,14 +229,18 @@ export function CollectorPage() {
 
   // 1-Click Sync All (Attendance + Tasks)
   const handleSyncAll = async () => {
+    if (!username.trim() || !password.trim()) {
+      setSyncAllError('Vui lòng nhập Tài khoản và Mật khẩu Blueprint ở phần Cấu hình kết nối bên trên trước khi đồng bộ.');
+      return;
+    }
     setIsSyncingAll(true);
     setSyncAllSuccess(null);
     setSyncAllError(null);
     try {
       const memberTarget = selectedTaskMember === 'custom' ? customTaskMember.trim() : selectedTaskMember;
       const res = await collectorApi.syncAllBlueprint({
-        username,
-        password,
+        username: username.trim(),
+        password: password.trim(),
         baseUrl,
         month,
         projectFilter,
@@ -266,6 +283,10 @@ export function CollectorPage() {
     dateOverride?: string,
     employeeOverride?: string
   ) => {
+    if (!username.trim() || !password.trim()) {
+      setTeamAttendanceError('Vui lòng nhập Tài khoản và Mật khẩu Blueprint ở phần Cấu hình kết nối bên trên trước khi lấy dữ liệu.');
+      return;
+    }
     setIsFetchingTeamAttendance(true);
     setTeamAttendanceError(null);
     try {
@@ -274,8 +295,8 @@ export function CollectorPage() {
       const targetEmp = employeeOverride !== undefined ? employeeOverride : teamSearchEmployeeName;
 
       const data = await collectorApi.previewBlueprintTeamAttendance({
-        username,
-        password,
+        username: username.trim(),
+        password: password.trim(),
         baseUrl,
         teamId: targetTeam || undefined,
         fromDate: targetDate || undefined,
@@ -326,6 +347,10 @@ export function CollectorPage() {
     toOverride?: string,
     dateTypeOverride?: 'registered' | 'due' | 'finished'
   ) => {
+    if (!username.trim() || !password.trim()) {
+      setTasksError('Vui lòng nhập Tài khoản và Mật khẩu Blueprint ở phần Cấu hình kết nối bên trên trước khi xem dữ liệu.');
+      return;
+    }
     const memberTarget = targetOverride || (selectedTaskMember === 'custom' ? customTaskMember.trim() : selectedTaskMember);
     const roleTarget = roleOverride !== undefined ? roleOverride : taskFilterRole;
     const fromTarget = fromOverride !== undefined ? fromOverride : taskFromDate;
@@ -336,8 +361,8 @@ export function CollectorPage() {
     setTasksError(null);
     try {
       const data = await collectorApi.previewBlueprintTasks({
-        username,
-        password,
+        username: username.trim(),
+        password: password.trim(),
         projectFilter,
         member: memberTarget || 'hieudao',
         filterRole: roleTarget,
@@ -387,6 +412,10 @@ export function CollectorPage() {
 
   // Fetch Vacation & Discipline preview
   const handleFetchVacation = async (targetOverride?: string, yearOverride?: string) => {
+    if (!username.trim() || !password.trim()) {
+      setVacationError('Vui lòng nhập Tài khoản và Mật khẩu Blueprint ở phần Cấu hình kết nối bên trên trước khi xem dữ liệu.');
+      return;
+    }
     const memberTarget = targetOverride || (selectedVacationMember === 'custom' ? customVacationMember.trim() : selectedVacationMember);
     const yr = yearOverride || vacationYear;
 
@@ -394,8 +423,8 @@ export function CollectorPage() {
     setVacationError(null);
     try {
       const data = await collectorApi.previewBlueprintVacation({
-        username,
-        password,
+        username: username.trim(),
+        password: password.trim(),
         baseUrl,
         year: yr,
         member: memberTarget || 'khoadang',
@@ -1169,7 +1198,9 @@ export function CollectorPage() {
               </div>
             ) : (
               <div style={{ padding: '16px', backgroundColor: COLORS.neutral[50], borderRadius: RADII.lg, color: COLORS.neutral.textSecondary, fontSize: TYPOGRAPHY.fontSize.xs, textAlign: 'center' }}>
-                Đang nạp dữ liệu check-in/out của các Team quản lý (kyluong)...
+                {isFetchingTeamAttendance
+                  ? `Đang nạp dữ liệu check-in/out của các Team quản lý (${username || 'Blueprint'})...`
+                  : 'Chưa có dữ liệu Team check-in. Vui lòng nhập tài khoản và nhấn "Lấy dữ liệu Team Check-in" hoặc "Search".'}
               </div>
             )}
 

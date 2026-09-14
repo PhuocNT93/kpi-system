@@ -142,7 +142,7 @@ export class CollectorService {
       }
     }
     if (!creds || !creds.username || !creds.password) {
-      creds = { username: 'kyluong', password: '19901991', baseUrl: 'https://blueprint.cyberlogitec.com.vn' };
+      return [];
     }
     const collector = new BlueprintCollector(creds);
     return collector.fetchOrgTree();
@@ -297,7 +297,7 @@ export class CollectorService {
       }
     }
     if (!creds || !creds.username || !creds.password) {
-      creds = { username: 'kyluong', password: '19901991', baseUrl: 'https://blueprint.cyberlogitec.com.vn' };
+      throw new Error('Chưa có tài khoản và mật khẩu kết nối Blueprint. Vui lòng nhập thông tin trên giao diện.');
     }
 
     const collector = new BlueprintCollector(creds);
@@ -821,8 +821,8 @@ export class CollectorService {
       return {
         id: ds.id,
         name: ds.name,
-        username: (ds.auth_config?.username as string) || 'khoadang',
-        password: (ds.auth_config?.password as string) || 'Khoa@69',
+        username: (ds.auth_config?.username as string) || '',
+        password: (ds.auth_config?.password as string) || '',
         baseUrl: (ds.auth_config?.baseUrl as string) || 'https://blueprint.cyberlogitec.com.vn',
         month: (ds.auth_config?.month as string) || '2026-09',
         projectFilter: (ds.auth_config?.projectFilter as string) || 'Allegro NX',
@@ -830,8 +830,8 @@ export class CollectorService {
       };
     }
     return {
-      username: 'khoadang',
-      password: 'Khoa@69',
+      username: '',
+      password: '',
       baseUrl: 'https://blueprint.cyberlogitec.com.vn',
       month: '2026-09',
       projectFilter: 'Allegro NX',
@@ -849,9 +849,10 @@ export class CollectorService {
       `SELECT * FROM collector_data_source WHERE source_type = 'BLUEPRINT' LIMIT 1`
     );
 
+    const prevConfig = (existing.rows[0]?.auth_config as Record<string, unknown>) || {};
     const authConfig = {
-      username: data.username,
-      password: data.password || 'Khoa@69',
+      username: data.username || (prevConfig.username as string) || '',
+      password: data.password !== undefined ? data.password : (prevConfig.password as string) || '',
       baseUrl: data.baseUrl || 'https://blueprint.cyberlogitec.com.vn',
       month: data.month || '2026-09',
       projectFilter: data.projectFilter || 'Allegro NX',
