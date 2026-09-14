@@ -107,9 +107,9 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
     router.use('/', createImportRouter(options.importController, options.authorizationService, options.jwtMiddleware));
   }
 
-  // ── Reports Module Routes ─────────────────────────────────────────────────
+  // ── Reports Module Routes ────────────────────────────────────────────────
   if (options.reportsController) {
-    router.use('/reports', createReportsRouter(options.reportsController));
+    router.use('/reports', createReportsRouter(options.reportsController, options.authorizationService));
   }
 
   // ── Sample: single-resource response ──────────────────────────────────────

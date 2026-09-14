@@ -5061,6 +5061,98 @@ export const swaggerOptions: swaggerJsdoc.Options = {
           },
         },
       },
+      // ── Reports Module Routes ────────────────────────────────────────────────
+      '/api/reports/employees/{employeeId}': {
+        get: {
+          summary: 'Get employee report',
+          description: 'Retrieves evaluation and KPI score report for an employee. Requires SELF scope.',
+          tags: ['Reports'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'employeeId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'cycleId', in: 'query', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Employee report retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden' },
+            404: { description: 'Report not found' },
+          },
+        },
+      },
+      '/api/reports/teams/{teamId}': {
+        get: {
+          summary: 'Get team report',
+          description: 'Retrieves evaluation score report for a team. Requires TEAM scope.',
+          tags: ['Reports'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'teamId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'cycleId', in: 'query', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Team report retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden' },
+            404: { description: 'Report not found' },
+          },
+        },
+      },
+      '/api/reports/kpi/team/{teamId}': {
+        get: {
+          summary: 'Get team KPI report',
+          description: 'Retrieves detailed KPI aggregates for a team. Requires TEAM scope.',
+          tags: ['Reports'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'teamId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'cycleId', in: 'query', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Team KPI report retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden' },
+            404: { description: 'Report not found' },
+          },
+        },
+      },
+      '/api/reports/kpi/trend': {
+        get: {
+          summary: 'Get KPI cross-cycle trend',
+          description: 'Retrieves KPI cross-cycle trend for a team or employee. Requires TEAM scope.',
+          tags: ['Reports'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'currentCycleId', in: 'query', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'previousCycleId', in: 'query', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'teamId', in: 'query', required: false, schema: { type: 'string', format: 'uuid' } },
+            { name: 'employeeId', in: 'query', required: false, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'KPI Trend retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden' },
+            400: { description: 'Bad Request' },
+          },
+        },
+      },
+      '/api/reports/organization': {
+        get: {
+          summary: 'Get organization report',
+          description: 'Retrieves organization-wide reporting data. Requires ORGANIZATION scope.',
+          tags: ['Reports'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'cycleId', in: 'query', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Organization report retrieved successfully' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden' },
+            404: { description: 'Report not found' },
+          },
+        },
+      },
       // ── Audit Module Routes ──────────────────────────────────────────────────
       '/api/audit-logs': {
         get: {

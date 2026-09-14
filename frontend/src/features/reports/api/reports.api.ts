@@ -1,5 +1,5 @@
 import { getApi } from '@/shared/api/api-client';
-import type { EmployeeReport, TeamReport, OrganizationAggregate } from '../types/reports.types';
+import type { EmployeeReport, TeamReport, OrganizationAggregate, TeamKpiAggregate, KpiTrendResponse, ReportResponse } from '../types/reports.types';
 
 const camelize = (obj: unknown): unknown => {
   if (Array.isArray(obj)) return obj.map(camelize);
@@ -13,17 +13,30 @@ const camelize = (obj: unknown): unknown => {
   return obj;
 };
 
-export const fetchEmployeeReport = async (employeeId: string, cycleId: string): Promise<EmployeeReport> => {
+export const fetchEmployeeReport = async (employeeId: string, cycleId: string): Promise<ReportResponse<EmployeeReport>> => {
   const data = await getApi<unknown>(`/reports/employees/${employeeId}?cycleId=${cycleId}`);
-  return camelize(data) as EmployeeReport;
+  return camelize(data) as ReportResponse<EmployeeReport>;
 };
 
-export const fetchTeamReport = async (teamId: string, cycleId: string): Promise<TeamReport> => {
+export const fetchTeamReport = async (teamId: string, cycleId: string): Promise<ReportResponse<TeamReport>> => {
   const data = await getApi<unknown>(`/reports/teams/${teamId}?cycleId=${cycleId}`);
-  return camelize(data) as TeamReport;
+  return camelize(data) as ReportResponse<TeamReport>;
 };
 
-export const fetchOrganizationReport = async (cycleId: string): Promise<OrganizationAggregate[]> => {
+export const fetchTeamKpiReport = async (teamId: string, cycleId: string): Promise<ReportResponse<{ data: TeamKpiAggregate[] }>> => {
+  const data = await getApi<unknown>(`/reports/kpi/team/${teamId}?cycleId=${cycleId}`);
+  return camelize(data) as ReportResponse<{ data: TeamKpiAggregate[] }>;
+};
+
+export const fetchKpiTrend = async (currentCycleId: string, previousCycleId: string, teamId?: string, employeeId?: string): Promise<ReportResponse<{ data: KpiTrendResponse[] }>> => {
+  let url = `/reports/kpi/trend?currentCycleId=${currentCycleId}&previousCycleId=${previousCycleId}`;
+  if (teamId) url += `&teamId=${teamId}`;
+  if (employeeId) url += `&employeeId=${employeeId}`;
+  const data = await getApi<unknown>(url);
+  return camelize(data) as ReportResponse<{ data: KpiTrendResponse[] }>;
+};
+
+export const fetchOrganizationReport = async (cycleId: string): Promise<ReportResponse<{ data: OrganizationAggregate[] }>> => {
   const data = await getApi<unknown>(`/reports/organization?cycleId=${cycleId}`);
-  return camelize(data) as OrganizationAggregate[];
+  return camelize(data) as ReportResponse<{ data: OrganizationAggregate[] }>;
 };

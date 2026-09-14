@@ -88,5 +88,6 @@ export interface IReportsRepository {
   // Queries (reads)
   getEmployeeReport(employeeId: string, cycleId: string): Promise<{ score: EmployeeEvaluationScore; kpis: EmployeeKpiScore[] }>;
   getTeamReport(teamId: string, cycleId: string): Promise<{ aggregate: TeamEvaluationAggregate; kpis: TeamKpiAggregate[] }>;
+  getTeamKpiReport(teamId: string, cycleId: string): Promise<TeamKpiAggregate[]>;
   getOrganizationReport(cycleId: string): Promise<OrganizationAggregate[]>;
 }
