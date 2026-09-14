@@ -37,6 +37,7 @@ import { createRuleEngineModule } from './modules/rule-engine/rule-engine.module
 import { createI18nModule } from './modules/i18n/i18n.module.js';
 import { localeMiddleware } from './shared/i18n/locale.middleware.js';
 import { createImportModule } from './modules/import/import.module.js';
+import { createReportsModule } from './modules/reports/reports.module.js';
 
 export interface AppOptions {
   userRepository?: UserRepository;
@@ -103,6 +104,9 @@ export function createApp(options: AppOptions = {}) {
   const importModule = pool && evaluationModule ? createImportModule(pool, evaluationModule.evaluationService) : undefined;
   const importController = importModule?.importController;
 
+  const reportsModule = pool && evaluationModule ? createReportsModule(pool, evaluationModule.evaluationRepo, evaluationModule.evaluationItemRepo) : undefined;
+  const reportsController = reportsModule?.reportsController;
+
   // ── Global Middlewares ────────────────────────────────────────────────────
   app.use(requestIdMiddleware);
   app.use(localeMiddleware);
@@ -158,6 +162,7 @@ export function createApp(options: AppOptions = {}) {
         evaluationController,
         i18nController: i18nModule?.controller,
         importController,
+        reportsController,
       })
     );
   }

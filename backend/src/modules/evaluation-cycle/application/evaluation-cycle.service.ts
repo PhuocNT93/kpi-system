@@ -14,6 +14,7 @@ import {
 import { EvaluationCycleTransitionService } from './evaluation-cycle-transition.service.js';
 import { AuditService } from '../../audit/application/audit.service.js';
 import { CreateEvaluationCycleInput, UpdateEvaluationCycleInput } from '../api/evaluation-cycle.dto.js';
+import { appEventEmitter, AppEvent } from '../../../shared/events/index.js';
 
 export class EvaluationCycleService {
   constructor(
@@ -281,6 +282,8 @@ export class EvaluationCycleService {
           source: 'API',
         });
       }
+
+      appEventEmitter.emit(AppEvent.CYCLE_LOCKED, { cycleId: id });
 
       return lockedCycle;
     });
