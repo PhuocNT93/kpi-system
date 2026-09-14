@@ -164,10 +164,12 @@ export class CollectorService {
   async previewBlueprintVacation(
     credentials: BlueprintCredentials,
     year?: string,
-    targetMember?: string
+    targetMember?: string,
+    fromDate?: string,
+    toDate?: string
   ): Promise<BlueprintVacationSummary> {
     const collector = new BlueprintCollector(credentials);
-    return collector.fetchVacationProfile(year, targetMember);
+    return collector.fetchVacationProfile(year, targetMember, fromDate, toDate);
   }
 
   async syncBlueprintAttendance(options: {
@@ -513,6 +515,8 @@ export class CollectorService {
     cycleId?: string;
     employeeId?: string;
     member?: string;
+    fromDate?: string;
+    toDate?: string;
   }): Promise<{ success: boolean; score10: number; grade: string; weightedScore: number; comment: string; summary: BlueprintVacationSummary }> {
     let creds = options.credentials || (options.username && options.password ? { username: options.username, password: options.password, baseUrl: options.baseUrl } : undefined);
     if (!creds && options.sourceId) {
@@ -532,7 +536,7 @@ export class CollectorService {
     const year = options.year || '2026';
     const targetMember = options.member || creds.username;
     const collector = new BlueprintCollector(creds);
-    const summary = await collector.fetchVacationProfile(year, targetMember);
+    const summary = await collector.fetchVacationProfile(year, targetMember, options.fromDate, options.toDate);
 
     let cycleId = options.cycleId;
     if (!cycleId) {

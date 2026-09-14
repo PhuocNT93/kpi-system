@@ -97,7 +97,7 @@ export function CollectorPage() {
 
   // Member and default filter options for Module 2 (UI_PIM_001)
   const [selectedTaskMember, setSelectedTaskMember] = useState<string>('hieudao');
-  const taskFilterRole: 'requester' | 'assignee' | 'both' = 'requester';
+  const taskFilterRole: 'requester' | 'assignee' | 'both' = 'both';
   const taskDateType: 'registered' | 'due' | 'finished' = 'registered';
   const [taskMemberList, setTaskMemberList] = useState<Array<{ id: string; name: string; role: string }>>([
     { id: 'hieudao', name: 'Hieu Dao (hieudao)', role: 'Người đăng kí / Requester' },
@@ -299,6 +299,8 @@ export function CollectorPage() {
           baseUrl,
           year: yr,
           member: vacUser,
+          fromDate: unifiedFromDate,
+          toDate: unifiedToDate,
         }).then((data) => {
           setPreviewVacation(data);
           setShowVacationTable(true);
@@ -390,6 +392,8 @@ export function CollectorPage() {
           baseUrl,
           year: yr,
           member: targetMember,
+          fromDate: unifiedFromDate,
+          toDate: unifiedToDate,
         });
         if (vacRes.success) {
           syncResults.push(`Kỷ luật: ${vacRes.score10}/10 (+${vacRes.weightedScore.toFixed(2)}đ)`);
@@ -455,6 +459,8 @@ export function CollectorPage() {
         baseUrl,
         year: yr,
         member: memberTarget,
+        fromDate: unifiedFromDate,
+        toDate: unifiedToDate,
       });
       setPreviewVacation(data);
       setShowVacationTable(true);
@@ -1438,7 +1444,7 @@ export function CollectorPage() {
                     </span>
                   </div>
                   <p style={{ margin: '2px 0 0 0', fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
-                    API <code>/api/uiPim001/searchRequirement</code> | Chuyên mục: <strong>{projectFilter}</strong> | Đang đối soát cho: <strong style={{ color: '#7e22ce' }}>{taskMemberList.find(m => m.id === (previewTasks?.username || selectedTaskMember))?.name || (previewTasks?.username || selectedTaskMember)} ({previewTasks?.username || selectedTaskMember})</strong>
+                    API <code>/api/uiPim001/searchRequirement</code> | Chuyên mục: <strong>{projectFilter}</strong> | Vai trò: <strong>Cả Người đăng ký & Người thực hiện</strong> | Kỳ lọc: <strong>{unifiedFromDate} → {unifiedToDate}</strong> | Đang đối soát cho: <strong style={{ color: '#7e22ce' }}>{taskMemberList.find(m => m.id === (previewTasks?.username || selectedTaskMember))?.name || (previewTasks?.username || selectedTaskMember)} ({previewTasks?.username || selectedTaskMember})</strong>
                   </p>
                 </div>
               </div>
@@ -1735,7 +1741,7 @@ export function CollectorPage() {
                       fontWeight: 600,
                     }}
                   >
-                    ⏰ Đi muộn / Về sớm (Bị trừ phép)
+                    ⏰ Đi muộn / Về sớm (Trừ phép trong kỳ)
                   </div>
                   <div
                     style={{
@@ -1748,7 +1754,7 @@ export function CollectorPage() {
                     {previewVacation.lateInEarlyOutCount} <span style={{ fontSize: TYPOGRAPHY.fontSize.sm, fontWeight: 500 }}>lần</span>
                   </div>
                   <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, marginTop: '4px' }}>
-                    {previewVacation.lateInEarlyOutCount === 0 ? '✨ Đúng giờ giấc quy định' : 'Có ghi nhận khấu trừ phép'}
+                    {previewVacation.lateInEarlyOutCount === 0 ? `✨ Đúng giờ quy định (${unifiedFromDate} → ${unifiedToDate})` : `Ghi nhận trong kỳ (${unifiedFromDate} → ${unifiedToDate})`}
                   </div>
                 </div>
 
@@ -1855,7 +1861,7 @@ export function CollectorPage() {
                     {/* TABLE 2: DEDUCTION & LATE HISTORY */}
                     <div style={{ border: `1px solid ${COLORS.neutral.border}`, borderRadius: RADII.lg, overflow: 'hidden' }}>
                       <div style={{ backgroundColor: '#fef2f2', padding: '10px 14px', fontWeight: 700, fontSize: TYPOGRAPHY.fontSize.xs, color: '#991b1b', borderBottom: `1px solid ${COLORS.neutral.border}` }}>
-                        ⚠️ Nhật ký khấu trừ phép & Vi phạm giờ giấc (searchAunualDedunctionHis)
+                        ⚠️ Nhật ký khấu trừ phép & Vi phạm giờ giấc trong kỳ lọc ({unifiedFromDate} → {unifiedToDate})
                       </div>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: TYPOGRAPHY.fontSize.xs }}>
                         <thead>
@@ -1869,7 +1875,7 @@ export function CollectorPage() {
                           {previewVacation.deductions.length === 0 ? (
                             <tr>
                               <td colSpan={3} style={{ padding: '16px', textAlign: 'center', color: '#166534', fontWeight: 500 }}>
-                                ✨ Không có nhật ký vi phạm hay khấu trừ phép nào trong năm {previewVacation.year}!
+                                ✨ Không có nhật ký vi phạm hay khấu trừ phép nào trong khoảng thời gian từ {unifiedFromDate} đến {unifiedToDate}! (Kỳ năm {previewVacation.year})
                               </td>
                             </tr>
                           ) : (

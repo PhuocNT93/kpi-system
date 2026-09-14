@@ -280,6 +280,8 @@ export const collectorApi = {
     baseUrl?: string;
     year?: string;
     member?: string;
+    fromDate?: string;
+    toDate?: string;
   }) =>
     postApi<BlueprintVacationSummary>('/api/collectors/blueprint/preview-vacation', data),
 
@@ -291,6 +293,8 @@ export const collectorApi = {
     cycleId?: string;
     employeeId?: string;
     member?: string;
+    fromDate?: string;
+    toDate?: string;
   }) =>
     postApi<{
       success: boolean;
