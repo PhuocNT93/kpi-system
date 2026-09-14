@@ -4,7 +4,7 @@ export interface CollectorDataSource {
   id: string;
   name: string;
   source_type: 'BLUEPRINT' | 'JIRA' | 'GOOGLE_SHEET';
-  auth_config: Record<string, any>;
+  auth_config: Record<string, unknown>;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -19,7 +19,7 @@ export interface CollectorJob {
   evaluation_cycle_id?: string | null;
   target_criterion_code: string;
   cron_expression?: string | null;
-  params: Record<string, any>;
+  params: Record<string, unknown>;
   is_active: boolean;
   last_run_at?: string | null;
   last_status?: string | null;
@@ -102,7 +102,7 @@ export interface CollectorRunLog {
   finished_at?: string | null;
   status: 'RUNNING' | 'SUCCESS' | 'FAILED';
   records_count: number;
-  summary?: any;
+  summary?: Record<string, unknown> | null;
   error_message?: string | null;
 }
 
@@ -369,7 +369,7 @@ export const collectorApi = {
   createJob: (data: Partial<CollectorJob>) => postApi<CollectorJob>('/api/collectors/jobs', data),
   updateJob: (id: string, data: Partial<CollectorJob>) => putApi<CollectorJob>(`/api/collectors/jobs/${id}`, data),
   deleteJob: (id: string) => deleteApi<void>(`/api/collectors/jobs/${id}`),
-  runJob: (id: string) => postApi<{ success: boolean; log: CollectorRunLog; summary?: any }>(`/api/collectors/jobs/${id}/run`, {}),
+  runJob: (id: string) => postApi<{ success: boolean; log: CollectorRunLog; summary?: Record<string, unknown> }>(`/api/collectors/jobs/${id}/run`, {}),
 
   // Logs
   listLogs: (limit: number = 30) => getApi<CollectorRunLog[]>(`/api/collectors/logs?limit=${limit}`),

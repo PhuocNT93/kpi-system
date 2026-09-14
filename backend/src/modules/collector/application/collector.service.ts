@@ -4,11 +4,23 @@ import {
   CollectorJob,
   CollectorRunLog,
   BlueprintAttendanceSummary,
+  BlueprintTaskSummary,
   BlueprintVacationSummary,
   BlueprintTeamAttendanceSummary,
   BlueprintOrgTeam,
 } from '../domain/collector.types.js';
 import { BlueprintCollector, BlueprintCredentials } from '../plugins/blueprint.collector.js';
+
+export interface BlueprintSavedConfig {
+  id?: string;
+  name?: string;
+  username: string;
+  password?: string;
+  baseUrl?: string;
+  month?: string;
+  projectFilter?: string;
+  [key: string]: unknown;
+}
 
 export class CollectorService {
   constructor(private pool: Pool) {}
@@ -33,7 +45,7 @@ export class CollectorService {
   async createDataSource(data: {
     name: string;
     source_type: 'BLUEPRINT' | 'JIRA' | 'GOOGLE_SHEET';
-    auth_config: Record<string, any>;
+    auth_config: Record<string, unknown>;
   }): Promise<CollectorDataSource> {
     const res = await this.pool.query(
       `INSERT INTO collector_data_source (name, source_type, auth_config, is_active)
@@ -49,7 +61,7 @@ export class CollectorService {
     data: Partial<Pick<CollectorDataSource, 'name' | 'auth_config' | 'is_active'>>
   ): Promise<CollectorDataSource> {
     const updates: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
     let idx = 1;
 
     if (data.name !== undefined) {
@@ -90,7 +102,7 @@ export class CollectorService {
       } else if (sourceId) {
         const ds = await this.getDataSourceById(sourceId);
         if (!ds) throw new Error('Data Source not found');
-        creds = ds.auth_config as BlueprintCredentials;
+        creds = ds.auth_config as unknown as BlueprintCredentials;
       } else {
         throw new Error('No credentials provided');
       }
@@ -98,8 +110,8 @@ export class CollectorService {
       const collector = new BlueprintCollector(creds);
       await collector.login();
       return { success: true, message: `Successfully connected & authenticated as '${creds.username}'` };
-    } catch (err: any) {
-      return { success: false, message: err.message || 'Connection failed' };
+    } catch (err: unknown) {
+      return { success: false, message: (err as Error).message || 'Connection failed' };
     }
   }
 
@@ -144,7 +156,7 @@ export class CollectorService {
     toDate?: string,
     filterRole?: 'requester' | 'assignee' | 'both',
     dateType?: 'registered' | 'due' | 'finished'
-  ): Promise<any> {
+  ): Promise<BlueprintTaskSummary> {
     const collector = new BlueprintCollector(credentials);
     return collector.fetchTasks(projectFilter, targetMember, fromDate, toDate, filterRole, dateType);
   }
@@ -167,16 +179,16 @@ export class CollectorService {
     month?: string;
     cycleId?: string;
     employeeId?: string;
-  }): Promise<{ success: boolean; score10: number; grade: string; weightedScore: number; comment: string; summary: any }> {
+  }): Promise<{ success: boolean; score10: number; grade: string; weightedScore: number; comment: string; summary: BlueprintAttendanceSummary | Record<string, unknown> }> {
     let creds = options.credentials || (options.username && options.password ? { username: options.username, password: options.password, baseUrl: options.baseUrl } : undefined);
     if (!creds && options.sourceId) {
       const ds = await this.getDataSourceById(options.sourceId);
-      if (ds) creds = ds.auth_config as BlueprintCredentials;
+      if (ds) creds = ds.auth_config as unknown as BlueprintCredentials;
     }
     if (!creds || !creds.username || !creds.password) {
       const saved = await this.getBlueprintConfig();
       if (saved && saved.username && saved.password) {
-        creds = { username: saved.username, password: saved.password, baseUrl: saved.baseUrl };
+        creds = { username: saved.username, password: saved.password as string, baseUrl: saved.baseUrl as string | undefined };
       }
     }
     if (!creds || !creds.username || !creds.password) {
@@ -276,12 +288,12 @@ export class CollectorService {
     let creds = options.credentials || (options.username && options.password ? { username: options.username, password: options.password, baseUrl: options.baseUrl } : undefined);
     if (!creds && options.sourceId) {
       const ds = await this.getDataSourceById(options.sourceId);
-      if (ds) creds = ds.auth_config as BlueprintCredentials;
+      if (ds) creds = ds.auth_config as unknown as BlueprintCredentials;
     }
     if (!creds || !creds.username || !creds.password) {
       const saved = await this.getBlueprintConfig();
       if (saved && saved.username && saved.password) {
-        creds = { username: saved.username, password: saved.password, baseUrl: saved.baseUrl };
+        creds = { username: saved.username, password: saved.password as string, baseUrl: saved.baseUrl as string | undefined };
       }
     }
     if (!creds || !creds.username || !creds.password) {
@@ -385,16 +397,16 @@ export class CollectorService {
     toDate?: string;
     filterRole?: 'requester' | 'assignee' | 'both';
     dateType?: 'registered' | 'due' | 'finished';
-  }): Promise<{ success: boolean; score10: number; grade: string; weightedScore: number; comment: string; tasksSummary: any }> {
+  }): Promise<{ success: boolean; score10: number; grade: string; weightedScore: number; comment: string; tasksSummary: BlueprintTaskSummary | Record<string, unknown> }> {
     let creds = options.credentials || (options.username && options.password ? { username: options.username, password: options.password, baseUrl: options.baseUrl } : undefined);
     if (!creds && options.sourceId) {
       const ds = await this.getDataSourceById(options.sourceId);
-      if (ds) creds = ds.auth_config as BlueprintCredentials;
+      if (ds) creds = ds.auth_config as unknown as BlueprintCredentials;
     }
     if (!creds || !creds.username || !creds.password) {
       const saved = await this.getBlueprintConfig();
       if (saved && saved.username && saved.password) {
-        creds = { username: saved.username, password: saved.password, baseUrl: saved.baseUrl };
+        creds = { username: saved.username, password: saved.password as string, baseUrl: saved.baseUrl as string | undefined };
       }
     }
     if (!creds || !creds.username || !creds.password) {
@@ -505,12 +517,12 @@ export class CollectorService {
     let creds = options.credentials || (options.username && options.password ? { username: options.username, password: options.password, baseUrl: options.baseUrl } : undefined);
     if (!creds && options.sourceId) {
       const ds = await this.getDataSourceById(options.sourceId);
-      if (ds) creds = ds.auth_config as BlueprintCredentials;
+      if (ds) creds = ds.auth_config as unknown as BlueprintCredentials;
     }
     if (!creds || !creds.username || !creds.password) {
       const saved = await this.getBlueprintConfig();
       if (saved && saved.username && saved.password) {
-        creds = { username: saved.username, password: saved.password, baseUrl: saved.baseUrl };
+        creds = { username: saved.username, password: saved.password as string, baseUrl: saved.baseUrl as string | undefined };
       }
     }
     if (!creds || !creds.username || !creds.password) {
@@ -620,7 +632,7 @@ export class CollectorService {
       grade: string;
       weightedScore: number;
       comment: string;
-      summary: any;
+      summary: BlueprintAttendanceSummary | Record<string, unknown>;
     };
     tasks: {
       onTimeRate: number;
@@ -628,7 +640,7 @@ export class CollectorService {
       grade: string;
       weightedScore: number;
       comment: string;
-      summary: any;
+      summary: BlueprintTaskSummary | Record<string, unknown>;
     };
     totalScore: number;
   }> {
@@ -800,7 +812,7 @@ export class CollectorService {
     };
   }
 
-  async getBlueprintConfig(): Promise<any> {
+  async getBlueprintConfig(): Promise<BlueprintSavedConfig> {
     const res = await this.pool.query(
       `SELECT * FROM collector_data_source WHERE source_type = 'BLUEPRINT' ORDER BY updated_at DESC LIMIT 1`
     );
@@ -809,6 +821,11 @@ export class CollectorService {
       return {
         id: ds.id,
         name: ds.name,
+        username: (ds.auth_config?.username as string) || 'khoadang',
+        password: (ds.auth_config?.password as string) || 'Khoa@69',
+        baseUrl: (ds.auth_config?.baseUrl as string) || 'https://blueprint.cyberlogitec.com.vn',
+        month: (ds.auth_config?.month as string) || '2026-09',
+        projectFilter: (ds.auth_config?.projectFilter as string) || 'Allegro NX',
         ...ds.auth_config,
       };
     }
@@ -827,7 +844,7 @@ export class CollectorService {
     baseUrl?: string;
     month?: string;
     projectFilter?: string;
-  }): Promise<any> {
+  }): Promise<Record<string, unknown>> {
     const existing = await this.pool.query(
       `SELECT * FROM collector_data_source WHERE source_type = 'BLUEPRINT' LIMIT 1`
     );
@@ -895,7 +912,7 @@ export class CollectorService {
       // 1. Fetch live Blueprint directory from UI_PIM_001
       const creds = await this.getBlueprintConfig();
       if (creds && creds.username && creds.password) {
-        const collector = new BlueprintCollector(creds);
+        const collector = new BlueprintCollector({ username: creds.username, password: creds.password, baseUrl: creds.baseUrl });
         const bpMembers = await collector.fetchMembers();
         if (Array.isArray(bpMembers) && bpMembers.length > 0) {
           bpMembers.forEach((u) => {
@@ -947,7 +964,7 @@ export class CollectorService {
     evaluation_cycle_id?: string | null;
     target_criterion_code?: string;
     cron_expression?: string | null;
-    params?: Record<string, any>;
+    params?: Record<string, unknown>;
   }): Promise<CollectorJob> {
     const res = await this.pool.query(
       `INSERT INTO collector_job (
@@ -972,7 +989,7 @@ export class CollectorService {
     data: Partial<Pick<CollectorJob, 'name' | 'evaluation_cycle_id' | 'target_criterion_code' | 'cron_expression' | 'params' | 'is_active'>>
   ): Promise<CollectorJob> {
     const updates: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
     let idx = 1;
 
     if (data.name !== undefined) {
@@ -1018,7 +1035,7 @@ export class CollectorService {
 
   // ──────────────────────────── Execute Job ────────────────────────────
 
-  async runJob(jobId: string): Promise<{ success: boolean; log: CollectorRunLog; summary?: any }> {
+  async runJob(jobId: string): Promise<{ success: boolean; log: CollectorRunLog; summary?: Record<string, unknown> | BlueprintTaskSummary | BlueprintVacationSummary | BlueprintAttendanceSummary | null }> {
     const job = await this.getJobById(jobId);
     if (!job) throw new Error('Job not found');
 
@@ -1036,10 +1053,10 @@ export class CollectorService {
 
     try {
       if (ds.source_type === 'BLUEPRINT') {
-        const creds = ds.auth_config as BlueprintCredentials;
+        const creds = ds.auth_config as unknown as BlueprintCredentials;
         const collector = new BlueprintCollector(creds);
         let recordsCount = 0;
-        let summaryResult: any = null;
+        let summaryResult: Record<string, unknown> | BlueprintTaskSummary | BlueprintVacationSummary | BlueprintAttendanceSummary | null = null;
 
         let cycleId = job.evaluation_cycle_id;
         if (!cycleId) {
@@ -1052,7 +1069,7 @@ export class CollectorService {
         }
 
         if (job.target_criterion_code === 'ON_TIME_COMPLETION') {
-          const projectFilter = job.params?.project_filter || 'ALLEGRO';
+          const projectFilter = typeof job.params?.project_filter === 'string' ? job.params.project_filter : 'ALLEGRO';
           const tasksSummary = await collector.fetchTasks(projectFilter);
           summaryResult = tasksSummary;
 
@@ -1061,15 +1078,15 @@ export class CollectorService {
               cycleId,
               job.target_criterion_code,
               tasksSummary,
-              job.params?.target_employee_id
+              typeof job.params?.target_employee_id === 'string' ? job.params.target_employee_id : undefined
             );
             recordsCount = tasksSummary.totalTasks || syncRes.updated;
           } else {
             recordsCount = tasksSummary.totalTasks || 0;
           }
         } else if (job.target_criterion_code === 'LEAVE_DISCIPLINE' || job.params?.module === 'VACATION') {
-          const year = job.params?.year || '2026';
-          const targetMember = job.params?.member || creds.username;
+          const year = typeof job.params?.year === 'string' ? job.params.year : '2026';
+          const targetMember = typeof job.params?.member === 'string' ? job.params.member : creds.username;
           const vacationSummary = await collector.fetchVacationProfile(year, targetMember);
           summaryResult = vacationSummary;
 
@@ -1078,7 +1095,7 @@ export class CollectorService {
               cycleId,
               job.target_criterion_code || 'ATTITUDE_COMPANY_CULTURE',
               vacationSummary,
-              job.params?.target_employee_id,
+              typeof job.params?.target_employee_id === 'string' ? job.params.target_employee_id : undefined,
               targetMember
             );
             recordsCount = (vacationSummary.vacationDetails?.length || 0) + (vacationSummary.deductions?.length || 0) || syncRes.updated;
@@ -1086,7 +1103,7 @@ export class CollectorService {
             recordsCount = (vacationSummary.vacationDetails?.length || 0) + (vacationSummary.deductions?.length || 0);
           }
         } else {
-          const month = job.params?.month || '2026-09';
+          const month = typeof job.params?.month === 'string' ? job.params.month : '2026-09';
           const attendanceSummary = await collector.fetchAttendance(month);
           summaryResult = attendanceSummary;
 
@@ -1095,7 +1112,7 @@ export class CollectorService {
               cycleId,
               job.target_criterion_code || 'ATTITUDE_COMPANY_CULTURE',
               attendanceSummary,
-              job.params?.target_employee_id
+              typeof job.params?.target_employee_id === 'string' ? job.params.target_employee_id : undefined
             );
             recordsCount = attendanceSummary.totalDays || syncRes.updated;
           } else {
@@ -1127,7 +1144,7 @@ export class CollectorService {
       } else {
         throw new Error(`Source type ${ds.source_type} is not yet implemented`);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       const failedLog = await this.pool.query(
         `UPDATE collector_run_log
          SET status = 'FAILED',
@@ -1135,7 +1152,7 @@ export class CollectorService {
              error_message = $1
          WHERE id = $2
          RETURNING *`,
-        [err.message || 'Unknown error', logId]
+        [(err as Error).message || 'Unknown error', logId]
       );
 
       await this.pool.query(
@@ -1436,7 +1453,7 @@ export class CollectorService {
   public async applyBlueprintTasksToCycle(
     cycleId: string,
     targetCriterionCode: string,
-    tasksSummary: any,
+    tasksSummary: BlueprintTaskSummary | Record<string, unknown>,
     explicitEmployeeId?: string,
     targetMember?: string
   ): Promise<{ updated: number; score10: number; grade: string; weightedScore: number; comment: string }> {

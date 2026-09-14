@@ -193,8 +193,8 @@ export const CriterionCard: React.FC<CriterionCardProps> = ({
       } else {
         setMemberFetchError('Không tìm thấy dữ liệu task cho thành viên này.');
       }
-    } catch (err: any) {
-      setMemberFetchError(err.message || 'Lỗi khi kết nối Blueprint UI_PIM_001.');
+    } catch (err: unknown) {
+      setMemberFetchError((err as Error).message || 'Lỗi khi kết nối Blueprint UI_PIM_001.');
     } finally {
       setIsLoadingMemberTasks(false);
     }

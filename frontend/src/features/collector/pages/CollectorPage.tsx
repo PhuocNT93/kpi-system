@@ -174,7 +174,7 @@ export function CollectorPage() {
       setSources(srcList);
       setJobs(jobList);
       setLogs(logList);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to load collector data:', err);
     } finally {
       setLoadingGeneral(false);
@@ -194,8 +194,8 @@ export function CollectorPage() {
       });
       setConfigSaveSuccess('Đã lưu cấu hình kết nối thành công!');
       setTimeout(() => setConfigSaveSuccess(null), 4000);
-    } catch (err: any) {
-      alert(`Lỗi lưu cấu hình: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`Lỗi lưu cấu hình: ${(err as Error).message}`);
     } finally {
       setIsSavingConfig(false);
     }
@@ -207,8 +207,8 @@ export function CollectorPage() {
     try {
       const res = await collectorApi.testConnection({ username, password, baseUrl });
       setTestResult(res);
-    } catch (err: any) {
-      setTestResult({ success: false, message: err.message || 'Kết nối thất bại' });
+    } catch (err: unknown) {
+      setTestResult({ success: false, message: (err as Error).message || 'Kết nối thất bại' });
     } finally {
       setIsTesting(false);
     }
@@ -253,8 +253,8 @@ export function CollectorPage() {
         setSyncAllError('Đồng bộ thất bại, vui lòng kiểm tra kỳ đánh giá của nhân viên.');
       }
       await loadSourcesAndJobs();
-    } catch (err: any) {
-      setSyncAllError(`Lỗi đồng bộ: ${err.message}`);
+    } catch (err: unknown) {
+      setSyncAllError(`Lỗi đồng bộ: ${(err as Error).message}`);
     } finally {
       setIsSyncingAll(false);
     }
@@ -283,8 +283,8 @@ export function CollectorPage() {
         employeeName: targetEmp || undefined,
       });
       setPreviewTeamAttendance(data);
-    } catch (err: any) {
-      setTeamAttendanceError(err.message || 'Lỗi khi kéo dữ liệu Daily Team Status từ Blueprint');
+    } catch (err: unknown) {
+      setTeamAttendanceError((err as Error).message || 'Lỗi khi kéo dữ liệu Daily Team Status từ Blueprint');
     } finally {
       setIsFetchingTeamAttendance(false);
     }
@@ -310,8 +310,8 @@ export function CollectorPage() {
         );
       }
       await loadSourcesAndJobs();
-    } catch (err: any) {
-      alert(`Lỗi đồng bộ: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`Lỗi đồng bộ: ${(err as Error).message}`);
     } finally {
       setIsSyncingTeamAttendance(false);
       setSyncingMemberEmpeNo(null);
@@ -347,8 +347,8 @@ export function CollectorPage() {
       });
       setPreviewTasks(data);
       setShowTasksTable(true);
-    } catch (err: any) {
-      setTasksError(err.message || 'Lỗi khi kéo dữ liệu task từ Blueprint UI_PIM_001');
+    } catch (err: unknown) {
+      setTasksError((err as Error).message || 'Lỗi khi kéo dữ liệu task từ Blueprint UI_PIM_001');
     } finally {
       setIsFetchingTasks(false);
     }
@@ -378,8 +378,8 @@ export function CollectorPage() {
         );
       }
       await loadSourcesAndJobs();
-    } catch (err: any) {
-      alert(`Lỗi đồng bộ: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`Lỗi đồng bộ: ${(err as Error).message}`);
     } finally {
       setIsSyncingTasks(false);
     }
@@ -402,8 +402,8 @@ export function CollectorPage() {
       });
       setPreviewVacation(data);
       setShowVacationTable(true);
-    } catch (err: any) {
-      setVacationError(err.message || 'Lỗi khi kéo dữ liệu nghỉ phép & kỷ luật từ Blueprint UI_TAT_011');
+    } catch (err: unknown) {
+      setVacationError((err as Error).message || 'Lỗi khi kéo dữ liệu nghỉ phép & kỷ luật từ Blueprint UI_TAT_011');
     } finally {
       setIsFetchingVacation(false);
     }
@@ -430,8 +430,8 @@ export function CollectorPage() {
         );
       }
       await loadSourcesAndJobs();
-    } catch (err: any) {
-      alert(`Lỗi đồng bộ: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`Lỗi đồng bộ: ${(err as Error).message}`);
     } finally {
       setIsSyncingVacation(false);
     }
@@ -447,8 +447,8 @@ export function CollectorPage() {
         alert(`Job thất bại: ${res.log.error_message || 'Unknown error'}`);
       }
       await loadSourcesAndJobs();
-    } catch (err: any) {
-      alert(`Lỗi: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`Lỗi: ${(err as Error).message}`);
     } finally {
       setRunningJobId(null);
     }
