@@ -38,6 +38,10 @@ describe('EmployeeReportPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(reportsApi.fetchEmployeeReport).mockReset();
+    if (queryClient) {
+      queryClient.clear();
+    }
     queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });

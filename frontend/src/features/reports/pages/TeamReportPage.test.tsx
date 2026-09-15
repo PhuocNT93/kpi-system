@@ -49,6 +49,9 @@ describe('TeamReportPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    if (queryClient) {
+      queryClient.clear();
+    }
     queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });

@@ -708,5 +708,261 @@ export class EvaluationService {
       evidences,
     };
   }
+
+  async getEmployeeKpiSummary(
+    employeeId: string,
+    evaluationCycleId: string,
+    actor: Actor
+  ): Promise<import('../../../employee/api/employee-kpi-summary.dto.js').EmployeeKpiSummaryResponse> {
+    const empRes = await this.pool.query(
+      `SELECT 
+        e.employee_id, e.employee_code, e.full_name, e.email, e.employment_status, e.manager_id, e.team_id,
+        d.department_id, d.name AS department_name, d.code AS department_code,
+        t.team_id, t.name AS team_name, t.code AS team_code,
+        r.role_id, r.name AS role_name, r.code AS role_code,
+        jl.job_level_id, jl.name AS job_level_name, jl.code AS job_level_code,
+        m.employee_id AS manager_emp_id, m.full_name AS manager_name, m.employee_code AS manager_code
+       FROM employee e
+       LEFT JOIN department d ON e.department_id = d.department_id
+       LEFT JOIN team t ON e.team_id = t.team_id
+       LEFT JOIN role r ON e.role_id = r.role_id
+       LEFT JOIN job_level jl ON e.job_level_id = jl.job_level_id
+       LEFT JOIN employee m ON e.manager_id = m.employee_id
+       WHERE e.employee_id = $1`,
+      [employeeId]
+    );
+
+    if (empRes.rows.length === 0) {
+      throw new NotFound('Employee');
+    }
+    const empRow = empRes.rows[0];
+
+    const cycleRes = await this.pool.query(
+      `SELECT evaluation_cycle_id, name, status FROM evaluation_cycle WHERE evaluation_cycle_id = $1`,
+      [evaluationCycleId]
+    );
+    if (cycleRes.rows.length === 0) {
+      throw new NotFound('EvaluationCycle');
+    }
+    const cycleRow = cycleRes.rows[0];
+
+    const isSelf = empRow.employee_id === actor.employeeId || empRow.employee_id === actor.userId;
+    let isManager = false;
+    if (actor.role === 'MANAGER') {
+      let managerEmpId = actor.employeeId;
+      if (!managerEmpId && actor.userId) {
+        const uRes = await this.pool.query('SELECT employee_id FROM app_user WHERE id = $1', [actor.userId]);
+        managerEmpId = uRes.rows[0]?.employee_id ?? undefined;
+      }
+      if (managerEmpId) {
+        if (empRow.manager_id === managerEmpId) {
+          isManager = true;
+        } else if (empRow.team_id) {
+          const teamManagerRes = await this.pool.query(
+            'SELECT 1 FROM team WHERE team_id = $1 AND manager_id = $2',
+            [empRow.team_id, managerEmpId]
+          );
+          if (teamManagerRes.rows.length > 0) {
+            isManager = true;
+          }
+        }
+      }
+    }
+    const isSuperAdminOrHr = actor.role === 'SYSTEM_ADMIN' || actor.role === 'HR_ADMIN';
+
+    if (!isSelf && !isManager && !isSuperAdminOrHr) {
+      throw new AppError(403, 'FORBIDDEN', 'You do not have access to this employee KPI summary.');
+    }
+
+    const evalRes = await this.pool.query(
+      `SELECT * FROM evaluation WHERE employee_id = $1 AND evaluation_cycle_id = $2`,
+      [employeeId, evaluationCycleId]
+    );
+    if (evalRes.rows.length === 0) {
+      throw new NotFound('Evaluation for employee in specified cycle');
+    }
+    const evaluation = evalRes.rows[0];
+
+    const itemsRes = await this.pool.query(
+      `SELECT ei.*, rev.full_name AS reviewer_name
+       FROM evaluation_item ei
+       LEFT JOIN employee rev ON ei.reviewer_id = rev.employee_id
+       WHERE ei.evaluation_id = $1
+       ORDER BY ei.created_at ASC, ei.criterion_code_snapshot ASC`,
+      [evaluation.evaluation_id]
+    );
+    const itemRows = itemsRes.rows;
+    const itemIds = itemRows.map((r: Record<string, unknown>) => r.evaluation_item_id as string);
+
+    let evidenceRows: Record<string, unknown>[] = [];
+    if (itemIds.length > 0) {
+      const evRes = await this.pool.query(
+        `SELECT evidence_id, evaluation_item_id, evidence_type, title, evidence_url, file_reference, rationale, source, evidence_value
+         FROM evidence
+         WHERE evaluation_item_id = ANY($1::uuid[])
+         ORDER BY created_at ASC`,
+        [itemIds]
+      );
+      evidenceRows = evRes.rows;
+    }
+
+    const evidenceByItemId = new Map<string, import('../../../employee/api/employee-kpi-summary.dto.js').KpiEvidenceDto[]>();
+    for (const ev of evidenceRows) {
+      const list = evidenceByItemId.get(ev.evaluation_item_id as string) || [];
+      list.push({
+        evidence_id: ev.evidence_id as string,
+        evidence_type: ev.evidence_type as string,
+        title: (ev.title as string) || 'Evidence',
+        evidence_url: (ev.evidence_url as string) || null,
+        file_reference: (ev.file_reference as string) || null,
+        rationale: (ev.rationale as string) || null,
+        source: (ev.source as string) || null,
+      });
+      evidenceByItemId.set(ev.evaluation_item_id as string, list);
+    }
+
+    interface DbItemRow {
+      evaluation_item_id: string;
+      criterion_code_snapshot: string;
+      criterion_name_snapshot: string;
+      kpi_name_snapshot?: string;
+      measurement_value?: string;
+      raw_score?: string;
+      weighted_score?: string;
+      weight_snapshot?: string;
+      resolved_level?: string;
+      is_disabled_for_employee?: boolean;
+      is_missing_score?: boolean;
+      measurement_key?: string;
+      measurement_name?: string;
+      measurement_unit?: string;
+      system_source?: string;
+      comment?: string;
+      rationale?: string;
+      reviewer_id?: string;
+      reviewer_name?: string;
+      reviewer_comment?: string;
+      review_date?: Date | string;
+      kpi_id_snapshot?: string;
+      kpi_code_snapshot?: string;
+      kpi_weight_snapshot?: string;
+      scoring_rule_snapshot?: string | Record<string, unknown>;
+      level_definition_snapshot?: string | Record<string, unknown>[];
+    }
+
+    const kpi_items = itemRows.map((rowRaw: unknown) => {
+      const row = rowRaw as DbItemRow;
+      const category = row.kpi_name_snapshot || 'Performance';
+      const measurementVal = row.measurement_value !== null && row.measurement_value !== undefined
+        ? parseFloat(row.measurement_value)
+        : null;
+
+      const rawScore = row.raw_score !== null && row.raw_score !== undefined ? parseFloat(row.raw_score) : null;
+      const weightedScore = row.weighted_score !== null && row.weighted_score !== undefined ? parseFloat(row.weighted_score) : null;
+      const weight = parseFloat(row.weight_snapshot || '0');
+
+      return {
+        evaluation_item_id: row.evaluation_item_id,
+        criterion_code: row.criterion_code_snapshot,
+        criterion_name: row.criterion_name_snapshot,
+        category,
+        weight,
+        raw_score: rawScore,
+        weighted_score: weightedScore,
+        resolved_level: row.resolved_level !== null && row.resolved_level !== undefined ? parseInt(row.resolved_level, 10) : null,
+        is_disabled: !!row.is_disabled_for_employee,
+        is_missing_score: !!row.is_missing_score,
+        measurement: measurementVal !== null ? {
+          key: row.measurement_key || null,
+          value: measurementVal,
+          unit: row.measurement_unit || null,
+          source: row.system_source || null,
+        } : null,
+        evidence: evidenceByItemId.get(row.evaluation_item_id) || [],
+        comment: row.comment || null,
+        rationale: row.rationale || null,
+        reviewer: row.reviewer_id ? {
+          id: row.reviewer_id,
+          name: row.reviewer_name || null,
+          review_date: row.review_date instanceof Date ? row.review_date.toISOString() : (row.review_date ? String(row.review_date) : null),
+        } : null,
+        kpi_relationship_snapshot: {
+          kpi_id: row.kpi_id_snapshot || null,
+          kpi_code: row.kpi_code_snapshot || null,
+          kpi_name: row.kpi_name_snapshot || null,
+          kpi_weight: row.kpi_weight_snapshot ? parseFloat(row.kpi_weight_snapshot) : null,
+          scoring_rule: typeof row.scoring_rule_snapshot === 'string' ? JSON.parse(row.scoring_rule_snapshot) : row.scoring_rule_snapshot,
+          level_definitions: typeof row.level_definition_snapshot === 'string' ? JSON.parse(row.level_definition_snapshot) : row.level_definition_snapshot,
+        },
+      };
+    });
+
+    const scoringBreakdown = typeof evaluation.scoring_breakdown === 'string'
+      ? JSON.parse(evaluation.scoring_breakdown)
+      : (evaluation.scoring_breakdown || {});
+
+    const overallWeightedScore = evaluation.official_score !== null && evaluation.official_score !== undefined
+      ? parseFloat(evaluation.official_score)
+      : (typeof scoringBreakdown?.overall_weighted_score === 'number'
+          ? scoringBreakdown.overall_weighted_score
+          : (evaluation.final_score !== null && evaluation.final_score !== undefined
+              ? parseFloat(evaluation.final_score)
+              : (evaluation.manager_score !== null && evaluation.manager_score !== undefined
+                  ? parseFloat(evaluation.manager_score)
+                  : null)));
+
+    const overallScore = evaluation.self_score !== null && evaluation.self_score !== undefined
+      ? parseFloat(evaluation.self_score)
+      : (evaluation.final_score !== null && evaluation.final_score !== undefined
+          ? parseFloat(evaluation.final_score)
+          : overallWeightedScore);
+
+    return {
+      employee: {
+        id: empRow.employee_id,
+        employee_code: empRow.employee_code,
+        full_name: empRow.full_name,
+        email: empRow.email,
+        department: {
+          id: empRow.department_id || null,
+          name: empRow.department_name || null,
+          code: empRow.department_code || null,
+        },
+        team: {
+          id: empRow.team_id || null,
+          name: empRow.team_name || null,
+          code: empRow.team_code || null,
+        },
+        role: {
+          id: empRow.role_id,
+          name: empRow.role_name,
+          code: empRow.role_code,
+        },
+        job_level: {
+          id: empRow.job_level_id,
+          name: empRow.job_level_name,
+          code: empRow.job_level_code,
+        },
+        manager: empRow.manager_emp_id ? {
+          id: empRow.manager_emp_id,
+          name: empRow.manager_name,
+          code: empRow.manager_code,
+        } : null,
+      },
+      evaluation: {
+        evaluation_id: evaluation.evaluation_id,
+        cycle_id: cycleRow.evaluation_cycle_id,
+        cycle_name: cycleRow.name,
+        status: evaluation.status,
+        submitted_at: evaluation.submitted_at instanceof Date ? evaluation.submitted_at.toISOString() : (evaluation.submitted_at ? String(evaluation.submitted_at) : null),
+        approved_at: evaluation.approved_at instanceof Date ? evaluation.approved_at.toISOString() : (evaluation.approved_at ? String(evaluation.approved_at) : null),
+        is_locked: !!evaluation.is_locked,
+      },
+      overall_score: overallScore,
+      overall_weighted_score: overallWeightedScore,
+      official_score_field: 'overall_weighted_score',
+      kpi_items,
+    };
+  }
 }
 

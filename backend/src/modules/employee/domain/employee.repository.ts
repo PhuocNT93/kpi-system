@@ -2,6 +2,59 @@ import { Employee, EmployeeAssignment, Team, TeamWithContext, CreateTeamParams, 
 import { QueryExecutor } from '../../../shared/database/query-executor.js';
 
 
+export interface EmployeeSearchParams {
+  employeeId?: string;
+  name?: string;
+  email?: string;
+  department?: string;
+  team?: string;
+  role?: string;
+  jobLevel?: string;
+  manager?: string;
+  evaluationCycle?: string;
+  evaluationStatus?: string;
+  q?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface EmployeeSearchResultItem {
+  employee_id: string;
+  employee_code: string;
+  full_name: string;
+  email: string;
+  department: {
+    id: string | null;
+    name: string | null;
+    code: string | null;
+  };
+  team: {
+    id: string | null;
+    name: string | null;
+    code: string | null;
+  };
+  role: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  job_level: {
+    id: string;
+    name: string;
+    code: string;
+    rank?: number;
+  };
+  manager: {
+    id: string | null;
+    name: string | null;
+    code: string | null;
+  } | null;
+  employment_status: string;
+  evaluation_status?: string | null;
+  evaluation_id?: string | null;
+  join_date: string;
+}
+
 export interface EmployeeRepository {
   findById(employeeId: string): Promise<Employee | null>;
   findByCode(employeeCode: string): Promise<Employee | null>;
@@ -17,6 +70,7 @@ export interface EmployeeRepository {
     limit?: number;
     offset?: number;
   }): Promise<{ employees: Employee[]; total: number }>;
+  search(params: EmployeeSearchParams, actor: import('../../../shared/auth/types.js').Actor): Promise<{ employees: EmployeeSearchResultItem[]; total: number }>;
   create(employee: Omit<Employee, 'employeeId' | 'version'>, client?: QueryExecutor): Promise<Employee>;
   update(employee: Employee, client?: QueryExecutor): Promise<Employee>;
 }

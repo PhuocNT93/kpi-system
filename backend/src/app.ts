@@ -51,6 +51,7 @@ export interface AppOptions {
   rolePermissionRepository?: RolePermissionRepository;
   auditWriter?: AuditWriter;
   googleIdentityVerifier?: GoogleIdentityVerifier;
+  employeeController?: EmployeeController;
 }
 
 export function createApp(options: AppOptions = {}) {
@@ -81,9 +82,12 @@ export function createApp(options: AppOptions = {}) {
   );
 
   const auditModule = pool ? createAuditModule(pool) : undefined;
+  const ruleEngineModule = createRuleEngineModule();
+  const evaluationModule = pool ? createEvaluationModule(pool, auditModule?.auditService, ruleEngineModule.engine) : undefined;
+  const evaluationController = evaluationModule?.evaluationController;
 
-  const employeeModule = pool && auditModule ? createEmployeeModule(pool, auditModule.auditService) : undefined;
-  const employeeController = employeeModule?.employeeController ?? new EmployeeController();
+  const employeeModule = pool && auditModule ? createEmployeeModule(pool, auditModule.auditService, evaluationModule?.evaluationService) : undefined;
+  const employeeController = options.employeeController ?? employeeModule?.employeeController ?? new EmployeeController();
 
   const organizationModule = pool ? createOrganizationModule(pool) : undefined;
   const organizationController = organizationModule?.organizationController;
@@ -97,10 +101,6 @@ export function createApp(options: AppOptions = {}) {
 
   const evaluationCycleModule = pool ? createEvaluationCycleModule(pool, auditModule?.auditService) : undefined;
   const evaluationCycleController = evaluationCycleModule?.cycleController;
-
-  const ruleEngineModule = createRuleEngineModule();
-  const evaluationModule = pool ? createEvaluationModule(pool, auditModule?.auditService, ruleEngineModule.engine) : undefined;
-  const evaluationController = evaluationModule?.evaluationController;
 
   const i18nModule = pool ? createI18nModule(pool, auditModule?.auditService) : undefined;
   const importModule = pool && evaluationModule ? createImportModule(pool, evaluationModule.evaluationService) : undefined;

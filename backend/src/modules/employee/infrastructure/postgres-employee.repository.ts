@@ -1,6 +1,6 @@
 import { Pool } from 'pg';
 import { Employee, EmployeeAssignment, EmploymentStatus } from '../domain/employee.domain.js';
-import { EmployeeRepository, EmployeeAssignmentRepository } from '../domain/employee.repository.js';
+import { EmployeeRepository, EmployeeAssignmentRepository, EmployeeSearchParams, EmployeeSearchResultItem } from '../domain/employee.repository.js';
 import { QueryExecutor } from '../../../shared/database/query-executor.js';
 
 interface EmployeeRow extends Record<string, unknown> {
@@ -248,6 +248,178 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
       createdBy: row.created_by,
       updatedBy: row.updated_by,
     };
+  }
+
+  async search(params: EmployeeSearchParams, actor: import('../../../shared/auth/types.js').Actor): Promise<{ employees: EmployeeSearchResultItem[]; total: number }> {
+    const conditions: string[] = ['1=1'];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const values: any[] = [];
+    let idx = 1;
+
+    // RBAC
+    if (actor.role === 'SYSTEM_ADMIN' || actor.role === 'HR_ADMIN') {
+      // no restriction
+    } else if (actor.role === 'MANAGER') {
+      conditions.push(`(e.manager_id = $${idx} OR e.team_id IN (SELECT team_id FROM team WHERE manager_id = $${idx}))`);
+      values.push(actor.employeeId);
+      idx++;
+    } else {
+      conditions.push(`e.employee_id = $${idx}`);
+      values.push(actor.employeeId);
+      idx++;
+    }
+
+    if (params.q) {
+      conditions.push(`(immutable_unaccent(e.full_name) % immutable_unaccent($${idx}) OR immutable_unaccent(e.full_name) ILIKE immutable_unaccent('%' || $${idx} || '%') OR e.employee_code ILIKE '%' || $${idx} || '%' OR e.email ILIKE '%' || $${idx} || '%')`);
+      values.push(params.q);
+      idx++;
+    }
+
+    if (params.department) {
+      conditions.push(`e.department_id = $${idx}`);
+      values.push(params.department);
+      idx++;
+    }
+    if (params.team) {
+      conditions.push(`e.team_id = $${idx}`);
+      values.push(params.team);
+      idx++;
+    }
+    if (params.role) {
+      conditions.push(`e.role_id = $${idx}`);
+      values.push(params.role);
+      idx++;
+    }
+    if (params.jobLevel) {
+      conditions.push(`e.job_level_id = $${idx}`);
+      values.push(params.jobLevel);
+      idx++;
+    }
+    if (params.manager) {
+      conditions.push(`e.manager_id = $${idx}`);
+      values.push(params.manager);
+      idx++;
+    }
+
+    let lateralEvalJoin = '';
+    if (params.evaluationCycle || params.evaluationStatus) {
+      lateralEvalJoin = `
+        LEFT JOIN LATERAL (
+          SELECT ev.evaluation_id, ev.status AS evaluation_status, ev.final_score AS last_evaluation_score
+          FROM evaluation ev
+          WHERE ev.employee_id = e.employee_id
+            ${params.evaluationCycle ? `AND ev.evaluation_cycle_id = $${idx++}` : ''}
+            ${params.evaluationStatus ? `AND ev.status = $${idx++}` : ''}
+          ORDER BY ev.created_at DESC
+          LIMIT 1
+        ) ev ON true
+      `;
+      if (params.evaluationCycle) values.push(params.evaluationCycle);
+      if (params.evaluationStatus) values.push(params.evaluationStatus);
+      
+      conditions.push(`ev.evaluation_id IS NOT NULL`);
+    } else {
+      lateralEvalJoin = `
+        LEFT JOIN LATERAL (
+          SELECT ev.evaluation_id, ev.status AS evaluation_status, ev.final_score AS last_evaluation_score
+          FROM evaluation ev
+          WHERE ev.employee_id = e.employee_id
+          ORDER BY ev.created_at DESC
+          LIMIT 1
+        ) ev ON true
+      `;
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const countSql = `
+      SELECT COUNT(DISTINCT e.employee_id)
+      FROM employee e
+      ${lateralEvalJoin}
+      ${whereClause}
+    `;
+
+    let countRes;
+    try {
+      countRes = await this.pool.query(countSql, values);
+    } catch (e: unknown) {
+      console.error('[countSql]', e);
+      throw e;
+    }
+    const total = parseInt(countRes.rows[0].count, 10);
+
+    const limit = params.limit || 20;
+    const offset = params.offset || 0;
+
+    const dataSql = `
+      SELECT DISTINCT ON (e.created_at, e.employee_code, e.employee_id)
+        e.employee_id, e.employee_code, e.full_name, e.email, e.employment_status, e.join_date, e.created_at,
+        e.department_id, d.name AS department_name, d.code AS department_code,
+        e.team_id, t.name AS team_name, t.code AS team_code,
+        e.role_id, r.name AS role_name, r.code AS role_code,
+        e.job_level_id, jl.name AS job_level_name, jl.code AS job_level_code, jl.rank AS job_level_rank,
+        e.manager_id, m.full_name AS manager_name, m.employee_code AS manager_code,
+        ev.evaluation_status, ev.evaluation_id, ev.last_evaluation_score
+      FROM employee e
+      LEFT JOIN department d ON e.department_id = d.department_id
+      LEFT JOIN team t ON e.team_id = t.team_id
+      LEFT JOIN role r ON e.role_id = r.role_id
+      LEFT JOIN job_level jl ON e.job_level_id = jl.job_level_id
+      LEFT JOIN employee m ON e.manager_id = m.employee_id
+      ${lateralEvalJoin}
+      ${whereClause}
+      ORDER BY e.created_at DESC, e.employee_code ASC, e.employee_id ASC
+      LIMIT $${idx++} OFFSET $${idx++}
+    `;
+
+    let dataRes;
+    try {
+      dataRes = await this.pool.query(dataSql, [...values, limit, offset]);
+    } catch (e: unknown) {
+      console.error('[dataSql]', e);
+      throw e;
+    }
+
+    const employees: EmployeeSearchResultItem[] = dataRes.rows.map((row: Record<string, unknown>) => ({
+      employee_id: row.employee_id as string,
+      employee_code: row.employee_code as string,
+      full_name: row.full_name as string,
+      email: row.email as string,
+      department: {
+        id: (row.department_id as string) || null,
+        name: (row.department_name as string) || null,
+        code: (row.department_code as string) || null,
+      },
+      team: {
+        id: (row.team_id as string) || null,
+        name: (row.team_name as string) || null,
+        code: (row.team_code as string) || null,
+      },
+      role: {
+        id: row.role_id as string,
+        name: row.role_name as string,
+        code: row.role_code as string,
+      },
+      job_level: {
+        id: row.job_level_id as string,
+        name: row.job_level_name as string,
+        code: row.job_level_code as string,
+        rank: row.job_level_rank !== null && row.job_level_rank !== undefined ? parseInt(row.job_level_rank as string, 10) : undefined,
+      },
+      manager: row.manager_id
+        ? {
+            id: row.manager_id as string,
+            name: row.manager_name as string,
+            code: row.manager_code as string,
+          }
+        : null,
+      employment_status: row.employment_status as string,
+      evaluation_status: (row.evaluation_status as string) || null,
+      evaluation_id: (row.evaluation_id as string) || null,
+      join_date: ((row.join_date as Date | string) instanceof Date ? ((row.join_date as Date).toISOString().split('T')[0]) : (row.join_date as string)) as string,
+    }));
+
+    return { employees, total };
   }
 }
 

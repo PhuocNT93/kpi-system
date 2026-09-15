@@ -107,6 +107,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       collapsible: true,
       items: [
         {
+          id: 'employee-search',
+          label: 'Employee Search',
+          icon: <Users size={18} />,
+        },
+        {
           id: 'team-evaluations',
           label: 'Team Reviews',
           icon: <UserCheck size={18} />,
