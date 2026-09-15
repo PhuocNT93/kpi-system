@@ -938,12 +938,30 @@ export class BlueprintCollector {
 
     const startFormattedDate = formatDate(fromDate);
     const endFormattedDate = formatDate(toDate || fromDate);
-    const targetOrzId = teamId === 'ALL' || !teamId ? '' : teamId;
-
-    // Get teams list
+    // Get teams list and resolve targetOrzId from teamId (which may be a team name or an orzId)
     const teams = await this.fetchOrgTree();
-    const currentTeam = teams.find((t) => t.orzId === targetOrzId);
-    const teamName = targetOrzId ? (currentTeam?.orzNm || targetOrzId) : 'Tất cả Team (ALLEGRO NX & Maritime)';
+    let targetOrzId = '';
+    let currentTeam: BlueprintOrgTeam | undefined;
+
+    if (teamId && teamId !== 'ALL') {
+      const lower = teamId.toLowerCase();
+      currentTeam = teams.find(
+        (t) => t.orzId === teamId || t.orzNm.toLowerCase() === lower
+      );
+      if (currentTeam) {
+        targetOrzId = currentTeam.orzId;
+      } else if (lower.includes('allegro')) {
+        targetOrzId = 'ATM202310170003';
+      } else if (lower.includes('maritime')) {
+        targetOrzId = 'ATM202310170004';
+      } else {
+        targetOrzId = teamId;
+      }
+    }
+
+    const teamName = targetOrzId
+      ? (currentTeam?.orzNm || (targetOrzId === 'ATM202310170003' ? 'ALLEGRO NX Part' : targetOrzId === 'ATM202310170004' ? 'Maritime Solutions Part' : teamId || 'Team'))
+      : 'Tất cả Team (ALLEGRO NX & Maritime)';
 
     // Query Blueprint with full date range [fromDate, toDate] and size=1000 to capture all days in period
     const url = `${this.baseUrl}/api/dailyTeamStatusFace/searchAttendanceTime?siteCd=V100&orzId=${targetOrzId}&fmDt=${startFormattedDate}&toDt=${endFormattedDate}&empeName=&noneTeam=0&start=0&size=1000`;

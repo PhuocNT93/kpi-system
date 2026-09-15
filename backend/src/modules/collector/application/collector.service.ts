@@ -912,23 +912,32 @@ export class CollectorService {
       return this.bpMembersCache;
     }
 
-    // Top prioritized team members (requested by user: Hieu Dao, Thien Vo, Diem Tran, and core Allegro NX teammates)
+    // 21 Management team members from Blueprint UI_TAT_029 (ALLEGRO NX Part & Maritime Solutions Part)
     const priorityMembers: Array<{ id: string; name: string; role: string; email?: string }> = [
-      { id: 'hieudao', name: 'Hieu Dao (hieudao)', role: 'Người đăng kí / Requester', email: 'hieudao@kpi.com' },
-      { id: 'thienvo', name: 'Thien Vo (thienvo)', role: 'Người đăng kí / Requester', email: 'thienvo@kpi.com' },
-      { id: 'diemtran', name: 'Diem Tran (diemtran)', role: 'Người đăng kí / Requester', email: 'diemtran@kpi.com' },
-      { id: 'anlt', name: 'Lê Trọng An (anlt)', role: 'Developer / Người đăng kí', email: 'anlt@kpi.com' },
-      { id: 'khoadang', name: 'Đặng Đình Khoa (khoadang)', role: 'Developer / Người đăng kí', email: 'khoadang@kpi.com' },
-      { id: 'kyluong', name: 'Lương Đình Kỳ (kyluong)', role: 'Senior Developer / Reviewer / PIC', email: 'kyluong@kpi.com' },
-      { id: 'tungha', name: 'Tung Ha (tungha)', role: 'Developer / PIC', email: 'tungha@kpi.com' },
-      { id: 'ducnguyen', name: 'Duc Nguyen (ducnguyen)', role: 'Developer / PIC', email: 'ducnguyen@kpi.com' },
-      { id: 'hyle', name: 'Hy Le (hyle)', role: 'Developer / PIC', email: 'hyle@kpi.com' },
-      { id: 'ngocnb', name: 'Ngoc Nguyen Ba (ngocnb)', role: 'Developer / PIC', email: 'ngocnb@kpi.com' },
-      { id: 'phuocnt', name: 'Phuoc Nguyen Thanh (phuocnt)', role: 'Developer / PIC', email: 'phuocnt@kpi.com' },
-      { id: 'thangng', name: 'Thang Nguyen (thangng)', role: 'Developer / PIC', email: 'thangng@kpi.com' },
-      { id: 'trangluong', name: 'Trang Luong (trangluong)', role: 'Developer / PIC', email: 'trangluong@kpi.com' },
-      { id: 'triettran', name: 'Triet Tran (triettran)', role: 'Developer / PIC', email: 'triettran@kpi.com' },
-      { id: 'trungtm', name: 'Trung Tran Minh (trungtm)', role: 'Developer / PIC', email: 'trungtm@kpi.com' },
+      // ALLEGRO NX Part (12 members)
+      { id: 'anlt', name: 'An Le Trong (213813)', role: 'Developer', email: 'anlt@cyberlogitec.com.vn' },
+      { id: 'diemtran', name: 'Diem Tran (227031)', role: 'Người đăng kí / Requester', email: 'diemtran@cyberlogitec.com.vn' },
+      { id: 'ducnguyen', name: 'Duc Nguyen (173232)', role: 'Developer / PIC', email: 'ducnguyen@cyberlogitec.com.vn' },
+      { id: 'hieudao', name: 'Hieu Dao (183322)', role: 'Người đăng kí / Requester', email: 'hieudao@cyberlogitec.com.vn' },
+      { id: 'hyle', name: 'Hy Le (213844)', role: 'Developer / PIC', email: 'hyle@cyberlogitec.com.vn' },
+      { id: 'kyluong', name: 'Ky Luong (163188)', role: 'Senior Developer / Manager', email: 'kyluong@cyberlogitec.com.vn' },
+      { id: 'ngocnb', name: 'Ngoc Nguyen Ba (237157)', role: 'Developer / PIC', email: 'ngocnb@cyberlogitec.com.vn' },
+      { id: 'nhanph', name: 'Nhan Phan Huy (247203)', role: 'Developer / PIC', email: 'nhanph@cyberlogitec.com.vn' },
+      { id: 'nhatpham', name: 'Nhat Pham (203701)', role: 'Developer / PIC', email: 'nhatpham@cyberlogitec.com.vn' },
+      { id: 'phuocnt', name: 'Phuoc Nguyen Thanh (247097)', role: 'Developer / PIC', email: 'phuocnt@cyberlogitec.com.vn' },
+      { id: 'thienvo', name: 'Thien Vo (237196)', role: 'Người đăng kí / Requester', email: 'thienvo@cyberlogitec.com.vn' },
+      { id: 'tungha', name: 'Tung Ha (213866)', role: 'Developer / PIC', email: 'tungha@cyberlogitec.com.vn' },
+
+      // Maritime Solutions Part (9 members)
+      { id: 'khoadang', name: 'Khoa Dang (267036)', role: 'Developer / PIC', email: 'khoadang@cyberlogitec.com.vn' },
+      { id: 'lamnguyen', name: 'Lam Nguyen Sy Hoang (247204)', role: 'Developer / PIC', email: 'lamnguyen@cyberlogitec.com.vn' },
+      { id: 'minhdoan', name: 'Minh Doan (213835)', role: 'Developer / PIC', email: 'minhdoan@cyberlogitec.com.vn' },
+      { id: 'namnguyen', name: 'Nam Nguyen Doan (247054)', role: 'Developer / PIC', email: 'namnguyen@cyberlogitec.com.vn' },
+      { id: 'phuongcq', name: 'Phuong Chung Quang (247423)', role: 'Developer / PIC', email: 'phuongcq@cyberlogitec.com.vn' },
+      { id: 'quangnguyen', name: 'Quang Nguyen (257130)', role: 'Developer / PIC', email: 'quangnguyen@cyberlogitec.com.vn' },
+      { id: 'thangpham', name: 'Thang Pham Huu (247222)', role: 'Developer / PIC', email: 'thangpham@cyberlogitec.com.vn' },
+      { id: 'trungqn', name: 'Trung Quang Nguyen (193613)', role: 'Developer / PIC', email: 'trungqn@cyberlogitec.com.vn' },
+      { id: 'xuanthai', name: 'Xuan Thai (203755)', role: 'Developer / PIC', email: 'xuanthai@cyberlogitec.com.vn' },
     ];
 
     const memberMap = new Map<string, { id: string; name: string; role: string; email?: string }>();
@@ -943,11 +952,11 @@ export class CollectorService {
         if (Array.isArray(bpMembers) && bpMembers.length > 0) {
           bpMembers.forEach((u) => {
             const lowerId = u.id.toLowerCase();
-            if (!memberMap.has(lowerId)) {
+            // Only enrich the 21 managed team members, ignore outside junk members
+            if (memberMap.has(lowerId)) {
+              const existing = memberMap.get(lowerId)!;
               memberMap.set(lowerId, {
-                id: u.id,
-                name: `${u.name} (${u.id})`,
-                role: 'Allegro NX Member',
+                ...existing,
                 email: `${u.id}@cyberlogitec.com.vn`,
               });
             }
