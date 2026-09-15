@@ -274,7 +274,11 @@ export class ScoringEngine {
     }
     const achievementPercent = normalizeAchievementPercent(criterion);
     const isNa = criterion.is_disabled || achievementPercent === null;
-    const normalizedScore = isNa ? null : interpolateScore(achievementPercent);
+    const normalizedScore = isNa
+      ? null
+      : criterion.raw_score != null && criterion.actual_value == null && criterion.target_value == null
+        ? achievementPercent / 100
+        : interpolateScore(achievementPercent);
     const weightedContribution = isNa
       ? null
       : Decimal.from(normalizedScore!).multiply(Decimal.from(criterion.effective_weight)).toNumber();

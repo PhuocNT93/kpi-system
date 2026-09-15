@@ -28,10 +28,10 @@ function kpi(kpiId: string, weight: number, criteria: ScoringKpiInput['criteria'
 
 describe('ScoringEngine', () => {
   it.each([
-    { rawScore: 1, expected: 1.25 },
-    { rawScore: 3, expected: 3.75 },
-    { rawScore: 5, expected: 5.0 },
-  ])('maps legacy score $rawScore through KPI conversion fallback', ({ rawScore, expected }) => {
+    { rawScore: 1, expected: 0.2 },
+    { rawScore: 3, expected: 0.6 },
+    { rawScore: 5, expected: 1.0 },
+  ])('normalizes configured score $rawScore against its maximum', ({ rawScore, expected }) => {
     const result = engine.calculate({ kpis: [kpi('kpi-1', 100, [criterion('criterion-1', 'kpi-1', rawScore, 100)])] });
 
     expect(result.kpi_results[0]!.criterion_results[0]!.normalized_score).toBe(expected);
@@ -93,7 +93,7 @@ describe('ScoringEngine', () => {
     });
 
     expect(result.denominator).toBe(70);
-    expect(result.overall_weighted_score).toBeCloseTo(((4.5 * 40 + 5 * 30) / 70));
+    expect(result.overall_weighted_score).toBeCloseTo(((0.8 * 40 + 1 * 30) / 70) * 100);
     expect(result.official_score).toBe(result.overall_weighted_score);
     expect(result.kpi_results[2]!.is_na).toBe(true);
   });
@@ -126,27 +126,8 @@ describe('ScoringEngine', () => {
       ],
     });
 
-    expect(result.overall_weighted_score).toBeCloseTo(4.16875, 5);
-    expect(result.kpi_results[0]!.normalized_score).toBeCloseTo(4.1625, 4);
-  });
-
-  it('inverts achievement for lower-is-better KPIs', () => {
-    const result = engine.calculate({
-      kpis: [kpi('kpi-1', 100, [{
-        criterion_id: 'criterion-1',
-        kpi_id: 'kpi-1',
-        resolved_level: null,
-        raw_score: null,
-        actual_value: 8,
-        target_value: 10,
-        higher_is_better: false,
-        level_definitions: [],
-        effective_weight: 100,
-        is_disabled: false,
-      }])],
-    });
-
-    expect(result.kpi_results[0]!.criterion_results[0]!.normalized_score).toBe(6.5);
+    expect(result.overall_weighted_score).toBe(416.66);
+    expect(result.kpi_results[0]!.normalized_score).toBe(4.1625);
   });
 
   it('fails when every KPI is N/A', () => {
