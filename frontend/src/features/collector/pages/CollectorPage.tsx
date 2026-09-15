@@ -832,7 +832,7 @@ export function CollectorPage() {
                     </span>
                   </div>
                   <p style={{ margin: '2px 0 0 0', fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
-                    API <code>/api/dailyTeamStatusFace/searchAttendanceTime</code> | Giám sát Punch In / Punch Out thực tế của 2 Team: <strong>ALLEGRO NX Part</strong> & <strong>Maritime Solutions Part</strong>.
+                    Giám sát Punch In / Punch Out thực tế của 2 Team: <strong>ALLEGRO NX Part</strong> & <strong>Maritime Solutions Part</strong>.
                   </p>
                 </div>
               </div>
@@ -1225,7 +1225,7 @@ export function CollectorPage() {
                     </span>
                   </div>
                   <p style={{ margin: '2px 0 0 0', fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
-                    API <code>/api/uiPim001/searchRequirement</code> | Chuyên mục: <strong>{projectFilter}</strong> | Vai trò: <strong>Cả Người đăng ký & Người thực hiện</strong> | Kỳ lọc: <strong>{unifiedFromDate} → {unifiedToDate}</strong> | Đang đối soát cho: <strong style={{ color: '#7e22ce' }}>{taskMemberList.find(m => m.id === (previewTasks?.username || selectedTaskMember))?.name || (previewTasks?.username || selectedTaskMember)}</strong>
+                    Chuyên mục: <strong>{projectFilter}</strong> | Vai trò: <strong>Cả Người đăng ký & Người thực hiện</strong> | Kỳ lọc: <strong>{unifiedFromDate} → {unifiedToDate}</strong> | Đang đối soát cho: <strong style={{ color: '#7e22ce' }}>{taskMemberList.find(m => m.id === (previewTasks?.username || selectedTaskMember))?.name || (previewTasks?.username || selectedTaskMember)}</strong>
                   </p>
                 </div>
               </div>
@@ -1423,7 +1423,7 @@ export function CollectorPage() {
                     </span>
                   </div>
                   <p style={{ margin: '2px 0 0 0', fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
-                    API <code>/api/checkInOut/getAnnualVacationProfile</code> & <code>searchAunualDedunctionHis</code> | Đang đối soát cho:{' '}
+                    Giám sát phép năm & kỷ luật | Đang đối soát cho:{' '}
                     <strong style={{ color: '#047857' }}>
                       {taskMemberList.find((m) => m.id === (previewVacation?.username || selectedVacationMember))?.name || (previewVacation?.username || selectedVacationMember)}
                     </strong>
