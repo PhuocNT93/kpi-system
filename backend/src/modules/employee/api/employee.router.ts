@@ -15,8 +15,10 @@ export function createEmployeeRouter(
   router.post('/employees', (req, res, next) => { employeeController.createEmployee(req, res).catch(next); });
   router.post('/employees/bulk-status', (req, res, next) => { employeeController.bulkUpdateEmployeeStatus(req, res).catch(next); });
   router.get('/employees/lookup', (req, res, next) => { employeeController.lookupEmployees(req, res).catch(next); });
+  router.get('/employees/search', (req, res, next) => { employeeController.searchEmployees(req, res).catch(next); });
   
   router.get('/employees/:employeeId', (req, res, next) => { employeeController.getEmployeeById(req, res).catch(next); });
+  router.get('/employees/:employeeId/kpi-summary', (req, res, next) => { employeeController.getEmployeeKpiSummary(req, res).catch(next); });
   router.patch('/employees/:employeeId', (req, res, next) => { employeeController.updateEmployee(req, res).catch(next); });
   
   router.post('/employees/:employeeId/deactivate', (req, res, next) => { employeeController.deactivateEmployee(req, res).catch(next); });

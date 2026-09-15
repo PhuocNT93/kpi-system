@@ -69,7 +69,7 @@ function buildHeaders(extraHeaders?: Record<string, string>): Record<string, str
   return headers;
 }
 
-async function parseResponse<T>(response: Response): Promise<T> {
+async function parseResponseEnvelope<T>(response: Response): Promise<ApiEnvelope<T>> {
   let payload: ApiEnvelope<T>;
   try {
     payload = (await response.json()) as ApiEnvelope<T>;
@@ -104,7 +104,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
     );
   }
 
-  return payload.data;
+  return payload;
 }
 
 async function parseBlobResponse(response: Response): Promise<{ blob: Blob; filename?: string }> {
@@ -186,10 +186,7 @@ async function fetchWithTimeout(path: string, init: RequestInit): Promise<Respon
   }
 }
 
-/**
- * `retryable` must stay false for mutations: a retried write could be applied twice.
- */
-async function requestApi<T>(path: string, init: RequestInit, retryable: boolean): Promise<T> {
+async function requestApiEnvelope<T>(path: string, init: RequestInit, retryable: boolean): Promise<ApiEnvelope<T>> {
   const maxAttempts = retryable ? MAX_RETRIES + 1 : 1;
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
@@ -223,10 +220,18 @@ async function requestApi<T>(path: string, init: RequestInit, retryable: boolean
     }
 
     hasReachedServer = true;
-    return parseResponse<T>(response);
+    return parseResponseEnvelope<T>(response);
   }
 
   throw serverWakingUpError();
+}
+
+/**
+ * `retryable` must stay false for mutations: a retried write could be applied twice.
+ */
+async function requestApi<T>(path: string, init: RequestInit, retryable: boolean): Promise<T> {
+  const envelope = await requestApiEnvelope<T>(path, init, retryable);
+  return envelope.data;
 }
 
 async function requestBlob(path: string, init: RequestInit, retryable: boolean): Promise<{ blob: Blob; filename?: string }> {
@@ -271,6 +276,10 @@ async function requestBlob(path: string, init: RequestInit, retryable: boolean):
 
 export async function getApi<T>(path: string): Promise<T> {
   return requestApi<T>(path, { headers: buildHeaders() }, true);
+}
+
+export async function getEnvelopeApi<T>(path: string): Promise<ApiEnvelope<T>> {
+  return requestApiEnvelope<T>(path, { headers: buildHeaders() }, true);
 }
 
 export async function postApi<T>(

@@ -543,6 +543,161 @@ export const swaggerOptions: swaggerJsdoc.Options = {
             evaluation_cycle_id: { type: 'string', example: 'cycle-2026-h1' },
           },
         },
+        EmployeeSearchItem: {
+          type: 'object',
+          properties: {
+            employee_id: { type: 'string', format: 'uuid' },
+            employee_code: { type: 'string', example: 'EMP-001' },
+            full_name: { type: 'string', example: 'Nguyễn Văn An' },
+            email: { type: 'string', format: 'email', example: 'an.nguyen@example.com' },
+            department: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', nullable: true },
+                name: { type: 'string', nullable: true },
+                code: { type: 'string', nullable: true },
+              },
+            },
+            team: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', nullable: true },
+                name: { type: 'string', nullable: true },
+                code: { type: 'string', nullable: true },
+              },
+            },
+            role: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                name: { type: 'string' },
+                code: { type: 'string' },
+              },
+            },
+            job_level: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                name: { type: 'string' },
+                code: { type: 'string' },
+                rank: { type: 'integer' },
+              },
+            },
+            manager: {
+              type: 'object',
+              nullable: true,
+              properties: {
+                id: { type: 'string', nullable: true },
+                name: { type: 'string', nullable: true },
+                code: { type: 'string', nullable: true },
+              },
+            },
+            employment_status: { type: 'string', example: 'ACTIVE' },
+            evaluation_status: { type: 'string', nullable: true, example: 'APPROVED' },
+            evaluation_id: { type: 'string', format: 'uuid', nullable: true },
+            join_date: { type: 'string', format: 'date', example: '2025-01-15' },
+          },
+        },
+        EmployeeKpiSummary: {
+          type: 'object',
+          properties: {
+            employee: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', format: 'uuid' },
+                employee_code: { type: 'string', example: 'EMP-001' },
+                full_name: { type: 'string', example: 'Nguyễn Văn An' },
+                email: { type: 'string', format: 'email', example: 'an.nguyen@example.com' },
+                department: { type: 'object' },
+                team: { type: 'object' },
+                role: { type: 'object' },
+                job_level: { type: 'object' },
+                manager: { type: 'object', nullable: true },
+              },
+            },
+            evaluation: {
+              type: 'object',
+              properties: {
+                evaluation_id: { type: 'string', format: 'uuid' },
+                cycle_id: { type: 'string', format: 'uuid' },
+                cycle_name: { type: 'string', example: '2026-H1 Review' },
+                status: { type: 'string', example: 'APPROVED' },
+                submitted_at: { type: 'string', format: 'date-time', nullable: true },
+                approved_at: { type: 'string', format: 'date-time', nullable: true },
+                is_locked: { type: 'boolean', example: false },
+              },
+            },
+            overall_score: { type: 'number', example: 4.2 },
+            overall_weighted_score: { type: 'number', example: 4.35 },
+            official_score_field: { type: 'string', example: 'overall_weighted_score' },
+            kpi_items: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  evaluation_item_id: { type: 'string', format: 'uuid' },
+                  criterion_code: { type: 'string', example: 'PERF-01' },
+                  criterion_name: { type: 'string', example: 'On-time Delivery' },
+                  category: { type: 'string', example: 'Performance' },
+                  weight: { type: 'number', example: 25.0 },
+                  raw_score: { type: 'number', nullable: true, example: 4.5 },
+                  weighted_score: { type: 'number', nullable: true, example: 1.125 },
+                  resolved_level: { type: 'integer', nullable: true, example: 4 },
+                  is_disabled: { type: 'boolean', example: false },
+                  is_missing_score: { type: 'boolean', example: false },
+                  measurement: {
+                    type: 'object',
+                    nullable: true,
+                    properties: {
+                      key: { type: 'string', nullable: true },
+                      value: { type: 'number', nullable: true },
+                      unit: { type: 'string', nullable: true },
+                      source: { type: 'string', nullable: true },
+                    },
+                  },
+                  evidence: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        evidence_id: { type: 'string', format: 'uuid' },
+                        evidence_type: { type: 'string', example: 'URL' },
+                        title: { type: 'string', example: 'Sprint Report' },
+                        evidence_url: { type: 'string', nullable: true },
+                        file_reference: { type: 'string', nullable: true },
+                        rationale: { type: 'string', nullable: true },
+                        source: { type: 'string', nullable: true },
+                      },
+                    },
+                  },
+                  comment: { type: 'string', nullable: true },
+                  rationale: { type: 'string', nullable: true },
+                  reviewer: {
+                    type: 'object',
+                    nullable: true,
+                    properties: {
+                      id: { type: 'string', nullable: true },
+                      name: { type: 'string', nullable: true },
+                      review_date: { type: 'string', format: 'date-time', nullable: true },
+                    },
+                  },
+                  kpi_relationship_snapshot: {
+                    type: 'object',
+                    nullable: true,
+                    properties: {
+                      kpi_id: { type: 'string', nullable: true },
+                      kpi_code: { type: 'string', nullable: true },
+                      kpi_name: { type: 'string', nullable: true },
+                      kpi_weight: { type: 'number', nullable: true },
+                      scoring_rule: { type: 'object' },
+                      level_definitions: { type: 'array', items: { type: 'object' } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     },
     paths: {
@@ -1570,6 +1725,91 @@ export const swaggerOptions: swaggerJsdoc.Options = {
               },
             },
             401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/api/employees/search': {
+        get: {
+          summary: 'Search employees',
+          description: 'Search employees with multi-filter AND semantics and pg_trgm Vietnamese fuzzy search.',
+          tags: ['Employee - Employees'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'employee_id', in: 'query', required: false, schema: { type: 'string' } },
+            { name: 'name', in: 'query', required: false, schema: { type: 'string' } },
+            { name: 'email', in: 'query', required: false, schema: { type: 'string' } },
+            { name: 'department', in: 'query', required: false, schema: { type: 'string' } },
+            { name: 'team', in: 'query', required: false, schema: { type: 'string' } },
+            { name: 'role', in: 'query', required: false, schema: { type: 'string' } },
+            { name: 'job_level', in: 'query', required: false, schema: { type: 'string' } },
+            { name: 'manager', in: 'query', required: false, schema: { type: 'string' } },
+            { name: 'evaluation_cycle', in: 'query', required: false, schema: { type: 'string', format: 'uuid' } },
+            { name: 'evaluation_status', in: 'query', required: false, schema: { type: 'string' } },
+            { name: 'q', in: 'query', required: false, description: 'Free-text search (fuzzy trigram matching Vietnamese names)', schema: { type: 'string' } },
+            { name: 'page', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
+            { name: 'size', in: 'query', required: false, schema: { type: 'integer', default: 20, maximum: 100 } },
+          ],
+          responses: {
+            200: {
+              description: 'Employees retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiCollectionResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: {
+                            type: 'array',
+                            items: { $ref: '#/components/schemas/EmployeeSearchItem' },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            400: { description: 'Invalid query parameters' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden' },
+          },
+        },
+      },
+      '/api/employees/{employeeId}/kpi-summary': {
+        get: {
+          summary: 'Get employee KPI summary',
+          description: 'Returns historical persisted evaluation KPI summary, official score, snapshots, evidence, comments, and rationale.',
+          tags: ['Employee - Employees', 'Evaluation'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'employeeId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'evaluation_cycle_id', in: 'query', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: {
+              description: 'Employee KPI summary retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    allOf: [
+                      { $ref: '#/components/schemas/ApiResponse' },
+                      {
+                        type: 'object',
+                        properties: {
+                          data: { $ref: '#/components/schemas/EmployeeKpiSummary' },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            400: { description: 'Invalid path or query parameters' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden - Outside actor scope' },
+            404: { description: 'Employee or evaluation not found' },
           },
         },
       },

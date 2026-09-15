@@ -5,8 +5,9 @@ import { PostgresEmployeeRepository, PostgresEmployeeAssignmentRepository } from
 import { PostgresTeamRepository } from './infrastructure/postgres-team.repository.js';
 import { EmployeeController } from './api/employee.controller.js';
 import { AuditService } from '../audit/application/audit.service.js';
+import { EvaluationService } from '../evaluation/application/services/evaluation.service.js';
 
-export function createEmployeeModule(pool: Pool, auditService: AuditService) {
+export function createEmployeeModule(pool: Pool, auditService: AuditService, _evaluationService?: EvaluationService) {
   const employeeRepo = new PostgresEmployeeRepository(pool);
   const assignmentRepo = new PostgresEmployeeAssignmentRepository(pool);
   const teamRepo = new PostgresTeamRepository(pool);

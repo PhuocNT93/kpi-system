@@ -16,6 +16,8 @@ import { AuditLogPage } from './features/audit/pages/AuditLogPage';
 import { EvaluationTemplatesPage } from './features/templates/pages/EvaluationTemplatesPage';
 import { CriteriaPage } from './features/criteria/pages/CriteriaPage';
 import { OrganizationPage } from './features/organization/pages/OrganizationPage';
+import { EmployeeSearchPage } from './features/organization/pages/EmployeeSearchPage';
+import { EmployeeKpiSummaryPage } from './features/evaluation/pages/EmployeeKpiSummaryPage';
 import { I18nPage } from './features/i18n/pages/I18nPage';
 import { EvaluationDetailPage } from './features/evaluation/pages/EvaluationDetailPage';
 import { TeamEvaluationDetailPage } from './features/evaluation/pages/TeamEvaluationDetailPage';
@@ -52,6 +54,8 @@ const ADMIN_PAGE_TITLES: Record<string, string> = {
   iam: 'IAM Management',
   'audit-logs': 'Audit Logs',
   organization: 'Organization',
+  employees: 'Employee Directory & Search',
+  'employee-search': 'Employee Directory & Search',
   templates: 'Evaluation Templates',
   criteria: 'Criteria',
   i18n: 'Translation Settings',
@@ -131,7 +135,11 @@ function ProtectedLayout() {
   return (
     <AppLayout
       activeMenuItem={activeMenu}
-      onSelectMenuItem={(id) => navigate(id === 'imports' ? '/admin/imports/upload' : `/admin/${id}`)}
+      onSelectMenuItem={(id) => {
+        if (id === 'imports') navigate('/admin/imports/upload');
+        else if (id === 'employee-search') navigate('/admin/employees/search');
+        else navigate(`/admin/${id}`);
+      }}
       pageTitle={pageTitle}
       headerActions={headerActions}
       onGenerateReport={() => alert('Generate Report clicked')}
@@ -184,6 +192,16 @@ export default function App() {
               <Route path="/admin/organization" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
                   <OrganizationPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/employees/search" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
+                  <EmployeeSearchPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/employees/:id/kpi-summary" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
+                  <EmployeeKpiSummaryPage />
                 </ProtectedRoute>
               } />
               <Route path="/admin/templates" element={
