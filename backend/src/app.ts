@@ -105,7 +105,7 @@ export function createApp(options: AppOptions = {}) {
   const importModule = pool && evaluationModule ? createImportModule(pool, evaluationModule.evaluationService) : undefined;
   const importController = importModule?.importController;
 
-  const collectorModule = pool ? createCollectorModule(pool) : undefined;
+  const collectorModule = pool ? createCollectorModule(pool, jwtMiddleware) : undefined;
   const reportsModule = pool && evaluationModule ? createReportsModule(pool, evaluationModule.evaluationRepo, evaluationModule.evaluationItemRepo) : undefined;
   const reportsController = reportsModule?.reportsController;
 

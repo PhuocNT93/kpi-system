@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import { Router } from 'express';
+import { Router, RequestHandler } from 'express';
 import { CollectorService } from './application/collector.service.js';
 import { CollectorSchedulerService } from './application/collector-scheduler.service.js';
 import { CollectorController } from './api/collector.controller.js';
@@ -12,34 +12,20 @@ export interface CollectorModule {
   router: Router;
 }
 
-export function createCollectorModule(pool: Pool): CollectorModule {
+export function createCollectorModule(pool: Pool, jwtMiddleware?: RequestHandler): CollectorModule {
   const service = new CollectorService(pool);
   const scheduler = new CollectorSchedulerService(service);
   const controller = new CollectorController(service, scheduler);
-  const router = createCollectorRouter(controller);
+  const router = createCollectorRouter(controller, jwtMiddleware);
 
-  // Automatically seed default Blueprint source if not existing (skip in test environment)
+
+  // Start background scheduler (skip in test environment)
   if (process.env.NODE_ENV !== 'test') {
     (async () => {
       try {
-        const sources = await service.listDataSources();
-        if (sources.length === 0) {
-          await service.createDataSource({
-            name: 'Blueprint CLV Attendance (UI_TAT_028)',
-            source_type: 'BLUEPRINT',
-            auth_config: {
-              baseUrl: 'https://blueprint.cyberlogitec.com.vn',
-              username: '',
-              password: '',
-            },
-          });
-          console.log('[CollectorModule] Seeded initial Blueprint data source');
-        }
-
-        // Initialize scheduler
         await scheduler.start();
       } catch (err) {
-        console.error('[CollectorModule] Initialization error:', err);
+        console.error('[CollectorModule] Scheduler initialization error:', err);
       }
     })();
   }

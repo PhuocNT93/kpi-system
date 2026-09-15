@@ -1,8 +1,39 @@
-import { Router } from 'express';
+import { Router, RequestHandler } from 'express';
 import { CollectorController } from './collector.controller.js';
+import { getActorFromContext } from '../../../shared/auth/index.js';
 
-export function createCollectorRouter(controller: CollectorController): Router {
+export function createCollectorRouter(
+  controller: CollectorController,
+  jwtMiddleware?: RequestHandler
+): Router {
   const router = Router();
+
+  type PrivilegedRole = 'SYSTEM_ADMIN' | 'HR_ADMIN' | 'MANAGER';
+  const privilegedRoles = new Set<PrivilegedRole>(['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER']);
+  const hasPrivilegedRole = (role: string): role is PrivilegedRole => privilegedRoles.has(role as PrivilegedRole);
+
+  const requireCollectorAccess: RequestHandler = (req, res, next) => {
+    const actor = req.actor || getActorFromContext(req);
+    if (!actor || !actor.userId) {
+      res.status(401).json({
+        success: false,
+        message: 'Vui lòng đăng nhập để sử dụng tính năng thu thập dữ liệu Blueprint SSO.',
+      });
+      return;
+    }
+    if (!hasPrivilegedRole(actor.role)) {
+      res.status(403).json({
+        success: false,
+        message: 'Quyền truy cập bị từ chối: Chỉ Quản lý (Manager) hoặc Quản trị viên (Admin) mới có quyền sử dụng tính năng thu thập dữ liệu Blueprint SSO.',
+      });
+      return;
+    }
+    next();
+  };
+
+  const blueprintGuards: RequestHandler[] = jwtMiddleware
+    ? [jwtMiddleware, requireCollectorAccess]
+    : [requireCollectorAccess];
 
   // Sources
   router.get('/sources', controller.listDataSources);
@@ -11,20 +42,20 @@ export function createCollectorRouter(controller: CollectorController): Router {
   router.delete('/sources/:id', controller.deleteDataSource);
   router.post('/sources/test', controller.testConnection);
 
-  // Live Blueprint Preview & Direct Sync
-  router.post('/blueprint/preview', controller.previewBlueprint);
-  router.post('/blueprint/sync-attendance', controller.syncBlueprintAttendance);
-  router.post('/blueprint/preview-team-attendance', controller.previewBlueprintTeamAttendance);
-  router.post('/blueprint/sync-team-attendance', controller.syncBlueprintTeamAttendance);
-  router.get('/blueprint/teams', controller.getBlueprintTeams);
-  router.post('/blueprint/preview-tasks', controller.previewBlueprintTasks);
-  router.post('/blueprint/sync-tasks', controller.syncBlueprintTasks);
-  router.post('/blueprint/preview-vacation', controller.previewBlueprintVacation);
-  router.post('/blueprint/sync-vacation', controller.syncBlueprintVacation);
-  router.post('/blueprint/sync-all', controller.syncAllBlueprint);
-  router.get('/blueprint/config', controller.getBlueprintConfig);
-  router.post('/blueprint/config', controller.saveBlueprintConfig);
-  router.get('/blueprint/members', controller.getBlueprintMembers);
+  // Live Blueprint Preview & Direct Sync (Protected by Authentication & Role Guard)
+  router.post('/blueprint/preview', ...blueprintGuards, controller.previewBlueprint);
+  router.post('/blueprint/sync-attendance', ...blueprintGuards, controller.syncBlueprintAttendance);
+  router.post('/blueprint/preview-team-attendance', ...blueprintGuards, controller.previewBlueprintTeamAttendance);
+  router.post('/blueprint/sync-team-attendance', ...blueprintGuards, controller.syncBlueprintTeamAttendance);
+  router.get('/blueprint/teams', ...blueprintGuards, controller.getBlueprintTeams);
+  router.post('/blueprint/preview-tasks', ...blueprintGuards, controller.previewBlueprintTasks);
+  router.post('/blueprint/sync-tasks', ...blueprintGuards, controller.syncBlueprintTasks);
+  router.post('/blueprint/preview-vacation', ...blueprintGuards, controller.previewBlueprintVacation);
+  router.post('/blueprint/sync-vacation', ...blueprintGuards, controller.syncBlueprintVacation);
+  router.post('/blueprint/sync-all', ...blueprintGuards, controller.syncAllBlueprint);
+  router.get('/blueprint/config', ...blueprintGuards, controller.getBlueprintConfig);
+  router.post('/blueprint/config', ...blueprintGuards, controller.saveBlueprintConfig);
+  router.get('/blueprint/members', ...blueprintGuards, controller.getBlueprintMembers);
 
   // Jobs
   router.get('/jobs', controller.listJobs);
@@ -38,3 +69,4 @@ export function createCollectorRouter(controller: CollectorController): Router {
 
   return router;
 }
+

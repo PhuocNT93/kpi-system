@@ -15,14 +15,26 @@ export interface BlueprintCredentials {
 }
 
 export class BlueprintCollector {
-  private baseUrl: string;
-  private cookies: Map<string, string> = new Map();
+  private static instances = new Map<string, BlueprintCollector>();
 
-  constructor(private credentials: BlueprintCredentials) {
-    this.baseUrl = (credentials.baseUrl || 'https://blueprint.cyberlogitec.com.vn').replace(/\/$/, '');
+  public static getInstance(credentials: BlueprintCredentials): BlueprintCollector {
+    const key = `${credentials.username}@${credentials.baseUrl || 'default'}`;
+    let instance = BlueprintCollector.instances.get(key);
+    if (!instance || instance.credentials.password !== credentials.password) {
+      instance = new BlueprintCollector(credentials);
+      BlueprintCollector.instances.set(key, instance);
+    }
+    return instance;
   }
 
+  private baseUrl: string;
+  private cookies: Map<string, string> = new Map();
   private isLoggedIn = false;
+  private loginPromise: Promise<boolean> | null = null;
+
+  constructor(public readonly credentials: BlueprintCredentials) {
+    this.baseUrl = (credentials.baseUrl || 'https://blueprint.cyberlogitec.com.vn').replace(/\/$/, '');
+  }
 
   private storeCookies(response: Response) {
     const headersWithCookies = response.headers as unknown as { getSetCookie?: () => string[] };
@@ -73,9 +85,20 @@ export class BlueprintCollector {
     }
     options.redirect = 'manual';
 
-    const res = await fetch(url, options);
-    this.storeCookies(res);
-    return res;
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await fetch(url, options);
+        this.storeCookies(res);
+        return res;
+      } catch (err: unknown) {
+        lastError = err;
+        if (attempt < 2) {
+          await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+        }
+      }
+    }
+    throw lastError;
   }
 
   private async followRedirects(initialRes: Response, initialUrl: string): Promise<{ res: Response; finalUrl: string }> {
@@ -99,12 +122,19 @@ export class BlueprintCollector {
   }
 
   /**
-   * Ensure user is authenticated, reuse active session cookies without redundant login calls
+   * Ensure user is authenticated, reuse active session cookies without redundant login calls.
+   * If a login is already in progress, await the existing login promise to avoid duplicate Keycloak calls.
    */
   public async ensureLoggedIn(): Promise<void> {
-    if (!this.isLoggedIn || this.cookies.size === 0) {
-      await this.login();
+    if (this.isLoggedIn && this.cookies.size > 0) {
+      return;
     }
+    if (!this.loginPromise) {
+      this.loginPromise = this.login().finally(() => {
+        this.loginPromise = null;
+      });
+    }
+    await this.loginPromise;
   }
 
   /**
@@ -380,8 +410,25 @@ export class BlueprintCollector {
       member = 'anlt';
     }
 
-    const cleanFromDate = fromDate ? fromDate.replace(/-/g, '').trim() : '';
-    const cleanToDate = toDate ? toDate.replace(/-/g, '').trim() : '';
+    const toYYYYMMDD = (d?: string): string => {
+      if (!d) return '';
+      const clean = d.trim();
+      if (/^\d{8}$/.test(clean)) return clean;
+      // Format: YYYY-MM-DD or YYYY/MM/DD
+      const ymdMatch = clean.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+      if (ymdMatch && ymdMatch[1] && ymdMatch[2] && ymdMatch[3]) {
+        return `${ymdMatch[1]}${ymdMatch[2].padStart(2, '0')}${ymdMatch[3].padStart(2, '0')}`;
+      }
+      // Format: MM/DD/YYYY or M/D/YYYY
+      const mdyMatch = clean.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+      if (mdyMatch && mdyMatch[1] && mdyMatch[2] && mdyMatch[3]) {
+        return `${mdyMatch[3]}${mdyMatch[1].padStart(2, '0')}${mdyMatch[2].padStart(2, '0')}`;
+      }
+      return clean.replace(/[^0-9]/g, '').slice(0, 8);
+    };
+
+    const cleanFromDate = toYYYYMMDD(fromDate);
+    const cleanToDate = toYYYYMMDD(toDate);
 
     // 4. Query searchRequirement with advance search
     const reqStatuses = ['REQ_STS_CDPRC', 'REQ_STS_CDOPN', 'REQ_STS_CDFIN', 'REQ_STS_CDPD', 'REQ_STS_CDCC'];
@@ -412,8 +459,10 @@ export class BlueprintCollector {
       basePayload.actFinStDt = cleanFromDate;
       basePayload.actFinEndDt = cleanToDate;
     } else {
-      basePayload.regstStDt = cleanFromDate;
-      basePayload.regstEndDt = cleanToDate;
+      // Do not restrict regstStDt on server-side when evaluating sprint/period,
+      // allowing in-memory smart filtering to capture tasks active/due in the period.
+      basePayload.regstStDt = '';
+      basePayload.regstEndDt = '';
     }
 
     interface BlueprintRawTask {
@@ -483,16 +532,31 @@ export class BlueprintCollector {
       const aNm = (t.assignee || '').toLowerCase();
       const aId = (t.assiUsrId || '').toLowerCase();
       if (cleanFromDate || cleanToDate) {
-        let taskDate = '';
+        const regDt = String(t.createDate || '').substring(0, 8);
+        const dueDt = String(t.plnDueDt || '').substring(0, 8);
+        const finDt = String(t.actFinDt || t.currentPhsDueDt || '').substring(0, 8);
+        const sts = String(t.reqStsCd || '').toUpperCase();
+        const isOpen = sts.includes('OPN') || sts.includes('PRC') || sts.includes('PD');
+
         if (dateType === 'due') {
-          taskDate = String(t.plnDueDt || '').substring(0, 8);
+          if (cleanFromDate && dueDt && dueDt < cleanFromDate) return false;
+          if (cleanToDate && dueDt && dueDt > cleanToDate) return false;
         } else if (dateType === 'finished') {
-          taskDate = String(t.actFinDt || t.currentPhsDueDt || '').substring(0, 8);
+          if (cleanFromDate && finDt && finDt < cleanFromDate) return false;
+          if (cleanToDate && finDt && finDt > cleanToDate) return false;
         } else {
-          taskDate = String(t.createDate || '').substring(0, 8);
+          // Smart period matching for KPI cycle:
+          // A task is relevant if registered in period, OR due in period, OR finished in period,
+          // OR currently open/processing and registered on or before cleanToDate
+          const inReg = (!cleanFromDate || !regDt || regDt >= cleanFromDate) && (!cleanToDate || !regDt || regDt <= cleanToDate);
+          const inDue = (!cleanFromDate || !dueDt || dueDt >= cleanFromDate) && (!cleanToDate || !dueDt || dueDt <= cleanToDate);
+          const inFin = (!cleanFromDate || !finDt || finDt >= cleanFromDate) && (!cleanToDate || !finDt || finDt <= cleanToDate);
+          const inActive = isOpen && (!cleanToDate || !regDt || regDt <= cleanToDate);
+
+          if (!inReg && !inDue && !inFin && !inActive) {
+            return false;
+          }
         }
-        if (cleanFromDate && taskDate && taskDate < cleanFromDate) return false;
-        if (cleanToDate && taskDate && taskDate > cleanToDate) return false;
       }
 
       const normCId = normalize(cId);
@@ -609,8 +673,8 @@ export class BlueprintCollector {
       tasks: formattedTasks,
       delayedTaskList,
       username: member,
-      fromDate: fromDate || null,
-      toDate: toDate || null,
+      fromDate: cleanFromDate && cleanFromDate.length === 8 ? `${cleanFromDate.slice(0, 4)}-${cleanFromDate.slice(4, 6)}-${cleanFromDate.slice(6, 8)}` : fromDate || null,
+      toDate: cleanToDate && cleanToDate.length === 8 ? `${cleanToDate.slice(0, 4)}-${cleanToDate.slice(4, 6)}-${cleanToDate.slice(6, 8)}` : toDate || null,
       filterRole,
       dateType,
     };
@@ -658,7 +722,12 @@ export class BlueprintCollector {
   /**
    * Fetch Vacation & Leave Discipline profile from UI_TAT_011
    */
-  public async fetchVacationProfile(year?: string, targetMember?: string): Promise<BlueprintVacationSummary> {
+  public async fetchVacationProfile(
+    year?: string,
+    targetMember?: string,
+    fromDate?: string,
+    toDate?: string
+  ): Promise<BlueprintVacationSummary> {
     await this.ensureLoggedIn();
     const vctYr = year || '2026';
     const member = targetMember || this.credentials.username;
@@ -670,11 +739,19 @@ export class BlueprintCollector {
     const vacationDetails: Array<{ leaveType: string; days: number }> = [];
 
     try {
-      const vacRes = await this.fetchWithCookies(`${this.baseUrl}/api/checkInOut/getAnnualVacationProfile`, {
+      let vacRes = await this.fetchWithCookies(`${this.baseUrl}/api/checkInOut/getAnnualVacationProfile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vctYr, empeId: member }),
       });
+      if (vacRes.status === 401) {
+        await this.login();
+        vacRes = await this.fetchWithCookies(`${this.baseUrl}/api/checkInOut/getAnnualVacationProfile`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vctYr, empeId: member }),
+        });
+      }
       if (vacRes.ok) {
         const vacData = await vacRes.json();
         const item = vacData?.listVacation?.[0];
@@ -695,33 +772,69 @@ export class BlueprintCollector {
           }
         }
       }
-    } catch {
-      // ignore
+    } catch (err) {
+      console.warn('[BlueprintCollector] getAnnualVacationProfile error:', err);
     }
 
-    // 2. Fetch Deduction & Late History
+    // 2. Fetch Deduction & Late History (filtered by fromDate / toDate)
     const deductions: Array<{ date: string; comment: string; leaveType: string; days: string }> = [];
     let lateInEarlyOutCount = 0;
 
     try {
-      const dedRes = await this.fetchWithCookies(`${this.baseUrl}/api/checkInOut/searchAunualDedunctionHis?vctYr=${vctYr}`, {
+      let dedRes = await this.fetchWithCookies(`${this.baseUrl}/api/checkInOut/searchAunualDedunctionHis?vctYr=${vctYr}`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       });
+      if (dedRes.status === 401) {
+        await this.login();
+        dedRes = await this.fetchWithCookies(`${this.baseUrl}/api/checkInOut/searchAunualDedunctionHis?vctYr=${vctYr}`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
       if (dedRes.ok) {
         const dedData = await dedRes.json();
         if (Array.isArray(dedData?.lstBrdyCmt)) {
-          dedData.lstBrdyCmt.forEach((c: { cmtCtnt?: string; strCmtDt?: string; cmtDt?: string; lveTypeNm?: string; deductDy?: string; adjDays?: string }) => {
-            const cmt = c.cmtCtnt || '';
-            if (cmt.toLowerCase().includes('late in') || cmt.toLowerCase().includes('early out')) {
-              lateInEarlyOutCount++;
+          const monthMap: Record<string, string> = {
+            jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+            jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
+          };
+          const parseDate = (dStr: string): string => {
+            if (!dStr) return '';
+            const parts = dStr.split('-');
+            if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+              const y = parts[0];
+              const m = monthMap[parts[1].toLowerCase()] || parts[1].padStart(2, '0');
+              const d = parts[2].padStart(2, '0');
+              return `${y}-${m}-${d}`;
             }
-            deductions.push({
-              date: c.strCmtDt || c.cmtDt || '',
-              comment: cmt,
-              leaveType: c.lveTypeNm || 'Annual Vacation',
-              days: c.adjDays || '0',
-            });
+            return dStr;
+          };
+
+          const cleanFrom = fromDate ? fromDate.replace(/\//g, '-') : '';
+          const cleanTo = toDate ? toDate.replace(/\//g, '-') : '';
+
+          dedData.lstBrdyCmt.forEach((c: { cmtCtnt?: string; strCmtDt?: string; cmtDt?: string; lveTypeNm?: string; deductDy?: string; adjDays?: string }) => {
+            const rawDate = c.strCmtDt || c.cmtDt || '';
+            const isoDate = parseDate(rawDate);
+            const cmt = c.cmtCtnt || '';
+
+            // Check if deduction date falls within the selected period [fromDate, toDate]
+            let inPeriod = true;
+            if (cleanFrom && isoDate && isoDate < cleanFrom) inPeriod = false;
+            if (cleanTo && isoDate && isoDate > cleanTo) inPeriod = false;
+
+            if (inPeriod) {
+              if (cmt.toLowerCase().includes('late in') || cmt.toLowerCase().includes('early out')) {
+                lateInEarlyOutCount++;
+              }
+              deductions.push({
+                date: rawDate,
+                comment: cmt,
+                leaveType: c.lveTypeNm || 'Annual Vacation',
+                days: c.adjDays || '0',
+              });
+            }
           });
         }
       }
@@ -823,9 +936,8 @@ export class BlueprintCollector {
       return d;
     };
 
-    const fmDt = formatDate(fromDate);
-    const toDt = formatDate(toDate || fromDate);
-    const empeName = employeeName ? encodeURIComponent(employeeName.trim()) : '';
+    const startFormattedDate = formatDate(fromDate);
+    const endFormattedDate = formatDate(toDate || fromDate);
     const targetOrzId = teamId === 'ALL' || !teamId ? '' : teamId;
 
     // Get teams list
@@ -833,7 +945,8 @@ export class BlueprintCollector {
     const currentTeam = teams.find((t) => t.orzId === targetOrzId);
     const teamName = targetOrzId ? (currentTeam?.orzNm || targetOrzId) : 'Tất cả Team (ALLEGRO NX & Maritime)';
 
-    const url = `${this.baseUrl}/api/dailyTeamStatusFace/searchAttendanceTime?siteCd=V100&orzId=${targetOrzId}&fmDt=${fmDt}&toDt=${toDt}&empeName=${empeName}&noneTeam=0&start=0&size=100`;
+    // Query Blueprint with full date range [fromDate, toDate] and size=1000 to capture all days in period
+    const url = `${this.baseUrl}/api/dailyTeamStatusFace/searchAttendanceTime?siteCd=V100&orzId=${targetOrzId}&fmDt=${startFormattedDate}&toDt=${endFormattedDate}&empeName=&noneTeam=0&start=0&size=1000`;
 
     let res = await this.fetchWithCookies(url);
     if (res.status === 401) {
@@ -868,7 +981,10 @@ export class BlueprintCollector {
       let status: BlueprintTeamMemberAttendance['status'] = 'ABSENT';
       let lateMinutes = 0;
 
-      if (item.lveTpNm) {
+      const tpLower = (item.lveTpNm || '').toLowerCase();
+      const isWeekendOrHoliday = tpLower.includes('weekend') || tpLower.includes('holiday');
+
+      if (isWeekendOrHoliday || item.lveTpNm) {
         leaveMembers++;
         status = 'LEAVE';
       } else if (rawIn) {
@@ -897,7 +1013,7 @@ export class BlueprintCollector {
         empeName: item.empeName || item.usrNm || item.usrId || 'N/A',
         usrId: item.usrId,
         orzNm: item.orzNm || teamName,
-        date: item.wrkDt || fmDt,
+        date: item.wrkDt || startFormattedDate,
         punchIn,
         punchOut,
         workShift: item.wrkShft || '08:30 - 17:30',
@@ -907,6 +1023,46 @@ export class BlueprintCollector {
         requestStatus: item.lveStt || item.atndStt || null,
         reason: item.vacDesc || null,
       });
+    }
+
+    // Sort records descending by date (latest dates first)
+    const monthMap: Record<string, string> = {
+      jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+      jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
+    };
+    const parseWrkDt = (dStr: string): string => {
+      if (!dStr) return '';
+      const parts = dStr.split('-');
+      if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+        const p0 = parts[0];
+        const p1 = parts[1];
+        const p2 = parts[2];
+        const m = monthMap[p0.toLowerCase()] || p0.padStart(2, '0');
+        const d = p1.padStart(2, '0');
+        return `${p2}-${m}-${d}`;
+      }
+      return dStr;
+    };
+    records.sort((a, b) => parseWrkDt(b.date).localeCompare(parseWrkDt(a.date)));
+
+    // If a specific employee is requested, filter records and adjust summary stats
+    let finalRecords = records;
+    if (employeeName && employeeName !== 'ALL') {
+      const q = employeeName.toLowerCase().trim();
+      const matched = records.filter(
+        (r) => (r.usrId && r.usrId.toLowerCase() === q) ||
+               r.empeNo.toLowerCase() === q ||
+               r.empeName.toLowerCase().includes(q)
+      );
+      if (matched.length > 0) {
+        finalRecords = matched;
+        totalMembers = matched.length;
+        attendedMembers = matched.filter((r) => r.punchIn !== null).length;
+        onTimeMembers = matched.filter((r) => r.status === 'ON_TIME').length;
+        lateMembers = matched.filter((r) => r.status === 'LATE').length;
+        leaveMembers = matched.filter((r) => r.status === 'LEAVE').length;
+        absentMembers = matched.filter((r) => r.status === 'ABSENT').length;
+      }
     }
 
     const countableMembers = attendedMembers + lateMembers > 0 ? (attendedMembers + lateMembers) : Math.max(1, totalMembers - leaveMembers);
@@ -937,8 +1093,8 @@ export class BlueprintCollector {
     return {
       teamId: targetOrzId,
       teamName,
-      fromDate: fmDt,
-      toDate: toDt,
+      fromDate: startFormattedDate,
+      toDate: endFormattedDate,
       totalMembers,
       attendedMembers,
       onTimeMembers,
@@ -949,7 +1105,7 @@ export class BlueprintCollector {
       score10,
       grade,
       suggestedLevel,
-      records,
+      records: finalRecords,
       teams,
     };
   }
