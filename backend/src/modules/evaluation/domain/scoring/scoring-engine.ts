@@ -8,6 +8,9 @@ export interface ScoringCriterionInput {
   readonly kpi_id: string;
   readonly resolved_level: number | null;
   readonly raw_score: number | null;
+  readonly actual_value?: number | null;
+  readonly target_value?: number | null;
+  readonly higher_is_better?: boolean;
   readonly level_definitions: readonly ScoringLevelDefinition[];
   readonly effective_weight: number;
   readonly is_disabled: boolean;
@@ -133,6 +136,82 @@ function sum(values: readonly Decimal[]): Decimal {
   return values.reduce((total, value) => total.add(value), Decimal.from(0));
 }
 
+const KPI_SCORE_BREAKPOINTS = [
+  { achievement: 0, score: 0 },
+  { achievement: 80, score: 5 },
+  { achievement: 85, score: 6 },
+  { achievement: 90, score: 7 },
+  { achievement: 95, score: 8 },
+  { achievement: 100, score: 9 },
+  { achievement: 110, score: 10 },
+] as const;
+
+function interpolateScore(achievementPercent: number): number {
+  if (!Number.isFinite(achievementPercent)) {
+    throw new Error('INVALID_SCORING_CONFIGURATION');
+  }
+
+  const clampedAchievement = Math.max(0, achievementPercent);
+  if (clampedAchievement >= KPI_SCORE_BREAKPOINTS[KPI_SCORE_BREAKPOINTS.length - 1]!.achievement) {
+    return KPI_SCORE_BREAKPOINTS[KPI_SCORE_BREAKPOINTS.length - 1]!.score;
+  }
+
+  for (let index = 0; index < KPI_SCORE_BREAKPOINTS.length - 1; index += 1) {
+    const left = KPI_SCORE_BREAKPOINTS[index]!;
+    const right = KPI_SCORE_BREAKPOINTS[index + 1]!;
+    if (clampedAchievement >= left.achievement && clampedAchievement <= right.achievement) {
+      const span = right.achievement - left.achievement;
+      if (span === 0) {
+        return right.score;
+      }
+
+      const ratio = (clampedAchievement - left.achievement) / span;
+      return left.score + (right.score - left.score) * ratio;
+    }
+  }
+
+  return 0;
+}
+
+function normalizeAchievementPercent(criterion: ScoringCriterionInput): number | null {
+  if (criterion.actual_value == null && criterion.target_value == null && criterion.raw_score == null) {
+    return null;
+  }
+
+  if (criterion.actual_value != null && criterion.target_value != null) {
+    if (criterion.target_value <= 0) {
+      throw new Error('INVALID_SCORING_CONFIGURATION');
+    }
+
+    if (criterion.higher_is_better === false) {
+      if (criterion.actual_value <= 0) {
+        return 110;
+      }
+
+      return (criterion.target_value / criterion.actual_value) * 100;
+    }
+
+    return (criterion.actual_value / criterion.target_value) * 100;
+  }
+
+  if (criterion.raw_score == null) {
+    return null;
+  }
+
+  const maxScore = criterion.level_definitions.length === 0
+    ? null
+    : Math.max(...criterion.level_definitions.map((level) => level.score_value));
+  if (maxScore !== null && (!Number.isFinite(maxScore) || maxScore <= 0)) {
+    throw new Error('INVALID_SCORING_CONFIGURATION');
+  }
+
+  if (maxScore === null) {
+    return criterion.raw_score;
+  }
+
+  return (criterion.raw_score / maxScore) * 100;
+}
+
 export class ScoringEngine {
   calculate(input: { readonly kpis: readonly ScoringKpiInput[] }): OverallScoringResult {
     const kpiResults = input.kpis.map((kpi) => this.calculateKpi(kpi));
@@ -193,8 +272,9 @@ export class ScoringEngine {
     if (maxScore !== null && (!Number.isFinite(maxScore) || maxScore <= 0)) {
       throw new Error('INVALID_SCORING_CONFIGURATION');
     }
-    const isNa = criterion.is_disabled || criterion.raw_score === null || maxScore === null;
-    const normalizedScore = isNa ? null : Decimal.from(criterion.raw_score!).divide(Decimal.from(maxScore)).toNumber();
+    const achievementPercent = normalizeAchievementPercent(criterion);
+    const isNa = criterion.is_disabled || achievementPercent === null;
+    const normalizedScore = isNa ? null : interpolateScore(achievementPercent);
     const weightedContribution = isNa
       ? null
       : Decimal.from(normalizedScore!).multiply(Decimal.from(criterion.effective_weight)).toNumber();

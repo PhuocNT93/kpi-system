@@ -39,27 +39,23 @@ export function validateTemplateClientSide(
     });
   }
 
-  // Validate that each KPI's child criteria also sum to 100% when present.
-  kpis.forEach((kpi) => {
-    const kpiCriteria = activeCriteria.filter((criterion) => criterion.templateKpiId === kpi.id);
-    if (kpiCriteria.length === 0) {
+  // Validate each criteria group independently: KPI children under the group must sum to 100%.
+  activeCriteria.forEach((criterionGroup) => {
+    const groupKpis = kpis.filter((kpi) => kpi.parentCriterionId === criterionGroup.id);
+    if (groupKpis.length === 0) {
       return;
     }
 
-    const criterionWeightTotal =
-      Math.round(
-        kpiCriteria.reduce((sum, criterion) => sum + (Number(criterion.effectiveWeight) || 0), 0) * 100
-      ) / 100;
+    const groupKpiTotal = Math.round(groupKpis.reduce((sum, kpi) => sum + (Number(kpi.weight) || 0), 0) * 100) / 100;
 
-    if (Math.abs(criterionWeightTotal - 100) > 0.01) {
-      const kpiName = (kpi.kpi as { name?: string } | undefined)?.name || kpi.kpiId;
+    if (Math.abs(groupKpiTotal - 100) > 0.01) {
       errors.push({
         code: 'WEIGHT_TOTAL_NOT_100',
         category: 'WEIGHT',
-        criterionCode: kpi.kpiId,
-        criterionName: kpiName,
-        message: `KPI "${kpiName}" criteria total is ${criterionWeightTotal}%. Expected exactly 100%.`,
-        actual: criterionWeightTotal,
+        criterionCode: criterionGroup.criterion.code,
+        criterionName: criterionGroup.criterion.name,
+        message: `Criteria group "${criterionGroup.criterion.name}" KPI total is ${groupKpiTotal}%. Expected exactly 100%.`,
+        actual: groupKpiTotal,
         expected: 100,
       });
     }

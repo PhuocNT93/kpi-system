@@ -1,19 +1,48 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Criterion } from '../domain/template-models';
+import { useKpisQuery } from '../../kpi/api/use-kpi';
+import { useQueries } from '@tanstack/react-query';
+import { fetchKpiCriteria, type KpiCriterionMapping, type Kpi } from '../../kpi/api/kpi-api';
 
 interface CriterionLibraryPanelProps {
   criteria: Criterion[];
   existingCriterionIds: Set<string>;
+  onAddCriterion: (criterion: Criterion, kpiId?: string) => void;
   isReadOnly?: boolean;
 }
 
 export function CriterionLibraryPanel({
   criteria,
   existingCriterionIds,
+  onAddCriterion,
   isReadOnly = false,
 }: CriterionLibraryPanelProps) {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const { data: kpiPage, isLoading: isLoadingKpis } = useKpisQuery({ search: '' });
+  const kpis = kpiPage?.items || [];
+  const kpiCriteriaQueries = useQueries({
+    queries: kpis.map((kpi) => ({
+      queryKey: ['templates', 'kpi-criteria', kpi.kpiId] as const,
+      queryFn: () => fetchKpiCriteria(kpi.kpiId),
+      enabled: Boolean(kpi.kpiId),
+    })),
+  });
+
+  const mappingsByCriterionId = useMemo(() => {
+    const map = new Map<string, Array<{ kpi: Kpi; mapping: KpiCriterionMapping }>>();
+    kpiCriteriaQueries.forEach((query, index) => {
+      const kpi = kpis[index];
+      const mappings = (query.data || []) as KpiCriterionMapping[];
+      if (!kpi) return;
+      mappings.forEach((mapping) => {
+        const bucket = map.get(mapping.criterionId) || [];
+        bucket.push({ kpi, mapping });
+        map.set(mapping.criterionId, bucket);
+      });
+    });
+    return map;
+  }, [kpiCriteriaQueries, kpis]);
 
   const categories = Array.from(new Set(criteria.map((c) => c.category)));
 
@@ -101,7 +130,11 @@ export function CriterionLibraryPanel({
 
       {/* Criteria Cards */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem' }}>
-        {filteredCriteria.length === 0 ? (
+        {isLoadingKpis ? (
+          <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#6b7280', fontSize: '0.8125rem' }}>
+            Loading KPI relationships...
+          </div>
+        ) : filteredCriteria.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#6b7280', fontSize: '0.8125rem' }}>
             No criteria match your query.
           </div>
@@ -109,18 +142,10 @@ export function CriterionLibraryPanel({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {filteredCriteria.map((c) => {
               const isAdded = existingCriterionIds.has(c.id);
+              const linkedKpis = mappingsByCriterionId.get(c.id) || [];
               return (
                 <div
                   key={c.id}
-                  draggable={!isAdded && !isReadOnly}
-                  onDragStart={(e) => {
-                    if (isAdded || isReadOnly) {
-                      e.preventDefault();
-                      return;
-                    }
-                    e.dataTransfer.setData('application/json', JSON.stringify(c));
-                    e.dataTransfer.effectAllowed = 'copy';
-                  }}
                   style={{
                     border: '1px solid #e5e7eb',
                     borderRadius: 6,
@@ -129,7 +154,6 @@ export function CriterionLibraryPanel({
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '0.375rem',
-                    cursor: (!isAdded && !isReadOnly) ? 'grab' : 'default',
                     opacity: isAdded ? 0.7 : 1,
                   }}
                 >
@@ -151,21 +175,61 @@ export function CriterionLibraryPanel({
                     </span>
                   </div>
 
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                    v{c.version} · Published
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <span>v{c.version} · Published</span>
+                    <span>
+                      KPI count: {linkedKpis.length}
+                    </span>
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
+                  {linkedKpis.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                      {linkedKpis.slice(0, 4).map(({ kpi }) => (
+                        <span
+                          key={kpi.kpiId}
+                          style={{
+                            fontSize: '0.6875rem',
+                            padding: '0.1rem 0.375rem',
+                            borderRadius: 999,
+                            background: '#ecfeff',
+                            color: '#0f766e',
+                            border: '1px solid #a5f3fc',
+                          }}
+                        >
+                          {kpi.code}
+                        </span>
+                      ))}
+                      {linkedKpis.length > 4 && (
+                        <span style={{ fontSize: '0.6875rem', color: '#6b7280' }}>
+                          +{linkedKpis.length - 4} more
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.25rem' }}>
                     {isAdded ? (
                       <span style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 600 }}>
                         ✓ Already added
                       </span>
                     ) : (
                       !isReadOnly && (
-                        <span style={{ fontSize: '0.75rem', color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
-                          Drag to add to KPI
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => onAddCriterion(c)}
+                          style={{
+                            border: 'none',
+                            background: '#eff6ff',
+                            color: '#2563eb',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            borderRadius: 6,
+                            padding: '0.35rem 0.7rem',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          + Add Criterion
+                        </button>
                       )
                     )}
                   </div>

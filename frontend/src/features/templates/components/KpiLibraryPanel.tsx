@@ -4,12 +4,16 @@ import type { Kpi } from '../../kpi/api/kpi-api';
 
 interface KpiLibraryPanelProps {
   existingKpiIds: Set<string>;
+  selectedCriterionName?: string | null;
+  hasSelectedCriterion?: boolean;
   onAddKpi: (kpi: Kpi) => void;
   isReadOnly?: boolean;
 }
 
 export function KpiLibraryPanel({
   existingKpiIds,
+  selectedCriterionName = null,
+  hasSelectedCriterion = false,
   onAddKpi,
   isReadOnly = false,
 }: KpiLibraryPanelProps) {
@@ -17,9 +21,7 @@ export function KpiLibraryPanel({
   const { data: kpiPage, isLoading } = useKpisQuery({ search });
 
   const kpis = kpiPage?.items || [];
-  const filteredKpis = kpis.filter((kpi) => {
-    return kpi.code !== 'LEGACY_KPI'; // Hide the auto-generated legacy KPI
-  });
+  const filteredKpis = kpis.filter((kpi) => kpi.code !== 'LEGACY_KPI');
 
   return (
     <div
@@ -36,6 +38,12 @@ export function KpiLibraryPanel({
         <h3 style={{ margin: '0 0 0.75rem', fontSize: '0.9375rem', fontWeight: 700, color: '#111827' }}>
           KPI LIBRARY
         </h3>
+
+        <div style={{ marginBottom: '0.5rem', fontSize: '0.75rem', color: hasSelectedCriterion ? '#065f46' : '#b45309' }}>
+          {hasSelectedCriterion
+            ? `KPI sẽ được thêm vào criteria: ${selectedCriterionName || 'đang chọn'}.`
+            : 'Chọn một criteria ở khung bên phải trước khi thêm KPI.'}
+        </div>
 
         {/* Search */}
         <input
@@ -91,17 +99,17 @@ export function KpiLibraryPanel({
                   {!isReadOnly && (
                     <button
                       type="button"
-                      disabled={isAdded}
+                      disabled={isAdded || !hasSelectedCriterion}
                       onClick={() => onAddKpi(kpi)}
                       style={{
                         padding: '0.375rem 0.75rem',
                         fontSize: '0.75rem',
                         fontWeight: 600,
-                        color: isAdded ? '#9ca3af' : '#2563eb',
-                        background: isAdded ? '#f3f4f6' : '#eff6ff',
+                        color: isAdded || !hasSelectedCriterion ? '#9ca3af' : '#2563eb',
+                        background: isAdded || !hasSelectedCriterion ? '#f3f4f6' : '#eff6ff',
                         border: 'none',
                         borderRadius: 6,
-                        cursor: isAdded ? 'not-allowed' : 'pointer',
+                        cursor: isAdded || !hasSelectedCriterion ? 'not-allowed' : 'pointer',
                         alignSelf: 'flex-start',
                       }}
                     >

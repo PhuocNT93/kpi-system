@@ -28,21 +28,31 @@ function kpi(kpiId: string, weight: number, criteria: ScoringKpiInput['criteria'
 
 describe('ScoringEngine', () => {
   it.each([
-    { rawScore: 1, expected: 0.2 },
-    { rawScore: 3, expected: 0.6 },
-    { rawScore: 5, expected: 1 },
-  ])('normalizes configured score $rawScore against its maximum', ({ rawScore, expected }) => {
+    { rawScore: 1, expected: 1.25 },
+    { rawScore: 3, expected: 3.75 },
+    { rawScore: 5, expected: 5.0 },
+  ])('maps legacy score $rawScore through KPI conversion fallback', ({ rawScore, expected }) => {
     const result = engine.calculate({ kpis: [kpi('kpi-1', 100, [criterion('criterion-1', 'kpi-1', rawScore, 100)])] });
 
     expect(result.kpi_results[0]!.criterion_results[0]!.normalized_score).toBe(expected);
   });
 
-  it('uses configurable decimal score values', () => {
+  it('maps achievement percent to KPI score using the configured curve', () => {
     const result = engine.calculate({
-      kpis: [kpi('kpi-1', 100, [criterion('criterion-1', 'kpi-1', 7.5, 100, false, [2.5, 5, 7.5, 10])])],
+      kpis: [kpi('kpi-1', 100, [{
+        criterion_id: 'criterion-1',
+        kpi_id: 'kpi-1',
+        resolved_level: null,
+        raw_score: null,
+        actual_value: 95,
+        target_value: 100,
+        level_definitions: [],
+        effective_weight: 100,
+        is_disabled: false,
+      }])],
     });
 
-    expect(result.kpi_results[0]!.criterion_results[0]!.normalized_score).toBe(0.75);
+    expect(result.kpi_results[0]!.criterion_results[0]!.normalized_score).toBe(8);
   });
 
   it('scores a valid zero without treating it as N/A', () => {
@@ -83,7 +93,7 @@ describe('ScoringEngine', () => {
     });
 
     expect(result.denominator).toBe(70);
-    expect(result.overall_weighted_score).toBeCloseTo(((0.8 * 40 + 1 * 30) / 70) * 100);
+    expect(result.overall_weighted_score).toBeCloseTo(((4.5 * 40 + 5 * 30) / 70));
     expect(result.official_score).toBe(result.overall_weighted_score);
     expect(result.kpi_results[2]!.is_na).toBe(true);
   });
@@ -91,13 +101,52 @@ describe('ScoringEngine', () => {
   it('rounds only the final result using HALF_UP', () => {
     const result = engine.calculate({
       kpis: [
-        kpi('kpi-a', 1, [criterion('criterion-a', 'kpi-a', 66.6, 1, false, [0, 66.6, 66.73, 100])]),
-        kpi('kpi-b', 1, [criterion('criterion-b', 'kpi-b', 66.73, 1, false, [0, 66.6, 66.73, 100])]),
+        kpi('kpi-a', 1, [{
+          criterion_id: 'criterion-a',
+          kpi_id: 'kpi-a',
+          resolved_level: null,
+          raw_score: null,
+          actual_value: 66.6,
+          target_value: 100,
+          level_definitions: [],
+          effective_weight: 1,
+          is_disabled: false,
+        }]),
+        kpi('kpi-b', 1, [{
+          criterion_id: 'criterion-b',
+          kpi_id: 'kpi-b',
+          resolved_level: null,
+          raw_score: null,
+          actual_value: 66.73,
+          target_value: 100,
+          level_definitions: [],
+          effective_weight: 1,
+          is_disabled: false,
+        }]),
       ],
     });
 
-    expect(result.overall_weighted_score).toBe(66.67);
-    expect(result.kpi_results[0]!.normalized_score).toBe(0.666);
+    expect(result.overall_weighted_score).toBeCloseTo(4.16875, 5);
+    expect(result.kpi_results[0]!.normalized_score).toBeCloseTo(4.1625, 4);
+  });
+
+  it('inverts achievement for lower-is-better KPIs', () => {
+    const result = engine.calculate({
+      kpis: [kpi('kpi-1', 100, [{
+        criterion_id: 'criterion-1',
+        kpi_id: 'kpi-1',
+        resolved_level: null,
+        raw_score: null,
+        actual_value: 8,
+        target_value: 10,
+        higher_is_better: false,
+        level_definitions: [],
+        effective_weight: 100,
+        is_disabled: false,
+      }])],
+    });
+
+    expect(result.kpi_results[0]!.criterion_results[0]!.normalized_score).toBe(6.5);
   });
 
   it('fails when every KPI is N/A', () => {

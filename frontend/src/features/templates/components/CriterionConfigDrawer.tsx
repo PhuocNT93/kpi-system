@@ -183,6 +183,27 @@ export function CriterionConfigDrawer({
 
         {/* Tab Body Content */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
+          <div
+            style={{
+              marginBottom: '1rem',
+              padding: '0.875rem 1rem',
+              borderRadius: 10,
+              border: '1px solid #bae6fd',
+              background: 'linear-gradient(135deg, #eff6ff 0%, #ecfeff 100%)',
+              color: '#0f172a',
+              fontSize: '0.8125rem',
+              lineHeight: 1.5,
+            }}
+          >
+            <div style={{ fontWeight: 800, marginBottom: '0.25rem', color: '#0f766e' }}>
+              KPI scoring model
+            </div>
+            <div>
+              KPI results are now derived from achievement percentage, then converted to a 0..10 score before KPI and template weighting.
+              Example: 95% = 8.0, 100% = 9.0, 110% = 10.0. Use <strong>higher-is-better</strong> for growth metrics and invert it for lower-is-better metrics like defects or cycle time.
+            </div>
+          </div>
+
           {activeTab === 'general' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div>
