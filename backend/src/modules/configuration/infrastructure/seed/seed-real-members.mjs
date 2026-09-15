@@ -1,3 +1,4 @@
+/* global console, process */
 /**
  * Real Members Seed Script
  * Cleans up mock data and seeds real team/employee/user/evaluation data
@@ -5,8 +6,7 @@
  */
 import pg from 'pg';
 import crypto from 'crypto';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
+
 
 const { Pool } = pg;
 
@@ -351,15 +351,6 @@ async function main() {
 
     // ── Step 9: Create evaluations for all members ────────────────────────
     console.log('📋 Step 8: Creating evaluations for all members...');
-
-    // Get evaluation_item schema required columns
-    const evalItemColRes = await client.query(`
-      SELECT column_name, is_nullable
-      FROM information_schema.columns
-      WHERE table_name = 'evaluation_item'
-      ORDER BY ordinal_position
-    `);
-    const evalItemCols = evalItemColRes.rows.map(r => r.column_name);
 
     // Enrich templateCriteria with all required snapshot fields for evaluation_item
     const enrichedCriteria = [];

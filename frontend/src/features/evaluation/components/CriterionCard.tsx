@@ -81,11 +81,6 @@ export const CriterionCard: React.FC<CriterionCardProps> = ({
 
   const isDisabled = item.is_disabled_for_employee;
   const levelSnapshot = item.level_definition_snapshot as { levels?: LevelItem[] } | LevelItem[] | null;
-  const rawLevels: LevelItem[] = levelSnapshot && 'levels' in levelSnapshot && Array.isArray(levelSnapshot.levels)
-    ? levelSnapshot.levels
-    : Array.isArray(levelSnapshot)
-    ? levelSnapshot
-    : [];
 
   const weightNum = Number(item.weight_snapshot);
   const formattedWeight = !isNaN(weightNum)
@@ -105,7 +100,13 @@ export const CriterionCard: React.FC<CriterionCardProps> = ({
   // Core KPI: Level 4 is 9/10 score (Grade A)
   // Standard KPI: Level 4 is 8/10 score
   const levels: LevelItem[] = useMemo(() => {
-    if (rawLevels.length > 0) return rawLevels;
+    // Compute rawLevels inside useMemo to avoid stale dependency
+    const snap = levelSnapshot && 'levels' in levelSnapshot && Array.isArray(levelSnapshot.levels)
+      ? levelSnapshot.levels
+      : Array.isArray(levelSnapshot)
+      ? levelSnapshot
+      : [];
+    if (snap.length > 0) return snap;
     if (isCoreKpi) {
       return [
         { level: 5, level_no: 5, label_vn: 'Xuất sắc (100% chỉ tiêu - Vượt kỳ vọng)', score: 10, description: 'Hoàn thành 100% chỉ tiêu với chất lượng và tiến độ vượt trội.' },
@@ -116,7 +117,8 @@ export const CriterionCard: React.FC<CriterionCardProps> = ({
       ];
     }
     return DEFAULT_COMPANY_LEVELS;
-  }, [rawLevels, isCoreKpi]);
+  }, [levelSnapshot, isCoreKpi]);
+
 
   const ruleSnapshot = item.scoring_rule_snapshot as { rule_type?: string; name?: string } | null;
   const ruleType = ruleSnapshot?.rule_type || ruleSnapshot?.name || 'Chuẩn';
