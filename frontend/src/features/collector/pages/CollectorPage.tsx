@@ -13,7 +13,6 @@ import {
   RefreshCw,
   Play,
   CheckCircle2,
-  XCircle,
   AlertCircle,
   Clock,
   Calendar,
@@ -21,38 +20,33 @@ import {
   Activity,
   User,
   ClipboardCheck,
-  Settings,
   Users,
   ChevronDown,
   ChevronUp,
-  Save,
   Zap,
-  FolderGit2,
   ShieldAlert,
+  ShieldCheck,
   Search,
   Award,
   Sparkles,
 } from 'lucide-react';
+import { useAuth } from '@/shared/auth/auth-context';
 import { COLORS } from '@/lib/theme';
 import { RADII, SHADOWS, TYPOGRAPHY } from '@/shared/theme';
 
 export function CollectorPage() {
+  const { user } = useAuth();
+  const isAuthorized = Boolean(
+    user && (user.role === 'SYSTEM_ADMIN' || user.role === 'HR_ADMIN' || user.role === 'MANAGER')
+  );
+
   const [activeTab, setActiveTab] = useState<'hub' | 'jobs' | 'logs'>('hub');
 
   // Unified Connection Config State - User inputs on UI or loads from saved configuration
   const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
   const [baseUrl, setBaseUrl] = useState('https://blueprint.cyberlogitec.com.vn');
-  const [month, setMonth] = useState('2026-09');
   const [projectFilter, setProjectFilter] = useState('Allegro NX');
 
-  // UI state
-  const [isConfigOpen, setIsConfigOpen] = useState(false);
-  const [isSavingConfig, setIsSavingConfig] = useState(false);
-  const [configSaveSuccess, setConfigSaveSuccess] = useState<string | null>(null);
-
-  const [isTesting, setIsTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // Global Unified Filter Bar State
   const [unifiedMember, setUnifiedMember] = useState<string>('ALL');
@@ -131,9 +125,7 @@ export function CollectorPage() {
       const cfg = await collectorApi.getBlueprintConfig();
       if (cfg) {
         if (cfg.username) setUsername(cfg.username);
-        if (cfg.password) setPassword(cfg.password);
         if (cfg.baseUrl) setBaseUrl(cfg.baseUrl);
-        if (cfg.month) setMonth(cfg.month);
         if (cfg.projectFilter) setProjectFilter(cfg.projectFilter);
       }
       collectorApi.getBlueprintMembers().then((members) => {
@@ -141,18 +133,13 @@ export function CollectorPage() {
           setTaskMemberList(members);
         }
       }).catch(() => {});
-      // Automatically preview team attendance ONLY if credentials are saved
-      if (cfg?.username && cfg?.password) {
-        collectorApi.previewBlueprintTeamAttendance({
-          username: cfg.username,
-          password: cfg.password,
-          baseUrl: cfg.baseUrl,
-          fromDate: '09/14/2026',
-          toDate: '09/14/2026',
-        }).then((summary) => {
-          setPreviewTeamAttendance(summary);
-        }).catch(() => {});
-      }
+      // Automatically preview team attendance for default range (09/01/2026 - 09/14/2026) using server-side credentials
+      collectorApi.previewBlueprintTeamAttendance({
+        fromDate: '09/01/2026',
+        toDate: '09/14/2026',
+      }).then((summary) => {
+        setPreviewTeamAttendance(summary);
+      }).catch(() => {});
     } catch {
       // Fallback defaults already set
     }
@@ -176,53 +163,9 @@ export function CollectorPage() {
     }
   };
 
-  const handleSaveConfig = async () => {
-    if (!username.trim() || !password.trim()) {
-      alert('Vui lòng nhập Tài khoản và Mật khẩu Blueprint trước khi lưu.');
-      return;
-    }
-    setIsSavingConfig(true);
-    setConfigSaveSuccess(null);
-    try {
-      await collectorApi.saveBlueprintConfig({
-        username: username.trim(),
-        password: password.trim(),
-        baseUrl,
-        month,
-        projectFilter,
-      });
-      setConfigSaveSuccess('Đã lưu cấu hình kết nối thành công!');
-      setTimeout(() => setConfigSaveSuccess(null), 4000);
-    } catch (err: unknown) {
-      alert(`Lỗi lưu cấu hình: ${(err as Error).message}`);
-    } finally {
-      setIsSavingConfig(false);
-    }
-  };
-
-  const handleTestConnection = async () => {
-    if (!username.trim() || !password.trim()) {
-      setTestResult({ success: false, message: 'Vui lòng nhập Tài khoản và Mật khẩu Blueprint để kiểm tra kết nối.' });
-      return;
-    }
-    setIsTesting(true);
-    setTestResult(null);
-    try {
-      const res = await collectorApi.testConnection({ username: username.trim(), password: password.trim(), baseUrl });
-      setTestResult(res);
-    } catch (err: unknown) {
-      setTestResult({ success: false, message: (err as Error).message || 'Kết nối thất bại' });
-    } finally {
-      setIsTesting(false);
-    }
-  };
 
   // Unified Fetch: Fetches all criteria concurrently based on global filter
   const handleUnifiedFetch = async () => {
-    if (!username.trim() || !password.trim()) {
-      alert('Vui lòng nhập Tài khoản và Mật khẩu Blueprint ở phần Cấu hình kết nối bên trên trước khi lọc dữ liệu.');
-      return;
-    }
     setIsUnifiedFetching(true);
     setTeamAttendanceError(null);
     setTasksError(null);
@@ -251,8 +194,6 @@ export function CollectorPage() {
       // 1. Team Attendance (Module 1)
       promises.push(
         collectorApi.previewBlueprintTeamAttendance({
-          username: username.trim(),
-          password: password.trim(),
           baseUrl,
           teamId: undefined,
           fromDate: fromMDY,
@@ -270,18 +211,15 @@ export function CollectorPage() {
         })
       );
 
-      // 2. Tasks (Module 2)
-      const taskUser = targetMember !== 'ALL' ? targetMember : (selectedTaskMember || 'hieudao');
+      // 2. Tasks & Progress (Module 2)
       promises.push(
         collectorApi.previewBlueprintTasks({
-          username: username.trim(),
-          password: password.trim(),
+          baseUrl,
           projectFilter,
-          member: taskUser,
-          filterRole: taskFilterRole,
-          dateType: taskDateType,
+          member: targetMember !== 'ALL' ? targetMember : undefined,
           fromDate: unifiedFromDate,
           toDate: unifiedToDate,
+          filterRole: 'both',
         }).then((data) => {
           setPreviewTasks(data);
           setShowTasksTable(true);
@@ -290,12 +228,10 @@ export function CollectorPage() {
         })
       );
 
-      // 3. Vacation (Module 3)
-      const vacUser = targetMember !== 'ALL' ? targetMember : (selectedVacationMember || 'khoadang');
+      // 3. Vacation & Discipline (Module 3)
+      const vacUser = targetMember !== 'ALL' ? targetMember : 'khoadang';
       promises.push(
         collectorApi.previewBlueprintVacation({
-          username: username.trim(),
-          password: password.trim(),
           baseUrl,
           year: yr,
           member: vacUser,
@@ -317,10 +253,6 @@ export function CollectorPage() {
 
   // Unified Single Sync: Syncs all criteria in one click from Summary Board
   const handleUnifiedSyncAll = async (avgScore: number, gradeLetter: string) => {
-    if (!username.trim() || !password.trim()) {
-      alert('Vui lòng nhập Tài khoản và Mật khẩu Blueprint ở phần Cấu hình kết nối trước khi đồng bộ.');
-      return;
-    }
     setIsSyncingUnifiedAll(true);
     setUnifiedSyncSuccess(null);
 
@@ -350,8 +282,6 @@ export function CollectorPage() {
       // 1. Sync Attendance
       try {
         const attRes = await collectorApi.syncBlueprintTeamAttendance({
-          username,
-          password,
           baseUrl,
           teamId: undefined,
           fromDate: fromMDY,
@@ -368,8 +298,6 @@ export function CollectorPage() {
       // 2. Sync Tasks
       try {
         const taskRes = await collectorApi.syncBlueprintTasks({
-          username,
-          password,
           projectFilter,
           member: targetMember,
           filterRole: taskFilterRole,
@@ -387,8 +315,6 @@ export function CollectorPage() {
       // 3. Sync Vacation
       try {
         const vacRes = await collectorApi.syncBlueprintVacation({
-          username,
-          password,
           baseUrl,
           year: yr,
           member: targetMember,
@@ -419,16 +345,12 @@ export function CollectorPage() {
 
   // Fetch Tasks preview (used when clicking row in attendance table)
   const handleFetchTasks = async (targetOverride?: string) => {
-    if (!username.trim() || !password.trim()) {
-      return;
-    }
     const memberTarget = targetOverride || selectedTaskMember || 'hieudao';
 
     setTasksError(null);
     try {
       const data = await collectorApi.previewBlueprintTasks({
-        username: username.trim(),
-        password: password.trim(),
+        baseUrl,
         projectFilter,
         member: memberTarget,
         filterRole: taskFilterRole,
@@ -445,17 +367,12 @@ export function CollectorPage() {
 
   // Fetch Vacation & Discipline preview (used when clicking row in attendance table)
   const handleFetchVacation = async (targetOverride?: string) => {
-    if (!username.trim() || !password.trim()) {
-      return;
-    }
     const memberTarget = targetOverride || selectedVacationMember || 'khoadang';
     const yr = unifiedToDate ? unifiedToDate.split('-')[0] : '2026';
 
     setVacationError(null);
     try {
       const data = await collectorApi.previewBlueprintVacation({
-        username: username.trim(),
-        password: password.trim(),
         baseUrl,
         year: yr,
         member: memberTarget,
@@ -486,8 +403,31 @@ export function CollectorPage() {
     }
   };
 
+  // RBAC Access Control Guard
+  if (!isAuthorized) {
+    return (
+      <div style={{ padding: '60px 24px', maxWidth: '820px', margin: '60px auto', backgroundColor: COLORS.neutral.white, borderRadius: RADII.xl, boxShadow: SHADOWS.md, textAlign: 'center', border: '1px solid #fee2e2' }}>
+        <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto', color: '#dc2626' }}>
+          <ShieldAlert size={36} />
+        </div>
+        <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#1e293b', marginBottom: '8px' }}>
+          Quyền truy cập tính năng Blueprint SSO bị giới hạn
+        </h2>
+        <p style={{ fontSize: '14px', color: '#64748b', lineHeight: 1.6, maxWidth: '580px', margin: '0 auto 20px auto' }}>
+          Tính năng thu thập dữ liệu KPI tự động từ cổng Blueprint CLV được bảo vệ an toàn. Chỉ các tài khoản Quản lý (Manager) hoặc Quản trị hệ thống (System Admin) được ủy quyền mới có thể kích hoạt và sử dụng.
+        </p>
+        <div style={{ display: 'inline-block', padding: '14px 22px', backgroundColor: '#f8fafc', borderRadius: RADII.lg, border: '1px solid #e2e8f0', fontSize: '13px', color: '#475569', textAlign: 'left', marginBottom: '24px' }}>
+          <div><strong>Tài khoản hiện tại:</strong> {user ? `${user.name} (${user.email}) - Vai trò: ${user.role}` : 'Chưa đăng nhập'}</div>
+          <div style={{ marginTop: '6px', color: '#dc2626', fontSize: '12px' }}>
+            ⚠️ Tài khoản hiện tại không có quyền truy cập tính năng này. Vui lòng đăng nhập bằng tài khoản Quản lý hoặc Quản trị viên (ví dụ tài khoản của anh Kỳ: <code>kyld.manager@kpi.com</code> hoặc <code>kyld.admin@kpi.com</code>).
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ padding: '24px', maxWidth: '1280px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div style={{ width: '100%', padding: '16px 0 32px 0', display: 'flex', flexDirection: 'column', gap: '24px', boxSizing: 'border-box' }}>
       {/* Top Banner Header */}
       <div
         style={{
@@ -528,26 +468,25 @@ export function CollectorPage() {
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button
-            onClick={() => setIsConfigOpen(!isConfigOpen)}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <div
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              padding: '10px 18px',
-              backgroundColor: isConfigOpen ? 'rgba(59, 130, 246, 0.3)' : 'rgba(255, 255, 255, 0.1)',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
-              borderRadius: RADII.lg,
-              color: '#f8fafc',
-              cursor: 'pointer',
-              fontSize: TYPOGRAPHY.fontSize.sm,
+              padding: '6px 14px',
+              borderRadius: RADII.full,
+              backgroundColor: 'rgba(59, 130, 246, 0.2)',
+              border: '1px solid rgba(59, 130, 246, 0.4)',
+              color: '#93c5fd',
+              fontSize: TYPOGRAPHY.fontSize.xs,
               fontWeight: 500,
             }}
           >
-            <Settings size={16} />
-            {isConfigOpen ? 'Đóng cấu hình' : '⚙️ Cấu hình kết nối'}
-          </button>
+            <ShieldCheck size={14} style={{ color: '#60a5fa' }} />
+            <span>Người vận hành: <strong style={{ color: '#fff' }}>{user?.name || user?.email}</strong> ({user?.role})</span>
+          </div>
+
 
           <button
             onClick={loadSourcesAndJobs}
@@ -572,190 +511,6 @@ export function CollectorPage() {
         </div>
       </div>
 
-      {/* Global Connection Settings Panel (Collapsible) */}
-      {isConfigOpen && (
-        <div
-          style={{
-            backgroundColor: COLORS.neutral.white,
-            borderRadius: RADII.xl,
-            padding: '24px',
-            boxShadow: SHADOWS.sm,
-            border: `1px solid ${COLORS.neutral.border}`,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '16px',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-            <div>
-              <h2 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.lg, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
-                Cấu hình Nguồn Kết nối Chung (Blueprint CLV SSO)
-              </h2>
-              <p style={{ margin: '4px 0 0 0', fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
-                Cấu hình tài khoản đăng nhập 1 lần duy nhất cho toàn bộ hệ thống. Tất cả API Chấm công (UI_TAT_028), Quản lý Task (UI_PIM_001) sẽ tự động sử dụng cấu hình này.
-              </p>
-            </div>
-
-            {testResult && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '6px 12px',
-                  borderRadius: RADII.full,
-                  backgroundColor: testResult.success ? '#ecfdf5' : '#fef2f2',
-                  color: testResult.success ? '#059669' : '#dc2626',
-                  fontSize: TYPOGRAPHY.fontSize.xs,
-                  fontWeight: 500,
-                  border: `1px solid ${testResult.success ? '#a7f3d0' : '#fecaca'}`,
-                }}
-              >
-                {testResult.success ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
-                {testResult.message}
-              </div>
-            )}
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 600, color: COLORS.neutral.textSecondary, marginBottom: '6px' }}>
-                Tài khoản (Username)
-              </label>
-              <div style={{ position: 'relative' }}>
-                <User size={16} style={{ position: 'absolute', left: '10px', top: '10px', color: COLORS.neutral[400] }} />
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px 8px 34px',
-                    borderRadius: RADII.md,
-                    border: `1px solid ${COLORS.neutral.border}`,
-                    fontSize: TYPOGRAPHY.fontSize.sm,
-                    boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 600, color: COLORS.neutral.textSecondary, marginBottom: '6px' }}>
-                Mật khẩu (Password)
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: RADII.md,
-                  border: `1px solid ${COLORS.neutral.border}`,
-                  fontSize: TYPOGRAPHY.fontSize.sm,
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 600, color: COLORS.neutral.textSecondary, marginBottom: '6px' }}>
-                Chuyên mục Task (Category UI_PIM_001)
-              </label>
-              <div style={{ position: 'relative' }}>
-                <FolderGit2 size={16} style={{ position: 'absolute', left: '10px', top: '10px', color: COLORS.neutral[400] }} />
-                <input
-                  type="text"
-                  value={projectFilter}
-                  onChange={(e) => setProjectFilter(e.target.value)}
-                  placeholder="Allegro NX"
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px 8px 34px',
-                    borderRadius: RADII.md,
-                    border: `1px solid ${COLORS.neutral.border}`,
-                    fontSize: TYPOGRAPHY.fontSize.sm,
-                    boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 600, color: COLORS.neutral.textSecondary, marginBottom: '6px' }}>
-                Tháng chấm công (Month)
-              </label>
-              <div style={{ position: 'relative' }}>
-                <Calendar size={16} style={{ position: 'absolute', left: '10px', top: '10px', color: COLORS.neutral[400] }} />
-                <input
-                  type="month"
-                  value={month}
-                  onChange={(e) => setMonth(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px 8px 34px',
-                    borderRadius: RADII.md,
-                    border: `1px solid ${COLORS.neutral.border}`,
-                    fontSize: TYPOGRAPHY.fontSize.sm,
-                    boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', paddingTop: '8px', borderTop: `1px solid ${COLORS.neutral[100]}` }}>
-            <button
-              onClick={handleSaveConfig}
-              disabled={isSavingConfig}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '8px 18px',
-                backgroundColor: COLORS.primary.DEFAULT,
-                color: COLORS.neutral.white,
-                border: 'none',
-                borderRadius: RADII.md,
-                fontSize: TYPOGRAPHY.fontSize.sm,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              <Save size={14} />
-              {isSavingConfig ? 'Đang lưu...' : '💾 Lưu cấu hình mặc định'}
-            </button>
-
-            <button
-              onClick={handleTestConnection}
-              disabled={isTesting}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '8px 16px',
-                backgroundColor: COLORS.neutral.white,
-                border: `1px solid ${COLORS.neutral.border}`,
-                borderRadius: RADII.md,
-                color: COLORS.neutral.textPrimary,
-                fontSize: TYPOGRAPHY.fontSize.sm,
-                fontWeight: 500,
-                cursor: 'pointer',
-              }}
-            >
-              <RefreshCw size={14} className={isTesting ? 'spin' : ''} />
-              {isTesting ? 'Đang kiểm tra...' : '⚡ Test Connection'}
-            </button>
-
-            {configSaveSuccess && (
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#059669', fontSize: TYPOGRAPHY.fontSize.sm, fontWeight: 500 }}>
-                <CheckCircle2 size={16} /> {configSaveSuccess}
-              </span>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Main Navigation Tabs */}
       <div style={{ display: 'flex', gap: '8px', borderBottom: `1px solid ${COLORS.neutral.border}` }}>
@@ -1367,13 +1122,39 @@ export function CollectorPage() {
                                     style={{
                                       padding: '2px 8px',
                                       borderRadius: RADII.full,
-                                      backgroundColor: r.status === 'ON_TIME' ? '#dcfce7' : r.status === 'LATE' ? '#fecaca' : '#f1f5f9',
-                                      color: r.status === 'ON_TIME' ? '#15803d' : r.status === 'LATE' ? '#991b1b' : '#475569',
+                                      backgroundColor:
+                                        r.leaveType === 'Holiday'
+                                          ? '#ede9fe'
+                                          : r.leaveType === 'Weekend'
+                                          ? '#f1f5f9'
+                                          : r.status === 'ON_TIME'
+                                          ? '#dcfce7'
+                                          : r.status === 'LATE'
+                                          ? '#fecaca'
+                                          : '#f1f5f9',
+                                      color:
+                                        r.leaveType === 'Holiday'
+                                          ? '#6d28d9'
+                                          : r.leaveType === 'Weekend'
+                                          ? '#64748b'
+                                          : r.status === 'ON_TIME'
+                                          ? '#15803d'
+                                          : r.status === 'LATE'
+                                          ? '#991b1b'
+                                          : '#475569',
                                       fontWeight: 600,
                                       fontSize: '11px',
                                     }}
                                   >
-                                    {r.status === 'ON_TIME' ? 'Đúng giờ' : r.status === 'LATE' ? `Đi muộn ${r.lateMinutes}p` : r.status}
+                                    {r.leaveType === 'Holiday'
+                                      ? 'Nghỉ lễ'
+                                      : r.leaveType === 'Weekend'
+                                      ? 'Cuối tuần'
+                                      : r.status === 'ON_TIME'
+                                      ? 'Đúng giờ'
+                                      : r.status === 'LATE'
+                                      ? `Đi muộn ${r.lateMinutes}p`
+                                      : r.status}
                                   </span>
                                 </td>
                                 <td style={{ padding: '8px 14px', textAlign: 'center' }}>
@@ -1444,7 +1225,7 @@ export function CollectorPage() {
                     </span>
                   </div>
                   <p style={{ margin: '2px 0 0 0', fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
-                    API <code>/api/uiPim001/searchRequirement</code> | Chuyên mục: <strong>{projectFilter}</strong> | Vai trò: <strong>Cả Người đăng ký & Người thực hiện</strong> | Kỳ lọc: <strong>{unifiedFromDate} → {unifiedToDate}</strong> | Đang đối soát cho: <strong style={{ color: '#7e22ce' }}>{taskMemberList.find(m => m.id === (previewTasks?.username || selectedTaskMember))?.name || (previewTasks?.username || selectedTaskMember)} ({previewTasks?.username || selectedTaskMember})</strong>
+                    API <code>/api/uiPim001/searchRequirement</code> | Chuyên mục: <strong>{projectFilter}</strong> | Vai trò: <strong>Cả Người đăng ký & Người thực hiện</strong> | Kỳ lọc: <strong>{unifiedFromDate} → {unifiedToDate}</strong> | Đang đối soát cho: <strong style={{ color: '#7e22ce' }}>{taskMemberList.find(m => m.id === (previewTasks?.username || selectedTaskMember))?.name || (previewTasks?.username || selectedTaskMember)}</strong>
                   </p>
                 </div>
               </div>
@@ -1542,7 +1323,7 @@ export function CollectorPage() {
                         {previewTasks.tasks.map((r, idx) => (
                           <tr key={idx} style={{ borderBottom: `1px solid ${COLORS.neutral[100]}`, backgroundColor: r.isOnTime ? COLORS.neutral.white : '#fff5f5' }}>
                             <td style={{ padding: '8px 12px', fontWeight: 600, color: COLORS.primary.DEFAULT }}>{r.seqNo || r.id}</td>
-                            <td style={{ padding: '8px 12px', fontWeight: 500, maxWidth: '240px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={r.title}>
+                            <td style={{ padding: '8px 12px', fontWeight: 500, maxWidth: '480px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={r.title}>
                               {r.title}
                             </td>
                             <td style={{ padding: '8px 12px' }}>
@@ -1644,8 +1425,7 @@ export function CollectorPage() {
                   <p style={{ margin: '2px 0 0 0', fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
                     API <code>/api/checkInOut/getAnnualVacationProfile</code> & <code>searchAunualDedunctionHis</code> | Đang đối soát cho:{' '}
                     <strong style={{ color: '#047857' }}>
-                      {taskMemberList.find((m) => m.id === (previewVacation?.username || selectedVacationMember))?.name || (previewVacation?.username || selectedVacationMember)} (
-                      {previewVacation?.username || selectedVacationMember})
+                      {taskMemberList.find((m) => m.id === (previewVacation?.username || selectedVacationMember))?.name || (previewVacation?.username || selectedVacationMember)}
                     </strong>
                   </p>
                 </div>

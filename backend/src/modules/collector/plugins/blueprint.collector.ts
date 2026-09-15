@@ -15,14 +15,26 @@ export interface BlueprintCredentials {
 }
 
 export class BlueprintCollector {
-  private baseUrl: string;
-  private cookies: Map<string, string> = new Map();
+  private static instances = new Map<string, BlueprintCollector>();
 
-  constructor(private credentials: BlueprintCredentials) {
-    this.baseUrl = (credentials.baseUrl || 'https://blueprint.cyberlogitec.com.vn').replace(/\/$/, '');
+  public static getInstance(credentials: BlueprintCredentials): BlueprintCollector {
+    const key = `${credentials.username}@${credentials.baseUrl || 'default'}`;
+    let instance = BlueprintCollector.instances.get(key);
+    if (!instance || instance.credentials.password !== credentials.password) {
+      instance = new BlueprintCollector(credentials);
+      BlueprintCollector.instances.set(key, instance);
+    }
+    return instance;
   }
 
+  private baseUrl: string;
+  private cookies: Map<string, string> = new Map();
   private isLoggedIn = false;
+  private loginPromise: Promise<boolean> | null = null;
+
+  constructor(public readonly credentials: BlueprintCredentials) {
+    this.baseUrl = (credentials.baseUrl || 'https://blueprint.cyberlogitec.com.vn').replace(/\/$/, '');
+  }
 
   private storeCookies(response: Response) {
     const headersWithCookies = response.headers as unknown as { getSetCookie?: () => string[] };
@@ -73,9 +85,20 @@ export class BlueprintCollector {
     }
     options.redirect = 'manual';
 
-    const res = await fetch(url, options);
-    this.storeCookies(res);
-    return res;
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await fetch(url, options);
+        this.storeCookies(res);
+        return res;
+      } catch (err: unknown) {
+        lastError = err;
+        if (attempt < 2) {
+          await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+        }
+      }
+    }
+    throw lastError;
   }
 
   private async followRedirects(initialRes: Response, initialUrl: string): Promise<{ res: Response; finalUrl: string }> {
@@ -99,12 +122,19 @@ export class BlueprintCollector {
   }
 
   /**
-   * Ensure user is authenticated, reuse active session cookies without redundant login calls
+   * Ensure user is authenticated, reuse active session cookies without redundant login calls.
+   * If a login is already in progress, await the existing login promise to avoid duplicate Keycloak calls.
    */
   public async ensureLoggedIn(): Promise<void> {
-    if (!this.isLoggedIn || this.cookies.size === 0) {
-      await this.login();
+    if (this.isLoggedIn && this.cookies.size > 0) {
+      return;
     }
+    if (!this.loginPromise) {
+      this.loginPromise = this.login().finally(() => {
+        this.loginPromise = null;
+      });
+    }
+    await this.loginPromise;
   }
 
   /**
@@ -380,8 +410,25 @@ export class BlueprintCollector {
       member = 'anlt';
     }
 
-    const cleanFromDate = fromDate ? fromDate.replace(/-/g, '').trim() : '';
-    const cleanToDate = toDate ? toDate.replace(/-/g, '').trim() : '';
+    const toYYYYMMDD = (d?: string): string => {
+      if (!d) return '';
+      const clean = d.trim();
+      if (/^\d{8}$/.test(clean)) return clean;
+      // Format: YYYY-MM-DD or YYYY/MM/DD
+      const ymdMatch = clean.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+      if (ymdMatch && ymdMatch[1] && ymdMatch[2] && ymdMatch[3]) {
+        return `${ymdMatch[1]}${ymdMatch[2].padStart(2, '0')}${ymdMatch[3].padStart(2, '0')}`;
+      }
+      // Format: MM/DD/YYYY or M/D/YYYY
+      const mdyMatch = clean.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+      if (mdyMatch && mdyMatch[1] && mdyMatch[2] && mdyMatch[3]) {
+        return `${mdyMatch[3]}${mdyMatch[1].padStart(2, '0')}${mdyMatch[2].padStart(2, '0')}`;
+      }
+      return clean.replace(/[^0-9]/g, '').slice(0, 8);
+    };
+
+    const cleanFromDate = toYYYYMMDD(fromDate);
+    const cleanToDate = toYYYYMMDD(toDate);
 
     // 4. Query searchRequirement with advance search
     const reqStatuses = ['REQ_STS_CDPRC', 'REQ_STS_CDOPN', 'REQ_STS_CDFIN', 'REQ_STS_CDPD', 'REQ_STS_CDCC'];
@@ -626,8 +673,8 @@ export class BlueprintCollector {
       tasks: formattedTasks,
       delayedTaskList,
       username: member,
-      fromDate: fromDate || null,
-      toDate: toDate || null,
+      fromDate: cleanFromDate && cleanFromDate.length === 8 ? `${cleanFromDate.slice(0, 4)}-${cleanFromDate.slice(4, 6)}-${cleanFromDate.slice(6, 8)}` : fromDate || null,
+      toDate: cleanToDate && cleanToDate.length === 8 ? `${cleanToDate.slice(0, 4)}-${cleanToDate.slice(4, 6)}-${cleanToDate.slice(6, 8)}` : toDate || null,
       filterRole,
       dateType,
     };
@@ -692,11 +739,19 @@ export class BlueprintCollector {
     const vacationDetails: Array<{ leaveType: string; days: number }> = [];
 
     try {
-      const vacRes = await this.fetchWithCookies(`${this.baseUrl}/api/checkInOut/getAnnualVacationProfile`, {
+      let vacRes = await this.fetchWithCookies(`${this.baseUrl}/api/checkInOut/getAnnualVacationProfile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vctYr, empeId: member }),
       });
+      if (vacRes.status === 401) {
+        await this.login();
+        vacRes = await this.fetchWithCookies(`${this.baseUrl}/api/checkInOut/getAnnualVacationProfile`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vctYr, empeId: member }),
+        });
+      }
       if (vacRes.ok) {
         const vacData = await vacRes.json();
         const item = vacData?.listVacation?.[0];
@@ -717,8 +772,8 @@ export class BlueprintCollector {
           }
         }
       }
-    } catch {
-      // ignore
+    } catch (err) {
+      console.warn('[BlueprintCollector] getAnnualVacationProfile error:', err);
     }
 
     // 2. Fetch Deduction & Late History (filtered by fromDate / toDate)
@@ -726,10 +781,17 @@ export class BlueprintCollector {
     let lateInEarlyOutCount = 0;
 
     try {
-      const dedRes = await this.fetchWithCookies(`${this.baseUrl}/api/checkInOut/searchAunualDedunctionHis?vctYr=${vctYr}`, {
+      let dedRes = await this.fetchWithCookies(`${this.baseUrl}/api/checkInOut/searchAunualDedunctionHis?vctYr=${vctYr}`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       });
+      if (dedRes.status === 401) {
+        await this.login();
+        dedRes = await this.fetchWithCookies(`${this.baseUrl}/api/checkInOut/searchAunualDedunctionHis?vctYr=${vctYr}`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
       if (dedRes.ok) {
         const dedData = await dedRes.json();
         if (Array.isArray(dedData?.lstBrdyCmt)) {
@@ -874,8 +936,8 @@ export class BlueprintCollector {
       return d;
     };
 
-    const targetDate = toDate || fromDate;
-    const targetFormattedDate = formatDate(targetDate);
+    const startFormattedDate = formatDate(fromDate);
+    const endFormattedDate = formatDate(toDate || fromDate);
     const targetOrzId = teamId === 'ALL' || !teamId ? '' : teamId;
 
     // Get teams list
@@ -883,9 +945,8 @@ export class BlueprintCollector {
     const currentTeam = teams.find((t) => t.orzId === targetOrzId);
     const teamName = targetOrzId ? (currentTeam?.orzNm || targetOrzId) : 'Tất cả Team (ALLEGRO NX & Maritime)';
 
-    // Query Blueprint with target date and empty empeName so Blueprint returns team members,
-    // avoiding failure when employeeName is a username (e.g. hieudao).
-    const url = `${this.baseUrl}/api/dailyTeamStatusFace/searchAttendanceTime?siteCd=V100&orzId=${targetOrzId}&fmDt=${targetFormattedDate}&toDt=${targetFormattedDate}&empeName=&noneTeam=0&start=0&size=200`;
+    // Query Blueprint with full date range [fromDate, toDate] and size=1000 to capture all days in period
+    const url = `${this.baseUrl}/api/dailyTeamStatusFace/searchAttendanceTime?siteCd=V100&orzId=${targetOrzId}&fmDt=${startFormattedDate}&toDt=${endFormattedDate}&empeName=&noneTeam=0&start=0&size=1000`;
 
     let res = await this.fetchWithCookies(url);
     if (res.status === 401) {
@@ -920,7 +981,10 @@ export class BlueprintCollector {
       let status: BlueprintTeamMemberAttendance['status'] = 'ABSENT';
       let lateMinutes = 0;
 
-      if (item.lveTpNm) {
+      const tpLower = (item.lveTpNm || '').toLowerCase();
+      const isWeekendOrHoliday = tpLower.includes('weekend') || tpLower.includes('holiday');
+
+      if (isWeekendOrHoliday || item.lveTpNm) {
         leaveMembers++;
         status = 'LEAVE';
       } else if (rawIn) {
@@ -949,7 +1013,7 @@ export class BlueprintCollector {
         empeName: item.empeName || item.usrNm || item.usrId || 'N/A',
         usrId: item.usrId,
         orzNm: item.orzNm || teamName,
-        date: item.wrkDt || targetFormattedDate,
+        date: item.wrkDt || startFormattedDate,
         punchIn,
         punchOut,
         workShift: item.wrkShft || '08:30 - 17:30',
@@ -960,6 +1024,26 @@ export class BlueprintCollector {
         reason: item.vacDesc || null,
       });
     }
+
+    // Sort records descending by date (latest dates first)
+    const monthMap: Record<string, string> = {
+      jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+      jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
+    };
+    const parseWrkDt = (dStr: string): string => {
+      if (!dStr) return '';
+      const parts = dStr.split('-');
+      if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+        const p0 = parts[0];
+        const p1 = parts[1];
+        const p2 = parts[2];
+        const m = monthMap[p0.toLowerCase()] || p0.padStart(2, '0');
+        const d = p1.padStart(2, '0');
+        return `${p2}-${m}-${d}`;
+      }
+      return dStr;
+    };
+    records.sort((a, b) => parseWrkDt(b.date).localeCompare(parseWrkDt(a.date)));
 
     // If a specific employee is requested, filter records and adjust summary stats
     let finalRecords = records;
@@ -1009,8 +1093,8 @@ export class BlueprintCollector {
     return {
       teamId: targetOrzId,
       teamName,
-      fromDate: targetFormattedDate,
-      toDate: targetFormattedDate,
+      fromDate: startFormattedDate,
+      toDate: endFormattedDate,
       totalMembers,
       attendedMembers,
       onTimeMembers,

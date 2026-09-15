@@ -353,12 +353,13 @@ export const collectorApi = {
     }>('/api/collectors/blueprint/config'),
 
   saveBlueprintConfig: (data: {
-    username: string;
+    username?: string;
     password?: string;
     baseUrl?: string;
     month?: string;
     projectFilter?: string;
   }) =>
+
     postApi<{
       id: string;
       username: string;

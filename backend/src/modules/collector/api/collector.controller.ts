@@ -237,7 +237,12 @@ export class CollectorController {
   getBlueprintConfig = async (_req: Request, res: Response): Promise<void> => {
     try {
       const config = await this.collectorService.getBlueprintConfig();
-      sendSuccess(res, 200, 'Cấu hình Blueprint đã tải thành công', config);
+      const safeConfig = {
+        ...config,
+        password: config.password ? '••••••••' : '',
+        isConfigured: Boolean(config.username && config.password),
+      };
+      sendSuccess(res, 200, 'Cấu hình Blueprint đã tải thành công', safeConfig);
     } catch (err: unknown) {
       sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }

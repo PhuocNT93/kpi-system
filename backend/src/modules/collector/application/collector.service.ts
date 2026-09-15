@@ -104,10 +104,16 @@ export class CollectorService {
         if (!ds) throw new Error('Data Source not found');
         creds = ds.auth_config as unknown as BlueprintCredentials;
       } else {
-        throw new Error('No credentials provided');
+        const saved = await this.getBlueprintConfig();
+        if (saved && saved.username && saved.password) {
+          creds = { username: saved.username, password: saved.password, baseUrl: saved.baseUrl };
+        } else {
+          throw new Error('No credentials provided');
+        }
       }
 
-      const collector = new BlueprintCollector(creds);
+
+      const collector = BlueprintCollector.getInstance(creds);
       await collector.login();
       return { success: true, message: `Successfully connected & authenticated as '${creds.username}'` };
     } catch (err: unknown) {
@@ -118,7 +124,7 @@ export class CollectorService {
   // ──────────────────────────── Preview & Direct Sync ────────────────────────────
 
   async previewBlueprint(credentials: BlueprintCredentials, month: string = '2026-09'): Promise<BlueprintAttendanceSummary> {
-    const collector = new BlueprintCollector(credentials);
+    const collector = BlueprintCollector.getInstance(credentials);
     return collector.fetchAttendance(month);
   }
 
@@ -129,7 +135,7 @@ export class CollectorService {
     toDate?: string,
     employeeName?: string
   ): Promise<BlueprintTeamAttendanceSummary> {
-    const collector = new BlueprintCollector(credentials);
+    const collector = BlueprintCollector.getInstance(credentials);
     return collector.fetchTeamAttendance(teamId, fromDate, toDate, employeeName);
   }
 
@@ -144,7 +150,7 @@ export class CollectorService {
     if (!creds || !creds.username || !creds.password) {
       return [];
     }
-    const collector = new BlueprintCollector(creds);
+    const collector = BlueprintCollector.getInstance(creds);
     return collector.fetchOrgTree();
   }
 
@@ -157,7 +163,7 @@ export class CollectorService {
     filterRole?: 'requester' | 'assignee' | 'both',
     dateType?: 'registered' | 'due' | 'finished'
   ): Promise<BlueprintTaskSummary> {
-    const collector = new BlueprintCollector(credentials);
+    const collector = BlueprintCollector.getInstance(credentials);
     return collector.fetchTasks(projectFilter, targetMember, fromDate, toDate, filterRole, dateType);
   }
 
@@ -168,7 +174,7 @@ export class CollectorService {
     fromDate?: string,
     toDate?: string
   ): Promise<BlueprintVacationSummary> {
-    const collector = new BlueprintCollector(credentials);
+    const collector = BlueprintCollector.getInstance(credentials);
     return collector.fetchVacationProfile(year, targetMember, fromDate, toDate);
   }
 
@@ -198,7 +204,7 @@ export class CollectorService {
     }
 
     const month = options.month || '2026-09';
-    const collector = new BlueprintCollector(creds);
+    const collector = BlueprintCollector.getInstance(creds);
     const summary = await collector.fetchAttendance(month);
 
     let cycleId = options.cycleId;
@@ -302,7 +308,7 @@ export class CollectorService {
       throw new Error('Chưa có tài khoản và mật khẩu kết nối Blueprint. Vui lòng nhập thông tin trên giao diện.');
     }
 
-    const collector = new BlueprintCollector(creds);
+    const collector = BlueprintCollector.getInstance(creds);
     const summary = await collector.fetchTeamAttendance(options.teamId, options.fromDate, options.toDate);
 
     let cycleId = options.cycleId;
@@ -417,7 +423,7 @@ export class CollectorService {
 
     const projectFilter = options.projectFilter || 'ALLEGRO';
     const targetMember = options.member || creds.username;
-    const collector = new BlueprintCollector(creds);
+    const collector = BlueprintCollector.getInstance(creds);
     const tasksSummary = await collector.fetchTasks(
       projectFilter,
       targetMember,
@@ -535,7 +541,7 @@ export class CollectorService {
 
     const year = options.year || '2026';
     const targetMember = options.member || creds.username;
-    const collector = new BlueprintCollector(creds);
+    const collector = BlueprintCollector.getInstance(creds);
     const summary = await collector.fetchVacationProfile(year, targetMember, options.fromDate, options.toDate);
 
     let cycleId = options.cycleId;
@@ -671,7 +677,7 @@ export class CollectorService {
     }
 
     const creds: BlueprintCredentials = { username, password, baseUrl };
-    const collector = new BlueprintCollector(creds);
+    const collector = BlueprintCollector.getInstance(creds);
 
     // 2. Resolve cycle
     let cycleId = options.cycleId;
@@ -817,6 +823,10 @@ export class CollectorService {
   }
 
   async getBlueprintConfig(): Promise<BlueprintSavedConfig> {
+    const defaultUsername = process.env.BLUEPRINT_USERNAME || 'kyluong';
+    const defaultPassword = process.env.BLUEPRINT_PASSWORD || '19901991';
+    const defaultBaseUrl = process.env.BLUEPRINT_BASE_URL || 'https://blueprint.cyberlogitec.com.vn';
+
     const res = await this.pool.query(
       `SELECT * FROM collector_data_source WHERE source_type = 'BLUEPRINT' ORDER BY updated_at DESC LIMIT 1`
     );
@@ -825,41 +835,52 @@ export class CollectorService {
       return {
         id: ds.id,
         name: ds.name,
-        username: (ds.auth_config?.username as string) || '',
-        password: (ds.auth_config?.password as string) || '',
-        baseUrl: (ds.auth_config?.baseUrl as string) || 'https://blueprint.cyberlogitec.com.vn',
+        username: (ds.auth_config?.username as string) || defaultUsername,
+        password: (ds.auth_config?.password as string) || defaultPassword,
+        baseUrl: (ds.auth_config?.baseUrl as string) || defaultBaseUrl,
         month: (ds.auth_config?.month as string) || '2026-09',
         projectFilter: (ds.auth_config?.projectFilter as string) || 'Allegro NX',
         ...ds.auth_config,
       };
     }
     return {
-      username: '',
-      password: '',
-      baseUrl: 'https://blueprint.cyberlogitec.com.vn',
+      username: defaultUsername,
+      password: defaultPassword,
+      baseUrl: defaultBaseUrl,
       month: '2026-09',
       projectFilter: 'Allegro NX',
     };
   }
 
   async saveBlueprintConfig(data: {
-    username: string;
+    username?: string;
     password?: string;
     baseUrl?: string;
     month?: string;
     projectFilter?: string;
   }): Promise<Record<string, unknown>> {
+    const defaultUsername = process.env.BLUEPRINT_USERNAME || 'kyluong';
+    const defaultPassword = process.env.BLUEPRINT_PASSWORD || '19901991';
+    const defaultBaseUrl = process.env.BLUEPRINT_BASE_URL || 'https://blueprint.cyberlogitec.com.vn';
+
     const existing = await this.pool.query(
       `SELECT * FROM collector_data_source WHERE source_type = 'BLUEPRINT' LIMIT 1`
     );
 
     const prevConfig = (existing.rows[0]?.auth_config as Record<string, unknown>) || {};
+    const effectiveUsername =
+      data.username && data.username.trim() ? data.username.trim() : (prevConfig.username as string) || defaultUsername;
+    const effectivePassword =
+      data.password && data.password.trim() && !data.password.includes('•')
+        ? data.password.trim()
+        : (prevConfig.password as string) || defaultPassword;
+
     const authConfig = {
-      username: data.username || (prevConfig.username as string) || '',
-      password: data.password !== undefined ? data.password : (prevConfig.password as string) || '',
-      baseUrl: data.baseUrl || 'https://blueprint.cyberlogitec.com.vn',
-      month: data.month || '2026-09',
-      projectFilter: data.projectFilter || 'Allegro NX',
+      username: effectiveUsername,
+      password: effectivePassword,
+      baseUrl: data.baseUrl || (prevConfig.baseUrl as string) || defaultBaseUrl,
+      month: data.month || (prevConfig.month as string) || '2026-09',
+      projectFilter: data.projectFilter || (prevConfig.projectFilter as string) || 'Allegro NX',
     };
 
     if (existing.rows.length > 0) {
@@ -917,7 +938,7 @@ export class CollectorService {
       // 1. Fetch live Blueprint directory from UI_PIM_001
       const creds = await this.getBlueprintConfig();
       if (creds && creds.username && creds.password) {
-        const collector = new BlueprintCollector({ username: creds.username, password: creds.password, baseUrl: creds.baseUrl });
+        const collector = BlueprintCollector.getInstance({ username: creds.username, password: creds.password, baseUrl: creds.baseUrl });
         const bpMembers = await collector.fetchMembers();
         if (Array.isArray(bpMembers) && bpMembers.length > 0) {
           bpMembers.forEach((u) => {
@@ -1059,7 +1080,7 @@ export class CollectorService {
     try {
       if (ds.source_type === 'BLUEPRINT') {
         const creds = ds.auth_config as unknown as BlueprintCredentials;
-        const collector = new BlueprintCollector(creds);
+        const collector = BlueprintCollector.getInstance(creds);
         let recordsCount = 0;
         let summaryResult: Record<string, unknown> | BlueprintTaskSummary | BlueprintVacationSummary | BlueprintAttendanceSummary | null = null;
 
