@@ -13,17 +13,8 @@ import {
 } from '../api/use-i18n';
 import { Button } from '@/shared/ui/Button/Button';
 import { LoadingSpinner, ErrorAlert } from '@/shared/components/ui';
+import { MASTER_ENTITY_TYPES } from './entity-translation-constants';
 
-export const MASTER_ENTITY_TYPES = [
-  { value: 'DEPARTMENT', label: 'Department (Phòng ban)', defaultFields: ['name'] },
-  { value: 'TEAM', label: 'Team (Nhóm / Đội)', defaultFields: ['name'] },
-  { value: 'ROLE', label: 'Role (Chức danh / Vai trò)', defaultFields: ['name'] },
-  { value: 'JOB_LEVEL', label: 'Job Level (Cấp bậc công việc)', defaultFields: ['name'] },
-  { value: 'REVIEW_CADENCE', label: 'Review Cadence (Chu kỳ đánh giá)', defaultFields: ['name'] },
-  { value: 'CRITERION', label: 'Criterion (Tiêu chí đánh giá)', defaultFields: ['name', 'description'] },
-  { value: 'CRITERION_LEVEL', label: 'Criterion Level (Mức độ tiêu chí)', defaultFields: ['label'] },
-  { value: 'EVALUATION_TEMPLATE', label: 'Evaluation Template (Mẫu đánh giá)', defaultFields: ['name', 'description'] },
-];
 
 interface Props {
   initialEntityType?: string;
@@ -45,7 +36,7 @@ export const EntityTranslationEditor: React.FC<Props> = ({
 
   // 1. Locales list from backend
   const { data: localesData, isLoading: localesLoading } = useLocales();
-  const locales: string[] = localesData ?? [];
+  const locales: string[] = useMemo(() => localesData ?? [], [localesData]);
 
   // 2. Global master entities across ALL categories
   const {
