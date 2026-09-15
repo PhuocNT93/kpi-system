@@ -30,6 +30,73 @@ import { RADII, SHADOWS, TYPOGRAPHY } from '@/shared/theme';
 
 import { MANAGED_EMPLOYEES } from '../constants/managed-employees';
 
+const MONTH_ABBR_MAP: Record<string, string> = {
+  jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+  jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
+};
+
+function extractRecordYearMonth(dateStr?: string | null): string {
+  if (!dateStr) return '';
+  const s = String(dateStr).trim();
+  if (/^\d{4}-\d{2}/.test(s)) {
+    return s.slice(0, 7);
+  }
+  if (s.includes('-')) {
+    const parts = s.split('-');
+    if (parts.length === 3) {
+      const p0 = parts[0].toLowerCase();
+      const p2 = parts[2];
+      if (MONTH_ABBR_MAP[p0] && /^\d{4}$/.test(p2)) {
+        return `${p2}-${MONTH_ABBR_MAP[p0]}`;
+      }
+      if (/^\d{4}$/.test(parts[0]) && /^\d{1,2}$/.test(parts[1])) {
+        return `${parts[0]}-${parts[1].padStart(2, '0')}`;
+      }
+      if (/^\d{4}$/.test(p2) && /^\d{1,2}$/.test(parts[1])) {
+        return `${p2}-${parts[1].padStart(2, '0')}`;
+      }
+    }
+  }
+  if (s.includes('/')) {
+    const parts = s.split('/');
+    if (parts.length === 3 && parts[2].length === 4) {
+      const p0 = parseInt(parts[0], 10);
+      const p1 = parseInt(parts[1], 10);
+      if (p0 > 12) {
+        return `${parts[2]}-${String(p1).padStart(2, '0')}`;
+      }
+      return `${parts[2]}-${String(p0).padStart(2, '0')}`;
+    }
+  }
+  return '';
+}
+
+function getCycleMonthsList(fromDateStr: string, toDateStr: string): string[] {
+  if (!fromDateStr || !toDateStr) return [];
+  const fromParts = fromDateStr.split('-');
+  const toParts = toDateStr.split('-');
+  if (fromParts.length < 2 || toParts.length < 2) return [];
+
+  const startYear = parseInt(fromParts[0], 10);
+  const startMonth = parseInt(fromParts[1], 10);
+  const endYear = parseInt(toParts[0], 10);
+  const endMonth = parseInt(toParts[1], 10);
+
+  const months: string[] = [];
+  let curY = startYear;
+  let curM = startMonth;
+
+  while (curY < endYear || (curY === endYear && curM <= endMonth)) {
+    months.push(`${curY}-${String(curM).padStart(2, '0')}`);
+    curM++;
+    if (curM > 12) {
+      curM = 1;
+      curY++;
+    }
+  }
+  return months;
+}
+
 export function CollectorPage() {
   const { user } = useAuth();
   const isAuthorized = Boolean(
@@ -107,11 +174,18 @@ export function CollectorPage() {
     return 10;
   };
 
+  // Derived Months for the current review cycle
+  const cycleMonths = useMemo(() => {
+    return getCycleMonthsList(unifiedFromDate, unifiedToDate);
+  }, [unifiedFromDate, unifiedToDate]);
+
   // Module 1: Daily Team Status State (UI_TAT_029 - Manager Team Check-in/out)
   const [previewTeamAttendance, setPreviewTeamAttendance] = useState<BlueprintTeamAttendanceSummary | null>(null);
   const [teamAttendanceError, setTeamAttendanceError] = useState<string | null>(null);
   const [showTeamAttendanceTable, setShowTeamAttendanceTable] = useState(false);
   const [attendancePage, setAttendancePage] = useState<number>(1);
+  const [attendanceMonth, setAttendanceMonth] = useState<string>('ALL');
+  const [attendanceScope, setAttendanceScope] = useState<'member' | 'team'>('member');
   const ATTENDANCE_PAGE_SIZE = 10;
 
   // Module 2: Tasks State (UI_PIM_001)
@@ -119,11 +193,27 @@ export function CollectorPage() {
   const [tasksError, setTasksError] = useState<string | null>(null);
   const [showTasksTable, setShowTasksTable] = useState(false);
   const [tasksPage, setTasksPage] = useState<number>(1);
+  const [tasksMonth, setTasksMonth] = useState<string>('ALL');
   const TASKS_PAGE_SIZE = 10;
 
-  // Filtered & Paginated records for Module 1
-  const filteredAttendanceRecords = useMemo(() => {
+  // Reset month selection if out of cycle
+  useEffect(() => {
+    if (cycleMonths.length > 0) {
+      if (attendanceMonth !== 'ALL' && !cycleMonths.includes(attendanceMonth)) {
+        setAttendanceMonth(cycleMonths[cycleMonths.length - 1]);
+      }
+      if (tasksMonth !== 'ALL' && !cycleMonths.includes(tasksMonth)) {
+        setTasksMonth(cycleMonths[cycleMonths.length - 1]);
+      }
+    }
+  }, [cycleMonths, attendanceMonth, tasksMonth]);
+
+  // Records for Module 1 based on Scope (Member vs Team)
+  const allAttendanceRecords = useMemo(() => {
     if (!previewTeamAttendance?.records) return [];
+    if (attendanceScope === 'team') {
+      return previewTeamAttendance.records;
+    }
     const emp = MANAGED_EMPLOYEES.find((m) => m.username === unifiedMember || m.code === unifiedMember);
     const qUser = (emp?.username || unifiedMember).toLowerCase();
     const qCode = emp?.code || '';
@@ -135,7 +225,23 @@ export function CollectorPage() {
         (r.empeName && r.empeName.toLowerCase().includes(qName))
       );
     });
-  }, [previewTeamAttendance, unifiedMember]);
+  }, [previewTeamAttendance, unifiedMember, attendanceScope]);
+
+  // Counts of attendance records per month
+  const attendanceMonthCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const r of allAttendanceRecords) {
+      const ym = extractRecordYearMonth(r.date);
+      if (ym) counts[ym] = (counts[ym] || 0) + 1;
+    }
+    return counts;
+  }, [allAttendanceRecords]);
+
+  // Filtered by Month for Module 1
+  const filteredAttendanceRecords = useMemo(() => {
+    if (attendanceMonth === 'ALL') return allAttendanceRecords;
+    return allAttendanceRecords.filter((r) => extractRecordYearMonth(r.date) === attendanceMonth);
+  }, [allAttendanceRecords, attendanceMonth]);
 
   const totalAttendancePages = Math.max(1, Math.ceil(filteredAttendanceRecords.length / ATTENDANCE_PAGE_SIZE));
   const currentAttendancePage = Math.min(attendancePage, totalAttendancePages);
@@ -144,14 +250,72 @@ export function CollectorPage() {
     currentAttendancePage * ATTENDANCE_PAGE_SIZE
   );
 
-  // Paginated tasks for Module 2
-  const totalTasksCount = previewTasks?.tasks.length || 0;
+  // Counts of tasks per month for Module 2
+  const tasksMonthCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const list = previewTasks?.tasks || [];
+    for (const t of list) {
+      const ym = extractRecordYearMonth(t.registeredDate || t.plannedDue || t.actualFinish);
+      if (ym) counts[ym] = (counts[ym] || 0) + 1;
+    }
+    return counts;
+  }, [previewTasks]);
+
+  // Filtered tasks by Month for Module 2
+  const filteredTasks = useMemo(() => {
+    const list = previewTasks?.tasks || [];
+    if (tasksMonth === 'ALL') return list;
+    return list.filter((t) => {
+      const ym = extractRecordYearMonth(t.registeredDate || t.plannedDue || t.actualFinish);
+      return ym === tasksMonth;
+    });
+  }, [previewTasks, tasksMonth]);
+
+  const totalTasksCount = filteredTasks.length;
   const totalTasksPages = Math.max(1, Math.ceil(totalTasksCount / TASKS_PAGE_SIZE));
   const currentTasksPage = Math.min(tasksPage, totalTasksPages);
-  const paginatedTasks = (previewTasks?.tasks || []).slice(
+  const paginatedTasks = filteredTasks.slice(
     (currentTasksPage - 1) * TASKS_PAGE_SIZE,
     currentTasksPage * TASKS_PAGE_SIZE
   );
+
+  const handlePrevAttendanceMonth = () => {
+    const currentIndex = cycleMonths.indexOf(attendanceMonth);
+    if (currentIndex > 0) {
+      setAttendanceMonth(cycleMonths[currentIndex - 1]);
+      setAttendancePage(1);
+    } else if (attendanceMonth === 'ALL' && cycleMonths.length > 0) {
+      setAttendanceMonth(cycleMonths[cycleMonths.length - 1]);
+      setAttendancePage(1);
+    }
+  };
+
+  const handleNextAttendanceMonth = () => {
+    const currentIndex = cycleMonths.indexOf(attendanceMonth);
+    if (currentIndex >= 0 && currentIndex < cycleMonths.length - 1) {
+      setAttendanceMonth(cycleMonths[currentIndex + 1]);
+      setAttendancePage(1);
+    }
+  };
+
+  const handlePrevTasksMonth = () => {
+    const currentIndex = cycleMonths.indexOf(tasksMonth);
+    if (currentIndex > 0) {
+      setTasksMonth(cycleMonths[currentIndex - 1]);
+      setTasksPage(1);
+    } else if (tasksMonth === 'ALL' && cycleMonths.length > 0) {
+      setTasksMonth(cycleMonths[cycleMonths.length - 1]);
+      setTasksPage(1);
+    }
+  };
+
+  const handleNextTasksMonth = () => {
+    const currentIndex = cycleMonths.indexOf(tasksMonth);
+    if (currentIndex >= 0 && currentIndex < cycleMonths.length - 1) {
+      setTasksMonth(cycleMonths[currentIndex + 1]);
+      setTasksPage(1);
+    }
+  };
 
   // Member and default filter options for Module 2 (UI_PIM_001)
   const [selectedTaskMember, setSelectedTaskMember] = useState<string>('thienvo');
@@ -1691,16 +1855,199 @@ export function CollectorPage() {
                     {showTeamAttendanceTable ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     {showTeamAttendanceTable
                       ? 'Thu gọn bảng chi tiết Team Check-in/out'
-                      : `👁️ Mở bảng chi tiết Team Check-in/out (${filteredAttendanceRecords.length} nhân sự - Phân trang 10/trang)`}
+                      : `👁️ Mở bảng chi tiết Team Check-in/out (${allAttendanceRecords.length} bản ghi - Phân trang theo tháng)`}
                   </button>
 
                   <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
-                    Hiển thị <strong>{filteredAttendanceRecords.length}</strong> / {previewTeamAttendance.records.length} nhân sự (Click vào từng dòng để xem điểm cá nhân)
+                    Hiển thị <strong>{filteredAttendanceRecords.length}</strong> / {allAttendanceRecords.length} bản ghi (Click vào từng dòng để xem điểm cá nhân)
                   </span>
                 </div>
 
                 {showTeamAttendanceTable && (
                   <>
+                    {/* MONTHLY PAGINATION CONTROLS FOR MODULE 1 */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px',
+                        padding: '12px 16px',
+                        backgroundColor: '#f8fafc',
+                        borderRadius: RADII.xl,
+                        border: '1px solid #e2e8f0',
+                        marginBottom: '12px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                        {/* Scope selector: Cá nhân vs Cả Team */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <label style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 700, color: '#334155' }}>
+                            Phạm vi xem:
+                          </label>
+                          <div style={{ display: 'flex', backgroundColor: '#e2e8f0', padding: '2px', borderRadius: RADII.md }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAttendanceScope('member');
+                                setAttendancePage(1);
+                              }}
+                              style={{
+                                padding: '4px 10px',
+                                border: 'none',
+                                borderRadius: RADII.sm,
+                                fontSize: '11px',
+                                fontWeight: attendanceScope === 'member' ? 700 : 500,
+                                cursor: 'pointer',
+                                backgroundColor: attendanceScope === 'member' ? '#ffffff' : 'transparent',
+                                color: attendanceScope === 'member' ? '#1d4ed8' : '#64748b',
+                                boxShadow: attendanceScope === 'member' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                              }}
+                            >
+                              👤 Cá nhân ({MANAGED_EMPLOYEES.find((m) => m.username === unifiedMember || m.code === unifiedMember)?.name || unifiedMember})
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAttendanceScope('team');
+                                setAttendancePage(1);
+                              }}
+                              style={{
+                                padding: '4px 10px',
+                                border: 'none',
+                                borderRadius: RADII.sm,
+                                fontSize: '11px',
+                                fontWeight: attendanceScope === 'team' ? 700 : 500,
+                                cursor: 'pointer',
+                                backgroundColor: attendanceScope === 'team' ? '#ffffff' : 'transparent',
+                                color: attendanceScope === 'team' ? '#1d4ed8' : '#64748b',
+                                boxShadow: attendanceScope === 'team' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                              }}
+                            >
+                              👥 Toàn bộ Team ({previewTeamAttendance.records.length > 0 ? (selectedTeam === 'ALL' ? '21' : selectedTeam === 'ALLEGRO NX Part' ? '12' : '9') : '0'} nhân sự)
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Prev / Next Month Navigator */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <button
+                            type="button"
+                            disabled={cycleMonths.indexOf(attendanceMonth) <= 0 && attendanceMonth !== 'ALL'}
+                            onClick={handlePrevAttendanceMonth}
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: RADII.md,
+                              border: '1px solid #cbd5e1',
+                              backgroundColor: (cycleMonths.indexOf(attendanceMonth) <= 0 && attendanceMonth !== 'ALL') ? '#f1f5f9' : '#ffffff',
+                              color: (cycleMonths.indexOf(attendanceMonth) <= 0 && attendanceMonth !== 'ALL') ? '#94a3b8' : '#1e293b',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              cursor: (cycleMonths.indexOf(attendanceMonth) <= 0 && attendanceMonth !== 'ALL') ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            ‹ Tháng trước
+                          </button>
+
+                          <span
+                            style={{
+                              padding: '4px 12px',
+                              borderRadius: RADII.md,
+                              backgroundColor: '#eff6ff',
+                              color: '#1d4ed8',
+                              fontWeight: 700,
+                              fontSize: '12px',
+                              border: '1px solid #bfdbfe',
+                            }}
+                          >
+                            {attendanceMonth === 'ALL' ? '📅 Toàn bộ chu kỳ' : `📅 Tháng ${attendanceMonth.split('-')[1]}/${attendanceMonth.split('-')[0]}`}
+                          </span>
+
+                          <button
+                            type="button"
+                            disabled={cycleMonths.indexOf(attendanceMonth) >= cycleMonths.length - 1 || attendanceMonth === 'ALL'}
+                            onClick={handleNextAttendanceMonth}
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: RADII.md,
+                              border: '1px solid #cbd5e1',
+                              backgroundColor: (cycleMonths.indexOf(attendanceMonth) >= cycleMonths.length - 1 || attendanceMonth === 'ALL') ? '#f1f5f9' : '#ffffff',
+                              color: (cycleMonths.indexOf(attendanceMonth) >= cycleMonths.length - 1 || attendanceMonth === 'ALL') ? '#94a3b8' : '#1e293b',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              cursor: (cycleMonths.indexOf(attendanceMonth) >= cycleMonths.length - 1 || attendanceMonth === 'ALL') ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            Tháng sau ›
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Month Pills Tabs */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', paddingTop: '2px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAttendanceMonth('ALL');
+                            setAttendancePage(1);
+                          }}
+                          style={{
+                            padding: '4px 12px',
+                            borderRadius: RADII.full,
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            backgroundColor: attendanceMonth === 'ALL' ? '#2563eb' : '#ffffff',
+                            color: attendanceMonth === 'ALL' ? '#ffffff' : '#475569',
+                            border: attendanceMonth === 'ALL' ? '1.5px solid #2563eb' : '1px solid #cbd5e1',
+                          }}
+                        >
+                          🏢 Tất cả ({allAttendanceRecords.length})
+                        </button>
+                        {cycleMonths.map((ym) => {
+                          const isCur = attendanceMonth === ym;
+                          const cnt = attendanceMonthCounts[ym] || 0;
+                          const parts = ym.split('-');
+                          return (
+                            <button
+                              key={ym}
+                              type="button"
+                              onClick={() => {
+                                setAttendanceMonth(ym);
+                                setAttendancePage(1);
+                              }}
+                              style={{
+                                padding: '4px 12px',
+                                borderRadius: RADII.full,
+                                fontSize: '11px',
+                                fontWeight: isCur ? 700 : 500,
+                                cursor: 'pointer',
+                                backgroundColor: isCur ? '#3b82f6' : '#ffffff',
+                                color: isCur ? '#ffffff' : '#334155',
+                                border: isCur ? '1.5px solid #2563eb' : '1px solid #cbd5e1',
+                                boxShadow: isCur ? '0 2px 6px rgba(59, 130, 246, 0.25)' : 'none',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                              }}
+                            >
+                              <span>T{parts[1]}/{parts[0]}</span>
+                              <span
+                                style={{
+                                  fontSize: '10px',
+                                  padding: '1px 6px',
+                                  borderRadius: '10px',
+                                  backgroundColor: isCur ? 'rgba(255, 255, 255, 0.25)' : '#f1f5f9',
+                                  color: isCur ? '#ffffff' : '#64748b',
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {cnt}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                     <div style={{ overflowX: 'auto', maxHeight: '420px', border: `1px solid ${COLORS.neutral[200]}`, borderRadius: RADII.lg }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: TYPOGRAPHY.fontSize.xs }}>
                         <thead>
@@ -1862,10 +2209,15 @@ export function CollectorPage() {
                       <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#475569' }}>
                         Hiển thị{' '}
                         <strong>
-                          {(currentAttendancePage - 1) * ATTENDANCE_PAGE_SIZE + 1} -{' '}
+                          {filteredAttendanceRecords.length === 0 ? 0 : (currentAttendancePage - 1) * ATTENDANCE_PAGE_SIZE + 1} -{' '}
                           {Math.min(currentAttendancePage * ATTENDANCE_PAGE_SIZE, filteredAttendanceRecords.length)}
                         </strong>{' '}
-                        trên tổng số <strong>{filteredAttendanceRecords.length}</strong> nhân sự
+                        trên tổng số <strong>{filteredAttendanceRecords.length}</strong> bản ghi{' '}
+                        {attendanceMonth !== 'ALL' && (
+                          <span style={{ color: '#2563eb', fontWeight: 600 }}>
+                            (Tháng {attendanceMonth.split('-')[1]}/{attendanceMonth.split('-')[0]})
+                          </span>
+                        )}
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -2076,11 +2428,156 @@ export function CollectorPage() {
                   {showTasksTable ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   {showTasksTable
                     ? 'Thu gọn bảng chi tiết Task'
-                    : `👁️ Mở bảng chi tiết Task từ UI_PIM_001 (${previewTasks.tasks.length} tasks - Phân trang 10/trang)`}
+                    : `👁️ Mở bảng chi tiết Task từ UI_PIM_001 (${previewTasks.tasks.length} tasks - Phân trang theo tháng)`}
                 </button>
 
                 {showTasksTable && (
                   <>
+                    {/* MONTHLY PAGINATION CONTROLS FOR MODULE 2 */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px',
+                        padding: '12px 16px',
+                        backgroundColor: '#f8fafc',
+                        borderRadius: RADII.xl,
+                        border: '1px solid #e2e8f0',
+                        marginTop: '10px',
+                        marginBottom: '12px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Calendar size={16} color="#7e22ce" />
+                          <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 700, color: '#1e293b' }}>
+                            Phân trang Task theo tháng:
+                          </span>
+                          <span style={{ fontSize: '11px', color: '#64748b' }}>
+                            (Kỳ {reviewCadence === '6_MONTHS' ? '6 tháng' : '1 năm'})
+                          </span>
+                        </div>
+
+                        {/* Prev / Next Month Navigator */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <button
+                            type="button"
+                            disabled={cycleMonths.indexOf(tasksMonth) <= 0 && tasksMonth !== 'ALL'}
+                            onClick={handlePrevTasksMonth}
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: RADII.md,
+                              border: '1px solid #cbd5e1',
+                              backgroundColor: (cycleMonths.indexOf(tasksMonth) <= 0 && tasksMonth !== 'ALL') ? '#f1f5f9' : '#ffffff',
+                              color: (cycleMonths.indexOf(tasksMonth) <= 0 && tasksMonth !== 'ALL') ? '#94a3b8' : '#1e293b',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              cursor: (cycleMonths.indexOf(tasksMonth) <= 0 && tasksMonth !== 'ALL') ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            ‹ Tháng trước
+                          </button>
+
+                          <span
+                            style={{
+                              padding: '4px 12px',
+                              borderRadius: RADII.md,
+                              backgroundColor: '#faf5ff',
+                              color: '#7e22ce',
+                              fontWeight: 700,
+                              fontSize: '12px',
+                              border: '1px solid #e9d5ff',
+                            }}
+                          >
+                            {tasksMonth === 'ALL' ? '📅 Toàn bộ chu kỳ' : `📅 Tháng ${tasksMonth.split('-')[1]}/${tasksMonth.split('-')[0]}`}
+                          </span>
+
+                          <button
+                            type="button"
+                            disabled={cycleMonths.indexOf(tasksMonth) >= cycleMonths.length - 1 || tasksMonth === 'ALL'}
+                            onClick={handleNextTasksMonth}
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: RADII.md,
+                              border: '1px solid #cbd5e1',
+                              backgroundColor: (cycleMonths.indexOf(tasksMonth) >= cycleMonths.length - 1 || tasksMonth === 'ALL') ? '#f1f5f9' : '#ffffff',
+                              color: (cycleMonths.indexOf(tasksMonth) >= cycleMonths.length - 1 || tasksMonth === 'ALL') ? '#94a3b8' : '#1e293b',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              cursor: (cycleMonths.indexOf(tasksMonth) >= cycleMonths.length - 1 || tasksMonth === 'ALL') ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            Tháng sau ›
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Month Pills Tabs */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', paddingTop: '2px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTasksMonth('ALL');
+                            setTasksPage(1);
+                          }}
+                          style={{
+                            padding: '4px 12px',
+                            borderRadius: RADII.full,
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            backgroundColor: tasksMonth === 'ALL' ? '#7e22ce' : '#ffffff',
+                            color: tasksMonth === 'ALL' ? '#ffffff' : '#475569',
+                            border: tasksMonth === 'ALL' ? '1.5px solid #7e22ce' : '1px solid #cbd5e1',
+                          }}
+                        >
+                          🏢 Tất cả ({previewTasks.tasks.length})
+                        </button>
+                        {cycleMonths.map((ym) => {
+                          const isCur = tasksMonth === ym;
+                          const cnt = tasksMonthCounts[ym] || 0;
+                          const parts = ym.split('-');
+                          return (
+                            <button
+                              key={ym}
+                              type="button"
+                              onClick={() => {
+                                setTasksMonth(ym);
+                                setTasksPage(1);
+                              }}
+                              style={{
+                                padding: '4px 12px',
+                                borderRadius: RADII.full,
+                                fontSize: '11px',
+                                fontWeight: isCur ? 700 : 500,
+                                cursor: 'pointer',
+                                backgroundColor: isCur ? '#7e22ce' : '#ffffff',
+                                color: isCur ? '#ffffff' : '#334155',
+                                border: isCur ? '1.5px solid #7e22ce' : '1px solid #cbd5e1',
+                                boxShadow: isCur ? '0 2px 6px rgba(126, 34, 206, 0.25)' : 'none',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                              }}
+                            >
+                              <span>T{parts[1]}/{parts[0]}</span>
+                              <span
+                                style={{
+                                  fontSize: '10px',
+                                  padding: '1px 6px',
+                                  borderRadius: '10px',
+                                  backgroundColor: isCur ? 'rgba(255, 255, 255, 0.25)' : '#f1f5f9',
+                                  color: isCur ? '#ffffff' : '#64748b',
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {cnt}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                     <div style={{ marginTop: '10px', overflowX: 'auto', maxHeight: '400px', border: `1px solid ${COLORS.neutral[200]}`, borderRadius: RADII.lg }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: TYPOGRAPHY.fontSize.xs }}>
                         <thead>
@@ -2162,10 +2659,15 @@ export function CollectorPage() {
                       <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#475569' }}>
                         Hiển thị{' '}
                         <strong>
-                          {(currentTasksPage - 1) * TASKS_PAGE_SIZE + 1} -{' '}
+                          {totalTasksCount === 0 ? 0 : (currentTasksPage - 1) * TASKS_PAGE_SIZE + 1} -{' '}
                           {Math.min(currentTasksPage * TASKS_PAGE_SIZE, totalTasksCount)}
                         </strong>{' '}
-                        trên tổng số <strong>{totalTasksCount}</strong> tasks
+                        trên tổng số <strong>{totalTasksCount}</strong> tasks{' '}
+                        {tasksMonth !== 'ALL' && (
+                          <span style={{ color: '#7e22ce', fontWeight: 600 }}>
+                            (Tháng {tasksMonth.split('-')[1]}/{tasksMonth.split('-')[0]})
+                          </span>
+                        )}
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

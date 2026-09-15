@@ -963,8 +963,8 @@ export class BlueprintCollector {
       ? (currentTeam?.orzNm || (targetOrzId === 'ATM202310170003' ? 'ALLEGRO NX Part' : targetOrzId === 'ATM202310170004' ? 'Maritime Solutions Part' : teamId || 'Team'))
       : 'Tất cả Team (ALLEGRO NX & Maritime)';
 
-    // Query Blueprint with full date range [fromDate, toDate] and size=1000 to capture all days in period
-    const url = `${this.baseUrl}/api/dailyTeamStatusFace/searchAttendanceTime?siteCd=V100&orzId=${targetOrzId}&fmDt=${startFormattedDate}&toDt=${endFormattedDate}&empeName=&noneTeam=0&start=0&size=1000`;
+    // Query Blueprint with full date range [fromDate, toDate] and size=10000 to capture all days across all months in period
+    const url = `${this.baseUrl}/api/dailyTeamStatusFace/searchAttendanceTime?siteCd=V100&orzId=${targetOrzId}&fmDt=${startFormattedDate}&toDt=${endFormattedDate}&empeName=&noneTeam=0&start=0&size=10000`;
 
     let res = await this.fetchWithCookies(url);
     if (res.status === 401) {
