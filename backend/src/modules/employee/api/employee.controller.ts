@@ -10,13 +10,16 @@ import { EmploymentStatus, Employee, EmployeeAssignment, EvaluationOrganizationC
 import { getActorFromContext } from '../../../shared/auth/actor-context.js';
 import { SimplePasswordHasher } from '../../auth/services/password-hasher.service.js';
 
+import { EvaluationService } from '../../evaluation/application/services/evaluation.service.js';
+
 export class EmployeeController {
   constructor(
     private employeeRepo?: EmployeeRepository,
     private assignmentRepo?: EmployeeAssignmentRepository,
     private contextService?: EmployeeContextService,
     private pool?: Pool,
-    private teamService?: TeamService
+    private teamService?: TeamService,
+    private evaluationService?: EvaluationService
   ) {}
 
   private hasDb(): boolean {
@@ -83,6 +86,12 @@ export class EmployeeController {
   }
 
   async searchEmployees(req: Request, res: Response): Promise<void> {
+    // Explicit validation: size > 100 must return 400 (supports both page_size and size aliases)
+    const rawSize = Number(req.query['page_size'] ?? req.query['size']);
+    if (!isNaN(rawSize) && Number.isInteger(rawSize) && rawSize > 100) {
+      throw new BadRequest('page_size must be between 1 and 100', 'VALIDATION_ERROR', 'size');
+    }
+
     const { limit, offset, buildPageMeta } = parsePaginationQuery(req.query as Record<string, unknown>);
     const validatedQuery = req.query as Record<string, string | undefined>;
     const actor = getActorFromContext(req);
@@ -125,10 +134,38 @@ export class EmployeeController {
   }
 
   async getEmployeeKpiSummary(req: Request, res: Response): Promise<void> {
-    const employeeId = req.params.id;
-    // For now, return a 404 or empty object as I need to figure out where the EvaluationService logic was placed.
-    // Or just a stub for now so the app builds and search works!
-    res.status(200).json({ success: true, data: { employee_id: employeeId, recent_evaluations: [] } });
+    const actor = getActorFromContext(req);
+    if (!actor) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
+
+    const employeeId: string = (req.params['id'] ?? req.params['employeeId']) as string;
+    // Extract string from Express query param (handles string | string[] | ParsedQs | undefined)
+    function toQueryString(v: unknown): string | undefined {
+      if (typeof v === 'string') return v;
+      if (Array.isArray(v) && typeof v[0] === 'string') return v[0] as string;
+      return undefined;
+    }
+    const evaluationCycleId = toQueryString(req.query['evaluation_cycle_id']) ?? toQueryString(req.query['evaluationCycleId']);
+
+    if (!evaluationCycleId) {
+      throw new BadRequest('evaluation_cycle_id is required', 'VALIDATION_ERROR', 'evaluation_cycle_id');
+    }
+
+    // Validate UUID format
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(evaluationCycleId)) {
+      throw new BadRequest('evaluation_cycle_id must be a valid UUID', 'VALIDATION_ERROR', 'evaluation_cycle_id');
+    }
+
+    if (!this.evaluationService) {
+      throw new AppError(503, 'SERVICE_UNAVAILABLE', 'KPI Summary service is not available.');
+    }
+
+    const cycleIdStr: string = evaluationCycleId;
+    const summary = await this.evaluationService.getEmployeeKpiSummary(employeeId, cycleIdStr, actor);
+    sendSuccess(res, 200, 'Employee KPI summary retrieved successfully.', summary);
   }
 
   async createEmployee(req: Request, res: Response): Promise<void> {

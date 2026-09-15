@@ -33,7 +33,7 @@ export interface PaginationParams {
  */
 export function parsePaginationQuery(query: Record<string, unknown>): PaginationParams {
   const pageNumber = clampInt(query['page'], DEFAULT_PAGE, 1, Number.MAX_SAFE_INTEGER);
-  const pageSize = clampInt(query['page_size'], DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE);
+  const pageSize = clampInt(query['page_size'] ?? query['size'], DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE);
 
   const offset = (pageNumber - 1) * pageSize;
   const limit = pageSize;
