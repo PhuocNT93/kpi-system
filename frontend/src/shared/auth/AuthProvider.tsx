@@ -21,6 +21,15 @@ function extractRoleFromToken(token: string): UserRole | null {
   }
 }
 
+function extractEmployeeIdFromToken(token: string): string | undefined {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return typeof payload.employeeId === 'string' ? payload.employeeId : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function extractManagedTeamIdsFromToken(token: string): string[] {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
@@ -39,7 +48,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (storedUser && storedToken) {
       setAccessToken(storedToken);
       try {
-        return JSON.parse(storedUser);
+        const parsed = JSON.parse(storedUser);
+        if (!parsed.employeeId && storedToken) {
+          parsed.employeeId = extractEmployeeIdFromToken(storedToken);
+        }
+        return parsed;
       } catch {
         return null;
       }
@@ -60,11 +73,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     // Extracted role from token or defaults
     const role: UserRole = extractRoleFromToken(result.accessToken) ?? 'EMPLOYEE';
+    const userWithEmp = result.user as unknown as { id: string; email: string; name: string; employeeId?: string };
     const authUser: AuthUser = {
       id: result.user.id,
       email: result.user.email,
       name: result.user.name,
       role,
+      employeeId: userWithEmp.employeeId || extractEmployeeIdFromToken(result.accessToken),
       managedTeamIds: extractManagedTeamIdsFromToken(result.accessToken),
     };
     

@@ -10,7 +10,8 @@ export const AuditActionSchema = z.enum([
   'TEAM_CREATED',
   'TEAM_UPDATED',
   'TEAM_DEACTIVATED',
-  'EXPORT'
+  'EXPORT',
+  'IMPORT_APPLY'
 ]);
 
 export type AuditAction = z.infer<typeof AuditActionSchema>;

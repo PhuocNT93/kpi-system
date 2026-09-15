@@ -60,6 +60,9 @@ export interface EvaluationItem {
   override_by?: string | null;
   override_at?: Date | null;
   comment?: string;
+  rationale?: string | null;
+  import_id?: string | null;
+  source_snapshot?: Record<string, unknown> | null;
   system_note?: string | null;
   system_suggested_level?: number | null;
   system_suggested_score?: number | null;

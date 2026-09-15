@@ -5171,6 +5171,232 @@ export const swaggerOptions: swaggerJsdoc.Options = {
           },
         },
       },
+      // ── Evaluation Data Import Module Routes ─────────────────────────────────
+      '/api/evaluation-data/imports': {
+        post: {
+          summary: 'Create staged KPI evaluation data import',
+          description: 'Uploads and stages JSON KPI data with comments, rationale, source snapshots, and evidence. Accessible by HR_ADMIN only.',
+          tags: ['Evaluation Data Import'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['source_system', 'records'],
+                  properties: {
+                    source_system: { type: 'string', example: 'JIRA' },
+                    batch_reference: { type: 'string', example: 'BATCH-2026-Q1' },
+                    records: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        required: ['employee_code', 'cycle_id', 'kpi_code', 'value', 'rationale', 'source_snapshot'],
+                        properties: {
+                          employee_code: { type: 'string', example: 'EMP001' },
+                          cycle_id: { type: 'string', format: 'uuid' },
+                          kpi_code: { type: 'string', example: 'KPI_DELIVERY' },
+                          value: { type: 'number', example: 95.5 },
+                          comment: { type: 'string', example: 'All deliveries completed on schedule' },
+                          rationale: { type: 'string', example: 'Measured by sprint completion velocity in Jira' },
+                          source_snapshot: {
+                            type: 'object',
+                            required: ['source_type', 'source_name', 'collected_at'],
+                            properties: {
+                              source_type: { type: 'string', example: 'JIRA' },
+                              source_name: { type: 'string', example: 'Jira Production' },
+                              source_reference: { type: 'string', example: 'PROJ-1234' },
+                              collected_at: { type: 'string', format: 'date-time' },
+                              collector_version: { type: 'string', example: 'v2.1' },
+                            },
+                          },
+                          evidences: {
+                            type: 'array',
+                            items: {
+                              type: 'object',
+                              required: ['evidence_type', 'title'],
+                              properties: {
+                                evidence_type: { type: 'string', enum: ['URL', 'DOCUMENT', 'FILE', 'SCREENSHOT', 'EXTERNAL_REF'] },
+                                title: { type: 'string', example: 'Sprint 34 Velocity Report' },
+                                evidence_url: { type: 'string', format: 'uri' },
+                                file_reference: { type: 'string' },
+                                description: { type: 'string' },
+                                metadata: { type: 'object' },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            201: { description: 'Import staged successfully' },
+            400: { description: 'Validation error or invalid payload' },
+            401: { description: 'Authentication required' },
+            403: { description: 'Forbidden. HR_ADMIN only.' },
+          },
+        },
+        get: {
+          summary: 'List staged KPI evaluation data imports',
+          description: 'Retrieves paginated history of evaluation data import batches. Accessible by HR_ADMIN and SYSTEM_ADMIN.',
+          tags: ['Evaluation Data Import'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } },
+          ],
+          responses: {
+            200: { description: 'List of imports retrieved successfully' },
+            401: { description: 'Authentication required' },
+            403: { description: 'Forbidden' },
+          },
+        },
+      },
+      '/api/evaluation-data/imports/{id}': {
+        get: {
+          summary: 'Get staged import details',
+          description: 'Retrieves import job metadata, counts, and status. Accessible by HR_ADMIN and SYSTEM_ADMIN.',
+          tags: ['Evaluation Data Import'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Import details retrieved successfully' },
+            404: { description: 'Import not found' },
+          },
+        },
+        patch: {
+          summary: 'Update draft staged record or resolve conflict',
+          description: 'Allows HR Admin to modify draft values, comments, rationale, or choose conflict resolution. Accessible by HR_ADMIN only.',
+          tags: ['Evaluation Data Import'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    record_id: { type: 'string', format: 'uuid' },
+                    value: { type: 'number' },
+                    comment: { type: 'string' },
+                    rationale: { type: 'string' },
+                    resolution: { type: 'string', enum: ['USE_EXISTING', 'USE_INCOMING', 'MANUAL_OVERRIDE', 'REJECT_BOTH'] },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: 'Draft record updated successfully' },
+            400: { description: 'Invalid status or input' },
+            403: { description: 'Forbidden. HR_ADMIN only.' },
+            404: { description: 'Import or record not found' },
+          },
+        },
+      },
+      '/api/evaluation-data/imports/{id}/preview': {
+        get: {
+          summary: 'Preview staged import records and conflicts',
+          description: 'Retrieves staged records, validation errors, and conflicting entries for HR review. Accessible by HR_ADMIN and SYSTEM_ADMIN.',
+          tags: ['Evaluation Data Import'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 100 } },
+            { name: 'status', in: 'query', schema: { type: 'string', enum: ['VALID', 'INVALID', 'CONFLICT', 'APPLIED', 'REJECTED'] } },
+          ],
+          responses: {
+            200: { description: 'Preview retrieved successfully' },
+            404: { description: 'Import not found' },
+          },
+        },
+      },
+      '/api/evaluation-data/imports/{id}/apply': {
+        post: {
+          summary: 'Confirm and apply staged KPI data import',
+          description: 'Applies staged KPI data to evaluation items, appends evidence, recalculates evaluation scores, and records audit logs. Accessible by HR_ADMIN only. Idempotent.',
+          tags: ['Evaluation Data Import'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            200: { description: 'Import applied or already applied successfully' },
+            400: { description: 'Unresolved conflicts or invalid status' },
+            403: { description: 'Forbidden. HR_ADMIN only.' },
+            404: { description: 'Import not found' },
+            409: { description: 'Conflict. Import is currently being processed or cycle is locked.' },
+          },
+        },
+      },
+      '/api/evaluations/{id}/kpis/{code}/evidence': {
+        get: {
+          summary: 'Get KPI explainability and evidence lineage',
+          description: 'Retrieves full explainability view (Score, Measurement, Source Snapshot, Comment, Rationale, Provenance, and Evidences). Scoped to Employee (self), Manager (team), and HR/System Admins.',
+          tags: ['Evaluations'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'code', in: 'path', required: true, schema: { type: 'string' } },
+          ],
+          responses: {
+            200: {
+              description: 'Explainability view retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      evaluation_id: { type: 'string', format: 'uuid' },
+                      evaluation_item_id: { type: 'string', format: 'uuid' },
+                      kpi_code: { type: 'string' },
+                      measurement: { type: 'number', nullable: true },
+                      score: { type: 'number', nullable: true },
+                      comment: { type: 'string', nullable: true },
+                      rationale: { type: 'string', nullable: true },
+                      source: { type: 'object', nullable: true },
+                      import: { type: 'object', nullable: true },
+                      evidences: {
+                        type: 'array',
+                        items: {
+                          type: 'object',
+                          properties: {
+                            id: { type: 'string', format: 'uuid' },
+                            title: { type: 'string' },
+                            type: { type: 'string' },
+                            url: { type: 'string', nullable: true },
+                            file_reference: { type: 'string', nullable: true },
+                            status: { type: 'string', enum: ['ACTIVE', 'SUPERSEDED'] },
+                            superseded_by: { type: 'string', nullable: true },
+                            superseded_at: { type: 'string', format: 'date-time', nullable: true },
+                            supersede_reason: { type: 'string', nullable: true },
+                            metadata: { type: 'object', nullable: true },
+                            created_at: { type: 'string', format: 'date-time' },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            401: { description: 'Authentication required' },
+            403: { description: 'Forbidden. Access restricted by scope.' },
+            404: { description: 'Evaluation or KPI not found' },
+          },
+        },
+      },
     },
   },
   apis: [],

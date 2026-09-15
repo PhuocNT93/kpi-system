@@ -13,6 +13,7 @@ describe('ReportingProjectionService', () => {
     upsertEmployeeKpiScore: Mock;
     upsertTeamEvaluationAggregate: Mock;
     upsertTeamKpiAggregate: Mock;
+    upsertOrganizationAggregate: Mock;
   };
   let evaluationRepoMock: { findById: Mock };
   let evaluationItemRepoMock: { findByEvaluationId: Mock };
@@ -26,6 +27,7 @@ describe('ReportingProjectionService', () => {
       upsertEmployeeKpiScore: vi.fn(),
       upsertTeamEvaluationAggregate: vi.fn(),
       upsertTeamKpiAggregate: vi.fn(),
+      upsertOrganizationAggregate: vi.fn(),
     };
     evaluationRepoMock = {
       findById: vi.fn(),

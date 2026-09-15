@@ -1,5 +1,12 @@
 import { getApi } from '@/shared/api/api-client';
-import type { EmployeeReport, TeamReport, OrganizationAggregate, TeamKpiAggregate, KpiTrendResponse, ReportResponse } from '../types/reports.types';
+import type { 
+  EmployeeReportResponse, 
+  TeamReportResponse, 
+  OrganizationReportResponse, 
+  TeamKpiReportResponse, 
+  KpiTrendReportResponse, 
+  ExplainabilityViewDto 
+} from '../types/reports.types';
 
 const camelize = (obj: unknown): unknown => {
   if (Array.isArray(obj)) return obj.map(camelize);
@@ -13,30 +20,37 @@ const camelize = (obj: unknown): unknown => {
   return obj;
 };
 
-export const fetchEmployeeReport = async (employeeId: string, cycleId: string): Promise<ReportResponse<EmployeeReport>> => {
+export const fetchEmployeeReport = async (employeeId: string, cycleId: string): Promise<EmployeeReportResponse | null> => {
   const data = await getApi<unknown>(`/api/reports/employees/${employeeId}?cycleId=${cycleId}`);
-  return camelize(data) as ReportResponse<EmployeeReport>;
+  if (!data) return null;
+  return camelize(data) as EmployeeReportResponse;
 };
 
-export const fetchTeamReport = async (teamId: string, cycleId: string): Promise<ReportResponse<TeamReport>> => {
+export const fetchTeamReport = async (teamId: string, cycleId: string): Promise<TeamReportResponse> => {
   const data = await getApi<unknown>(`/api/reports/teams/${teamId}?cycleId=${cycleId}`);
-  return camelize(data) as ReportResponse<TeamReport>;
+  return camelize(data) as TeamReportResponse;
 };
 
-export const fetchTeamKpiReport = async (teamId: string, cycleId: string): Promise<ReportResponse<{ data: TeamKpiAggregate[] }>> => {
+export const fetchTeamKpiReport = async (teamId: string, cycleId: string): Promise<TeamKpiReportResponse> => {
   const data = await getApi<unknown>(`/api/reports/kpi/team/${teamId}?cycleId=${cycleId}`);
-  return camelize(data) as ReportResponse<{ data: TeamKpiAggregate[] }>;
+  return camelize(data) as TeamKpiReportResponse;
 };
 
-export const fetchKpiTrend = async (currentCycleId: string, previousCycleId: string, teamId?: string, employeeId?: string): Promise<ReportResponse<{ data: KpiTrendResponse[] }>> => {
+export const fetchKpiTrend = async (currentCycleId: string, previousCycleId: string, teamId?: string, employeeId?: string): Promise<KpiTrendReportResponse> => {
   let url = `/api/reports/kpi/trend?currentCycleId=${currentCycleId}&previousCycleId=${previousCycleId}`;
   if (teamId) url += `&teamId=${teamId}`;
   if (employeeId) url += `&employeeId=${employeeId}`;
   const data = await getApi<unknown>(url);
-  return camelize(data) as ReportResponse<{ data: KpiTrendResponse[] }>;
+  return camelize(data) as KpiTrendReportResponse;
 };
 
-export const fetchOrganizationReport = async (cycleId: string): Promise<ReportResponse<{ data: OrganizationAggregate[] }>> => {
+export const fetchOrganizationReport = async (cycleId: string): Promise<OrganizationReportResponse> => {
   const data = await getApi<unknown>(`/api/reports/organization?cycleId=${cycleId}`);
-  return camelize(data) as ReportResponse<{ data: OrganizationAggregate[] }>;
+  return camelize(data) as OrganizationReportResponse;
+};
+
+export const fetchKpiEvidence = async (evaluationId: string, kpiCode: string): Promise<ExplainabilityViewDto> => {
+  const response = await getApi<Record<string, unknown>>(`/api/evaluations/${evaluationId}/kpis/${encodeURIComponent(kpiCode)}/evidence`);
+  const payload = (response && 'data' in response && response.data) ? response.data : response;
+  return camelize(payload) as ExplainabilityViewDto;
 };

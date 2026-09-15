@@ -9,6 +9,7 @@ import { AuditService } from '../../../audit/application/audit.service.js';
 import { ScoringEngine, type ScoringKpiInput } from '../../domain/scoring/scoring-engine.js';
 import { RuleEngine } from '../../../rule-engine/domain/rule-engine.js';
 import { appEventEmitter, AppEvent } from '../../../../shared/events/index.js';
+import { ExplainabilityViewDto, SourceSnapshot } from '../../../evaluation-data-import/domain/evaluation-data-import.types.js';
 
 export class EvaluationService {
   constructor(
@@ -174,105 +175,9 @@ export class EvaluationService {
 
     return withTransaction(this.pool, async (client) => {
       const repositoryClient = client as unknown as PoolClient;
-      const locked = await this.evaluationRepo.findByIdForUpdate(evaluationId, repositoryClient);
-      if (!locked || locked.is_locked || locked.status === EvaluationStatus.LOCKED) {
-        throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked and cannot be recalculated.');
-      }
-
-      const items = await this.evaluationItemRepo.findByEvaluationId(evaluationId, repositoryClient);
-      const kpis = new Map<string, ScoringKpiInput & { criteria: ScoringKpiInput['criteria'][number][] }>();
-      for (const item of items) {
-        const kpiId = item.kpi_id_snapshot ?? 'LEGACY_KPI';
-        const existing = kpis.get(kpiId);
-        const levelDefinitions = (Array.isArray(item.level_definition_snapshot) ? item.level_definition_snapshot : [])
-          .map((level: Record<string, unknown>) => ({
-            level: Number(level.level_no ?? level.level),
-            score_value: Number(level.score_value),
-          }));
-        let resolvedLevel = item.resolved_level ?? null;
-        if (item.measurement_value != null && this.ruleEngine) {
-          const rule = item.scoring_rule_snapshot as { rule_type: string; rule_config: unknown };
-          const ruleResult = this.ruleEngine.resolve({
-            measurement: item.measurement_value,
-            rule_type: rule.rule_type as never,
-            rule_config: rule.rule_config,
-            role_code: locked.role_id_snapshot,
-          });
-          resolvedLevel = ruleResult.resolved_level;
-        }
-        const rawScore = item.measurement_value != null ? (resolvedLevel == null
-          ? null
-          : levelDefinitions.find((level) => level.level === resolvedLevel)?.score_value ?? null)
-          : item.raw_score ?? (resolvedLevel == null
-          ? null
-          : levelDefinitions.find((level) => level.level === resolvedLevel)?.score_value ?? null);
-
-        const criterion = {
-          criterion_id: item.evaluation_item_id,
-          kpi_id: kpiId,
-          resolved_level: resolvedLevel,
-          raw_score: rawScore,
-          level_definitions: levelDefinitions,
-          effective_weight: item.weight_snapshot,
-          is_disabled: item.is_disabled_for_employee,
-        };
-        if (existing) {
-          existing.criteria.push(criterion);
-        } else {
-          kpis.set(kpiId, {
-            kpi_id: kpiId,
-            kpi_name: item.kpi_name_snapshot ?? 'Legacy KPI',
-            effective_weight: item.kpi_weight_snapshot ?? 100,
-            criteria: [criterion],
-          });
-        }
-      }
-
-      const scoringResult = new ScoringEngine().calculate({ kpis: [...kpis.values()] });
-      for (const kpi of scoringResult.kpi_results) {
-        for (const criterion of kpi.criterion_results) {
-          const item = items.find((candidate) => candidate.evaluation_item_id === criterion.criterion_id);
-          const updatedItem = await this.evaluationItemRepo.updateScoringResult(criterion.criterion_id, item?.version ?? 1, {
-            resolved_level: criterion.resolved_level,
-            raw_score: criterion.raw_score,
-            normalized_score: criterion.normalized_score,
-            weighted_score: criterion.weighted_contribution,
-            is_missing_score: criterion.is_na && !criterion.is_disabled,
-            updated_by: actor.userId,
-          }, repositoryClient);
-          if (!updatedItem) {
-            throw new AppError(409, 'VERSION_CONFLICT', 'Evaluation item was updated by another user.');
-          }
-        }
-      }
-
-      const updated = await this.evaluationRepo.update(evaluationId, {
-        manager_score: scoringResult.overall_weighted_score,
-        final_score: scoringResult.overall_weighted_score,
-        scoring_breakdown: scoringResult as unknown as Record<string, unknown>,
-        updated_by: actor.userId,
-      }, repositoryClient);
-
-      await this.auditService!.record(client, {
-          entityType: 'EVALUATION',
-          entityId: evaluationId,
-          action: 'SCORE_CALCULATED',
-          oldValue: JSON.stringify({ manager_score: locked.manager_score, final_score: locked.final_score }),
-          newValue: JSON.stringify({
-            manager_score: updated.manager_score,
-            final_score: updated.final_score,
-            official_score: scoringResult.official_score,
-          }),
-          performedBy: actor.userId,
-          source: 'API',
-      });
-
+      const result = await this.calculateScoringForEvaluation(evaluationId, actor, repositoryClient);
       appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId });
-
-      return {
-        ...scoringResult,
-        evaluation_id: evaluationId,
-      };
+      return result;
     });
   }
 
@@ -387,4 +292,375 @@ export class EvaluationService {
       return updatedItem;
     });
   }
+
+  private async calculateScoringForEvaluation(
+    evaluationId: string,
+    actor: Actor,
+    repositoryClient: PoolClient
+  ) {
+    const locked = await this.evaluationRepo.findByIdForUpdate(evaluationId, repositoryClient);
+    if (!locked || locked.is_locked || locked.status === EvaluationStatus.LOCKED) {
+      throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked and cannot be recalculated.');
+    }
+
+    const items = await this.evaluationItemRepo.findByEvaluationId(evaluationId, repositoryClient);
+    const kpis = new Map<string, ScoringKpiInput & { criteria: ScoringKpiInput['criteria'][number][] }>();
+    for (const item of items) {
+      const kpiId = item.kpi_id_snapshot ?? 'LEGACY_KPI';
+      const existing = kpis.get(kpiId);
+      const levelDefinitions = (Array.isArray(item.level_definition_snapshot) ? item.level_definition_snapshot : [])
+        .map((level: Record<string, unknown>) => ({
+          level: Number(level.level_no ?? level.level),
+          score_value: Number(level.score_value),
+        }));
+      let resolvedLevel = item.resolved_level ?? null;
+      if (item.measurement_value != null && this.ruleEngine) {
+        const rule = item.scoring_rule_snapshot as { rule_type: string; rule_config: unknown };
+        const ruleResult = this.ruleEngine.resolve({
+          measurement: item.measurement_value,
+          rule_type: rule.rule_type as never,
+          rule_config: rule.rule_config,
+          role_code: locked.role_id_snapshot,
+        });
+        resolvedLevel = ruleResult.resolved_level;
+      }
+      const rawScore = item.measurement_value != null ? (resolvedLevel == null
+        ? null
+        : levelDefinitions.find((level) => level.level === resolvedLevel)?.score_value ?? null)
+        : item.raw_score ?? (resolvedLevel == null
+        ? null
+        : levelDefinitions.find((level) => level.level === resolvedLevel)?.score_value ?? null);
+
+      const criterion = {
+        criterion_id: item.evaluation_item_id,
+        kpi_id: kpiId,
+        resolved_level: resolvedLevel,
+        raw_score: rawScore,
+        level_definitions: levelDefinitions,
+        effective_weight: item.weight_snapshot,
+        is_disabled: item.is_disabled_for_employee,
+      };
+      if (existing) {
+        existing.criteria.push(criterion);
+      } else {
+        kpis.set(kpiId, {
+          kpi_id: kpiId,
+          kpi_name: item.kpi_name_snapshot ?? 'Legacy KPI',
+          effective_weight: item.kpi_weight_snapshot ?? 100,
+          criteria: [criterion],
+        });
+      }
+    }
+
+    const scoringResult = new ScoringEngine().calculate({ kpis: [...kpis.values()] });
+    for (const kpi of scoringResult.kpi_results) {
+      for (const criterion of kpi.criterion_results) {
+        const item = items.find((candidate) => candidate.evaluation_item_id === criterion.criterion_id);
+        const updatedItem = await this.evaluationItemRepo.updateScoringResult(criterion.criterion_id, item?.version ?? 1, {
+          resolved_level: criterion.resolved_level,
+          raw_score: criterion.raw_score,
+          normalized_score: criterion.normalized_score,
+          weighted_score: criterion.weighted_contribution,
+          is_missing_score: criterion.is_na && !criterion.is_disabled,
+          updated_by: actor.userId,
+        }, repositoryClient);
+        if (!updatedItem) {
+          throw new AppError(409, 'VERSION_CONFLICT', 'Evaluation item was updated by another user.');
+        }
+      }
+    }
+
+    const updated = await this.evaluationRepo.update(evaluationId, {
+      manager_score: scoringResult.overall_weighted_score,
+      final_score: scoringResult.overall_weighted_score,
+      scoring_breakdown: scoringResult as unknown as Record<string, unknown>,
+      updated_by: actor.userId,
+    }, repositoryClient);
+
+    if (this.auditService) {
+      await this.auditService.record(repositoryClient as unknown as PoolClient, {
+        entityType: 'EVALUATION',
+        entityId: evaluationId,
+        action: 'SCORE_CALCULATED',
+        oldValue: JSON.stringify({ manager_score: locked.manager_score, final_score: locked.final_score }),
+        newValue: JSON.stringify({
+          manager_score: updated.manager_score,
+          final_score: updated.final_score,
+          official_score: scoringResult.official_score,
+        }),
+        performedBy: actor.userId,
+        source: 'API',
+      });
+    }
+
+    return {
+      ...scoringResult,
+      evaluation_id: evaluationId,
+    };
+  }
+
+  async applyImportedKpiData(
+    records: Array<{
+      record_id: string;
+      employee_code: string;
+      cycle_id: string;
+      kpi_code: string;
+      value: number;
+      comment?: string | null;
+      rationale: string;
+      source_snapshot: SourceSnapshot;
+      import_id: string;
+      evidences?: Array<{
+        staging_evidence_id: string;
+        evidence_type: string;
+        title: string;
+        evidence_url?: string | null;
+        file_reference?: string | null;
+        description?: string | null;
+        metadata?: Record<string, unknown> | null;
+      }>;
+    }>,
+    actor: Actor
+  ): Promise<{
+    applied: Array<{ recordId: string; evaluationItemId: string; finalEvidenceMap: Record<string, string> }>;
+    rejected: Array<{ recordId: string; reason: string }>;
+  }> {
+    return withTransaction(this.pool, async (client) => {
+      const repositoryClient = client as unknown as PoolClient;
+      const applied: Array<{ recordId: string; evaluationItemId: string; finalEvidenceMap: Record<string, string> }> = [];
+      const rejected: Array<{ recordId: string; reason: string }> = [];
+      const affectedEvaluations = new Set<string>();
+
+      // Check cycle statuses with lock
+      const cycleIds = [...new Set(records.map((r) => r.cycle_id))];
+      const lockedCycles = new Set<string>();
+      for (const cId of cycleIds) {
+        const cycleRes = await repositoryClient.query(
+          'SELECT status FROM evaluation_cycle WHERE evaluation_cycle_id = $1 FOR UPDATE',
+          [cId]
+        );
+        if (cycleRes.rows.length === 0 || cycleRes.rows[0].status === 'LOCKED') {
+          lockedCycles.add(cId);
+        }
+      }
+
+      for (const rec of records) {
+        if (lockedCycles.has(rec.cycle_id)) {
+          rejected.push({ recordId: rec.record_id, reason: 'EVALUATION_CYCLE_LOCKED' });
+          continue;
+        }
+
+        // 1. Resolve employee
+        const empRes = await repositoryClient.query(
+          'SELECT employee_id FROM employee WHERE employee_code = $1',
+          [rec.employee_code]
+        );
+        if (empRes.rows.length === 0) {
+          rejected.push({ recordId: rec.record_id, reason: 'EMPLOYEE_NOT_FOUND' });
+          continue;
+        }
+        const employeeId = empRes.rows[0].employee_id;
+
+        // 2. Resolve (cycle_id, employee_id, kpi_code) -> evaluation & evaluation_item
+        const evalRes = await repositoryClient.query(
+          `SELECT e.evaluation_id, e.status, e.is_locked,
+                  ei.evaluation_item_id, ei.version
+           FROM evaluation e
+           JOIN evaluation_item ei ON e.evaluation_id = ei.evaluation_id
+           WHERE e.evaluation_cycle_id = $1 AND e.employee_id = $2
+             AND (ei.criterion_code_snapshot = $3 OR ei.kpi_code_snapshot = $3)
+           FOR UPDATE OF e`,
+          [rec.cycle_id, employeeId, rec.kpi_code]
+        );
+
+        if (evalRes.rows.length === 0) {
+          rejected.push({ recordId: rec.record_id, reason: 'EVALUATION_ITEM_NOT_FOUND' });
+          continue;
+        }
+
+        const evalRow = evalRes.rows[0];
+        if (evalRow.is_locked || evalRow.status === EvaluationStatus.LOCKED) {
+          rejected.push({ recordId: rec.record_id, reason: 'EVALUATION_LOCKED' });
+          continue;
+        }
+        if (evalRow.status === EvaluationStatus.PUBLISHED) {
+          rejected.push({ recordId: rec.record_id, reason: 'EVALUATION_ALREADY_PUBLISHED' });
+          continue;
+        }
+
+        // 3. Update evaluation_item
+        await repositoryClient.query(
+          `UPDATE evaluation_item
+           SET comment = COALESCE($1, comment),
+               rationale = $2,
+               import_id = $3,
+               source_snapshot = $4,
+               updated_at = CURRENT_TIMESTAMP,
+               updated_by = $5
+           WHERE evaluation_item_id = $6`,
+          [
+            rec.comment || null,
+            rec.rationale,
+            rec.import_id,
+            JSON.stringify(rec.source_snapshot),
+            actor.userId,
+            evalRow.evaluation_item_id,
+          ]
+        );
+
+        // 4. Record in measurement table for audit history
+        await repositoryClient.query(
+          `INSERT INTO measurement (
+            measurement_id, evaluation_item_id, measurement_key, measurement_value, recorded_at, source_label, created_by
+          ) VALUES (gen_random_uuid(), $1, $2, $3, CURRENT_TIMESTAMP, $4, $5)`,
+          [
+            evalRow.evaluation_item_id,
+            rec.kpi_code,
+            rec.value,
+            rec.source_snapshot?.source_name || rec.source_snapshot?.source_type || 'IMPORT',
+            actor.userId,
+          ]
+        );
+
+        // 5. Append final evidence rows
+        const finalEvidenceMap: Record<string, string> = {};
+        if (rec.evidences && rec.evidences.length > 0) {
+          for (const ev of rec.evidences) {
+            const evRes = await repositoryClient.query(
+              `INSERT INTO evidence (
+                evidence_id, evaluation_item_id, evidence_type, evidence_value, title,
+                evidence_url, file_reference, rationale, source, source_import_id,
+                source_record_id, metadata, status, created_by
+              ) VALUES (
+                gen_random_uuid(), $1, $2, $3, $4,
+                $5, $6, $7, $8, $9,
+                $10, $11, 'ACTIVE', $12
+              ) RETURNING evidence_id`,
+              [
+                evalRow.evaluation_item_id,
+                ev.evidence_type,
+                ev.evidence_url || ev.file_reference || ev.title,
+                ev.title,
+                ev.evidence_url || null,
+                ev.file_reference || null,
+                rec.rationale,
+                rec.source_snapshot?.source_type || null,
+                rec.import_id,
+                rec.record_id,
+                ev.metadata ? JSON.stringify(ev.metadata) : null,
+                actor.userId,
+              ]
+            );
+            finalEvidenceMap[ev.staging_evidence_id] = evRes.rows[0].evidence_id;
+          }
+        }
+
+        affectedEvaluations.add(evalRow.evaluation_id);
+        applied.push({
+          recordId: rec.record_id,
+          evaluationItemId: evalRow.evaluation_item_id,
+          finalEvidenceMap,
+        });
+      }
+
+      // 6. Recalculate scoring and record audit for affected evaluations
+      for (const evalId of affectedEvaluations) {
+        try {
+          await this.calculateScoringForEvaluation(evalId, actor, repositoryClient);
+        } catch (_calcErr) {
+          // If overall score cannot be computed yet (e.g. NO_APPLICABLE_KPIS),
+          // the imported measurement, comment, and evidence are preserved.
+        }
+        if (this.auditService) {
+          await this.auditService.record(repositoryClient as unknown as PoolClient, {
+            entityType: 'EVALUATION',
+            entityId: evalId,
+            action: 'IMPORT_APPLY',
+            performedBy: actor.userId,
+            source: 'API',
+            reason: 'Applied KPI data import batch',
+          });
+        }
+        appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId: evalId });
+      }
+
+      return { applied, rejected };
+    });
+  }
+
+  async getKpiExplainability(
+    evaluationId: string,
+    kpiCode: string,
+    actor: Actor
+  ): Promise<ExplainabilityViewDto> {
+    const evaluation = await this.evaluationRepo.findById(evaluationId);
+    if (!evaluation) throw new NotFound('Evaluation');
+
+    const isSelf = evaluation.employee_id === actor.employeeId || evaluation.employee_id === actor.userId;
+    const isManager = evaluation.manager_id_snapshot === actor.employeeId || evaluation.manager_id_snapshot === actor.userId;
+    const isSuperAdminOrHr = actor.role === 'SYSTEM_ADMIN' || actor.role === 'HR_ADMIN';
+
+    if (!isSelf && !isManager && !isSuperAdminOrHr) {
+      throw new AppError(403, 'FORBIDDEN', 'You do not have access to view evidence for this evaluation.');
+    }
+
+    const items = await this.evaluationItemRepo.findByEvaluationId(evaluationId);
+    const item = items.find(
+      (i) => i.criterion_code_snapshot === kpiCode || i.kpi_code_snapshot === kpiCode
+    );
+    if (!item) {
+      throw new NotFound(`KPI '${kpiCode}' in evaluation`);
+    }
+
+    const evidenceRes = await this.pool.query(
+      `SELECT * FROM evidence WHERE evaluation_item_id = $1 ORDER BY created_at DESC`,
+      [item.evaluation_item_id]
+    );
+
+    let importInfo = null;
+    if (item.import_id) {
+      const impRes = await this.pool.query(
+        `SELECT import_id, created_at, created_by FROM evaluation_data_import WHERE import_id = $1`,
+        [item.import_id]
+      );
+      if (impRes.rows.length > 0) {
+        importInfo = {
+          id: impRes.rows[0].import_id,
+          created_at: new Date(impRes.rows[0].created_at),
+          created_by: impRes.rows[0].created_by,
+        };
+      }
+    }
+
+    const evidences = evidenceRes.rows.map((row) => ({
+      id: row.evidence_id,
+      title: row.title || '',
+      type: row.evidence_type,
+      url: row.evidence_url,
+      file_reference: row.file_reference,
+      description: row.evidence_value,
+      rationale: row.rationale,
+      source: row.source,
+      status: row.status || 'ACTIVE',
+      superseded_by: row.superseded_by,
+      superseded_at: row.superseded_at ? new Date(row.superseded_at) : null,
+      supersede_reason: row.supersede_reason,
+      metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata,
+      created_at: new Date(row.created_at || row.uploaded_at),
+    }));
+
+    return {
+      evaluation_id: evaluation.evaluation_id,
+      evaluation_item_id: item.evaluation_item_id,
+      kpi_code: item.criterion_code_snapshot || item.kpi_code_snapshot || kpiCode,
+      measurement: item.measurement_value ?? null,
+      score: item.weighted_score ?? item.raw_score ?? null,
+      comment: item.comment || null,
+      rationale: item.rationale || null,
+      source: (item.source_snapshot as unknown as SourceSnapshot) || null,
+      import: importInfo,
+      evidences,
+    };
+  }
 }
+

@@ -24,6 +24,9 @@ import { ImportController } from '../modules/import/api/import.controller.js';
 import { createImportRouter } from '../modules/import/api/import.routes.js';
 import { ReportsController } from '../modules/reports/api/reports.controller.js';
 import { createReportsRouter } from '../modules/reports/api/reports.router.js';
+import { EvaluationDataImportController } from '../modules/evaluation-data-import/api/evaluation-data-import.controller.js';
+import { createEvaluationDataImportRouter } from '../modules/evaluation-data-import/api/evaluation-data-import.router.js';
+
 export interface RegisterRoutesOptions {
   authController?: AuthController;
   jwtMiddleware: RequestHandler;
@@ -39,6 +42,7 @@ export interface RegisterRoutesOptions {
   evaluationController?: EvaluationController;
   i18nController?: I18nController;
   importController?: ImportController;
+  evaluationDataImportController?: EvaluationDataImportController;
   collectorRouter?: Router;
   reportsController?: ReportsController;
 }
@@ -111,6 +115,11 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
   // ── Import Module Routes ──────────────────────────────────────────────────
   if (options.importController) {
     router.use('/', createImportRouter(options.importController, options.authorizationService, options.jwtMiddleware));
+  }
+
+  // ── Evaluation Data Import Module Routes ───────────────────────────────────
+  if (options.evaluationDataImportController) {
+    router.use('/evaluation-data/imports', createEvaluationDataImportRouter(options.evaluationDataImportController, options.jwtMiddleware));
   }
 
   // ── Reports Module Routes ────────────────────────────────────────────────

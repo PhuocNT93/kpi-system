@@ -1,5 +1,6 @@
 import React from 'react';
 import { COLORS } from '@/lib/theme';
+import { useTheme } from '@/shared/theme';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { FooterActionBar, type FooterActionBarProps } from './FooterActionBar';
@@ -31,6 +32,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   onSelectMenuItem,
   onGenerateReport
 }) => {
+  const { isDark } = useTheme();
+
   return (
     <div
       style={{
@@ -38,7 +41,9 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         width: '100%',
         height: '100vh',
         overflow: 'hidden',
-        backgroundColor: COLORS.neutral.surfaceSubtle
+        backgroundColor: isDark ? '#0B0F19' : COLORS.neutral.surfaceSubtle,
+        color: isDark ? '#F9FAFB' : COLORS.neutral.textPrimary,
+        transition: 'background-color 0.2s ease',
       }}
     >
       {/* Left Sidebar with Expand/Collapse capability */}
@@ -59,7 +64,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           flexDirection: 'column',
           height: '100%',
           overflow: 'hidden',
-          backgroundColor: COLORS.neutral.surfaceSubtle
+          backgroundColor: isDark ? '#0B0F19' : COLORS.neutral.surfaceSubtle,
+          transition: 'background-color 0.2s ease',
         }}
       >
         {/* Top Header */}

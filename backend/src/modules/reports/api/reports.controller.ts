@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { ReportsQueryService } from '../application/reports-query.service.js';
-import { sendSuccess } from '../../../api/http-response.js';
+import { sendSuccess, sendFailure } from '../../../api/http-response.js';
+import { getActorFromContext } from '../../../shared/auth/actor-context.js';
 import { getReportQuerySchema } from './reports.dto.js';
 import { z } from 'zod';
 
@@ -9,10 +10,29 @@ export class ReportsController {
 
   public getEmployeeReport = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const employeeId = req.params.employeeId as string;
+      let employeeId = req.params.employeeId as string;
       const { cycleId } = getReportQuerySchema.parse(req.query);
+      const actor = req.actor || getActorFromContext(req);
+
+      if (employeeId === 'me') {
+        employeeId = actor?.employeeId || '';
+      }
+
+      if (!employeeId) {
+        sendFailure(res, 400, 'Employee ID is required.', 'INVALID_EMPLOYEE_ID');
+        return;
+      }
+
+      if (actor?.role === 'EMPLOYEE' && actor.employeeId && employeeId !== actor.employeeId) {
+        sendFailure(res, 403, 'You do not have permission to view this report.', 'FORBIDDEN');
+        return;
+      }
 
       const report = await this.queryService.getEmployeeReport(employeeId, cycleId);
+      if (!report) {
+        sendSuccess(res, 200, 'No report found for this employee and cycle.', null);
+        return;
+      }
       
       const dataAsOf = report.score.last_refreshed_at;
       sendSuccess(res, 200, 'Employee report retrieved successfully.', { ...report, data_as_of: dataAsOf });

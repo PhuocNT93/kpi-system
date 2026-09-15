@@ -115,4 +115,12 @@ export class EvaluationController {
     });
     sendSuccess(res, 200, 'KPI score override applied successfully.', result);
   };
+
+  getKpiEvidence = async (req: Request, res: Response): Promise<void> => {
+    const actor = this.getActor(req);
+    const id = req.params.id as string;
+    const code = req.params.code as string;
+    const result = await this.evaluationService.getKpiExplainability(id, code, actor);
+    sendSuccess(res, 200, 'KPI evidence and explainability retrieved successfully.', result);
+  };
 }

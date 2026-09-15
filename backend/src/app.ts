@@ -39,6 +39,7 @@ import { localeMiddleware } from './shared/i18n/locale.middleware.js';
 import { createImportModule } from './modules/import/import.module.js';
 import { createCollectorModule } from './modules/collector/collector.module.js';
 import { createReportsModule } from './modules/reports/reports.module.js';
+import { createEvaluationDataImportModule } from './modules/evaluation-data-import/evaluation-data-import.module.js';
 
 export interface AppOptions {
   userRepository?: UserRepository;
@@ -105,6 +106,9 @@ export function createApp(options: AppOptions = {}) {
   const importModule = pool && evaluationModule ? createImportModule(pool, evaluationModule.evaluationService) : undefined;
   const importController = importModule?.importController;
 
+  const evaluationDataImportModule = pool && evaluationModule ? createEvaluationDataImportModule(pool, evaluationModule.evaluationService) : undefined;
+  const evaluationDataImportController = evaluationDataImportModule?.importController;
+
   const collectorModule = pool ? createCollectorModule(pool) : undefined;
   const reportsModule = pool && evaluationModule ? createReportsModule(pool, evaluationModule.evaluationRepo, evaluationModule.evaluationItemRepo) : undefined;
   const reportsController = reportsModule?.reportsController;
@@ -164,6 +168,7 @@ export function createApp(options: AppOptions = {}) {
         evaluationController,
         i18nController: i18nModule?.controller,
         importController,
+        evaluationDataImportController,
         collectorRouter: collectorModule?.router,
         reportsController,
       })

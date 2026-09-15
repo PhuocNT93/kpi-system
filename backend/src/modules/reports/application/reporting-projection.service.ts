@@ -54,6 +54,12 @@ export class ReportingProjectionService {
     // 2. Upsert KPI Scores
     const items = await this.evaluationItemRepo.findByEvaluationId(evaluationId);
     for (const item of items) {
+      const evRes = await this.pool.query(
+        `SELECT COUNT(*)::int as count FROM evidence WHERE evaluation_item_id = $1 AND status = 'ACTIVE'`,
+        [item.evaluation_item_id]
+      );
+      const evidenceCount = evRes.rows[0]?.count || 0;
+
       await this.reportsRepo.upsertEmployeeKpiScore({
         evaluation_id: evaluation.evaluation_id,
         evaluation_cycle_id: evaluation.evaluation_cycle_id,
@@ -69,12 +75,44 @@ export class ReportingProjectionService {
         is_missing_score: item.is_missing_score,
         kpi_score: item.raw_score ?? undefined, // Maps raw to kpi score
         kpi_weighted_score: item.weighted_score ?? undefined,
+        has_evidence: evidenceCount > 0,
+        evidence_count: evidenceCount,
+        comment: item.comment || null,
       });
     }
 
     // 3. Refresh Team Aggregates implicitly (in a fully optimized system this would be async or grouped)
     if (evaluation.team_id_snapshot) {
       await this.refreshTeam(evaluation.evaluation_cycle_id, evaluation.team_id_snapshot);
+    }
+
+    // 4. Refresh Organization Aggregates
+    await this.refreshOrganization(evaluation.evaluation_cycle_id);
+  }
+
+  public async refreshOrganization(evaluationCycleId: string): Promise<void> {
+    const query = `
+      SELECT 
+        COUNT(*) as employee_count,
+        SUM(CASE WHEN evaluation_status IN ('APPROVED', 'PUBLISHED', 'LOCKED') THEN 1 ELSE 0 END) as completed_count,
+        AVG(CASE WHEN evaluation_status IN ('APPROVED', 'PUBLISHED', 'LOCKED') THEN final_score ELSE NULL END) as avg_score
+      FROM employee_evaluation_score_read_model
+      WHERE evaluation_cycle_id = $1
+    `;
+    const res = await this.pool.query(query, [evaluationCycleId]);
+    const row = res.rows[0];
+    const count = parseInt(row?.employee_count || '0', 10);
+    const completed = parseInt(row?.completed_count || '0', 10);
+    const rate = count > 0 ? (completed / count) * 100 : 0;
+
+    if (typeof this.reportsRepo.upsertOrganizationAggregate === 'function') {
+      await this.reportsRepo.upsertOrganizationAggregate({
+        evaluation_cycle_id: evaluationCycleId,
+        employee_count: count,
+        completed_employee_count: completed,
+        completion_rate: rate,
+        average_score: row?.avg_score != null ? parseFloat(row.avg_score) : undefined,
+      });
     }
   }
 
@@ -91,8 +129,8 @@ export class ReportingProjectionService {
     const res = await this.pool.query(query, [teamId, evaluationCycleId]);
     const row = res.rows[0];
 
-    const count = parseInt(row.employee_count || '0', 10);
-    const completed = parseInt(row.completed_count || '0', 10);
+    const count = parseInt(row?.employee_count || '0', 10);
+    const completed = parseInt(row?.completed_count || '0', 10);
     const rate = count > 0 ? (completed / count) * 100 : 0;
     
     await this.reportsRepo.upsertTeamEvaluationAggregate({
@@ -101,7 +139,7 @@ export class ReportingProjectionService {
       employee_count: count,
       completed_employee_count: completed,
       completion_rate: rate,
-      team_average_score: row.avg_score != null ? parseFloat(row.avg_score) : undefined,
+      team_average_score: row?.avg_score != null ? parseFloat(row.avg_score) : undefined,
     });
 
     // KPI aggregates
@@ -131,12 +169,22 @@ export class ReportingProjectionService {
     }
   }
 
-  public async refreshAllForLockedCycle(evaluationCycleId: string): Promise<void> {
-    // In a real system we would use atomic table swaps, but here we run a full transactional aggregation
-    // For simplicity, we get all evaluations in the cycle and process them.
+  public async refreshAllForCycle(evaluationCycleId: string): Promise<void> {
     const res = await this.pool.query('SELECT evaluation_id FROM evaluation WHERE evaluation_cycle_id = $1', [evaluationCycleId]);
     for (const row of res.rows) {
       await this.refreshEvaluation(row.evaluation_id);
+    }
+    await this.refreshOrganization(evaluationCycleId);
+  }
+
+  public async refreshAllForLockedCycle(evaluationCycleId: string): Promise<void> {
+    await this.refreshAllForCycle(evaluationCycleId);
+  }
+
+  public async syncAll(): Promise<void> {
+    const res = await this.pool.query('SELECT DISTINCT evaluation_cycle_id FROM evaluation');
+    for (const row of res.rows) {
+      await this.refreshAllForCycle(row.evaluation_cycle_id);
     }
   }
 }

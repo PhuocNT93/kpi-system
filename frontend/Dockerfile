@@ -4,6 +4,12 @@ COPY package*.json ./
 RUN npm ci
 
 FROM dependencies AS build
+ARG VITE_API_BASE_URL
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ARG VITE_GOOGLE_CLIENT_ID
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
+ARG VITE_GOOGLE_ALLOWED_DOMAIN
+ENV VITE_GOOGLE_ALLOWED_DOMAIN=$VITE_GOOGLE_ALLOWED_DOMAIN
 COPY index.html tsconfig.json tsconfig.app.json tsconfig.node.json vite.config.ts ./
 COPY src ./src
 RUN npm run build

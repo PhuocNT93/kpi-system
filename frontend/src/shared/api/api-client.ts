@@ -1,6 +1,6 @@
 import type { ApiEnvelope } from './api-types';
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
 
 const TOKEN_STORAGE_KEY = 'kpi_auth_token';
 
@@ -13,7 +13,7 @@ const RETRY_BACKOFF_MS = 400;
 
 let hasReachedServer = false;
 
-class RequestTimeoutError extends Error {}
+class RequestTimeoutError extends Error { }
 
 // Token storage — in-memory with localStorage fallback
 let _accessToken: string | null = null;
@@ -137,7 +137,7 @@ async function parseBlobResponse(response: Response): Promise<{ blob: Blob; file
   }
 
   const blob = await response.blob();
-  
+
   let filename: string | undefined;
   const disposition = response.headers.get('Content-Disposition');
   if (disposition && disposition.indexOf('attachment') !== -1) {
@@ -302,7 +302,7 @@ export async function postFormDataApi<T>(
   if (idempotencyKey) {
     extraHeaders['Idempotency-Key'] = idempotencyKey;
   }
-  
+
   // Exclude Content-Type so browser sets multipart/form-data with boundary
   const headers = buildHeaders(extraHeaders);
   delete headers['Content-Type'];

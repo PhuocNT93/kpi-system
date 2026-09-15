@@ -1,38 +1,55 @@
-import React from 'react';
-import { COLORS } from '@/lib/theme';
-import { TYPOGRAPHY } from '@/shared/theme';
+import React, { useState } from 'react';
+import { TYPOGRAPHY, RADII } from '@/shared/theme';
+import { useTheme } from '@/shared/theme';
+import { Sun, Moon } from 'lucide-react';
 
 export interface HeaderProps {
   title?: string;
   subtitle?: string;
   actions?: React.ReactNode;
+  showThemeToggle?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   title = 'Configure Evaluation',
   subtitle,
-  actions
+  actions,
+  showThemeToggle = true,
 }) => {
+  const { isDark, toggleTheme } = useTheme();
+  const [toggleHovered, setToggleHovered] = useState(false);
+
   return (
     <header
       style={{
-        padding: '24px 32px 16px 32px',
+        height: '72px',
+        padding: '0 32px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        backgroundColor: isDark ? 'rgba(17, 24, 39, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        borderBottom: `1px solid ${isDark ? '#1F2937' : '#E2E8F0'}`,
+        boxShadow: isDark ? '0 1px 3px 0 rgba(0, 0, 0, 0.4)' : '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
+        transition: 'background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
+        zIndex: 5,
+        flexShrink: 0,
       }}
     >
-      <div>
+      {/* Title & Subtitle Section */}
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
         <h1
           style={{
             margin: 0,
             fontFamily: TYPOGRAPHY.fontFamily.headline,
-            fontSize: TYPOGRAPHY.fontSize['2xl'],
+            fontSize: TYPOGRAPHY.fontSize.xl,
             fontWeight: TYPOGRAPHY.fontWeight.bold,
-            color: COLORS.neutral.textPrimary,
+            color: isDark ? '#F9FAFB' : '#0F172A',
             letterSpacing: '-0.02em',
-            lineHeight: TYPOGRAPHY.lineHeight.tight
+            lineHeight: 1.2,
+            transition: 'color 0.2s ease',
           }}
         >
           {title}
@@ -40,10 +57,11 @@ export const Header: React.FC<HeaderProps> = ({
         {subtitle && (
           <p
             style={{
-              margin: '4px 0 0 0',
+              margin: '3px 0 0 0',
               fontFamily: TYPOGRAPHY.fontFamily.body,
-              fontSize: TYPOGRAPHY.fontSize.sm,
-              color: COLORS.neutral.textSecondary
+              fontSize: TYPOGRAPHY.fontSize.xs,
+              color: isDark ? '#9CA3AF' : '#64748B',
+              transition: 'color 0.2s ease',
             }}
           >
             {subtitle}
@@ -51,7 +69,62 @@ export const Header: React.FC<HeaderProps> = ({
         )}
       </div>
 
-      {actions && <div>{actions}</div>}
+      {/* Right-hand Controls: Dark Mode Switch & Page Actions */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        {showThemeToggle && (
+          <button
+            type="button"
+            onClick={toggleTheme}
+            onMouseEnter={() => setToggleHovered(true)}
+            onMouseLeave={() => setToggleHovered(false)}
+            title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            aria-label={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: RADII.lg,
+              border: `1px solid ${
+                toggleHovered
+                  ? isDark
+                    ? '#4B5563'
+                    : '#CBD5E1'
+                  : isDark
+                  ? '#374151'
+                  : '#E2E8F0'
+              }`,
+              backgroundColor: isDark
+                ? toggleHovered
+                  ? '#374151'
+                  : '#1F2937'
+                : toggleHovered
+                ? '#F1F5F9'
+                : '#FFFFFF',
+              color: isDark ? '#FBBF24' : '#64748B',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              outline: 'none',
+              transition: 'all 0.18s ease-in-out',
+              boxShadow: toggleHovered
+                ? '0 2px 4px rgba(0, 0, 0, 0.08)'
+                : 'none',
+            }}
+          >
+            {isDark ? (
+              <Sun size={18} style={{ transition: 'transform 0.2s ease' }} />
+            ) : (
+              <Moon size={18} style={{ transition: 'transform 0.2s ease' }} />
+            )}
+          </button>
+        )}
+
+        {actions && (
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            {actions}
+          </div>
+        )}
+      </div>
     </header>
   );
 };

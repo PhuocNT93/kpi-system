@@ -153,9 +153,12 @@ export async function seedIamData(
     { roleCode: 'MANAGER', permCode: 'evaluation:submit', scope: 'TEAM' },
     { roleCode: 'MANAGER', permCode: 'evaluation:approve', scope: 'TEAM' },
     { roleCode: 'MANAGER', permCode: 'evaluation:adjust_score', scope: 'TEAM' },
+    { roleCode: 'MANAGER', permCode: 'report:self', scope: 'SELF' },
     { roleCode: 'MANAGER', permCode: 'report:team', scope: 'TEAM' },
 
     // HR_ADMIN
+    { roleCode: 'HR_ADMIN', permCode: 'report:self', scope: 'SELF' },
+    { roleCode: 'HR_ADMIN', permCode: 'report:team', scope: 'ORGANIZATION' },
     { roleCode: 'HR_ADMIN', permCode: 'employee:read', scope: 'ORGANIZATION' },
     { roleCode: 'HR_ADMIN', permCode: 'employee:create', scope: 'ORGANIZATION' },
     { roleCode: 'HR_ADMIN', permCode: 'employee:update', scope: 'ORGANIZATION' },

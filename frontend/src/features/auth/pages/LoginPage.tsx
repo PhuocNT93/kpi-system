@@ -87,7 +87,7 @@ export function LoginPage() {
           setError('root', { message: error instanceof ApiClientError ? error.message : 'Google sign-in failed. Please try again.' });
         }
       },
-      hosted_domain: 'cyberlogitec.com',
+      hosted_domain: import.meta.env.VITE_GOOGLE_ALLOWED_DOMAIN || 'cyberlogitec.com',
     });
     window.google.accounts.id.prompt();
   };

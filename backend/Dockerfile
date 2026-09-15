@@ -9,8 +9,10 @@ COPY src ./src
 RUN npm run build
 
 FROM dependencies AS migrate
+COPY tsconfig.json ./
+COPY src ./src
 COPY migrations ./migrations
-CMD ["npm", "run", "migrate:up"]
+CMD ["sh", "-c", "npm run migrate:up && npm run seed"]
 
 FROM node:22-alpine AS runtime
 WORKDIR /app
