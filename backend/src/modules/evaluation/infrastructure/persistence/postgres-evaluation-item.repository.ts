@@ -31,6 +31,9 @@ export class PostgresEvaluationItemRepository implements IEvaluationItemReposito
       override_by: row.override_by as string | undefined,
       override_at: row.override_at ? new Date(row.override_at as string) : undefined,
       comment: row.comment as string,
+      rationale: row.rationale as string | undefined,
+      import_id: row.import_id as string | undefined,
+      source_snapshot: typeof row.source_snapshot === 'string' ? JSON.parse(row.source_snapshot) : row.source_snapshot as Record<string, unknown> | undefined,
       system_note: row.system_note as string | undefined,
       system_suggested_level: row.system_suggested_level == null ? undefined : Number(row.system_suggested_level),
       system_suggested_score: row.system_suggested_score == null ? undefined : Number(row.system_suggested_score),
@@ -44,6 +47,25 @@ export class PostgresEvaluationItemRepository implements IEvaluationItemReposito
       created_by: row.created_by as string,
       updated_by: row.updated_by as string,
       version: Number(row.version ?? 1),
+    };
+  }
+
+  async findByCycleEmployeeKpi(cycleId: string, employeeId: string, kpiCode: string, client?: PoolClient): Promise<{ evaluationId: string; item: EvaluationItem } | null> {
+    const runner = client || this.pool;
+    const res = await runner.query(
+      `SELECT ei.*, e.evaluation_id as parent_eval_id
+       FROM evaluation e
+       JOIN evaluation_item ei ON e.evaluation_id = ei.evaluation_id
+       WHERE e.evaluation_cycle_id = $1
+         AND e.employee_id = $2
+         AND (ei.criterion_code_snapshot = $3 OR ei.kpi_code_snapshot = $3)
+       LIMIT 1`,
+      [cycleId, employeeId, kpiCode]
+    );
+    if (res.rows.length === 0) return null;
+    return {
+      evaluationId: res.rows[0].parent_eval_id as string,
+      item: this.mapRow(res.rows[0]),
     };
   }
 

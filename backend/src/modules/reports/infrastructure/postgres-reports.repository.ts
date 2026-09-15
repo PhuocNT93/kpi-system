@@ -37,9 +37,10 @@ export class PostgresReportsRepository implements IReportsRepository {
       INSERT INTO employee_kpi_score_read_model (
         evaluation_id, evaluation_cycle_id, employee_id, team_id, criterion_code, criterion_name,
         category, weight_snapshot, resolved_level, raw_score, weighted_score,
-        is_disabled_for_employee, is_missing_score, kpi_score, kpi_weighted_score, last_refreshed_at
+        is_disabled_for_employee, is_missing_score, kpi_score, kpi_weighted_score,
+        has_evidence, evidence_count, comment, last_refreshed_at
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, current_timestamp
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, current_timestamp
       )
       ON CONFLICT (evaluation_id, criterion_code) DO UPDATE SET
         resolved_level = EXCLUDED.resolved_level,
@@ -49,12 +50,16 @@ export class PostgresReportsRepository implements IReportsRepository {
         is_missing_score = EXCLUDED.is_missing_score,
         kpi_score = EXCLUDED.kpi_score,
         kpi_weighted_score = EXCLUDED.kpi_weighted_score,
+        has_evidence = EXCLUDED.has_evidence,
+        evidence_count = EXCLUDED.evidence_count,
+        comment = EXCLUDED.comment,
         last_refreshed_at = EXCLUDED.last_refreshed_at
     `;
     const params = [
       kpiScore.evaluation_id, kpiScore.evaluation_cycle_id, kpiScore.employee_id, kpiScore.team_id || null, kpiScore.criterion_code, kpiScore.criterion_name,
       kpiScore.category || null, kpiScore.weight_snapshot, kpiScore.resolved_level || null, kpiScore.raw_score || null, kpiScore.weighted_score || null,
-      kpiScore.is_disabled_for_employee || false, kpiScore.is_missing_score || false, kpiScore.kpi_score || null, kpiScore.kpi_weighted_score || null
+      kpiScore.is_disabled_for_employee || false, kpiScore.is_missing_score || false, kpiScore.kpi_score || null, kpiScore.kpi_weighted_score || null,
+      kpiScore.has_evidence ?? false, kpiScore.evidence_count ?? 0, kpiScore.comment || null
     ];
     await this.pool.query(query, params);
   }
@@ -104,8 +109,55 @@ export class PostgresReportsRepository implements IReportsRepository {
     await this.pool.query(query, params);
   }
 
-  async upsertOrganizationAggregate(_agg: Partial<OrganizationAggregate>): Promise<void> {
-    // simplified for brevity. we might not need all logic unless specified
+  async upsertOrganizationAggregate(agg: Partial<OrganizationAggregate>): Promise<void> {
+    const existing = await this.pool.query(
+      `SELECT id FROM organization_aggregate_read_model 
+       WHERE evaluation_cycle_id = $1 
+         AND department_id IS NOT DISTINCT FROM $2 
+         AND team_id IS NOT DISTINCT FROM $3 LIMIT 1`,
+      [agg.evaluation_cycle_id, agg.department_id || null, agg.team_id || null]
+    );
+
+    if (existing.rows.length > 0) {
+      const query = `
+        UPDATE organization_aggregate_read_model SET
+          employee_count = $1,
+          completed_employee_count = $2,
+          completion_rate = $3,
+          average_score = $4,
+          score_distribution = $5,
+          last_refreshed_at = current_timestamp
+        WHERE id = $6
+      `;
+      await this.pool.query(query, [
+        agg.employee_count || 0,
+        agg.completed_employee_count || 0,
+        agg.completion_rate != null ? agg.completion_rate : null,
+        agg.average_score != null ? agg.average_score : null,
+        agg.score_distribution ? JSON.stringify(agg.score_distribution) : null,
+        existing.rows[0].id
+      ]);
+    } else {
+      const query = `
+        INSERT INTO organization_aggregate_read_model (
+          id, evaluation_cycle_id, department_id, team_id,
+          employee_count, completed_employee_count, completion_rate,
+          average_score, score_distribution, last_refreshed_at
+        ) VALUES (
+          gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, current_timestamp
+        )
+      `;
+      await this.pool.query(query, [
+        agg.evaluation_cycle_id,
+        agg.department_id || null,
+        agg.team_id || null,
+        agg.employee_count || 0,
+        agg.completed_employee_count || 0,
+        agg.completion_rate != null ? agg.completion_rate : null,
+        agg.average_score != null ? agg.average_score : null,
+        agg.score_distribution ? JSON.stringify(agg.score_distribution) : null
+      ]);
+    }
   }
 
   async clearCycleProjections(cycleId: string): Promise<void> {

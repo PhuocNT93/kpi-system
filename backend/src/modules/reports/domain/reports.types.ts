@@ -33,6 +33,9 @@ export interface EmployeeKpiScore {
   is_missing_score: boolean;
   kpi_score?: number;
   kpi_weighted_score?: number;
+  has_evidence?: boolean;
+  evidence_count?: number;
+  comment?: string | null;
   last_refreshed_at: Date;
 }
 

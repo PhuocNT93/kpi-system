@@ -32,6 +32,7 @@ import { KpiPage } from './features/kpi/pages/KpiPage';
 import { ImportUploadPage } from './features/imports/pages/ImportUploadPage';
 import { ImportHistoryPage } from './features/imports/pages/ImportHistoryPage';
 import { ImportDetailPage } from './features/imports/pages/ImportDetailPage';
+import { EvaluationDataImportPage } from './features/imports/pages/EvaluationDataImportPage';
 import { CollectorPage } from './features/collector/pages/CollectorPage';
 // Lazy-loaded: pulls in react-markdown/remark-gfm, kept out of the main bundle
 const UserGuidePage = lazy(() =>
@@ -41,7 +42,7 @@ import { EmployeeReportPage } from './features/reports/pages/EmployeeReportPage'
 import { TeamReportPage } from './features/reports/pages/TeamReportPage';
 import { OrganizationReportPage } from './features/reports/pages/OrganizationReportPage';
 import { COLORS } from '@/lib/theme';
-import { RADII, TYPOGRAPHY } from '@/shared/theme';
+import { RADII, TYPOGRAPHY, ThemeProvider, useTheme } from '@/shared/theme';
 import { LayoutTemplate } from 'lucide-react';
 
 import { useAuth } from './shared/auth/auth-context';
@@ -56,17 +57,22 @@ const ADMIN_PAGE_TITLES: Record<string, string> = {
   i18n: 'Translation Settings',
   kpis: 'KPI Management',
   imports: 'CSV Imports',
+  'evaluation-data-imports': 'KPI Data Imports',
   collectors: 'Auto Data Collection',
   cycles: 'Evaluation Cycles',
   'my-evaluations': 'My Evaluations',
   'team-evaluations': 'Team Evaluations',
   'user-guide': 'User Guide',
+  'my-report': 'Performance Report',
+  'team-report': 'Team Dashboard',
+  'org-report': 'Organization Dashboard',
 };
 
 function ProtectedLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
+  const { isDark } = useTheme();
 
   // Extract active menu from URL (e.g. /admin/iam -> iam, /admin/imports/upload -> imports)
   const pathParts = location.pathname.split('/');
@@ -77,28 +83,43 @@ function ProtectedLayout() {
     <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
       {user && (
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: '0.875rem', fontWeight: 600, color: COLORS.neutral.textPrimary }}>
+          <div
+            style={{
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              color: isDark ? '#F9FAFB' : COLORS.neutral.textPrimary,
+              transition: 'color 0.2s ease',
+            }}
+          >
             {user.name}
           </div>
-          <div style={{ fontSize: '0.75rem', color: COLORS.neutral.textSecondary }}>
+          <div
+            style={{
+              fontSize: '0.75rem',
+              color: isDark ? '#9CA3AF' : COLORS.neutral.textSecondary,
+              transition: 'color 0.2s ease',
+            }}
+          >
             {user.role}
           </div>
         </div>
       )}
       <button
+        type="button"
         onClick={logout}
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: '8px',
           padding: '8px 16px',
-          background: 'transparent',
-          border: `1px solid ${COLORS.neutral[300]}`,
+          background: isDark ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
+          border: `1px solid ${isDark ? '#374151' : COLORS.neutral[300]}`,
           borderRadius: RADII.md,
           cursor: 'pointer',
-          color: COLORS.neutral.textPrimary,
+          color: isDark ? '#F9FAFB' : COLORS.neutral.textPrimary,
           fontSize: '0.875rem',
           fontWeight: 500,
+          transition: 'all 0.15s ease',
         }}
       >
         <LogOut size={16} />
@@ -132,8 +153,9 @@ function SmartHomeRedirect() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <BrowserRouter>
+      <ThemeProvider>
+        <AuthProvider>
+          <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
 
@@ -199,6 +221,11 @@ export default function App() {
                   <ImportDetailPage />
                 </ProtectedRoute>
               } />
+              <Route path="/admin/evaluation-data-imports" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
+                  <EvaluationDataImportPage />
+                </ProtectedRoute>
+              } />
               <Route path="/admin/collectors" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER']}>
                   <CollectorPage />
@@ -251,9 +278,19 @@ export default function App() {
                   </Suspense>
                 </ProtectedRoute>
               } />
+              <Route path="/admin/my-report" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
+                  <EmployeeReportPage />
+                </ProtectedRoute>
+              } />
               <Route path="/admin/my-report/:employeeId" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
                   <EmployeeReportPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/team-report" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER']}>
+                  <TeamReportPage />
                 </ProtectedRoute>
               } />
               <Route path="/admin/team-report/:teamId" element={
@@ -301,7 +338,8 @@ export default function App() {
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </BrowserRouter>
-      </AuthProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

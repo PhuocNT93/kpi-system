@@ -22,6 +22,13 @@ export function createReportsModule(
   // Initialize event listeners
   projectionService.init();
 
+  // Async backfill/sync all existing evaluations into read models on startup
+  if (process.env.NODE_ENV !== 'test') {
+    projectionService.syncAll().catch((err) => {
+      console.error('Failed to sync reporting projections on startup:', err);
+    });
+  }
+
   const queryService = new ReportsQueryService(reportsRepo);
   const reportsController = new ReportsController(queryService);
 

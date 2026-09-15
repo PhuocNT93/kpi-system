@@ -1,5 +1,4 @@
 import { IReportsRepository } from '../domain/reports.types.js';
-import { AppError } from '../../../api/app-error.js';
 import { KpiTrendResponse } from '../api/reports.dto.js';
 
 export class ReportsQueryService {
@@ -9,7 +8,7 @@ export class ReportsQueryService {
     try {
       return await this.reportsRepo.getEmployeeReport(employeeId, cycleId);
     } catch {
-      throw new AppError(404, 'NOT_FOUND', 'Report data not found for this employee and cycle');
+      return null;
     }
   }
 
@@ -17,7 +16,19 @@ export class ReportsQueryService {
     try {
       return await this.reportsRepo.getTeamReport(teamId, cycleId);
     } catch {
-      throw new AppError(404, 'NOT_FOUND', 'Report data not found for this team and cycle');
+      return {
+        aggregate: {
+          id: '',
+          evaluation_cycle_id: cycleId,
+          team_id: teamId,
+          employee_count: 0,
+          completed_employee_count: 0,
+          completion_rate: 0,
+          team_average_score: undefined,
+          last_refreshed_at: new Date(),
+        },
+        kpis: [],
+      };
     }
   }
 
@@ -33,7 +44,16 @@ export class ReportsQueryService {
   public async getOrganizationReport(cycleId: string) {
     const data = await this.reportsRepo.getOrganizationReport(cycleId);
     if (!data || data.length === 0) {
-      throw new AppError(404, 'NOT_FOUND', 'Organization report data not found for this cycle');
+      return [{
+        id: '',
+        evaluation_cycle_id: cycleId,
+        employee_count: 0,
+        completed_employee_count: 0,
+        completion_rate: 0,
+        average_score: undefined,
+        score_distribution: {},
+        last_refreshed_at: new Date(),
+      }];
     }
     return data;
   }

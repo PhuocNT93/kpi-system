@@ -39,6 +39,7 @@ import { localeMiddleware } from './shared/i18n/locale.middleware.js';
 import { createImportModule } from './modules/import/import.module.js';
 import { createCollectorModule } from './modules/collector/collector.module.js';
 import { createReportsModule } from './modules/reports/reports.module.js';
+import { createEvaluationDataImportModule } from './modules/evaluation-data-import/evaluation-data-import.module.js';
 
 export interface AppOptions {
   userRepository?: UserRepository;
@@ -73,9 +74,9 @@ export function createApp(options: AppOptions = {}) {
   const jwtMiddleware = createJwtAuthMiddleware(jwtConfig);
 
   const iamController = new IamController(
-    roleService, 
-    permissionService, 
-    roleAssignmentService, 
+    roleService,
+    permissionService,
+    roleAssignmentService,
     repositories.userRepository!
   );
 
@@ -104,6 +105,9 @@ export function createApp(options: AppOptions = {}) {
   const i18nModule = pool ? createI18nModule(pool, auditModule?.auditService) : undefined;
   const importModule = pool && evaluationModule ? createImportModule(pool, evaluationModule.evaluationService) : undefined;
   const importController = importModule?.importController;
+
+  const evaluationDataImportModule = pool && evaluationModule ? createEvaluationDataImportModule(pool, evaluationModule.evaluationService) : undefined;
+  const evaluationDataImportController = evaluationDataImportModule?.importController;
 
   const collectorModule = pool ? createCollectorModule(pool, jwtMiddleware) : undefined;
   const reportsModule = pool && evaluationModule ? createReportsModule(pool, evaluationModule.evaluationRepo, evaluationModule.evaluationItemRepo) : undefined;
@@ -164,6 +168,7 @@ export function createApp(options: AppOptions = {}) {
         evaluationController,
         i18nController: i18nModule?.controller,
         importController,
+        evaluationDataImportController,
         collectorRouter: collectorModule?.router,
         reportsController,
       })

@@ -21,6 +21,7 @@ export function createEvaluationRouter(
   router.post('/:id/publish', controller.publishEvaluation);
   router.post('/:id/lock', controller.lockEvaluation);
   router.post('/:id/kpis/:kpiId/override', controller.overrideKpiScore);
+  router.get('/:id/kpis/:code/evidence', controller.getKpiEvidence);
 
   return router;
 }

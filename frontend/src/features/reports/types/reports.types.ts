@@ -33,7 +33,51 @@ export interface EmployeeKpiScore {
   isMissingScore: boolean;
   kpiScore?: number;
   kpiWeightedScore?: number;
+  hasEvidence?: boolean;
+  evidenceCount?: number;
+  comment?: string | null;
   lastRefreshedAt: string;
+}
+
+export interface FinalEvidenceItem {
+  id: string;
+  title: string;
+  type: 'URL' | 'DOCUMENT' | 'FILE' | 'SCREENSHOT' | 'EXTERNAL_REF';
+  url?: string | null;
+  fileReference?: string | null;
+  description?: string | null;
+  rationale?: string | null;
+  source?: string | null;
+  status: 'ACTIVE' | 'SUPERSEDED';
+  supersededBy?: string | null;
+  supersededAt?: string | null;
+  supersedeReason?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface ExplainabilityViewDto {
+  evaluationId: string;
+  evaluationItemId: string;
+  kpiCode: string;
+  measurement?: number | null;
+  score?: number | null;
+  comment?: string | null;
+  rationale?: string | null;
+  source?: {
+    sourceType?: string;
+    sourceName?: string;
+    sourceReference?: string;
+    collectedAt?: string;
+    collectorVersion?: string;
+    metadata?: Record<string, unknown>;
+  } | null;
+  import?: {
+    id: string;
+    createdAt: string;
+    createdBy: string;
+  } | null;
+  evidences: FinalEvidenceItem[];
 }
 
 export interface EmployeeReport {
@@ -95,10 +139,36 @@ export interface KpiTrendResponse {
   delta?: number;
 }
 
+export interface EmployeeReportResponse {
+  score: EmployeeEvaluationScore;
+  kpis: EmployeeKpiScore[];
+  dataAsOf?: string;
+}
+
+export interface TeamReportResponse {
+  aggregate: TeamEvaluationAggregate;
+  kpis: TeamKpiAggregate[];
+  dataAsOf?: string;
+}
+
+export interface TeamKpiReportResponse {
+  data: TeamKpiAggregate[];
+  dataAsOf?: string;
+}
+
+export interface OrganizationReportResponse {
+  data: OrganizationAggregate[];
+  dataAsOf?: string;
+}
+
+export interface KpiTrendReportResponse {
+  data: KpiTrendResponse[];
+}
+
 export interface ReportResponse<T> {
-  success: boolean;
-  message: string;
+  success?: boolean;
+  message?: string;
   data: T;
-  dataAsOf: string;
-  meta: Record<string, unknown>;
+  dataAsOf?: string;
+  meta?: Record<string, unknown>;
 }
