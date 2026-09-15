@@ -74,9 +74,9 @@ export function createApp(options: AppOptions = {}) {
   const jwtMiddleware = createJwtAuthMiddleware(jwtConfig);
 
   const iamController = new IamController(
-    roleService, 
-    permissionService, 
-    roleAssignmentService, 
+    roleService,
+    permissionService,
+    roleAssignmentService,
     repositories.userRepository!
   );
 
@@ -109,7 +109,7 @@ export function createApp(options: AppOptions = {}) {
   const evaluationDataImportModule = pool && evaluationModule ? createEvaluationDataImportModule(pool, evaluationModule.evaluationService) : undefined;
   const evaluationDataImportController = evaluationDataImportModule?.importController;
 
-  const collectorModule = pool ? createCollectorModule(pool) : undefined;
+  const collectorModule = pool ? createCollectorModule(pool, jwtMiddleware) : undefined;
   const reportsModule = pool && evaluationModule ? createReportsModule(pool, evaluationModule.evaluationRepo, evaluationModule.evaluationItemRepo) : undefined;
   const reportsController = reportsModule?.reportsController;
 

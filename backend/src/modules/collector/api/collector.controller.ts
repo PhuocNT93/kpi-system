@@ -191,7 +191,7 @@ export class CollectorController {
 
   previewBlueprintVacation = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { year, member } = req.body;
+      const { year, member, fromDate, toDate } = req.body;
       let { username, password, baseUrl } = req.body;
       if (!username || !password) {
         const saved = await this.collectorService.getBlueprintConfig();
@@ -206,7 +206,9 @@ export class CollectorController {
       const summary = await this.collectorService.previewBlueprintVacation(
         { username, password, baseUrl },
         year || '2026',
-        member
+        member,
+        fromDate,
+        toDate
       );
       sendSuccess(res, 200, 'Blueprint vacation & discipline retrieved successfully', summary);
     } catch (err: unknown) {
@@ -235,7 +237,12 @@ export class CollectorController {
   getBlueprintConfig = async (_req: Request, res: Response): Promise<void> => {
     try {
       const config = await this.collectorService.getBlueprintConfig();
-      sendSuccess(res, 200, 'Cấu hình Blueprint đã tải thành công', config);
+      const safeConfig = {
+        ...config,
+        password: config.password ? '••••••••' : '',
+        isConfigured: Boolean(config.username && config.password),
+      };
+      sendSuccess(res, 200, 'Cấu hình Blueprint đã tải thành công', safeConfig);
     } catch (err: unknown) {
       sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
     }
