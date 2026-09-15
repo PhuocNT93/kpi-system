@@ -1,16 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   collectorApi,
-  type CollectorDataSource,
-  type CollectorJob,
-  type CollectorRunLog,
   type BlueprintTasksSummary,
   type BlueprintTeamAttendanceSummary,
   type BlueprintTeamMemberAttendance,
 } from '../api/collector-api';
 import {
   RefreshCw,
-  Play,
   CheckCircle2,
   Clock,
   Calendar,
@@ -24,7 +20,6 @@ import {
   Zap,
   ShieldAlert,
   ShieldCheck,
-  Search,
   Award,
   Sparkles,
 } from 'lucide-react';
@@ -33,13 +28,13 @@ import { evaluationCycleApi, type EvaluationCycleDTO } from '@/features/evaluati
 import { COLORS } from '@/lib/theme';
 import { RADII, SHADOWS, TYPOGRAPHY } from '@/shared/theme';
 
+import { MANAGED_EMPLOYEES } from '../constants/managed-employees';
+
 export function CollectorPage() {
   const { user } = useAuth();
   const isAuthorized = Boolean(
     user && (user.role === 'SYSTEM_ADMIN' || user.role === 'HR_ADMIN' || user.role === 'MANAGER')
   );
-
-  const [activeTab, setActiveTab] = useState<'hub' | 'jobs' | 'logs'>('hub');
 
   // Unified Connection Config State - User inputs on UI or loads from saved configuration
   const [username, setUsername] = useState('');
@@ -88,8 +83,8 @@ export function CollectorPage() {
     return d;
   };
 
-  const [unifiedMember, setUnifiedMember] = useState<string>('ALL');
-  const [customUnifiedMember, setCustomUnifiedMember] = useState<string>('');
+  const [selectedTeam, setSelectedTeam] = useState<'ALL' | 'ALLEGRO NX Part' | 'Maritime Solutions Part'>('ALL');
+  const [unifiedMember, setUnifiedMember] = useState<string>('thienvo');
   const [unifiedFromDate, setUnifiedFromDate] = useState<string>('2026-03-14');
   const [unifiedToDate, setUnifiedToDate] = useState<string>('2026-09-14');
   const [isUnifiedFetching, setIsUnifiedFetching] = useState<boolean>(false);
@@ -129,17 +124,18 @@ export function CollectorPage() {
   // Filtered & Paginated records for Module 1
   const filteredAttendanceRecords = useMemo(() => {
     if (!previewTeamAttendance?.records) return [];
+    const emp = MANAGED_EMPLOYEES.find((m) => m.username === unifiedMember || m.code === unifiedMember);
+    const qUser = (emp?.username || unifiedMember).toLowerCase();
+    const qCode = emp?.code || '';
+    const qName = (emp?.name || '').toLowerCase();
     return previewTeamAttendance.records.filter((r) => {
-      if (unifiedMember === 'ALL') return true;
-      const q = (unifiedMember === 'custom' ? customUnifiedMember : unifiedMember).toLowerCase().trim();
-      if (!q) return true;
       return (
-        r.empeName.toLowerCase().includes(q) ||
-        r.empeNo.toLowerCase().includes(q) ||
-        (r.usrId && r.usrId.toLowerCase().includes(q))
+        (r.usrId && r.usrId.toLowerCase() === qUser) ||
+        (r.empeNo && r.empeNo === qCode) ||
+        (r.empeName && r.empeName.toLowerCase().includes(qName))
       );
     });
-  }, [previewTeamAttendance, unifiedMember, customUnifiedMember]);
+  }, [previewTeamAttendance, unifiedMember]);
 
   const totalAttendancePages = Math.max(1, Math.ceil(filteredAttendanceRecords.length / ATTENDANCE_PAGE_SIZE));
   const currentAttendancePage = Math.min(attendancePage, totalAttendancePages);
@@ -157,37 +153,14 @@ export function CollectorPage() {
     currentTasksPage * TASKS_PAGE_SIZE
   );
 
-
-
   // Member and default filter options for Module 2 (UI_PIM_001)
-  const [selectedTaskMember, setSelectedTaskMember] = useState<string>('hieudao');
+  const [selectedTaskMember, setSelectedTaskMember] = useState<string>('thienvo');
   const taskFilterRole: 'requester' | 'assignee' | 'both' = 'both';
   const taskDateType: 'registered' | 'due' | 'finished' = 'registered';
-  const [taskMemberList, setTaskMemberList] = useState<Array<{ id: string; name: string; role: string }>>([
-    { id: 'hieudao', name: 'Hieu Dao (hieudao)', role: 'Người đăng kí / Requester' },
-    { id: 'thienvo', name: 'Thien Vo (thienvo)', role: 'Người đăng kí / Requester' },
-    { id: 'diemtran', name: 'Diem Tran (diemtran)', role: 'Người đăng kí / Requester' },
-    { id: 'anlt', name: 'Lê Trọng An (anlt)', role: 'Developer / Người đăng kí' },
-    { id: 'khoadang', name: 'Khoa Đặng (khoadang)', role: 'Developer / Người đăng kí' },
-    { id: 'kyluong', name: 'Lương Đình Kỳ (kyluong)', role: 'Senior Developer / Reviewer / PIC' },
-    { id: 'tungha', name: 'Tung Ha (tungha)', role: 'Developer / PIC' },
-    { id: 'ducnguyen', name: 'Duc Nguyen (ducnguyen)', role: 'Developer / PIC' },
-    { id: 'hyle', name: 'Hy Le (hyle)', role: 'Developer / PIC' },
-    { id: 'ngocnb', name: 'Ngoc Nguyen Ba (ngocnb)', role: 'Developer / PIC' },
-    { id: 'phuocnt', name: 'Phuoc Nguyen Thanh (phuocnt)', role: 'Developer / PIC' },
-  ]);
-
-  // Scheduled Jobs & Logs State
-  const [, setSources] = useState<CollectorDataSource[]>([]);
-  const [jobs, setJobs] = useState<CollectorJob[]>([]);
-  const [logs, setLogs] = useState<CollectorRunLog[]>([]);
-  const [runningJobId, setRunningJobId] = useState<string | null>(null);
-  const [loadingGeneral, setLoadingGeneral] = useState(false);
 
   // Initial load
   useEffect(() => {
     loadSavedConfig();
-    loadSourcesAndJobs();
     loadEvaluationCycles();
   }, []);
 
@@ -230,6 +203,20 @@ export function CollectorPage() {
     }
   };
 
+  const handleTeamChange = (team: 'ALL' | 'ALLEGRO NX Part' | 'Maritime Solutions Part') => {
+    setSelectedTeam(team);
+    if (team !== 'ALL') {
+      const currentEmp = MANAGED_EMPLOYEES.find((m) => m.username === unifiedMember || m.code === unifiedMember);
+      if (!currentEmp || currentEmp.team !== team) {
+        const firstInTeam = MANAGED_EMPLOYEES.find((m) => m.team === team);
+        if (firstInTeam) {
+          setUnifiedMember(firstInTeam.username);
+          setSelectedTaskMember(firstInTeam.username);
+        }
+      }
+    }
+  };
+
   const loadSavedConfig = async () => {
     try {
       const cfg = await collectorApi.getBlueprintConfig();
@@ -238,44 +225,15 @@ export function CollectorPage() {
         if (cfg.baseUrl) setBaseUrl(cfg.baseUrl);
         if (cfg.projectFilter) setProjectFilter(cfg.projectFilter);
       }
-      collectorApi.getBlueprintMembers().then((members) => {
-        if (Array.isArray(members) && members.length > 0) {
-          setTaskMemberList(members);
-        }
-      }).catch(() => {});
-      // Automatically preview team attendance for default range (09/01/2026 - 09/14/2026) using server-side credentials
-      collectorApi.previewBlueprintTeamAttendance({
-        fromDate: '09/01/2026',
-        toDate: '09/14/2026',
-      }).then((summary) => {
-        setPreviewTeamAttendance(summary);
-      }).catch(() => {});
     } catch {
       // Fallback defaults already set
     }
   };
 
-  const loadSourcesAndJobs = async () => {
-    setLoadingGeneral(true);
-    try {
-      const [srcList, jobList, logList] = await Promise.all([
-        collectorApi.listDataSources(),
-        collectorApi.listJobs(),
-        collectorApi.listLogs(30),
-      ]);
-      setSources(srcList);
-      setJobs(jobList);
-      setLogs(logList);
-    } catch (err: unknown) {
-      console.error('Failed to load collector data:', err);
-    } finally {
-      setLoadingGeneral(false);
-    }
-  };
 
 
   // Unified Fetch: Fetches all criteria concurrently based on global filter
-  const handleUnifiedFetch = async () => {
+  const handleUnifiedFetch = useCallback(async () => {
     setIsUnifiedFetching(true);
     setTeamAttendanceError(null);
     setTasksError(null);
@@ -283,7 +241,8 @@ export function CollectorPage() {
     setAttendancePage(1);
     setTasksPage(1);
 
-    const targetMember = unifiedMember === 'custom' ? customUnifiedMember.trim() : unifiedMember;
+    const emp = MANAGED_EMPLOYEES.find((m) => m.username === unifiedMember || m.code === unifiedMember);
+    const targetMember = emp?.username || unifiedMember;
 
     const formatDateToMDY = (d: string) => {
       if (!d) return '09/14/2026';
@@ -301,18 +260,25 @@ export function CollectorPage() {
     try {
       const promises: Promise<unknown>[] = [];
 
-      // 1. Team Attendance (Module 1)
+      // 1. Team Attendance (Module 1 - Full team attendance for selected team)
       promises.push(
         collectorApi.previewBlueprintTeamAttendance({
           baseUrl,
-          teamId: undefined,
+          teamId: selectedTeam === 'ALL' ? undefined : selectedTeam,
           fromDate: fromMDY,
           toDate: toMDY,
-          employeeName: targetMember !== 'ALL' ? targetMember : undefined,
         }).then((data) => {
           setPreviewTeamAttendance(data);
-          if (targetMember !== 'ALL' && data.records && data.records.length > 0) {
-            setSelectedInspectMember(data.records[0]);
+          if (data.records && data.records.length > 0) {
+            const qName = (emp?.name || targetMember).toLowerCase();
+            const qCode = emp?.code || '';
+            const qUser = (emp?.username || targetMember).toLowerCase();
+            const matched = data.records.find(
+              (r) => (r.empeNo && r.empeNo === qCode) ||
+                     (r.usrId && r.usrId.toLowerCase() === qUser) ||
+                     (r.empeName && r.empeName.toLowerCase().includes(qName))
+            );
+            setSelectedInspectMember(matched || data.records[0]);
           } else {
             setSelectedInspectMember(null);
           }
@@ -326,7 +292,7 @@ export function CollectorPage() {
         collectorApi.previewBlueprintTasks({
           baseUrl,
           projectFilter,
-          member: targetMember !== 'ALL' ? targetMember : undefined,
+          member: targetMember,
           fromDate: unifiedFromDate,
           toDate: unifiedToDate,
           filterRole: 'both',
@@ -337,24 +303,39 @@ export function CollectorPage() {
         })
       );
 
-
-
       await Promise.allSettled(promises);
     } finally {
       setIsUnifiedFetching(false);
     }
-  };
+  }, [
+    unifiedMember,
+    selectedTeam,
+    unifiedFromDate,
+    unifiedToDate,
+    baseUrl,
+    projectFilter,
+  ]);
+
+  // Auto-reload data whenever any filter changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      handleUnifiedFetch();
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [handleUnifiedFetch]);
 
   // Unified Single Sync: Syncs all criteria in one click from Summary Board
   const handleUnifiedSyncAll = async (avgScore: number, gradeLetter: string) => {
     setIsSyncingUnifiedAll(true);
     setUnifiedSyncSuccess(null);
 
-    const targetMember = selectedInspectMember
-      ? (selectedInspectMember.usrId || selectedInspectMember.empeName)
-      : (unifiedMember !== 'ALL' ? (unifiedMember === 'custom' ? customUnifiedMember : unifiedMember) : 'hieudao');
-
-    const targetMemberName = selectedInspectMember ? selectedInspectMember.empeName : targetMember;
+    const emp = MANAGED_EMPLOYEES.find((m) => m.username === unifiedMember || m.code === unifiedMember);
+    const targetMember = emp?.username || unifiedMember;
+    const targetMemberName = selectedInspectMember
+      ? `${selectedInspectMember.empeName} (${selectedInspectMember.empeNo})`
+      : emp
+      ? `${emp.name} (${emp.code})`
+      : targetMember;
 
     const formatDateToMDY = (d: string) => {
       if (!d) return '09/14/2026';
@@ -415,7 +396,7 @@ export function CollectorPage() {
       } else {
         alert('Không có tiêu chí nào được đồng bộ thành công. Vui lòng kiểm tra kỳ đánh giá đang mở của nhân viên.');
       }
-      await loadSourcesAndJobs();
+      await loadEvaluationCycles();
     } catch (err: unknown) {
       alert(`Lỗi đồng bộ: ${(err as Error).message}`);
     } finally {
@@ -446,22 +427,7 @@ export function CollectorPage() {
 
 
 
-  const handleTriggerRunJob = async (jobId: string) => {
-    setRunningJobId(jobId);
-    try {
-      const res = await collectorApi.runJob(jobId);
-      if (res.success) {
-        alert(`Job thực thi thành công! Số bản ghi cập nhật: ${res.log.records_count}`);
-      } else {
-        alert(`Job thất bại: ${res.log.error_message || 'Unknown error'}`);
-      }
-      await loadSourcesAndJobs();
-    } catch (err: unknown) {
-      alert(`Lỗi: ${(err as Error).message}`);
-    } finally {
-      setRunningJobId(null);
-    }
-  };
+
 
   // RBAC Access Control Guard
   if (!isAuthorized) {
@@ -549,8 +515,11 @@ export function CollectorPage() {
 
 
           <button
-            onClick={loadSourcesAndJobs}
-            disabled={loadingGeneral}
+            onClick={() => {
+              handleUnifiedFetch();
+              loadEvaluationCycles();
+            }}
+            disabled={isUnifiedFetching}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -565,79 +534,13 @@ export function CollectorPage() {
               fontWeight: 500,
             }}
           >
-            <RefreshCw size={16} className={loadingGeneral ? 'spin' : ''} />
+            <RefreshCw size={16} className={isUnifiedFetching ? 'spin' : ''} />
             Làm mới
           </button>
         </div>
       </div>
 
-
-      {/* Main Navigation Tabs */}
-      <div style={{ display: 'flex', gap: '8px', borderBottom: `1px solid ${COLORS.neutral.border}` }}>
-        <button
-          onClick={() => setActiveTab('hub')}
-          style={{
-            padding: '12px 20px',
-            background: 'none',
-            border: 'none',
-            borderBottom: activeTab === 'hub' ? `3px solid ${COLORS.primary.DEFAULT}` : '3px solid transparent',
-            color: activeTab === 'hub' ? COLORS.primary.DEFAULT : COLORS.neutral.textSecondary,
-            fontWeight: activeTab === 'hub' ? 600 : 500,
-            fontSize: TYPOGRAPHY.fontSize.sm,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-          }}
-        >
-          <Zap size={16} />
-          KPI Collector Hub (Thu thập Tích hợp)
-        </button>
-
-        <button
-          onClick={() => setActiveTab('jobs')}
-          style={{
-            padding: '12px 20px',
-            background: 'none',
-            border: 'none',
-            borderBottom: activeTab === 'jobs' ? `3px solid ${COLORS.primary.DEFAULT}` : '3px solid transparent',
-            color: activeTab === 'jobs' ? COLORS.primary.DEFAULT : COLORS.neutral.textSecondary,
-            fontWeight: activeTab === 'jobs' ? 600 : 500,
-            fontSize: TYPOGRAPHY.fontSize.sm,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-          }}
-        >
-          <Layers size={16} />
-          Lịch Cron tự động ({jobs.length})
-        </button>
-
-        <button
-          onClick={() => setActiveTab('logs')}
-          style={{
-            padding: '12px 20px',
-            background: 'none',
-            border: 'none',
-            borderBottom: activeTab === 'logs' ? `3px solid ${COLORS.primary.DEFAULT}` : '3px solid transparent',
-            color: activeTab === 'logs' ? COLORS.primary.DEFAULT : COLORS.neutral.textSecondary,
-            fontWeight: activeTab === 'logs' ? 600 : 500,
-            fontSize: TYPOGRAPHY.fontSize.sm,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-          }}
-        >
-          <Clock size={16} />
-          Nhật ký thực thi ({logs.length})
-        </button>
-      </div>
-
-      {/* TAB 1: UNIFIED KPI COLLECTOR HUB */}
-      {activeTab === 'hub' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           {/* UNIFIED GLOBAL FILTER BAR */}
           <div
             style={{
@@ -669,29 +572,35 @@ export function CollectorPage() {
                 </h3>
               </div>
 
-              <button
-                onClick={handleUnifiedFetch}
-                disabled={isUnifiedFetching}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '12px 24px',
-                  backgroundColor: collectionMode === 'CYCLE' ? '#2563eb' : '#d97706',
-                  color: COLORS.neutral.white,
-                  border: 'none',
-                  borderRadius: RADII.xl,
-                  fontSize: TYPOGRAPHY.fontSize.sm,
-                  fontWeight: 700,
-                  cursor: isUnifiedFetching ? 'not-allowed' : 'pointer',
-                  boxShadow: collectionMode === 'CYCLE' ? '0 4px 14px rgba(37, 99, 235, 0.35)' : '0 4px 14px rgba(217, 119, 6, 0.35)',
-                  opacity: isUnifiedFetching ? 0.7 : 1,
-                  transition: 'all 0.2s',
-                }}
-              >
-                <Search size={16} className={isUnifiedFetching ? 'spin' : ''} />
-                {isUnifiedFetching ? 'Đang thu thập dữ liệu...' : '🔍 Lọc & Thu thập toàn bộ tiêu chí'}
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 18px',
+                    borderRadius: RADII.full,
+                    fontSize: TYPOGRAPHY.fontSize.xs,
+                    fontWeight: 700,
+                    backgroundColor: isUnifiedFetching ? '#eff6ff' : '#f0fdf4',
+                    color: isUnifiedFetching ? '#1d4ed8' : '#15803d',
+                    border: `1.5px solid ${isUnifiedFetching ? '#93c5fd' : '#86efac'}`,
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: '9px',
+                      height: '9px',
+                      borderRadius: '50%',
+                      backgroundColor: isUnifiedFetching ? '#2563eb' : '#16a34a',
+                      boxShadow: isUnifiedFetching ? '0 0 8px #3b82f6' : 'none',
+                    }}
+                  />
+                  {isUnifiedFetching ? 'Đang tự động nạp dữ liệu...' : '⚡ Tự động tải lại khi đổi bộ lọc'}
+                </span>
+              </div>
             </div>
 
             {/* Mode Switcher Tabs */}
@@ -855,67 +764,82 @@ export function CollectorPage() {
                 </div>
               )}
 
-              {/* Member Selector */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 260px' }}>
+              {/* Team Filter (as in Image 2 & 3) */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 700, color: '#1e40af', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Users size={15} color="#2563eb" /> Team Name:
+                </label>
+                <select
+                  value={selectedTeam}
+                  onChange={(e) => handleTeamChange(e.target.value as 'ALL' | 'ALLEGRO NX Part' | 'Maritime Solutions Part')}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: RADII.md,
+                    border: '1.5px solid #cbd5e1',
+                    fontSize: TYPOGRAPHY.fontSize.xs,
+                    fontWeight: 700,
+                    color: '#0f172a',
+                    backgroundColor: '#ffffff',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <option value="ALL">🏢 Tất cả Team (21 nhân sự)</option>
+                  <option value="ALLEGRO NX Part">ALLEGRO NX Part (12 nhân sự)</option>
+                  <option value="Maritime Solutions Part">Maritime Solutions Part (9 nhân sự)</option>
+                </select>
+              </div>
+
+              {/* Single Member Selector (NO ALL option, exactly 1 employee) */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 280px' }}>
                 <label style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 700, color: '#334155', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Users size={16} color="#2563eb" /> Nhân sự:
+                  👤 Nhân sự:
                 </label>
                 <select
                   value={unifiedMember}
                   onChange={(e) => {
                     const val = e.target.value;
                     setUnifiedMember(val);
+                    setSelectedTaskMember(val);
                     setAttendancePage(1);
                     setTasksPage(1);
-                    if (val !== 'custom') {
-                      if (val !== 'ALL') {
-                        setSelectedTaskMember(val);
-                        const matchRec = previewTeamAttendance?.records.find(
-                          (r) => r.empeNo === val || r.usrId === val || r.empeName.toLowerCase().includes(val.toLowerCase())
-                        );
-                        if (matchRec) setSelectedInspectMember(matchRec);
-                      } else {
-                        setSelectedInspectMember(null);
-                      }
-                    }
                   }}
                   style={{
                     flex: 1,
                     padding: '8px 12px',
                     borderRadius: RADII.md,
-                    border: '1px solid #94a3b8',
+                    border: '1.5px solid #cbd5e1',
                     fontSize: TYPOGRAPHY.fontSize.xs,
-                    fontWeight: 600,
+                    fontWeight: 700,
                     color: '#0f172a',
                     backgroundColor: '#ffffff',
                     cursor: 'pointer',
                   }}
                 >
-                  <option value="ALL">👥 Tất cả thành viên ({previewTeamAttendance ? previewTeamAttendance.records.length : 21} nhân sự)</option>
-                  {taskMemberList.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-                  <option value="custom">-- Nhập mã / username khác --</option>
+                  {selectedTeam === 'ALL' ? (
+                    <>
+                      <optgroup label="ALLEGRO NX Part (12 nhân sự)">
+                        {MANAGED_EMPLOYEES.filter((m) => m.team === 'ALLEGRO NX Part').map((m) => (
+                          <option key={m.username} value={m.username}>
+                            {m.code} - {m.name} ({m.username})
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Maritime Solutions Part (9 nhân sự)">
+                        {MANAGED_EMPLOYEES.filter((m) => m.team === 'Maritime Solutions Part').map((m) => (
+                          <option key={m.username} value={m.username}>
+                            {m.code} - {m.name} ({m.username})
+                          </option>
+                        ))}
+                      </optgroup>
+                    </>
+                  ) : (
+                    MANAGED_EMPLOYEES.filter((m) => m.team === selectedTeam).map((m) => (
+                      <option key={m.username} value={m.username}>
+                        {m.code} - {m.name} ({m.username})
+                      </option>
+                    ))
+                  )}
                 </select>
-
-                {unifiedMember === 'custom' && (
-                  <input
-                    type="text"
-                    placeholder="Mã NV / Username..."
-                    value={customUnifiedMember}
-                    onChange={(e) => setCustomUnifiedMember(e.target.value)}
-                    style={{
-                      width: '140px',
-                      padding: '7px 10px',
-                      fontSize: TYPOGRAPHY.fontSize.xs,
-                      borderRadius: RADII.md,
-                      border: '1px solid #94a3b8',
-                      backgroundColor: '#ffffff',
-                    }}
-                  />
-                )}
               </div>
 
               {/* Date Range in ADHOC mode */}
@@ -1102,11 +1026,12 @@ export function CollectorPage() {
 
             const currentGrade = getGrade(avgScore);
 
+            const currentEmp = MANAGED_EMPLOYEES.find((m) => m.username === unifiedMember || m.code === unifiedMember);
             const currentTargetName = selectedInspectMember
               ? `${selectedInspectMember.empeName} (${selectedInspectMember.empeNo})`
-              : unifiedMember !== 'ALL'
-              ? (taskMemberList.find((m) => m.id === unifiedMember)?.name || unifiedMember)
-              : 'Toàn thể Team quản lý (21 nhân sự)';
+              : currentEmp
+              ? `${currentEmp.name} (${currentEmp.code})`
+              : unifiedMember;
 
             // Compact single-line monthly trend points (as requested: 1 đường dễ hiểu, số trên từng chấm như image 2)
             const countMonths = reviewCadence === '6_MONTHS' ? 6 : 12;
@@ -2074,7 +1999,7 @@ export function CollectorPage() {
                     </span>
                   </div>
                   <p style={{ margin: '2px 0 0 0', fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
-                    Chuyên mục: <strong>{projectFilter}</strong> | Vai trò: <strong>Cả Người đăng ký & Người thực hiện</strong> | Kỳ lọc: <strong>{unifiedFromDate} → {unifiedToDate}</strong> | Đang đối soát cho: <strong style={{ color: '#7e22ce' }}>{taskMemberList.find(m => m.id === (previewTasks?.username || selectedTaskMember))?.name || (previewTasks?.username || selectedTaskMember)}</strong>
+                    Chuyên mục: <strong>{projectFilter}</strong> | Vai trò: <strong>Cả Người đăng ký & Người thực hiện</strong> | Kỳ lọc: <strong>{unifiedFromDate} → {unifiedToDate}</strong> | Đang đối soát cho: <strong style={{ color: '#7e22ce' }}>{MANAGED_EMPLOYEES.find(m => m.username === (previewTasks?.username || selectedTaskMember) || m.code === (previewTasks?.username || selectedTaskMember))?.name || (previewTasks?.username || selectedTaskMember)}</strong>
                   </p>
                 </div>
               </div>
@@ -2335,173 +2260,6 @@ export function CollectorPage() {
             )}
           </div>
         </div>
-      )}
-
-      {/* TAB 2: SCHEDULED COLLECTOR JOBS */}
-      {activeTab === 'jobs' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div
-            style={{
-              backgroundColor: COLORS.neutral.white,
-              borderRadius: RADII.xl,
-              border: `1px solid ${COLORS.neutral.border}`,
-              boxShadow: SHADOWS.sm,
-              overflow: 'hidden',
-            }}
-          >
-            <div style={{ padding: '18px 24px', borderBottom: `1px solid ${COLORS.neutral.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.base, fontWeight: 600, color: COLORS.neutral.textPrimary }}>
-                  Danh sách Cron Jobs tự động thu thập
-                </h3>
-                <p style={{ margin: '4px 0 0 0', fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
-                  Quản lý tần suất chạy ngầm (node-cron) và kích hoạt thủ công bất kỳ lúc nào.
-                </p>
-              </div>
-            </div>
-
-            {jobs.length === 0 ? (
-              <div style={{ padding: '40px 20px', textAlign: 'center', color: COLORS.neutral.textSecondary }}>
-                Chưa có job nào được tạo.
-              </div>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: TYPOGRAPHY.fontSize.sm }}>
-                <thead>
-                  <tr style={{ backgroundColor: COLORS.neutral[50], borderBottom: `1px solid ${COLORS.neutral.border}` }}>
-                    <th style={{ padding: '12px 20px', fontWeight: 600 }}>Tên Job</th>
-                    <th style={{ padding: '12px 20px', fontWeight: 600 }}>Nguồn</th>
-                    <th style={{ padding: '12px 20px', fontWeight: 600 }}>Tiêu chí KPI đích</th>
-                    <th style={{ padding: '12px 20px', fontWeight: 600 }}>Lịch Cron</th>
-                    <th style={{ padding: '12px 20px', fontWeight: 600 }}>Lần chạy gần nhất</th>
-                    <th style={{ padding: '12px 20px', fontWeight: 600 }}>Hành động</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {jobs.map((j) => (
-                    <tr key={j.id} style={{ borderBottom: `1px solid ${COLORS.neutral[100]}` }}>
-                      <td style={{ padding: '12px 20px', fontWeight: 600 }}>{j.name}</td>
-                      <td style={{ padding: '12px 20px' }}>
-                        <span style={{ padding: '3px 8px', borderRadius: RADII.sm, backgroundColor: '#eff6ff', color: '#1d4ed8', fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 600 }}>
-                          {j.source_name || j.source_type || 'BLUEPRINT'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px 20px', fontFamily: 'monospace', fontSize: TYPOGRAPHY.fontSize.xs }}>
-                        <span style={{ padding: '2px 8px', borderRadius: RADII.sm, backgroundColor: '#f0fdf4', color: '#15803d', fontWeight: 600, border: '1px solid #bbf7d0' }}>
-                          {j.cron_expression || '*/30 * * * *'} (Mỗi 30 phút)
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px 20px' }}>
-                        {j.last_run_at ? (
-                          <span style={{ color: j.last_status === 'SUCCESS' ? '#10b981' : '#ef4444', fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 500 }}>
-                            {new Date(j.last_run_at).toLocaleString()} ({j.last_status})
-                          </span>
-                        ) : (
-                          <span style={{ color: COLORS.neutral[400], fontSize: TYPOGRAPHY.fontSize.xs }}>Chưa chạy</span>
-                        )}
-                      </td>
-                      <td style={{ padding: '12px 20px' }}>
-                        <button
-                          onClick={() => handleTriggerRunJob(j.id)}
-                          disabled={runningJobId === j.id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '6px 12px',
-                            backgroundColor: COLORS.primary.DEFAULT,
-                            color: COLORS.neutral.white,
-                            border: 'none',
-                            borderRadius: RADII.md,
-                            fontSize: TYPOGRAPHY.fontSize.xs,
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <Play size={12} />
-                          {runningJobId === j.id ? 'Đang chạy...' : '⚡ Run Now'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 3: EXECUTION LOGS */}
-      {activeTab === 'logs' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div
-            style={{
-              backgroundColor: COLORS.neutral.white,
-              borderRadius: RADII.xl,
-              border: `1px solid ${COLORS.neutral.border}`,
-              boxShadow: SHADOWS.sm,
-              overflow: 'hidden',
-            }}
-          >
-            <div style={{ padding: '18px 24px', borderBottom: `1px solid ${COLORS.neutral.border}` }}>
-              <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.base, fontWeight: 600, color: COLORS.neutral.textPrimary }}>
-                Lịch sử thực thi (Collector Execution Logs)
-              </h3>
-            </div>
-
-            {logs.length === 0 ? (
-              <div style={{ padding: '40px 20px', textAlign: 'center', color: COLORS.neutral.textSecondary }}>
-                Chưa có log thực thi nào.
-              </div>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: TYPOGRAPHY.fontSize.sm }}>
-                <thead>
-                  <tr style={{ backgroundColor: COLORS.neutral[50], borderBottom: `1px solid ${COLORS.neutral.border}` }}>
-                    <th style={{ padding: '12px 20px', fontWeight: 600 }}>Thời gian</th>
-                    <th style={{ padding: '12px 20px', fontWeight: 600 }}>Job</th>
-                    <th style={{ padding: '12px 20px', fontWeight: 600 }}>Trạng thái</th>
-                    <th style={{ padding: '12px 20px', fontWeight: 600 }}>Bản ghi</th>
-                    <th style={{ padding: '12px 20px', fontWeight: 600 }}>Chi tiết / Tóm tắt</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {logs.map((log) => (
-                    <tr key={log.id} style={{ borderBottom: `1px solid ${COLORS.neutral[100]}` }}>
-                      <td style={{ padding: '12px 20px', fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
-                        {new Date(log.started_at).toLocaleString()}
-                      </td>
-                      <td style={{ padding: '12px 20px', fontWeight: 600 }}>{log.job_name || 'Collector Job'}</td>
-                      <td style={{ padding: '12px 20px' }}>
-                        <span
-                          style={{
-                            padding: '3px 8px',
-                            borderRadius: RADII.full,
-                            backgroundColor: log.status === 'SUCCESS' ? '#ecfdf5' : '#fef2f2',
-                            color: log.status === 'SUCCESS' ? '#059669' : '#dc2626',
-                            fontSize: TYPOGRAPHY.fontSize.xs,
-                            fontWeight: 600,
-                          }}
-                        >
-                          {log.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px 20px', fontWeight: 600 }}>{log.records_count}</td>
-                      <td style={{ padding: '12px 20px', fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
-                        {log.error_message ? (
-                          <span style={{ color: '#dc2626' }}>{log.error_message}</span>
-                        ) : log.summary ? (
-                          JSON.stringify(log.summary).slice(0, 100)
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

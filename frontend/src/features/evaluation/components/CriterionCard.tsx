@@ -133,17 +133,27 @@ export const CriterionCard: React.FC<CriterionCardProps> = ({
   );
 
   const [memberList, setMemberList] = useState<BlueprintMemberItem[]>([
-    { id: 'hieudao', name: 'Hieu Dao (hieudao)', role: 'Người đăng kí / Requester' },
-    { id: 'thienvo', name: 'Thien Vo (thienvo)', role: 'Người đăng kí / Requester' },
-    { id: 'diemtran', name: 'Diem Tran (diemtran)', role: 'Người đăng kí / Requester' },
-    { id: 'anlt', name: 'Lê Trọng An (anlt)', role: 'Developer / Người đăng kí' },
-    { id: 'khoadang', name: 'Đặng Đình Khoa (khoadang)', role: 'Developer / Người đăng kí' },
-    { id: 'kyluong', name: 'Lương Đình Kỳ (kyluong)', role: 'Senior Developer / PIC' },
-    { id: 'tungha', name: 'Tung Ha (tungha)', role: 'Developer / PIC' },
-    { id: 'ducnguyen', name: 'Duc Nguyen (ducnguyen)', role: 'Developer / PIC' },
-    { id: 'hyle', name: 'Hy Le (hyle)', role: 'Developer / PIC' },
-    { id: 'ngocnb', name: 'Ngoc Nguyen Ba (ngocnb)', role: 'Developer / PIC' },
-    { id: 'phuocnt', name: 'Phuoc Nguyen Thanh (phuocnt)', role: 'Developer / PIC' },
+    { id: 'anlt', name: 'An Le Trong (213813)', role: 'Developer' },
+    { id: 'diemtran', name: 'Diem Tran (227031)', role: 'Người đăng kí / Requester' },
+    { id: 'ducnguyen', name: 'Duc Nguyen (173232)', role: 'Developer / PIC' },
+    { id: 'hieudao', name: 'Hieu Dao (183322)', role: 'Người đăng kí / Requester' },
+    { id: 'hyle', name: 'Hy Le (213844)', role: 'Developer / PIC' },
+    { id: 'kyluong', name: 'Ky Luong (163188)', role: 'Senior Developer / Manager' },
+    { id: 'ngocnb', name: 'Ngoc Nguyen Ba (237157)', role: 'Developer / PIC' },
+    { id: 'nhanph', name: 'Nhan Phan Huy (247203)', role: 'Developer / PIC' },
+    { id: 'nhatpham', name: 'Nhat Pham (203701)', role: 'Developer / PIC' },
+    { id: 'phuocnt', name: 'Phuoc Nguyen Thanh (247097)', role: 'Developer / PIC' },
+    { id: 'thienvo', name: 'Thien Vo (237196)', role: 'Người đăng kí / Requester' },
+    { id: 'tungha', name: 'Tung Ha (213866)', role: 'Developer / PIC' },
+    { id: 'khoadang', name: 'Khoa Dang (267036)', role: 'Developer / PIC' },
+    { id: 'lamnguyen', name: 'Lam Nguyen Sy Hoang (247204)', role: 'Developer / PIC' },
+    { id: 'minhdoan', name: 'Minh Doan (213835)', role: 'Developer / PIC' },
+    { id: 'namnguyen', name: 'Nam Nguyen Doan (247054)', role: 'Developer / PIC' },
+    { id: 'phuongcq', name: 'Phuong Chung Quang (247423)', role: 'Developer / PIC' },
+    { id: 'quangnguyen', name: 'Quang Nguyen (257130)', role: 'Developer / PIC' },
+    { id: 'thangpham', name: 'Thang Pham Huu (247222)', role: 'Developer / PIC' },
+    { id: 'trungqn', name: 'Trung Quang Nguyen (193613)', role: 'Developer / PIC' },
+    { id: 'xuanthai', name: 'Xuan Thai (203755)', role: 'Developer / PIC' },
   ]);
   const [selectedMember, setSelectedMember] = useState<string>('hieudao');
   const [customMemberInput, setCustomMemberInput] = useState<string>('');
