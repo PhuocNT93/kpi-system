@@ -12,7 +12,6 @@ import {
 } from '../domain/template-mappers';
 import { CriterionLibraryPanel } from './CriterionLibraryPanel';
 import { KpiLibraryPanel } from './KpiLibraryPanel';
-import { KpiCanvas } from './KpiCanvas';
 import { WeightStatusBar } from './WeightStatusBar';
 import { CriterionConfigDrawer } from './CriterionConfigDrawer';
 import { ValidationResultsModal } from './ValidationResultsModal';
@@ -61,8 +60,8 @@ export function TemplateBuilderWorkspace({
   const [lastSavedTime, setLastSavedTime] = useState<string>('Just now');
   const [validationResult, setValidationResult] = useState<TemplateValidationResult | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'kpi' | 'criterion'>('kpi');
-  const [selectedKpiId, setSelectedKpiId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'kpi' | 'criterion'>('criterion');
+  const [selectedCriterionId, setSelectedCriterionId] = useState<string | null>(null);
 
   // Active drawer & modals state
   const [selectedConfigCriterion, setSelectedConfigCriterion] = useState<TemplateCriterion | null>(null);
@@ -86,7 +85,14 @@ export function TemplateBuilderWorkspace({
     }
   }, [saveError]);
 
-  const configuredTotalWeight = calculateConfiguredWeightTotal(criteria);
+  const scoringLegend = [
+    '≤80% → 0-5',
+    '85% → 6',
+    '90% → 7',
+    '95% → 8',
+    '100% → 9',
+    '110%+ → 10',
+  ];
 
   // Handlers
   const handleWeightChange = (id: string, newWeight: number) => {
@@ -103,17 +109,12 @@ export function TemplateBuilderWorkspace({
     setHasUnsavedChanges(true);
   };
 
-  const handleAddCriterionFromLibrary = (criterion: Criterion, targetKpiId?: string) => {
+  const handleAddCriterionFromLibrary = (criterion: Criterion) => {
     if (isReadOnly) return;
-    const kpiIdToUse = targetKpiId || selectedKpiId;
-    if (!kpiIdToUse) {
-      alert("Please select a KPI in the canvas first to map criteria to it, or drag and drop the criterion directly into a KPI.");
-      return;
-    }
     const newCriterionItem: TemplateCriterion = {
       id: `tc-${Date.now()}`,
       templateVersionId: version.id,
-      templateKpiId: kpiIdToUse,
+      templateKpiId: '',
       criterionVersionId: criterion.currentVersion?.id || `cv-${criterion.id}`,
       criterion,
       effectiveWeight: 10,
@@ -124,16 +125,23 @@ export function TemplateBuilderWorkspace({
       displayOrder: criteria.length + 1,
     };
     setCriteria((prev) => [...prev, newCriterionItem]);
+    setSelectedCriterionId(newCriterionItem.id);
     setHasUnsavedChanges(true);
   };
 
   const handleAddKpiFromLibrary = async (kpi: Kpi) => {
     if (isReadOnly) return;
+    if (!selectedCriterionId) return;
+    const selectedCriterionKpiIds = new Set(
+      kpis.filter((item) => item.parentCriterionId === selectedCriterionId).map((item) => item.kpiId)
+    );
+    if (selectedCriterionKpiIds.has(kpi.kpiId)) return;
     const kpiId = `tkpi-${Date.now()}`;
     const newKpiItem: TemplateKpi = {
       id: kpiId,
       templateVersionId: version.id,
       kpiId: kpi.kpiId,
+      parentCriterionId: selectedCriterionId,
       weight: 10,
       displayOrder: kpis.length + 1,
       kpi,
@@ -178,14 +186,6 @@ export function TemplateBuilderWorkspace({
     setHasUnsavedChanges(true);
   };
 
-  const handleRemoveKpi = (kpiId: string) => {
-    if (isReadOnly) return;
-    setKpis((prev) => prev.filter((item) => item.id !== kpiId));
-    setCriteria((prev) => prev.filter((item) => item.templateKpiId !== kpiId));
-    if (selectedKpiId === kpiId) setSelectedKpiId(null);
-    setHasUnsavedChanges(true);
-  };
-
   const handleKpiWeightChange = (id: string, newWeight: number) => {
     if (isReadOnly) return;
     setKpis((prev) => prev.map((item) => (item.id === id ? { ...item, weight: newWeight } : item)));
@@ -207,7 +207,11 @@ export function TemplateBuilderWorkspace({
   const handleSaveDraft = async () => {
     if (isReadOnly) return;
     try {
-      await onSaveDraft(kpis, criteria, version.version);
+      const normalizedKpis = kpis.map((kpi) => ({
+        ...kpi,
+        parentCriterionId: kpi.parentCriterionId || selectedCriterionId || undefined,
+      }));
+      await onSaveDraft(normalizedKpis, criteria, version.version);
       setHasUnsavedChanges(false);
       setLastSavedTime(new Date().toLocaleTimeString());
     } catch {
@@ -240,7 +244,22 @@ export function TemplateBuilderWorkspace({
 
   // Check ALL criteria (across all KPIs) to prevent duplicating same criterion in multiple KPIs
   const existingCriterionIds = new Set(criteria.map((c) => c.criterion?.id).filter(Boolean));
-  const existingKpiIds = new Set(kpis.map((k) => (k.kpi as { id?: string })?.id || k.kpiId));
+  const existingKpiIds = new Set(
+    kpis.filter((kpi) => kpi.parentCriterionId === selectedCriterionId).map((k) => (k.kpi as { id?: string })?.id || k.kpiId)
+  );
+  const selectedCriterion = criteria.find((criterion) => criterion.id === selectedCriterionId) || null;
+  const getCriterionKpiTotal = (criterionId: string) =>
+    Math.round(
+      kpis
+        .filter((kpi) => kpi.parentCriterionId === criterionId)
+        .reduce((sum, kpi) => sum + (Number(kpi.weight) || 0), 0) * 100
+    ) / 100;
+  const criteriaTotalWeight = calculateConfiguredWeightTotal(criteria);
+  const criteriaKpiTotals = criteria.map((criterion) => ({
+    criterionId: criterion.id,
+    criterionName: criterion.criterion.name,
+    totalWeight: getCriterionKpiTotal(criterion.id),
+  }));
 
   if (isLoading) return <LoadingSpinner label="Loading Template Workspace..." />;
   if (error) return <ErrorAlert error={error} onRetry={onBackToList} />;
@@ -287,6 +306,43 @@ export function TemplateBuilderWorkspace({
             ) : (
               <span>● All changes saved · Last saved {lastSavedTime}</span>
             )}
+          </div>
+          <div
+            style={{
+              marginTop: '0.625rem',
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '0.375rem',
+              alignItems: 'center',
+            }}
+          >
+            <span
+              style={{
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                color: '#0f766e',
+                background: '#ccfbf1',
+                border: '1px solid #99f6e4',
+                borderRadius: 999,
+                padding: '0.25rem 0.625rem',
+              }}
+            >
+              KPI score model: achievement % → 0..10
+            </span>
+            {scoringLegend.map((item) => (
+              <span
+                key={item}
+                style={{
+                  fontSize: '0.6875rem',
+                  color: '#4b5563',
+                  background: '#f3f4f6',
+                  borderRadius: 999,
+                  padding: '0.2rem 0.55rem',
+                }}
+              >
+                {item}
+              </span>
+            ))}
           </div>
         </div>
 
@@ -347,17 +403,6 @@ export function TemplateBuilderWorkspace({
         <div style={{ width: 320, display: 'flex', flexDirection: 'column', background: '#ffffff', borderRight: '1px solid #e5e7eb' }}>
           <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb' }}>
             <button
-              onClick={() => setActiveTab('kpi')}
-              style={{
-                flex: 1, padding: '0.75rem', border: 'none', background: activeTab === 'kpi' ? '#ffffff' : '#f9fafb',
-                borderBottom: activeTab === 'kpi' ? '2px solid #2563eb' : '2px solid transparent',
-                fontWeight: activeTab === 'kpi' ? 700 : 500, color: activeTab === 'kpi' ? '#2563eb' : '#6b7280',
-                cursor: 'pointer'
-              }}
-            >
-              KPI Library
-            </button>
-            <button
               onClick={() => setActiveTab('criterion')}
               style={{
                 flex: 1, padding: '0.75rem', border: 'none', background: activeTab === 'criterion' ? '#ffffff' : '#f9fafb',
@@ -368,6 +413,17 @@ export function TemplateBuilderWorkspace({
             >
               Criterion Library
             </button>
+            <button
+              onClick={() => setActiveTab('kpi')}
+              style={{
+                flex: 1, padding: '0.75rem', border: 'none', background: activeTab === 'kpi' ? '#ffffff' : '#f9fafb',
+                borderBottom: activeTab === 'kpi' ? '2px solid #2563eb' : '2px solid transparent',
+                fontWeight: activeTab === 'kpi' ? 700 : 500, color: activeTab === 'kpi' ? '#2563eb' : '#6b7280',
+                cursor: 'pointer'
+              }}
+            >
+              KPI Library
+            </button>
           </div>
           
           <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -375,13 +431,16 @@ export function TemplateBuilderWorkspace({
               <KpiLibraryPanel
                 existingKpiIds={existingKpiIds}
                 onAddKpi={handleAddKpiFromLibrary}
+                selectedCriterionName={selectedCriterion?.criterion.name || null}
+                hasSelectedCriterion={Boolean(selectedCriterionId)}
                 isReadOnly={isReadOnly}
               />
             ) : (
               <div>
-                <CriterionLibraryPanel
+                  <CriterionLibraryPanel
                   criteria={libraryCriteria}
                   existingCriterionIds={existingCriterionIds}
+                    onAddCriterion={handleAddCriterionFromLibrary}
                   isReadOnly={isReadOnly}
                 />
               </div>
@@ -394,53 +453,230 @@ export function TemplateBuilderWorkspace({
           {/* Weight Real-Time Validation Bar */}
           <div style={{ marginBottom: '1.25rem' }}>
             <WeightStatusBar
-              totalWeight={configuredTotalWeight}
+              criteriaTotalWeight={criteriaTotalWeight}
+              validationResult={validationResult}
+              criteriaKpiTotals={criteriaKpiTotals}
               hasConditionalApplicability={criteria.some(
                 (c) => c.applicableRoleIds?.length || c.applicableTeamIds?.length
               )}
+              scoringNote="Each KPI is scored through the % achievement curve before KPI and template weighting are applied."
             />
           </div>
 
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '0.75rem',
-            }}
-          >
-            <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#111827' }}>
-              TEMPLATE KPIs ({kpis.length})
-            </h3>
-            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#4b5563' }}>
-              Total Weight: {kpis.reduce((acc, k) => acc + (Number(k.weight) || 0), 0)}%
-            </span>
-          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div
+              style={{
+                background: '#ffffff',
+                border: '1px solid #e5e7eb',
+                borderRadius: 8,
+                padding: '1rem',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#111827' }}>
+                  CRITERIA GROUPS ({criteria.length})
+                </h3>
+                <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#4b5563' }}>
+                  Total Weight: {criteria.reduce((acc, item) => acc + (Number(item.effectiveWeight) || 0), 0)}%
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {criteria.map((item, criterionIndex) => (
+                  <div
+                    key={item.id || item.criterion.id + criterionIndex}
+                    style={{
+                      background: '#ffffff',
+                      border: item.isDisabled ? '1px dashed #d1d5db' : '1px solid #e5e7eb',
+                      borderRadius: 8,
+                      padding: '1rem',
+                      opacity: item.isDisabled ? 0.6 : 1,
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.625rem',
+                      outline: selectedCriterion?.id === item.id ? '2px solid #2563eb' : 'none',
+                    }}
+                    onClick={() => setSelectedCriterionId(item.id)}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                        <span style={{ fontSize: '1rem', color: '#9ca3af', userSelect: 'none' }}>⋮⋮</span>
+                        <span
+                          style={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: '50%',
+                            background: '#2563eb',
+                            color: '#ffffff',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                          }}
+                        >
+                          {criterionIndex + 1}
+                        </span>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: '0.9375rem', color: '#111827' }}>
+                            {item.criterion.name}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                            {item.criterion.category}
+                          </div>
+                        </div>
+                      </div>
 
-          <KpiCanvas
-            kpis={kpis}
-            criteria={criteria}
-            onWeightChange={handleWeightChange}
-            onRemoveCriterion={handleRemoveCriterion}
-            onConfigureClick={(item) => {
-              setSelectedConfigCriterion(item);
-              setIsDrawerOpen(true);
-            }}
-            onReorder={(drag, drop) => {
-              // Note: cross-kpi dragging isn't supported yet, this just reorders flat criteria
-              const updated = [...criteria];
-              const [moved] = updated.splice(drag, 1);
-              updated.splice(drop, 0, moved);
-              setCriteria(updated);
-              setHasUnsavedChanges(true);
-            }}
-            onRemoveKpi={handleRemoveKpi}
-            selectedKpiId={selectedKpiId}
-            onSelectKpi={(id) => setSelectedKpiId(id)}
-            onKpiWeightChange={handleKpiWeightChange}
-            onDropCriterion={handleAddCriterionFromLibrary}
-            isReadOnly={isReadOnly}
-          />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <input
+                          type="number"
+                          value={item.effectiveWeight}
+                          disabled={isReadOnly}
+                          onChange={(e) => handleWeightChange(item.id, parseFloat(e.target.value) || 0)}
+                          style={{
+                            width: 64,
+                            padding: '0.35rem 0.5rem',
+                            border: '1px solid #d1d5db',
+                            borderRadius: 6,
+                            fontSize: '0.9375rem',
+                            fontWeight: 700,
+                            textAlign: 'right',
+                          }}
+                        />
+                        <span style={{ fontWeight: 700, fontSize: '0.875rem', color: '#374151' }}>%</span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span
+                        style={{
+                          background: item.isOptional ? '#fef3c7' : '#d1fae5',
+                          color: item.isOptional ? '#92400e' : '#065f46',
+                          fontSize: '0.6875rem',
+                          padding: '0.125rem 0.5rem',
+                          borderRadius: 12,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {item.isOptional ? 'Optional' : 'Required'}
+                      </span>
+
+                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#4b5563' }}>
+                        KPI total: {getCriterionKpiTotal(item.id)} / 100%
+                      </span>
+
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        {!isReadOnly && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setSelectedConfigCriterion(item);
+                              setIsDrawerOpen(true);
+                            }}
+                          >
+                            Configure
+                          </Button>
+                        )}
+                        {!isReadOnly && (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleRemoveCriterion(item.id);
+                            }}
+                            style={{
+                              border: 'none',
+                              background: 'transparent',
+                              color: '#ef4444',
+                              fontSize: '0.8125rem',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {selectedCriterion?.id === item.id && (
+                      <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '0.75rem' }}>
+                        {kpis.filter((kpi) => kpi.parentCriterionId === item.id).length === 0 ? (
+                          <div style={{ border: '1px dashed #d1d5db', borderRadius: 8, padding: '0.875rem', color: '#6b7280', fontSize: '0.875rem', textAlign: 'center' }}>
+                            Chưa có KPI nào trong criteria này.
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                            {kpis
+                              .filter((kpi) => kpi.parentCriterionId === item.id)
+                              .map((kpi) => (
+                                <div
+                                  key={kpi.id}
+                                  style={{
+                                    background: '#f9fafb',
+                                    border: '1px solid #e5e7eb',
+                                    borderRadius: 8,
+                                    padding: '0.875rem',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                  }}
+                                >
+                                  <div>
+                                    <div style={{ fontWeight: 700, fontSize: '0.9375rem', color: '#111827' }}>
+                                      {(kpi.kpi as { name?: string })?.name || 'Unknown KPI'}
+                                    </div>
+                                    <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                                      KPI code: {(kpi.kpi as { code?: string })?.code || kpi.kpiId}
+                                    </div>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                    <input
+                                      type="number"
+                                      value={kpi.weight}
+                                      disabled={isReadOnly}
+                                      onChange={(e) => handleKpiWeightChange(kpi.id, parseFloat(e.target.value) || 0)}
+                                      style={{
+                                        width: 64,
+                                        padding: '0.35rem 0.5rem',
+                                        border: '1px solid #d1d5db',
+                                        borderRadius: 6,
+                                        fontSize: '0.9375rem',
+                                        fontWeight: 700,
+                                        textAlign: 'right',
+                                      }}
+                                    />
+                                    <span style={{ fontWeight: 700, fontSize: '0.875rem', color: '#374151' }}>%</span>
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+                        )}
+
+                        {!isReadOnly && (
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setSelectedCriterionId(item.id);
+                                setActiveTab('kpi');
+                              }}
+                            >
+                              Add KPI here
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </div>
         </div>
       </div>
 

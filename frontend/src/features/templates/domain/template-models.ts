@@ -106,6 +106,7 @@ export interface TemplateKpi {
   id: string;
   templateVersionId: string;
   kpiId: string;
+  parentCriterionId?: string;
   weight: number;
   displayOrder: number;
   kpi?: unknown; // To store KPI details if populated
