@@ -32,7 +32,8 @@ export class EvaluationService {
     const isSuperAdminOrHr = actor.role === 'SYSTEM_ADMIN' || actor.role === 'HR_ADMIN';
     let managerEmployeeId = actor.employeeId;
 
-    if (!managerEmployeeId && actor.userId && !isSuperAdminOrHr) {
+    // Always try to resolve the employeeId from app_user if not in token
+    if (!managerEmployeeId && actor.userId) {
       const userResult = await this.pool.query(
         'SELECT employee_id FROM app_user WHERE id = $1',
         [actor.userId]
@@ -42,7 +43,9 @@ export class EvaluationService {
 
     return this.evaluationRepo.findTeamEvaluations({
       managerEmployeeId,
-      isSuperAdminOrHr,
+      // HR_ADMIN with an employeeId: filter by their managed team (not global)
+      // HR_ADMIN without employeeId: see all evaluations (system-wide)
+      isSuperAdminOrHr: isSuperAdminOrHr && !managerEmployeeId,
     });
   }
 
@@ -60,11 +63,32 @@ export class EvaluationService {
       throw new AppError(403, 'FORBIDDEN', 'You do not have access to this evaluation.');
     }
 
-    const items = await this.evaluationItemRepo.findByEvaluationId(evaluationId);
+    const rawItems = await this.evaluationItemRepo.findByEvaluationId(evaluationId);
+
+    // Employees can only see scores after evaluation is PUBLISHED or LOCKED
+    const canSeeScores =
+      isManager ||
+      isSuperAdminOrHr ||
+      evaluation.status === EvaluationStatus.PUBLISHED ||
+      evaluation.status === EvaluationStatus.LOCKED;
+
+    const items: EvaluationItem[] = canSeeScores
+      ? rawItems
+      : rawItems.map((item) => ({
+          ...item,
+          resolved_level: undefined,
+          comment: undefined,
+          weighted_score: undefined,
+          manual_override_score: undefined,
+        }));
+
+
     return {
       ...evaluation,
       items,
-      official_score: (typeof evaluation.scoring_breakdown?.official_score === 'number' ? evaluation.scoring_breakdown.official_score : null) ?? evaluation.manager_score ?? null,
+      official_score: canSeeScores
+        ? ((typeof evaluation.scoring_breakdown?.official_score === 'number' ? evaluation.scoring_breakdown.official_score : null) ?? evaluation.manager_score ?? null)
+        : null,
       is_manager_reviewer: isManager || isSuperAdminOrHr,
     };
   }
@@ -86,9 +110,17 @@ export class EvaluationService {
       throw new AppError(403, 'FORBIDDEN', 'Access denied.');
     }
 
-    // Self can only edit when OPEN
+    // Self (employee) can only edit when OPEN
     if (isSelf && !isManager && !isSuperAdminOrHr && evaluation.status !== EvaluationStatus.OPEN) {
       throw new AppError(400, 'INVALID_STATUS', 'Can only save draft when evaluation is OPEN.');
+    }
+
+    // Manager can edit when OPEN, SUBMITTED, or MANAGER_REVIEW
+    if (isManager && !isSuperAdminOrHr) {
+      const managerEditableStatuses = [EvaluationStatus.OPEN, EvaluationStatus.SUBMITTED, 'MANAGER_REVIEW' as EvaluationStatus];
+      if (!managerEditableStatuses.includes(evaluation.status)) {
+        throw new AppError(400, 'INVALID_STATUS', 'Manager can only edit during OPEN, SUBMITTED, or MANAGER_REVIEW.');
+      }
     }
 
     await this.evaluationItemRepo.update(itemId, {
@@ -114,9 +146,17 @@ export class EvaluationService {
       throw new AppError(403, 'FORBIDDEN', 'Access denied.');
     }
 
-    // Self can only edit when OPEN
+    // Self (employee) can only edit when OPEN
     if (isSelf && !isManager && !isSuperAdminOrHr && evaluation.status !== EvaluationStatus.OPEN) {
       throw new AppError(400, 'INVALID_STATUS', 'Can only save draft when evaluation is OPEN.');
+    }
+
+    // Manager can edit when OPEN, SUBMITTED, or MANAGER_REVIEW
+    if (isManager && !isSuperAdminOrHr) {
+      const managerEditableStatuses = [EvaluationStatus.OPEN, EvaluationStatus.SUBMITTED, 'MANAGER_REVIEW' as EvaluationStatus];
+      if (!managerEditableStatuses.includes(evaluation.status)) {
+        throw new AppError(400, 'INVALID_STATUS', 'Manager can only edit during OPEN, SUBMITTED, or MANAGER_REVIEW.');
+      }
     }
 
     await this.evaluationItemRepo.batchUpdate(evaluationId, items);
@@ -148,6 +188,12 @@ export class EvaluationService {
 
     if (!isManager && !isSuperAdminOrHr) {
       throw new AppError(403, 'FORBIDDEN', 'Only managers or HR can approve evaluations.');
+    }
+
+    // Allow approval from OPEN, SUBMITTED, or MANAGER_REVIEW (workflow B: no mandatory self-assessment)
+    const approvableStatuses = [EvaluationStatus.OPEN, EvaluationStatus.SUBMITTED, 'MANAGER_REVIEW' as EvaluationStatus];
+    if (!approvableStatuses.includes(evaluation.status)) {
+      throw new AppError(400, 'INVALID_STATUS', 'Evaluation must be OPEN, SUBMITTED, or MANAGER_REVIEW to be approved.');
     }
 
     return this.evaluationRepo.update(evaluationId, {
