@@ -38,7 +38,6 @@ export function LoginPage() {
   const {
     register,
     handleSubmit,
-    setValue,
     setError,
     formState: { errors, isSubmitting },
   } = useForm<LoginFormValues>({
@@ -109,10 +108,6 @@ export function LoginPage() {
     window.google.accounts.id.prompt();
   };
 
-  const handleQuickFill = (email: string) => {
-    setValue('email', email, { shouldValidate: true });
-    setValue('password', 'Password123!', { shouldValidate: true });
-  };
 
   return (
     <div className="login-page-container">
@@ -234,7 +229,7 @@ export function LoginPage() {
             {/* Username / Email field */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label htmlFor="login-email" style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1E293B' }}>
-                Email / Tên đăng nhập / Mã NV
+                Email
               </label>
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                 <Mail size={18} color="#94A3B8" style={{ position: 'absolute', left: '14px', pointerEvents: 'none' }} />
@@ -242,7 +237,7 @@ export function LoginPage() {
                   id="login-email"
                   type="text"
                   aria-required="true"
-                  placeholder="VD: ky.luong@cyberlogitec.com hoặc 163188"
+                  placeholder="VD: ky.luong@cyberlogitec.com"
                   aria-describedby={errors.email ? 'login-email-error' : undefined}
                   autoComplete="username"
                   {...register('email')}
@@ -307,65 +302,6 @@ export function LoginPage() {
               )}
             </div>
 
-            {/* Quick Demo Fill Pills for Testing */}
-            <div
-              style={{
-                backgroundColor: '#F8FAFC',
-                borderRadius: '14px',
-                padding: '10px 12px',
-                border: '1px dashed #E2E8F0',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', fontWeight: 600, color: '#64748B' }}>
-                <Sparkles size={13} color="#7C3AED" />
-                <span>Tài khoản kiểm thử nhanh:</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <button
-                  type="button"
-                  onClick={() => handleQuickFill('ky.luong@cyberlogitec.com')}
-                  className="login-quick-chip"
-                  title="Điền tài khoản Admin / Manager"
-                >
-                  <span
-                    style={{
-                      fontSize: '0.6875rem',
-                      fontWeight: 700,
-                      color: '#7C3AED',
-                      backgroundColor: '#F5F3FF',
-                      padding: '2px 8px',
-                      borderRadius: '6px',
-                    }}
-                  >
-                    Manager / Admin
-                  </span>
-                  <span style={{ fontSize: '0.75rem', color: '#334155', fontWeight: 500 }}>ky.luong@cyberlogitec.com</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickFill('khoa.dang@cyberlogitec.com')}
-                  className="login-quick-chip"
-                  title="Điền tài khoản Employee"
-                >
-                  <span
-                    style={{
-                      fontSize: '0.6875rem',
-                      fontWeight: 700,
-                      color: '#2563EB',
-                      backgroundColor: '#EFF6FF',
-                      padding: '2px 8px',
-                      borderRadius: '6px',
-                    }}
-                  >
-                    Employee
-                  </span>
-                  <span style={{ fontSize: '0.75rem', color: '#334155', fontWeight: 500 }}>khoa.dang@cyberlogitec.com</span>
-                </button>
-              </div>
-            </div>
 
             {/* Submit Button */}
             <button
