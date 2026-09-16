@@ -77,18 +77,22 @@ async function main() {
     // audit_log: TRUNCATE bypasses row-level trigger (only DELETE/UPDATE is blocked)
     await client.query(`TRUNCATE TABLE audit_log RESTART IDENTITY CASCADE`);
 
-    // Delete old app_users (remove all old @kpi.com member & kyld accounts)
+    // 1. Detach app_user.employee_id first to prevent FK constraint violations
+    await client.query(`UPDATE app_user SET employee_id = NULL`);
+
+    // 2. Delete old @kpi.com app_users (remove all old @kpi.com member & kyld accounts)
     await client.query(`
       DELETE FROM app_user
       WHERE email IN ('kyld.admin@kpi.com', 'kyld.manager@kpi.com')
          OR (email LIKE '%@kpi.com' AND email NOT IN ('admin@kpi.com', 'manager@kpi.com', 'hradmin@kpi.com', 'employee@kpi.com'))
     `);
 
-    // Delete mock employees (NOT Khoa Dang 267036, NOT Ky Luong 163188)
+    // 3. Delete mock employees (preserve all 20 real members)
+    const validCodes = [MANAGER.code, ...ALLEGRO_MEMBERS.map(m => m.code), ...MARITIME_MEMBERS.map(m => m.code)];
     await client.query(`
       DELETE FROM employee
-      WHERE employee_code NOT IN ('267036', '163188')
-    `);
+      WHERE employee_code != ALL($1::text[])
+    `, [validCodes]);
 
     // Delete mock teams (keep our real ones if they exist)
     // Must first NULL out team_id on remaining employees that reference mock teams
@@ -465,4 +469,7 @@ async function main() {
   }
 }
 
-main().catch(console.error);
+main().catch(err => {
+  console.error(err);
+  process.exit(1);
+});
