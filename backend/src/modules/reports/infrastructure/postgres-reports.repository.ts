@@ -38,9 +38,9 @@ export class PostgresReportsRepository implements IReportsRepository {
         evaluation_id, evaluation_cycle_id, employee_id, team_id, criterion_code, criterion_name,
         category, weight_snapshot, resolved_level, raw_score, weighted_score,
         is_disabled_for_employee, is_missing_score, kpi_score, kpi_weighted_score,
-        has_evidence, evidence_count, comment, last_refreshed_at
+        has_evidence, evidence_count, comment, evaluation_item_id, display_order, measurement, last_refreshed_at
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, current_timestamp
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, current_timestamp
       )
       ON CONFLICT (evaluation_id, criterion_code) DO UPDATE SET
         resolved_level = EXCLUDED.resolved_level,
@@ -53,13 +53,17 @@ export class PostgresReportsRepository implements IReportsRepository {
         has_evidence = EXCLUDED.has_evidence,
         evidence_count = EXCLUDED.evidence_count,
         comment = EXCLUDED.comment,
+        evaluation_item_id = COALESCE(EXCLUDED.evaluation_item_id, employee_kpi_score_read_model.evaluation_item_id),
+        display_order = EXCLUDED.display_order,
+        measurement = COALESCE(EXCLUDED.measurement, employee_kpi_score_read_model.measurement),
         last_refreshed_at = EXCLUDED.last_refreshed_at
     `;
     const params = [
       kpiScore.evaluation_id, kpiScore.evaluation_cycle_id, kpiScore.employee_id, kpiScore.team_id || null, kpiScore.criterion_code, kpiScore.criterion_name,
       kpiScore.category || null, kpiScore.weight_snapshot, kpiScore.resolved_level || null, kpiScore.raw_score || null, kpiScore.weighted_score || null,
       kpiScore.is_disabled_for_employee || false, kpiScore.is_missing_score || false, kpiScore.kpi_score || null, kpiScore.kpi_weighted_score || null,
-      kpiScore.has_evidence ?? false, kpiScore.evidence_count ?? 0, kpiScore.comment || null
+      kpiScore.has_evidence ?? false, kpiScore.evidence_count ?? 0, kpiScore.comment || null,
+      kpiScore.evaluation_item_id || null, kpiScore.display_order ?? 0, kpiScore.measurement ? JSON.stringify(kpiScore.measurement) : null
     ];
     await this.pool.query(query, params);
   }
@@ -198,6 +202,72 @@ export class PostgresReportsRepository implements IReportsRepository {
   async getOrganizationReport(cycleId: string): Promise<OrganizationAggregate[]> {
     const res = await this.pool.query('SELECT * FROM organization_aggregate_read_model WHERE evaluation_cycle_id = $1', [cycleId]);
     return res.rows;
+  }
+
+  async getEmployeeKpiSummary(
+    employeeId: string,
+    cycleId?: string,
+    status?: string
+  ): Promise<{ score: EmployeeEvaluationScore; kpis: EmployeeKpiScore[] } | null> {
+    let scoreQuery = `
+      SELECT * FROM employee_evaluation_score_read_model
+      WHERE employee_id = $1
+    `;
+    const scoreParams: (string | undefined)[] = [employeeId];
+    if (cycleId) {
+      scoreParams.push(cycleId);
+      scoreQuery += ` AND evaluation_cycle_id = $${scoreParams.length}`;
+    }
+    if (status) {
+      scoreParams.push(status);
+      scoreQuery += ` AND evaluation_status = $${scoreParams.length}`;
+    }
+    scoreQuery += ` ORDER BY last_refreshed_at DESC LIMIT 1`;
+
+    const scoreRes = await this.pool.query(scoreQuery, scoreParams);
+    if (scoreRes.rows.length === 0) return null;
+
+    const score = scoreRes.rows[0];
+    const kpisRes = await this.pool.query(
+      `SELECT * FROM employee_kpi_score_read_model
+       WHERE evaluation_id = $1
+       ORDER BY display_order ASC, criterion_code ASC`,
+      [score.evaluation_id]
+    );
+
+    return {
+      score,
+      kpis: kpisRes.rows,
+    };
+  }
+
+  async getEmployeeKpiDetail(
+    employeeId: string,
+    evaluationItemId: string
+  ): Promise<{ item: Record<string, unknown>; evidence: Record<string, unknown>[] } | null> {
+    const itemRes = await this.pool.query(
+      `SELECT ei.*, e.employee_id, e.evaluation_cycle_id, e.status as evaluation_status
+       FROM evaluation_item ei
+       JOIN evaluation e ON ei.evaluation_id = e.evaluation_id
+       WHERE ei.evaluation_item_id = $1 AND e.employee_id = $2`,
+      [evaluationItemId, employeeId]
+    );
+    if (itemRes.rows.length === 0) return null;
+
+    const item = itemRes.rows[0];
+    const evidenceRes = await this.pool.query(
+      `SELECT evidence_id, evaluation_item_id, evidence_type, title, evidence_url, file_reference,
+              evidence_value, rationale, source, created_at, created_by
+       FROM evidence
+       WHERE evaluation_item_id = $1 AND status != 'SUPERSEDED'
+       ORDER BY created_at ASC`,
+      [evaluationItemId]
+    );
+
+    return {
+      item,
+      evidence: evidenceRes.rows,
+    };
   }
 }
 

@@ -44,6 +44,7 @@ import { EmployeeReportPage } from './features/reports/pages/EmployeeReportPage'
 import { TeamReportPage } from './features/reports/pages/TeamReportPage';
 import { OrganizationReportPage } from './features/reports/pages/OrganizationReportPage';
 import { CalibrationPage } from './features/calibration/pages/CalibrationPage';
+import { KpiSummaryDashboardPage } from './features/reports/employee-kpi-summary/pages/KpiSummaryDashboardPage';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY, ThemeProvider, useTheme } from '@/shared/theme';
 import { LayoutTemplate } from 'lucide-react';
@@ -57,6 +58,7 @@ const ADMIN_PAGE_TITLES: Record<string, string> = {
   organization: 'Organization',
   employees: 'Employee Directory & Search',
   'employee-search': 'Employee Directory & Search',
+  'kpi-summary': 'KPI Summary Dashboard',
   templates: 'Evaluation Templates',
   criteria: 'Criteria',
   i18n: 'Translation Settings',
@@ -80,9 +82,11 @@ function ProtectedLayout() {
   const { user, logout } = useAuth();
   const { isDark } = useTheme();
 
-  // Extract active menu from URL (e.g. /admin/iam -> iam, /admin/imports/upload -> imports)
+  // Extract active menu from URL (e.g. /admin/iam -> iam, /admin/imports/upload -> imports, /reports/kpi-summary -> kpi-summary)
   const pathParts = location.pathname.split('/');
-  const activeMenu = pathParts.length > 2 ? pathParts[2] : 'iam';
+  const activeMenu = pathParts.includes('kpi-summary')
+    ? 'kpi-summary'
+    : pathParts.length > 2 ? pathParts[2] : 'iam';
   const pageTitle = ADMIN_PAGE_TITLES[activeMenu] ?? 'System Layout';
 
   const headerActions = (
@@ -140,6 +144,7 @@ function ProtectedLayout() {
       onSelectMenuItem={(id) => {
         if (id === 'imports') navigate('/admin/imports/upload');
         else if (id === 'employee-search') navigate('/admin/employees/search');
+        else if (id === 'kpi-summary') navigate('/reports/kpi-summary');
         else navigate(`/admin/${id}`);
       }}
       pageTitle={pageTitle}
@@ -326,6 +331,26 @@ export default function App() {
               <Route path="/admin/org-report" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
                   <OrganizationReportPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/reports/kpi-summary" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
+                  <KpiSummaryDashboardPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/reports/employees/:employeeId/kpi-summary" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
+                  <KpiSummaryDashboardPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/reports/kpi-summary" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
+                  <KpiSummaryDashboardPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/reports/employees/:employeeId/kpi-summary" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
+                  <KpiSummaryDashboardPage />
                 </ProtectedRoute>
               } />
               <Route path="/draft" element={

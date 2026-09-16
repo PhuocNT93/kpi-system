@@ -29,6 +29,29 @@ export interface BackendEvaluationCycleResponse {
   updated_by: string | null;
 }
 
+function parseLocalizedName(val: unknown): string {
+  if (val == null) return '';
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed && typeof parsed === 'object') {
+          return String(parsed.vi || parsed.en || parsed.vn || Object.values(parsed)[0] || val);
+        }
+      } catch {
+        return val;
+      }
+    }
+    return val;
+  }
+  if (typeof val === 'object') {
+    const obj = val as Record<string, unknown>;
+    return String(obj.vi || obj.en || obj.vn || Object.values(obj)[0] || '');
+  }
+  return String(val);
+}
+
 export function mapBackendToCycleDTO(raw: BackendEvaluationCycleResponse): EvaluationCycleDTO {
   const allowedActions: CycleAllowedAction[] = [];
   if (raw.status === 'DRAFT') {
@@ -42,7 +65,7 @@ export function mapBackendToCycleDTO(raw: BackendEvaluationCycleResponse): Evalu
   return {
     id: raw.id,
     code: raw.code,
-    name: raw.name,
+    name: parseLocalizedName(raw.name),
     status: raw.status,
     template: {
       id: raw.evaluation_template_version_id || 'tpl-default',

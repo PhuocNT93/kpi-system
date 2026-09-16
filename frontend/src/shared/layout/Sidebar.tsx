@@ -18,6 +18,7 @@ import {
   GitFork,
   Activity,
   BookOpen,
+  Award,
 } from 'lucide-react';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY, SHADOWS } from '@/shared/theme';
@@ -128,6 +129,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       title: 'Reporting',
       collapsible: true,
       items: [
+        {
+          id: 'kpi-summary',
+          label: 'KPI Summary',
+          icon: <Award size={18} />,
+        },
         {
           id: 'my-report',
           label: 'My Report',

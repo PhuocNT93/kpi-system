@@ -5637,6 +5637,77 @@ export const swaggerOptions: swaggerJsdoc.Options = {
           },
         },
       },
+      '/api/reports/employees/{employeeId}/kpi-summary': {
+        get: {
+          summary: 'Get employee KPI summary dashboard',
+          description: 'Retrieves an employee KPI evaluation summary including employee metadata, authoritative score summary, ordered KPI table, and relationship DAG.',
+          tags: ['Reports'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            {
+              name: 'employeeId',
+              in: 'path',
+              required: true,
+              description: 'Target Employee UUID or "me"',
+              schema: { type: 'string' },
+            },
+            {
+              name: 'evaluation_cycle_id',
+              in: 'query',
+              required: false,
+              description: 'Optional Evaluation Cycle UUID',
+              schema: { type: 'string', format: 'uuid' },
+            },
+            {
+              name: 'evaluation_status',
+              in: 'query',
+              required: false,
+              description: 'Optional Evaluation Status filter',
+              schema: { type: 'string' },
+            },
+          ],
+          responses: {
+            200: {
+              description: 'KPI summary retrieved successfully',
+            },
+            401: { description: 'Authentication required' },
+            403: { description: 'Forbidden. User outside permitted scope.' },
+            404: { description: 'Evaluation not found for employee' },
+          },
+        },
+      },
+      '/api/reports/employees/{employeeId}/kpi-summary/{evaluationItemId}': {
+        get: {
+          summary: 'Get KPI detail drill-down',
+          description: 'Retrieves granular KPI item detail including criteria metadata, measurement, scoring breakdown, snapshot level definitions, and evidence items.',
+          tags: ['Reports'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            {
+              name: 'employeeId',
+              in: 'path',
+              required: true,
+              description: 'Target Employee UUID or "me"',
+              schema: { type: 'string' },
+            },
+            {
+              name: 'evaluationItemId',
+              in: 'path',
+              required: true,
+              description: 'Target Evaluation Item UUID',
+              schema: { type: 'string', format: 'uuid' },
+            },
+          ],
+          responses: {
+            200: {
+              description: 'KPI detail retrieved successfully',
+            },
+            401: { description: 'Authentication required' },
+            403: { description: 'Forbidden. User outside permitted scope.' },
+            404: { description: 'Evaluation item not found' },
+          },
+        },
+      },
     },
   },
   apis: [],

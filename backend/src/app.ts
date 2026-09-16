@@ -39,6 +39,7 @@ import { localeMiddleware } from './shared/i18n/locale.middleware.js';
 import { createImportModule } from './modules/import/import.module.js';
 import { createCollectorModule } from './modules/collector/collector.module.js';
 import { createReportsModule } from './modules/reports/reports.module.js';
+import { ReportsController } from './modules/reports/api/reports.controller.js';
 import { createEvaluationDataImportModule } from './modules/evaluation-data-import/evaluation-data-import.module.js';
 import { createCalibrationModule } from './modules/calibration/calibration.module.js';
 
@@ -53,6 +54,7 @@ export interface AppOptions {
   auditWriter?: AuditWriter;
   googleIdentityVerifier?: GoogleIdentityVerifier;
   employeeController?: EmployeeController;
+  reportsController?: ReportsController;
 }
 
 export function createApp(options: AppOptions = {}) {
@@ -112,7 +114,7 @@ export function createApp(options: AppOptions = {}) {
 
   const collectorModule = pool ? createCollectorModule(pool, jwtMiddleware) : undefined;
   const reportsModule = pool && evaluationModule ? createReportsModule(pool, evaluationModule.evaluationRepo, evaluationModule.evaluationItemRepo) : undefined;
-  const reportsController = reportsModule?.reportsController;
+  const reportsController = options.reportsController ?? reportsModule?.reportsController;
 
   const calibrationModule = pool ? createCalibrationModule(pool, auditModule?.auditService) : undefined;
   const calibrationController = calibrationModule?.calibrationController;
