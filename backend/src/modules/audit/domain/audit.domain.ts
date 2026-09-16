@@ -8,6 +8,8 @@ export const AuditActionSchema = z.enum([
   'REJECT',
   'REVIEW',
   'REQUEST_CORRECTION',
+  'PUBLISH',
+  'LOCK',
   'ADJUST',
   'TEAM_CREATED',
   'TEAM_UPDATED',

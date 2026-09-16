@@ -110,6 +110,10 @@ export class EvaluationService {
       throw new AppError(403, 'FORBIDDEN', 'Access denied.');
     }
 
+    if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
+      throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked.');
+    }
+
     // Self (employee) can only edit when OPEN
     if (isSelf && !isManager && !isSuperAdminOrHr && evaluation.status !== EvaluationStatus.OPEN) {
       throw new AppError(400, 'INVALID_STATUS', 'Can only save draft when evaluation is OPEN.');
@@ -146,6 +150,10 @@ export class EvaluationService {
       throw new AppError(403, 'FORBIDDEN', 'Access denied.');
     }
 
+    if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
+      throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked.');
+    }
+
     // Self (employee) can only edit when OPEN
     if (isSelf && !isManager && !isSuperAdminOrHr && evaluation.status !== EvaluationStatus.OPEN) {
       throw new AppError(400, 'INVALID_STATUS', 'Can only save draft when evaluation is OPEN.');
@@ -168,6 +176,11 @@ export class EvaluationService {
 
     const isSelf = evaluation.employee_id === actor.employeeId || evaluation.employee_id === actor.userId;
     if (!isSelf) throw new AppError(403, 'FORBIDDEN', 'Access denied.');
+
+    if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
+      throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked.');
+    }
+
     if (evaluation.status !== EvaluationStatus.OPEN) {
       throw new AppError(400, 'INVALID_STATUS', 'Can only submit when evaluation is OPEN.');
     }
@@ -399,27 +412,57 @@ export class EvaluationService {
   }
 
   async publishEvaluation(evaluationId: string, actor: Actor): Promise<Evaluation> {
-    const evaluation = await this.evaluationRepo.findById(evaluationId);
-    if (!evaluation) throw new NotFound('Evaluation');
-
     const isHrOrAdmin = actor.role === 'HR_ADMIN' || actor.role === 'SYSTEM_ADMIN';
     if (!isHrOrAdmin) {
       throw new AppError(403, 'FORBIDDEN', 'Only HR or System Admins can publish evaluations.');
     }
 
-    if (evaluation.status !== EvaluationStatus.APPROVED) {
-      throw new AppError(400, 'INVALID_STATUS', 'Evaluation must be APPROVED before it can be published.');
-    }
+    return withTransaction(this.pool, async (client) => {
+      const repositoryClient = client as unknown as PoolClient;
+      const evaluation = await this.evaluationRepo.findByIdForUpdate(evaluationId, repositoryClient);
+      if (!evaluation) throw new NotFound('Evaluation');
 
-    return this.evaluationRepo.update(evaluationId, {
-      status: EvaluationStatus.PUBLISHED,
-      published_at: new Date(),
-      published_by: actor.userId,
-      updated_by: actor.userId,
+      if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
+        throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked.');
+      }
+
+      if (evaluation.status === EvaluationStatus.PUBLISHED) {
+        return evaluation;
+      }
+
+      if (evaluation.status !== EvaluationStatus.APPROVED) {
+        throw new AppError(400, 'INVALID_STATUS', 'Evaluation must be APPROVED before it can be published.');
+      }
+
+      const updated = await this.evaluationRepo.update(evaluationId, {
+        status: EvaluationStatus.PUBLISHED,
+        published_at: new Date(),
+        published_by: actor.userId,
+        updated_by: actor.userId,
+      }, repositoryClient);
+
+      if (this.auditService) {
+        await this.auditService.record(client, {
+          entityType: 'EVALUATION',
+          entityId: evaluationId,
+          action: 'PUBLISH',
+          oldValue: JSON.stringify({ status: evaluation.status }),
+          newValue: JSON.stringify({ status: EvaluationStatus.PUBLISHED }),
+          performedBy: actor.userId,
+          source: 'API',
+        });
+      }
+
+      appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId });
+      return updated;
     });
   }
 
-  async lockEvaluation(evaluationId: string, actor: Actor): Promise<Evaluation> {
+  async lockEvaluation(
+    evaluationId: string,
+    actor: Actor,
+    options?: { throwOnConflict?: boolean }
+  ): Promise<Evaluation> {
     const isHrOrAdmin = actor.role === 'HR_ADMIN' || actor.role === 'SYSTEM_ADMIN';
     if (!isHrOrAdmin) {
       throw new AppError(403, 'FORBIDDEN', 'Only HR or System Admins can lock evaluations.');
@@ -430,9 +473,14 @@ export class EvaluationService {
       const evaluation = await this.evaluationRepo.findByIdForUpdate(evaluationId, repositoryClient);
       
       if (!evaluation) throw new NotFound('Evaluation');
+
       if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
-        throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is already locked.');
+        if (options?.throwOnConflict) {
+          throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is already locked.');
+        }
+        return evaluation;
       }
+
       if (evaluation.status !== EvaluationStatus.PUBLISHED && evaluation.status !== EvaluationStatus.APPROVED) {
         throw new AppError(400, 'INVALID_STATUS', 'Evaluation must be APPROVED or PUBLISHED before locking.');
       }
@@ -445,6 +493,19 @@ export class EvaluationService {
         updated_by: actor.userId,
       }, repositoryClient);
 
+      if (this.auditService) {
+        await this.auditService.record(client, {
+          entityType: 'EVALUATION',
+          entityId: evaluationId,
+          action: 'LOCK',
+          oldValue: JSON.stringify({ status: evaluation.status, is_locked: evaluation.is_locked }),
+          newValue: JSON.stringify({ status: EvaluationStatus.LOCKED, is_locked: true }),
+          performedBy: actor.userId,
+          source: 'API',
+        });
+      }
+
+      appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId });
       return updated;
     });
   }
