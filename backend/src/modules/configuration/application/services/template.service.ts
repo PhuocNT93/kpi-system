@@ -500,10 +500,12 @@ export class TemplateService {
   async validateTemplateVersion(templateVersionId: string): Promise<ValidationResult> {
     const version = await this.getTemplateVersionById(templateVersionId);
     const kpis = await this.templateKpiRepo.findByTemplateVersionId(templateVersionId);
+    const criteria = await this.templateCriterionRepo.findByTemplateVersionId(templateVersionId);
     
     const result: ValidationResult = { valid: true, errors: [], warnings: [] };
+    const criterionIds = new Set(criteria.map((criterion) => criterion.id));
 
-    // Validate KPI weights
+    // Validate KPI ownership and weights per criterion
     if (kpis.length === 0) {
       result.valid = false;
       result.errors.push({
@@ -512,20 +514,46 @@ export class TemplateService {
         message: 'Template must contain at least one KPI.',
       });
     } else {
-      let totalWeight = kpis.reduce((sum, kpi) => sum + kpi.weight, 0);
-      totalWeight = Math.round(totalWeight * 100) / 100;
-      if (version.weight_total_policy === WeightPolicy.EXACT_100 && totalWeight !== 100) {
-        result.valid = false;
-        result.errors.push({
-          code: 'INVALID_WEIGHT_TOTAL',
-          path: 'kpis',
-          message: 'Template KPI weights must total 100%.',
-          details: { actual: totalWeight, expected: 100 },
-        });
+      const weightByCriterion = new Map<string, number>();
+
+      for (const kpi of kpis) {
+        if (!kpi.template_criterion_id) {
+          result.valid = false;
+          result.errors.push({
+            code: 'INVALID_KPI_RELATION',
+            path: `kpis[${kpi.id}]`,
+            message: 'Each KPI must belong to a criterion.',
+          });
+          continue;
+        }
+
+        if (!criterionIds.has(kpi.template_criterion_id)) {
+          result.valid = false;
+          result.errors.push({
+            code: 'CRITERION_NOT_FOUND',
+            path: `kpis[${kpi.id}]`,
+            message: `Referenced criterion '${kpi.template_criterion_id}' not found.`,
+          });
+          continue;
+        }
+
+        const currentWeight = weightByCriterion.get(kpi.template_criterion_id) ?? 0;
+        weightByCriterion.set(kpi.template_criterion_id, currentWeight + kpi.weight);
+      }
+
+      for (const [criterionId, totalWeightValue] of weightByCriterion.entries()) {
+        const totalWeight = Math.round(totalWeightValue * 100) / 100;
+        if (version.weight_total_policy === WeightPolicy.EXACT_100 && totalWeight !== 100) {
+          result.valid = false;
+          result.errors.push({
+            code: 'INVALID_WEIGHT_TOTAL',
+            path: `kpis[${criterionId}]`,
+            message: 'Template KPI weights under each criterion must total 100%.',
+            details: { actual: totalWeight, expected: 100, criterion_id: criterionId },
+          });
+        }
       }
     }
-
-    const criteria = await this.templateCriterionRepo.findByTemplateVersionId(templateVersionId);
 
     // Criteria are no longer validated for weight total globally, they are per KPI.
     // For now we just validate that each criterion version exists
