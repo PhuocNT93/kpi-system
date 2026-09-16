@@ -197,8 +197,8 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
     }
     const res = await executor.query<EmployeeRow>(
       `UPDATE employee
-       SET full_name = $1, email = $2, department_id = $3, team_id = $4, role_id = $5, job_level_id = $6, manager_id = $7, employment_status = $8, termination_date = $9, review_cadence = $10, last_evaluation_completed_at = $11, updated_by = $12, version = version + 1
-       WHERE employee_id = $13 AND version = $14
+       SET full_name = $1, email = $2, department_id = $3, team_id = $4, role_id = $5, job_level_id = $6, manager_id = $7, employment_status = $8, termination_date = $9, review_cadence = $10, last_evaluation_completed_at = $11, next_review_due_date = $12, updated_by = $13, version = version + 1
+       WHERE employee_id = $14 AND version = $15
        RETURNING employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, review_cadence, last_evaluation_completed_at, next_review_due_date, created_at, updated_at, created_by, updated_by`,
       [
         employee.fullName,
@@ -212,6 +212,7 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
         employee.terminationDate,
         employee.reviewCadence ?? null,
         employee.lastEvaluationCompletedAt ?? null,
+        employee.nextReviewDueDate ?? null,
         employee.updatedBy,
         employee.employeeId,
         employee.version,

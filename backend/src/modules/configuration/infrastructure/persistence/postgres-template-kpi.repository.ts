@@ -5,6 +5,7 @@ import { TemplateKpi } from '../../domain/configuration.types.js';
 interface TemplateKpiRow {
   template_kpi_id: string;
   template_version_id: string;
+  template_criterion_id?: string | null;
   kpi_id: string;
   weight: string | number;
   display_order: number;
@@ -26,6 +27,7 @@ export class PostgresTemplateKpiRepository implements ITemplateKpiRepository {
     const tk: TemplateKpi = {
       id: row.template_kpi_id,
       template_version_id: row.template_version_id,
+      template_criterion_id: row.template_criterion_id ?? null,
       kpi_id: row.kpi_id,
       weight: Number(row.weight),
       display_order: row.display_order,
@@ -67,10 +69,10 @@ export class PostgresTemplateKpiRepository implements ITemplateKpiRepository {
 
   async create(tk: Partial<TemplateKpi>, client?: PoolClient): Promise<TemplateKpi> {
     const res = await this.getClient(client).query(
-      `INSERT INTO template_kpi (template_version_id, kpi_id, weight, display_order)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO template_kpi (template_version_id, template_criterion_id, kpi_id, weight, display_order)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [tk.template_version_id, tk.kpi_id, tk.weight, tk.display_order || 0]
+      [tk.template_version_id, tk.template_criterion_id ?? null, tk.kpi_id, tk.weight, tk.display_order || 0]
     );
     return this.mapRow(res.rows[0]);
   }
@@ -117,10 +119,10 @@ export class PostgresTemplateKpiRepository implements ITemplateKpiRepository {
       const result: TemplateKpi[] = [];
       for (const item of items) {
         const res = await c.query(
-          `INSERT INTO template_kpi (template_version_id, kpi_id, weight, display_order)
-           VALUES ($1, $2, $3, $4)
+          `INSERT INTO template_kpi (template_version_id, template_criterion_id, kpi_id, weight, display_order)
+           VALUES ($1, $2, $3, $4, $5)
            RETURNING *`,
-          [templateVersionId, item.kpi_id, item.weight, item.display_order || 0]
+          [templateVersionId, item.template_criterion_id ?? null, item.kpi_id, item.weight, item.display_order || 0]
         );
         result.push(this.mapRow(res.rows[0]));
       }

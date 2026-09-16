@@ -225,7 +225,7 @@ export class TemplateService {
 
   async addKpiToTemplate(
     templateVersionId: string,
-    data: { kpi_id: string; weight: number; display_order?: number },
+    data: { kpi_id: string; weight: number; display_order?: number; template_criterion_id?: string },
     actorId?: string
   ): Promise<TemplateKpi> {
     const version = await this.getTemplateVersionById(templateVersionId);
@@ -235,6 +235,7 @@ export class TemplateService {
 
     const created = await this.templateKpiRepo.create({
       template_version_id: templateVersionId,
+      template_criterion_id: data.template_criterion_id,
       kpi_id: data.kpi_id,
       weight: data.weight,
       display_order: data.display_order ?? 1,
@@ -336,7 +337,8 @@ export class TemplateService {
   async bulkUpdateTemplateCriteria(
     templateVersionId: string,
     criteriaItems: Array<{
-      template_kpi_id: string;
+      client_id?: string;
+      template_kpi_id?: string;
       criterion_version_id: string;
       weight?: number;
       effective_weight?: number;
@@ -349,51 +351,76 @@ export class TemplateService {
       applicable_role_ids?: string[];
       applicable_team_ids?: string[];
     }>,
-    actorId?: string
+    actorId?: string,
+    kpiItems?: Array<{
+      kpi_id: string;
+      client_criterion_id?: string | null;
+      template_criterion_id?: string | null;
+      weight?: number;
+      display_order?: number;
+    }>
   ): Promise<TemplateCriterion[]> {
     const version = await this.getTemplateVersionById(templateVersionId);
     if (version.status === VersionStatus.PUBLISHED || version.status === VersionStatus.RETIRED) {
       throw new AppError(409, 'PUBLISHED_CONFIGURATION_IMMUTABLE', 'Published template versions are immutable.');
     }
 
-    for (const item of criteriaItems) {
-      const cv = await this.criterionVersionRepo.findById(item.criterion_version_id);
-      if (!cv) throw new NotFound(`CriterionVersion '${item.criterion_version_id}'`);
-    }
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    const mappedItems: Partial<TemplateCriterion>[] = criteriaItems.map((item, idx) => {
-      let applicability = item.applicability;
-      if (!applicability && (item.applicable_role_ids || item.applicable_team_ids)) {
-        const rules = [];
-        if (item.applicable_role_ids?.length) {
-          rules.push({ dimension: 'ROLE' as const, operator: 'IN' as const, values: item.applicable_role_ids });
-        }
-        if (item.applicable_team_ids?.length) {
-          rules.push({ dimension: 'TEAM' as const, operator: 'IN' as const, values: item.applicable_team_ids });
-        }
-        applicability = { rules };
+      const invalidCriteria = criteriaItems
+        .map((item, index) => ({ item, index }))
+        .filter(({ item }) => !item.criterion_version_id);
+
+      if (invalidCriteria.length > 0) {
+        throw new ValidationError(
+          'Template criteria must include criterion_version_id.',
+          invalidCriteria.map(({ index }) => ({
+            field: `criteria[${index}]`,
+            code: 'REQUIRED',
+            message: `Criterion at index ${index} is missing criterion_version_id.`,
+          }))
+        );
       }
-      // Support both weight and effective_weight field names from frontend
-      const resolvedWeight = item.weight ?? item.effective_weight ?? 0;
-      // Support both enabled and is_disabled field names
-      const resolvedEnabled = item.enabled !== undefined
-        ? item.enabled
-        : item.is_disabled !== undefined
-          ? !item.is_disabled
-          : true;
-      return {
-        template_kpi_id: item.template_kpi_id,
-        criterion_version_id: item.criterion_version_id,
-        weight: resolvedWeight,
-        display_order: item.display_order ?? idx + 1,
-        required: item.required ?? !(item.is_optional ?? false),
-        enabled: resolvedEnabled,
-        applicability: applicability ?? { rules: [] },
-      };
-    });
+
+      for (const item of criteriaItems) {
+        const cv = await this.criterionVersionRepo.findById(item.criterion_version_id, client);
+        if (!cv) throw new NotFound(`CriterionVersion '${item.criterion_version_id}'`);
+      }
+
+      const mappedItems: Array<Partial<TemplateCriterion> & { client_id?: string }> = criteriaItems.map((item, idx) => {
+        let applicability = item.applicability;
+        if (!applicability && (item.applicable_role_ids || item.applicable_team_ids)) {
+          const rules = [];
+          if (item.applicable_role_ids?.length) {
+            rules.push({ dimension: 'ROLE' as const, operator: 'IN' as const, values: item.applicable_role_ids });
+          }
+          if (item.applicable_team_ids?.length) {
+            rules.push({ dimension: 'TEAM' as const, operator: 'IN' as const, values: item.applicable_team_ids });
+          }
+          applicability = { rules };
+        }
+        const resolvedWeight = item.weight ?? item.effective_weight ?? 0;
+        const resolvedEnabled = item.enabled !== undefined
+          ? item.enabled
+          : item.is_disabled !== undefined
+            ? !item.is_disabled
+            : true;
+        return {
+          client_id: item.client_id,
+          template_kpi_id: item.template_kpi_id || undefined,
+          criterion_version_id: item.criterion_version_id,
+          weight: resolvedWeight,
+          display_order: item.display_order ?? idx + 1,
+          required: item.required ?? !(item.is_optional ?? false),
+          enabled: resolvedEnabled,
+          applicability: applicability ?? { rules: [] },
+        };
+      });
 
     // Pre-validate individual criterion weights (skip total check on draft save – totals are validated at publish)
-    const validation = ConfigurationValidationService.validateTemplateCriteria(
+      const validation = ConfigurationValidationService.validateTemplateCriteria(
       mappedItems as TemplateCriterion[],
       WeightPolicy.CUSTOM
     );
@@ -401,17 +428,54 @@ export class TemplateService {
       throw new ValidationError('Template criteria validation failed.', validation.errors.map(e => ({ field: e.path, code: e.code, message: e.message })));
     }
 
-    const updated = await this.templateCriterionRepo.replaceAllForVersion(templateVersionId, mappedItems);
+      await client.query('DELETE FROM template_kpi WHERE template_version_id = $1', [templateVersionId]);
+      await client.query('DELETE FROM template_criteria WHERE template_version_id = $1', [templateVersionId]);
+
+      const clientIdToCriterionId = new Map<string, string>();
+      const updated: TemplateCriterion[] = [];
+      for (const item of mappedItems) {
+        const created = await this.templateCriterionRepo.create({ ...item, template_version_id: templateVersionId }, client);
+        updated.push(created);
+        if (item.client_id) {
+          clientIdToCriterionId.set(item.client_id, created.id);
+        }
+      }
+
+      const updatedKpis: TemplateKpi[] = [];
+      if (Array.isArray(kpiItems)) {
+        for (const item of kpiItems) {
+          const mappedCriterionId = item.client_criterion_id
+            ? clientIdToCriterionId.get(item.client_criterion_id) ?? null
+            : item.template_criterion_id
+              ? clientIdToCriterionId.get(item.template_criterion_id) ?? item.template_criterion_id
+              : null;
+          const createdKpi = await this.templateKpiRepo.create({
+            template_version_id: templateVersionId,
+            template_criterion_id: mappedCriterionId,
+            kpi_id: item.kpi_id,
+            weight: item.weight ?? 0,
+            display_order: item.display_order ?? 1,
+          }, client);
+          updatedKpis.push(createdKpi);
+        }
+      }
 
     await this.auditRepo.create({
       entity_type: 'TEMPLATE_VERSION',
       entity_id: templateVersionId,
       action: AuditAction.UPDATE,
       performed_by: actorId || 'SYSTEM',
-      changes: { bulkCriteria: updated },
-    });
+      changes: { bulkCriteria: updated, bulkKpis: updatedKpis },
+      }, client);
 
-    return updated;
+      await client.query('COMMIT');
+      return updated;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   async deleteTemplateCriterion(templateVersionId: string, criterionId: string, actorId?: string): Promise<void> {

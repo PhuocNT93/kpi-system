@@ -216,6 +216,7 @@ export interface WireTemplateKpi {
   id?: string;
   template_kpi_id?: string;
   template_version_id: string;
+  template_criterion_id?: string | null;
   kpi_id: string;
   weight: number;
   display_order?: number;
@@ -321,12 +322,15 @@ export function mapWireVersionToDomain(wire: WireVersion): EvaluationTemplateVer
 }
 
 export function mapWireTemplateKpiToDomain(wire: WireTemplateKpi): TemplateKpi {
+  const parentCriterionId = wire.template_criterion_id ?? null;
   return {
     id: wire.id || wire.template_kpi_id || '',
     templateVersionId: wire.template_version_id,
+    templateCriterionId: parentCriterionId,
     kpiId: wire.kpi_id,
     weight: Number(wire.weight) || 0,
     displayOrder: wire.display_order ?? 0,
+    parentCriterionId: parentCriterionId ?? undefined,
     kpi: wire.kpi,
     criteria: Array.isArray(wire.criteria)
       ? wire.criteria.map(mapWireTemplateCriterionToDomain)

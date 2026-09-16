@@ -118,7 +118,7 @@ export function WeightStatusBar({
         <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
         {criteriaKpiTotals.map((item) => {
           const roundedTotal = Math.round(item.totalWeight * 100) / 100;
-          const isExact = Math.abs(roundedTotal - 100) <= 0.01;
+          const hasAnyKpi = roundedTotal > 0.01;
           return (
             <div
               key={item.criterionId}
@@ -128,14 +128,14 @@ export function WeightStatusBar({
                 alignItems: 'center',
                 padding: '0.5rem 0.75rem',
                 borderRadius: 6,
-                background: isExact ? '#ecfdf5' : '#fff7ed',
-                border: `1px solid ${isExact ? '#a7f3d0' : '#fdba74'}`,
+                background: hasAnyKpi ? '#ecfdf5' : '#f3f4f6',
+                border: `1px solid ${hasAnyKpi ? '#a7f3d0' : '#d1d5db'}`,
                 color: '#374151',
                 fontSize: '0.8125rem',
               }}
             >
               <span style={{ fontWeight: 600 }}>{item.criterionName}</span>
-              <span style={{ fontWeight: 700, color: isExact ? '#047857' : '#b45309' }}>
+              <span style={{ fontWeight: 700, color: hasAnyKpi ? '#047857' : '#6b7280' }}>
                 KPI total: {roundedTotal} / 100%
               </span>
             </div>

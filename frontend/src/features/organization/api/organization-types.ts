@@ -106,6 +106,8 @@ export interface WireEmployee {
   join_date: string;
   termination_date: string | null;
   review_cadence: string | null;
+  last_review_date: string | null;
+  next_review_date: string | null;
   last_evaluation_completed_at: string | null;
   next_review_due_date: string | null;
   version: number;
@@ -126,6 +128,7 @@ export interface CreateEmployeeRequest {
   join_date?: string;
   review_cadence?: string | null;
   last_evaluation_completed_at?: string | null;
+  next_review_due_date?: string | null;
 }
 
 export interface UpdateEmployeeRequest {
@@ -140,4 +143,5 @@ export interface UpdateEmployeeRequest {
   termination_date?: string;
   review_cadence?: string | null;
   last_evaluation_completed_at?: string | null;
+  next_review_due_date?: string | null;
 }
