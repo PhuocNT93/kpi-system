@@ -198,26 +198,20 @@ export function EvaluationTemplatesPage() {
   const handleSaveDraft = async (updatedKpis: TemplateKpi[], updatedCriteria: TemplateCriterion[], expectedVersion: number) => {
     if (!selectedTemplateId || !selectedVersionId) return;
 
-    // 1. Sync KPIs: determine which are new (temp id) vs existing (real UUID)
     const currentVersion = templateVersionQuery.data;
     const persistedKpiIds = new Set((currentVersion?.kpis ?? []).map((k: TemplateKpi) => k.id));
-    const kpiIdMap = new Map<string, string>(); // temp ID -> real ID
+    const existingKpisById = new Map((currentVersion?.kpis ?? []).map((k: TemplateKpi) => [k.id, k]));
+    const kpiIdMap = new Map<string, string>();
 
-    // Add KPIs that have a temp id (not yet persisted)
     for (const kpi of updatedKpis) {
-      if (kpi.id.startsWith('tkpi-')) {
-        const createdKpi = await addKpiMutation.mutateAsync({
-          templateId: selectedTemplateId,
-          versionId: selectedVersionId,
-          kpiId: kpi.kpiId,
-          weight: kpi.weight,
-        });
-        kpiIdMap.set(kpi.id, createdKpi.id);
-      } else {
+      const persistedKpi = existingKpisById.get(kpi.id);
+      if (persistedKpi) {
         kpiIdMap.set(kpi.id, kpi.id);
-        // Update weight for existing KPIs if changed
-        const persistedKpi = (currentVersion?.kpis ?? []).find((k: TemplateKpi) => k.id === kpi.id);
-        if (persistedKpi && persistedKpi.weight !== kpi.weight) {
+        if (
+          persistedKpi.weight !== kpi.weight ||
+          persistedKpi.parentCriterionId !== kpi.parentCriterionId ||
+          persistedKpi.templateCriterionId !== kpi.templateCriterionId
+        ) {
           await updateKpiWeightMutation.mutateAsync({
             templateId: selectedTemplateId,
             versionId: selectedVersionId,
@@ -225,10 +219,18 @@ export function EvaluationTemplatesPage() {
             weight: kpi.weight,
           });
         }
+      } else {
+        const createdKpi = await addKpiMutation.mutateAsync({
+          templateId: selectedTemplateId,
+          versionId: selectedVersionId,
+          kpiId: kpi.kpiId,
+          weight: kpi.weight,
+          parentCriterionId: kpi.parentCriterionId,
+        });
+        kpiIdMap.set(kpi.id, createdKpi.id);
       }
     }
 
-    // Remove KPIs that were in the persisted version but are no longer in updatedKpis
     const updatedKpiIdSet = new Set(updatedKpis.map((k) => k.id));
     for (const persistedId of persistedKpiIds) {
       if (!updatedKpiIdSet.has(persistedId)) {
@@ -240,20 +242,21 @@ export function EvaluationTemplatesPage() {
       }
     }
 
-    // 2. Save criteria (only if there are criteria to save)
-    if (updatedCriteria.length > 0) {
-      const finalCriteria = updatedCriteria.map((c) => ({
-        ...c,
-        templateKpiId: kpiIdMap.get(c.templateKpiId) || c.templateKpiId,
-      }));
+    // Preserve templateKpiId so criteria can remain attached under a KPI when present.
+    const finalCriteria = updatedCriteria.length > 0 ? updatedCriteria : (currentVersion?.criteria ?? []);
 
-      await saveDraftMutation.mutateAsync({
-        templateId: selectedTemplateId,
-        versionId: selectedVersionId,
-        criteria: finalCriteria,
-        expectedVersion,
-      });
-    }
+    await saveDraftMutation.mutateAsync({
+      templateId: selectedTemplateId,
+      versionId: selectedVersionId,
+      criteria: finalCriteria,
+      kpis: updatedKpis.map((kpi) => ({
+        ...kpi,
+        templateCriterionId: kpi.parentCriterionId || kpi.templateCriterionId || null,
+      })),
+      expectedVersion,
+    });
+
+    await templateVersionQuery.refetch();
   };
 
   const handlePublishVersion = async (expectedVersion: number) => {

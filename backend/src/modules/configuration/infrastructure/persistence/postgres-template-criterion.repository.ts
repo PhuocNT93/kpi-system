@@ -10,7 +10,7 @@ export class PostgresTemplateCriterionRepository implements ITemplateCriterionRe
     return {
       id: row.id as string,
       template_version_id: row.template_version_id as string,
-      template_kpi_id: row.template_kpi_id as string,
+      template_kpi_id: (row.template_kpi_id as string | null) ?? null,
       criterion_version_id: row.criterion_version_id as string,
       weight: Number(row.weight),
       display_order: Number(row.display_order),
@@ -109,7 +109,7 @@ export class PostgresTemplateCriterionRepository implements ITemplateCriterionRe
        RETURNING *`,
       [
         tc.template_version_id,
-        tc.template_kpi_id,
+        tc.template_kpi_id ?? null,
         tc.criterion_version_id,
         tc.weight ?? 0,
         tc.display_order ?? 1,

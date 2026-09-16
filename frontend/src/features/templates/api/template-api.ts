@@ -15,6 +15,13 @@ import {
   mapWireTemplateKpiToDomain,
 } from '../domain/template-mappers';
 
+function toUuidOrNull(value?: string | null): string | null {
+  if (!value) return null;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+    ? value
+    : null;
+}
+
 export const MOCK_TEAMS = [
   { id: 'team-a', code: 'team-a', name: 'Team A (Platform Core)', isActive: true },
   { id: 'team-b', code: 'team-b', name: 'Team B (Frontend Experience)', isActive: true },
@@ -105,12 +112,14 @@ export async function saveTemplateCriteriaDraft(
   templateId: string,
   versionId: string,
   criteria: TemplateCriterion[],
+  kpis: TemplateKpi[],
   expectedVersion: number
 ): Promise<void> {
   const payload = {
     expected_version: expectedVersion,
     criteria: criteria.map((c) => ({
-      template_kpi_id: c.templateKpiId,
+      client_id: c.id,
+      template_kpi_id: toUuidOrNull(c.templateKpiId),
       criterion_version_id: c.criterionVersionId,
       effective_weight: c.effectiveWeight,
       applicable_role_ids: c.applicableRoleIds,
@@ -118,6 +127,13 @@ export async function saveTemplateCriteriaDraft(
       is_disabled: c.isDisabled,
       is_optional: c.isOptional,
       display_order: c.displayOrder,
+    })),
+    kpis: kpis.map((kpi) => ({
+      kpi_id: kpi.kpiId,
+      client_criterion_id: kpi.parentCriterionId || kpi.templateCriterionId || null,
+      template_criterion_id: toUuidOrNull(kpi.parentCriterionId || kpi.templateCriterionId),
+      weight: kpi.weight,
+      display_order: kpi.displayOrder,
     })),
   };
 
@@ -131,11 +147,12 @@ export async function addTemplateKpiApi(
   templateId: string,
   versionId: string,
   kpiId: string,
-  weight: number
+  weight: number,
+  parentCriterionId?: string
 ): Promise<TemplateKpi> {
   const data = await postApi<WireTemplateKpi>(
     `/api/v1/configuration/templates/${templateId}/versions/${versionId}/kpis`,
-    { kpi_id: kpiId, weight }
+    { kpi_id: kpiId, weight, template_criterion_id: toUuidOrNull(parentCriterionId) }
   );
   return mapWireTemplateKpiToDomain(data);
 }

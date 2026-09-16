@@ -248,6 +248,8 @@ export function TemplateBuilderWorkspace({
     kpis.filter((kpi) => kpi.parentCriterionId === selectedCriterionId).map((k) => (k.kpi as { id?: string })?.id || k.kpiId)
   );
   const selectedCriterion = criteria.find((criterion) => criterion.id === selectedCriterionId) || null;
+  const getCriterionKpiCount = (criterionId: string) =>
+    kpis.filter((kpi) => kpi.parentCriterionId === criterionId).length;
   const getCriterionKpiTotal = (criterionId: string) =>
     Math.round(
       kpis
@@ -562,7 +564,9 @@ export function TemplateBuilderWorkspace({
                       </span>
 
                       <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#4b5563' }}>
-                        KPI total: {getCriterionKpiTotal(item.id)} / 100%
+                        {getCriterionKpiCount(item.id) > 0
+                          ? `KPI total: ${getCriterionKpiTotal(item.id)} / 100% · ${getCriterionKpiCount(item.id)} KPI(s)`
+                          : 'No KPI assigned yet'}
                       </span>
 
                       <div style={{ display: 'flex', gap: '0.5rem' }}>

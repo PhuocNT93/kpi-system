@@ -105,6 +105,7 @@ export interface TemplateCriterion {
 export interface TemplateKpi {
   id: string;
   templateVersionId: string;
+  templateCriterionId?: string | null;
   kpiId: string;
   parentCriterionId?: string;
   weight: number;

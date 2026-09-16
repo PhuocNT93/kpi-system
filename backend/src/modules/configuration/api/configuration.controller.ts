@@ -334,9 +334,14 @@ export class ConfigurationController {
       };
     });
 
+    const formattedKpis = kpis.map((kpi) => ({
+      ...kpi,
+      template_criterion_id: (kpi as { template_criterion_id?: string | null }).template_criterion_id ?? null,
+    }));
+
       sendSuccess(res, 200, 'Template version retrieved successfully.', {
         ...version,
-        kpis,
+        kpis: formattedKpis,
         criteria: formattedCriteria,
       });
     } catch (e) { next(e); }
@@ -457,7 +462,8 @@ export class ConfigurationController {
     try {
     const versionId = req.params.versionId as string;
     const criteriaItems = req.body.criteria as Array<{
-      template_kpi_id: string;
+      client_id?: string;
+      template_kpi_id?: string;
       criterion_version_id: string;
       weight?: number;
       effective_weight?: number;
@@ -470,7 +476,14 @@ export class ConfigurationController {
       applicable_role_ids?: string[];
       applicable_team_ids?: string[];
     }>;
-      const updated = await this.templateService.bulkUpdateTemplateCriteria(versionId, criteriaItems, this.getActorId(req));
+    const kpiItems = req.body.kpis as Array<{
+      kpi_id: string;
+      client_criterion_id?: string | null;
+      template_criterion_id?: string | null;
+      weight?: number;
+      display_order?: number;
+    }> | undefined;
+      const updated = await this.templateService.bulkUpdateTemplateCriteria(versionId, criteriaItems, this.getActorId(req), kpiItems);
       sendSuccess(res, 200, 'Template criteria updated in bulk successfully.', updated);
     } catch (e) { next(e); }
   };

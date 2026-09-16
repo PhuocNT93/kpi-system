@@ -122,13 +122,15 @@ export function useSaveCriteriaDraftMutation() {
       templateId,
       versionId,
       criteria,
+      kpis,
       expectedVersion,
     }: {
       templateId: string;
       versionId: string;
       criteria: TemplateCriterion[];
+      kpis: import('../domain/template-models').TemplateKpi[];
       expectedVersion: number;
-    }) => saveTemplateCriteriaDraft(templateId, versionId, criteria, expectedVersion),
+    }) => saveTemplateCriteriaDraft(templateId, versionId, criteria, kpis, expectedVersion),
     onSuccess: (_, { templateId, versionId }) => {
       queryClient.invalidateQueries({ queryKey: templateKeys.version(templateId, versionId) });
       queryClient.invalidateQueries({ queryKey: templateKeys.detail(templateId) });
@@ -174,12 +176,16 @@ export function useAddTemplateKpiMutation() {
       versionId,
       kpiId,
       weight,
+      parentCriterionId,
     }: {
       templateId: string;
       versionId: string;
       kpiId: string;
       weight: number;
-    }) => addTemplateKpiApi(templateId, versionId, kpiId, weight),
+      parentCriterionId?: string;
+    }) => {
+      return addTemplateKpiApi(templateId, versionId, kpiId, weight, parentCriterionId);
+    },
     onSuccess: (_, { templateId, versionId }) => {
       queryClient.invalidateQueries({ queryKey: templateKeys.version(templateId, versionId) });
     },

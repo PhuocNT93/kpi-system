@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -13,6 +13,61 @@ import { useJobLevels } from '../hooks/useJobLevels';
 import { AutoCodeButton } from '../../../shared/components/AutoCodeButton';
 import { generateCode } from '../../../shared/utils/code-generator';
 
+const reviewCadenceMonths: Record<string, number> = {
+  MONTHLY: 1,
+  QUARTERLY: 3,
+  BIANNUALLY: 6,
+  ANNUALLY: 12,
+};
+
+function normalizeMonthValue(value: string): string {
+  if (!value) return '';
+  if (/^\d{4}-\d{2}$/.test(value)) return value;
+  return value.slice(0, 7);
+}
+
+function formatMonthHint(value: string): string {
+  const normalized = normalizeMonthValue(value);
+  return normalized;
+}
+
+function addMonthsToMonthValue(monthValue: string, months: number): string {
+  if (!monthValue) return '';
+  const [yearText, monthText] = monthValue.split('-');
+  const year = Number(yearText);
+  const month = Number(monthText);
+  if (Number.isNaN(year) || Number.isNaN(month)) return '';
+
+  const date = new Date(Date.UTC(year, month - 1, 1));
+  date.setUTCMonth(date.getUTCMonth() + months);
+
+  const resultYear = date.getUTCFullYear();
+  const resultMonth = String(date.getUTCMonth() + 1).padStart(2, '0');
+  return `${resultYear}-${resultMonth}`;
+}
+
+function calculateNextReviewDate(lastReviewDate: string, reviewCadence: string): string {
+  const months = reviewCadenceMonths[reviewCadence] ?? 1;
+  if (!months) return '';
+  return addMonthsToMonthValue(normalizeMonthValue(lastReviewDate), months);
+}
+
+function monthToDateValue(value: string): string {
+  const normalized = normalizeMonthValue(value);
+  return normalized ? `${normalized}-01` : '';
+}
+
+function dateToMonthValue(value: string | null | undefined): string {
+  if (!value) return '';
+  const parsedDate = new Date(value);
+  if (!Number.isNaN(parsedDate.getTime())) {
+    const year = parsedDate.getFullYear();
+    const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  }
+  return normalizeMonthValue(value.slice(0, 7));
+}
+
 const createSchema = z.object({
   employee_code: z.string().optional(),
   full_name: z.string().min(1, 'Name is required').max(100),
@@ -24,6 +79,8 @@ const createSchema = z.object({
   manager_id: z.string().optional(),
   employment_status: z.string().optional(),
   review_cadence: z.string().optional(),
+  last_evaluation_completed_at: z.string().optional().or(z.literal('')),
+  next_review_due_date: z.string().min(1, 'Next Review Date is required'),
 });
 
 const updateSchema = z.object({
@@ -36,6 +93,8 @@ const updateSchema = z.object({
   manager_id: z.string().optional(),
   employment_status: z.string().optional(),
   review_cadence: z.string().optional(),
+  last_evaluation_completed_at: z.string().optional().or(z.literal('')),
+  next_review_due_date: z.string().min(1, 'Next Review Date is required'),
 });
 
 type CreateFormValues = z.infer<typeof createSchema>;
@@ -53,6 +112,7 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
   const isEditMode = employee !== undefined;
   const createMutation = useCreateEmployee();
   const updateMutation = useUpdateEmployee();
+  const isInitializingRef = useRef(false);
   
   const { data: departments } = useDepartments();
   const { data: teams } = useTeams();
@@ -86,6 +146,8 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
           manager_id: employee.managerId || '',
           employment_status: employee.employmentStatus,
           review_cadence: employee.reviewCadence || '',
+          last_evaluation_completed_at: dateToMonthValue(employee.lastEvaluationCompletedAt),
+          next_review_due_date: dateToMonthValue(employee.nextReviewDueDate),
         }
       : {
           employee_code: '',
@@ -98,11 +160,14 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
           manager_id: '',
           employment_status: 'ACTIVE',
           review_cadence: '',
+          last_evaluation_completed_at: '',
+          next_review_due_date: '',
         },
   });
 
   useEffect(() => {
     if (isOpen) {
+      isInitializingRef.current = true;
       reset(
         employee
           ? {
@@ -115,6 +180,8 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
               manager_id: employee.managerId || '',
               employment_status: employee.employmentStatus,
               review_cadence: employee.reviewCadence || '',
+              last_evaluation_completed_at: dateToMonthValue(employee.lastEvaluationCompletedAt),
+              next_review_due_date: dateToMonthValue(employee.nextReviewDueDate),
             }
           : {
               employee_code: '',
@@ -127,15 +194,31 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
               manager_id: '',
               employment_status: 'ACTIVE',
               review_cadence: '',
+              last_evaluation_completed_at: '',
+              next_review_due_date: '',
             },
       );
       createMutation.reset();
       updateMutation.reset();
+      queueMicrotask(() => {
+        isInitializingRef.current = false;
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, employee?.id, initialDepartmentId, initialTeamId]);
 
   const selectedDeptId = watch('department_id');
+  const selectedCadence = watch('review_cadence');
+  const selectedLastReviewDate = watch('last_evaluation_completed_at');
+
+  useEffect(() => {
+    if (isInitializingRef.current) return;
+    if (!selectedLastReviewDate) return;
+    const nextReviewDate = calculateNextReviewDate(selectedLastReviewDate, selectedCadence || '');
+    if (nextReviewDate) {
+      setValue('next_review_due_date', nextReviewDate, { shouldValidate: true, shouldDirty: true });
+    }
+  }, [selectedLastReviewDate, selectedCadence, setValue]);
   
   const filteredDepartments = departments?.filter(d => d.isActive || d.id === employee?.departmentId) ?? [];
   const filteredTeams = teams?.filter(t => t.isActive || t.id === employee?.teamId) ?? [];
@@ -150,10 +233,16 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
 
   const onSubmit = handleSubmit(async (values) => {
     try {
+      const normalizedValues = {
+        ...values,
+        last_evaluation_completed_at: monthToDateValue(values.last_evaluation_completed_at || ''),
+        next_review_due_date: monthToDateValue(values.next_review_due_date || ''),
+      };
+
       if (isEditMode) {
-        await updateMutation.mutateAsync({ id: employee.id, data: values as UpdateFormValues });
+        await updateMutation.mutateAsync({ id: employee.id, data: normalizedValues as UpdateFormValues });
       } else {
-        await createMutation.mutateAsync(values as CreateFormValues);
+        await createMutation.mutateAsync(normalizedValues as CreateFormValues);
       }
       onClose();
     } catch (err: unknown) {
@@ -310,6 +399,56 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
                 <option value="BIANNUALLY">Biannually</option>
                 <option value="ANNUALLY">Annually</option>
               </select>
+            </div>
+
+            <div>
+              <label htmlFor="emp-last-review-date" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
+                Last Review Date
+              </label>
+              <input
+                id="emp-last-review-date"
+                type="text"
+                inputMode="numeric"
+                placeholder="YYYY-MM"
+                {...register('last_evaluation_completed_at')}
+                style={{ display: 'block', width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
+                onBlur={(event) => {
+                  const value = formatMonthHint(event.target.value);
+                  if (value) {
+                    setValue('last_evaluation_completed_at', value, { shouldValidate: true, shouldDirty: true });
+                  }
+                }}
+              />
+              {errors.last_evaluation_completed_at && (
+                <span role="alert" style={{ color: '#dc2626', fontSize: '0.875rem', marginTop: '0.25rem', display: 'block' }}>
+                  {errors.last_evaluation_completed_at.message}
+                </span>
+              )}
+            </div>
+
+            <div>
+              <label htmlFor="emp-next-review-date" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
+                Next Review Date *
+              </label>
+              <input
+                id="emp-next-review-date"
+                type="text"
+                inputMode="numeric"
+                placeholder="YYYY-MM"
+                {...register('next_review_due_date')}
+                style={{ display: 'block', width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
+                onBlur={(event) => {
+                  const value = formatMonthHint(event.target.value);
+                  if (value) {
+                    setValue('next_review_due_date', value, { shouldValidate: true, shouldDirty: true });
+                  }
+                }}
+              />
+              {errors.next_review_due_date && (
+                <span role="alert" style={{ color: '#dc2626', fontSize: '0.875rem', marginTop: '0.25rem', display: 'block' }}>
+                  {errors.next_review_due_date.message}
+                </span>
+              )}
             </div>
 
             {!isDeptLocked ? (

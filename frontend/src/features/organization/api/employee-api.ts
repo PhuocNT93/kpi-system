@@ -10,13 +10,15 @@ import { randomUUID } from '../../../shared/utils/uuid';
 
 export const employeeApi = {
   getEmployees: async (filters?: Record<string, unknown>): Promise<OrgEmployee[]> => {
-    const params = filters
-      ? '?' + new URLSearchParams(
-          Object.fromEntries(
-            Object.entries(filters).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)])
-          )
-        ).toString()
-      : '';
+    const paramsObject = {
+      page_size: 50,
+      ...(filters ?? {}),
+    };
+    const params = '?' + new URLSearchParams(
+      Object.fromEntries(
+        Object.entries(paramsObject).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)])
+      )
+    ).toString();
     const data = await getApi<WireEmployee[]>(`/api/employees${params}`);
     return data.map(mapWireEmployeeToDomain);
   },
