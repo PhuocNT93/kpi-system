@@ -179,27 +179,198 @@ export class EvaluationService {
     });
   }
 
-  async approveEvaluation(evaluationId: string, actor: Actor): Promise<Evaluation> {
-    const evaluation = await this.evaluationRepo.findById(evaluationId);
-    if (!evaluation) throw new NotFound('Evaluation');
-
-    const isManager = evaluation.manager_id_snapshot === actor.employeeId || evaluation.manager_id_snapshot === actor.userId;
+  private checkReviewPermission(evaluation: Evaluation, actor: Actor): void {
     const isSuperAdminOrHr = actor.role === 'SYSTEM_ADMIN' || actor.role === 'HR_ADMIN';
+    const isDirectManager =
+      Boolean(actor.employeeId && evaluation.manager_id_snapshot === actor.employeeId) ||
+      Boolean(actor.userId && evaluation.manager_id_snapshot === actor.userId);
+    const isTeamManager =
+      Boolean(actor.managedTeamIds && actor.managedTeamIds.includes(evaluation.team_id_snapshot));
+    const isManager = actor.role === 'MANAGER' && (isDirectManager || isTeamManager);
 
-    if (!isManager && !isSuperAdminOrHr) {
-      throw new AppError(403, 'FORBIDDEN', 'Only managers or HR can approve evaluations.');
+    if (!isSuperAdminOrHr && !isManager) {
+      throw new AppError(403, 'FORBIDDEN', 'Only the assigned manager or HR/Admin can perform this review action.');
+    }
+  }
+
+  async reviewEvaluation(evaluationId: string, actor: Actor): Promise<Evaluation> {
+    return withTransaction(this.pool, async (client) => {
+      const repositoryClient = client as unknown as PoolClient;
+      const evaluation = await this.evaluationRepo.findByIdForUpdate(evaluationId, repositoryClient);
+      if (!evaluation) throw new NotFound('Evaluation');
+
+      this.checkReviewPermission(evaluation, actor);
+
+      if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
+        throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked.');
+      }
+
+      if (evaluation.status === EvaluationStatus.MANAGER_REVIEW) {
+        return evaluation;
+      }
+
+      const reviewableStatuses = [EvaluationStatus.OPEN, EvaluationStatus.SUBMITTED];
+      if (!reviewableStatuses.includes(evaluation.status)) {
+        throw new AppError(400, 'INVALID_STATUS', `Cannot review evaluation in ${evaluation.status} status.`);
+      }
+
+      const updated = await this.evaluationRepo.update(evaluationId, {
+        status: EvaluationStatus.MANAGER_REVIEW,
+        updated_by: actor.userId,
+      }, repositoryClient);
+
+      if (this.auditService) {
+        await this.auditService.record(client, {
+          entityType: 'EVALUATION',
+          entityId: evaluationId,
+          action: 'REVIEW',
+          oldValue: JSON.stringify({ status: evaluation.status }),
+          newValue: JSON.stringify({ status: EvaluationStatus.MANAGER_REVIEW }),
+          performedBy: actor.userId,
+          source: 'API',
+        });
+      }
+
+      appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId });
+      return updated;
+    });
+  }
+
+  async approveEvaluation(evaluationId: string, actor: Actor): Promise<Evaluation> {
+    return withTransaction(this.pool, async (client) => {
+      const repositoryClient = client as unknown as PoolClient;
+      const evaluation = await this.evaluationRepo.findByIdForUpdate(evaluationId, repositoryClient);
+      if (!evaluation) throw new NotFound('Evaluation');
+
+      this.checkReviewPermission(evaluation, actor);
+
+      if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
+        throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked.');
+      }
+
+      if (evaluation.status === EvaluationStatus.APPROVED) {
+        return evaluation;
+      }
+
+      const approvableStatuses = [EvaluationStatus.OPEN, EvaluationStatus.SUBMITTED, EvaluationStatus.MANAGER_REVIEW];
+      if (!approvableStatuses.includes(evaluation.status)) {
+        throw new AppError(400, 'INVALID_STATUS', 'Evaluation must be OPEN, SUBMITTED, or MANAGER_REVIEW to be approved.');
+      }
+
+      const updated = await this.evaluationRepo.update(evaluationId, {
+        status: EvaluationStatus.APPROVED,
+        approved_at: new Date(),
+        updated_by: actor.userId,
+      }, repositoryClient);
+
+      if (this.auditService) {
+        await this.auditService.record(client, {
+          entityType: 'EVALUATION',
+          entityId: evaluationId,
+          action: 'APPROVE',
+          oldValue: JSON.stringify({ status: evaluation.status }),
+          newValue: JSON.stringify({ status: EvaluationStatus.APPROVED }),
+          performedBy: actor.userId,
+          source: 'API',
+        });
+      }
+
+      appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId });
+      return updated;
+    });
+  }
+
+  async rejectEvaluation(
+    evaluationId: string,
+    actor: Actor,
+    data: { reason: string }
+  ): Promise<Evaluation> {
+    if (!data.reason || typeof data.reason !== 'string' || data.reason.trim() === '') {
+      throw new AppError(400, 'INVALID_INPUT', 'Rejection reason is required.');
     }
 
-    // Allow approval from OPEN, SUBMITTED, or MANAGER_REVIEW (workflow B: no mandatory self-assessment)
-    const approvableStatuses = [EvaluationStatus.OPEN, EvaluationStatus.SUBMITTED, 'MANAGER_REVIEW' as EvaluationStatus];
-    if (!approvableStatuses.includes(evaluation.status)) {
-      throw new AppError(400, 'INVALID_STATUS', 'Evaluation must be OPEN, SUBMITTED, or MANAGER_REVIEW to be approved.');
+    return withTransaction(this.pool, async (client) => {
+      const repositoryClient = client as unknown as PoolClient;
+      const evaluation = await this.evaluationRepo.findByIdForUpdate(evaluationId, repositoryClient);
+      if (!evaluation) throw new NotFound('Evaluation');
+
+      this.checkReviewPermission(evaluation, actor);
+
+      if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
+        throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked.');
+      }
+
+      if (evaluation.status === EvaluationStatus.APPROVED || evaluation.status === EvaluationStatus.PUBLISHED) {
+        throw new AppError(400, 'INVALID_STATUS', 'Cannot reject an evaluation that has already been approved or published.');
+      }
+
+      const updated = await this.evaluationRepo.update(evaluationId, {
+        status: EvaluationStatus.REJECTED,
+        updated_by: actor.userId,
+      }, repositoryClient);
+
+      if (this.auditService) {
+        await this.auditService.record(client, {
+          entityType: 'EVALUATION',
+          entityId: evaluationId,
+          action: 'REJECT',
+          reason: data.reason.trim(),
+          oldValue: JSON.stringify({ status: evaluation.status }),
+          newValue: JSON.stringify({ status: EvaluationStatus.REJECTED, reason: data.reason.trim() }),
+          performedBy: actor.userId,
+          source: 'API',
+        });
+      }
+
+      appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId });
+      return updated;
+    });
+  }
+
+  async requestCorrection(
+    evaluationId: string,
+    actor: Actor,
+    data: { reason: string }
+  ): Promise<Evaluation> {
+    if (!data.reason || typeof data.reason !== 'string' || data.reason.trim() === '') {
+      throw new AppError(400, 'INVALID_INPUT', 'Correction reason is required.');
     }
 
-    return this.evaluationRepo.update(evaluationId, {
-      status: EvaluationStatus.APPROVED,
-      approved_at: new Date(),
-      updated_by: actor.userId,
+    return withTransaction(this.pool, async (client) => {
+      const repositoryClient = client as unknown as PoolClient;
+      const evaluation = await this.evaluationRepo.findByIdForUpdate(evaluationId, repositoryClient);
+      if (!evaluation) throw new NotFound('Evaluation');
+
+      this.checkReviewPermission(evaluation, actor);
+
+      if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
+        throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked.');
+      }
+
+      if (evaluation.status !== EvaluationStatus.SUBMITTED && evaluation.status !== EvaluationStatus.MANAGER_REVIEW) {
+        throw new AppError(400, 'INVALID_STATUS', 'Can only request correction for SUBMITTED or MANAGER_REVIEW evaluations.');
+      }
+
+      const updated = await this.evaluationRepo.update(evaluationId, {
+        status: EvaluationStatus.OPEN,
+        updated_by: actor.userId,
+      }, repositoryClient);
+
+      if (this.auditService) {
+        await this.auditService.record(client, {
+          entityType: 'EVALUATION',
+          entityId: evaluationId,
+          action: 'REQUEST_CORRECTION',
+          reason: data.reason.trim(),
+          oldValue: JSON.stringify({ status: evaluation.status }),
+          newValue: JSON.stringify({ status: EvaluationStatus.OPEN, reason: data.reason.trim() }),
+          performedBy: actor.userId,
+          source: 'API',
+        });
+      }
+
+      appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId });
+      return updated;
     });
   }
 

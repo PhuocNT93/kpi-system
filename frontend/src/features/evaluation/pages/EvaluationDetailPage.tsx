@@ -12,6 +12,7 @@ import { RADII, TYPOGRAPHY } from '@/shared/theme';
 import { AlertCircle, ArrowLeft, RefreshCw, CheckCircle2, Sparkles } from 'lucide-react';
 import { useAuth } from '@/shared/auth/auth-context';
 import { OverrideScoreModal } from '../components/OverrideScoreModal';
+import { ReviewActionModal, type ReviewActionType } from '../components/ReviewActionModal';
 import { getLocalizedText } from '../domain/evaluation-models';
 
 type EvaluationDetailMode = 'self' | 'manager';
@@ -32,6 +33,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
   const [draftItems, setDraftItems] = useState<Record<string, DraftItemState>>({});
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
+  const [reviewActionType, setReviewActionType] = useState<ReviewActionType | null>(null);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
   const showToast = useCallback((type: 'success' | 'error' | 'info', text: string) => {
@@ -164,6 +166,32 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
     },
     onError: (err: Error) => {
       showToast('error', err.message || 'Không thể duyệt đánh giá.');
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: (reason: string) => evaluationApi.rejectEvaluation(id!, reason),
+    onSuccess: () => {
+      showToast('success', 'Đã từ chối bản đánh giá.');
+      setReviewActionType(null);
+      queryClient.invalidateQueries({ queryKey: ['evaluation-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['team-evaluations'] });
+    },
+    onError: (err: Error) => {
+      showToast('error', err.message || 'Lỗi khi từ chối đánh giá.');
+    },
+  });
+
+  const requestCorrectionMutation = useMutation({
+    mutationFn: (reason: string) => evaluationApi.requestCorrection(id!, reason),
+    onSuccess: () => {
+      showToast('success', 'Đã gửi yêu cầu chỉnh sửa cho nhân viên.');
+      setReviewActionType(null);
+      queryClient.invalidateQueries({ queryKey: ['evaluation-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['team-evaluations'] });
+    },
+    onError: (err: Error) => {
+      showToast('error', err.message || 'Lỗi khi gửi yêu cầu chỉnh sửa.');
     },
   });
 
@@ -519,6 +547,8 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
         isHrAdmin={isHrAdmin}
         onPublish={handlePublish}
         onLock={handleLock}
+        onRequestCorrection={() => setReviewActionType('REQUEST_CORRECTION')}
+        onReject={() => setReviewActionType('REJECT')}
         submitLabel={isManagerMode ? 'Duyệt đánh giá' : 'Nộp tự đánh giá'}
         submittingLabel={isManagerMode ? 'Đang duyệt...' : 'Đang gửi...'}
       />
@@ -766,6 +796,20 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
           onClose={() => setIsOverrideModalOpen(false)}
         />
       )}
+
+      <ReviewActionModal
+        isOpen={!!reviewActionType}
+        actionType={reviewActionType || 'REJECT'}
+        isSubmitting={rejectMutation.isPending || requestCorrectionMutation.isPending}
+        onConfirm={(reason) => {
+          if (reviewActionType === 'REJECT') {
+            rejectMutation.mutate(reason);
+          } else {
+            requestCorrectionMutation.mutate(reason);
+          }
+        }}
+        onClose={() => setReviewActionType(null)}
+      />
     </div>
   );
 }

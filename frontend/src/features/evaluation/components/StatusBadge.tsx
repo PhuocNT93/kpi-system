@@ -73,6 +73,21 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
           text: '#065f46',
           icon: CheckCircle2,
         };
+      case EvaluationStatus.REJECTED:
+      case 'REJECTED':
+        return {
+          label: 'Từ chối (Rejected)',
+          bg: '#fef2f2',
+          text: '#b91c1c',
+          icon: AlertCircle,
+        };
+      case 'NEEDS_REVISION':
+        return {
+          label: 'Cần chỉnh sửa',
+          bg: '#fffbeb',
+          text: '#b45309',
+          icon: FileEdit,
+        };
       case EvaluationStatus.LOCKED:
         return {
           label: 'Đã khóa (Locked)',

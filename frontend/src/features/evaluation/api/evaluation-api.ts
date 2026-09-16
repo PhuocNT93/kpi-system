@@ -32,6 +32,18 @@ export const evaluationApi = {
     return postApi(`${EVALUATIONS_BASE}/${id}/approve`, {});
   },
 
+  reviewEvaluation: async (id: string): Promise<void> => {
+    return postApi(`${EVALUATIONS_BASE}/${id}/review`, {});
+  },
+
+  rejectEvaluation: async (id: string, reason: string): Promise<void> => {
+    return postApi(`${EVALUATIONS_BASE}/${id}/reject`, { reason });
+  },
+
+  requestCorrection: async (id: string, reason: string): Promise<void> => {
+    return postApi(`${EVALUATIONS_BASE}/${id}/request-correction`, { reason });
+  },
+
   recalculateEvaluation: async (id: string): Promise<void> => {
     return postApi(`${EVALUATIONS_BASE}/${id}/recalculate`, {});
   },

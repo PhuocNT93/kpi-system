@@ -16,7 +16,10 @@ export function createEvaluationRouter(
   router.put('/:id/items/:itemId', controller.saveItemDraft);
   router.post('/:id/submit', controller.submitEvaluation);
   router.post('/:id/self-submit', controller.selfSubmitEvaluation);
+  router.post('/:id/review', controller.reviewEvaluation);
   router.post('/:id/approve', controller.approveEvaluation);
+  router.post('/:id/reject', controller.rejectEvaluation);
+  router.post('/:id/request-correction', controller.requestCorrection);
   router.post('/:id/recalculate', controller.recalculateEvaluation);
   router.post('/:id/publish', controller.publishEvaluation);
   router.post('/:id/lock', controller.lockEvaluation);

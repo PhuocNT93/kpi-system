@@ -76,11 +76,50 @@ export class EvaluationController {
     sendSuccess(res, 200, 'Self-assessment submitted successfully.', result);
   };
 
-  approveEvaluation = async (req: Request, res: Response): Promise<void> => {
-    const actor = this.getActor(req);
-    const id = req.params.id as string;
-    const result = await this.evaluationService.approveEvaluation(id, actor);
-    sendSuccess(res, 200, 'Evaluation approved successfully.', result);
+  reviewEvaluation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const actor = this.getActor(req);
+      const id = req.params.id as string;
+      const result = await this.evaluationService.reviewEvaluation(id, actor);
+      sendSuccess(res, 200, 'Evaluation review started successfully.', result);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  approveEvaluation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const actor = this.getActor(req);
+      const id = req.params.id as string;
+      const result = await this.evaluationService.approveEvaluation(id, actor);
+      sendSuccess(res, 200, 'Evaluation approved successfully.', result);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  rejectEvaluation = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const actor = this.getActor(req);
+      const id = req.params.id as string;
+      const { reason } = req.body;
+      const result = await this.evaluationService.rejectEvaluation(id, actor, { reason: reason as string });
+      sendSuccess(res, 200, 'Evaluation rejected successfully.', result);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  requestCorrection = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const actor = this.getActor(req);
+      const id = req.params.id as string;
+      const { reason } = req.body;
+      const result = await this.evaluationService.requestCorrection(id, actor, { reason: reason as string });
+      sendSuccess(res, 200, 'Correction requested successfully.', result);
+    } catch (err) {
+      next(err);
+    }
   };
 
   recalculateEvaluation = async (req: Request, res: Response): Promise<void> => {
