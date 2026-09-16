@@ -10,6 +10,7 @@ import { ScoringEngine, type ScoringKpiInput } from '../../domain/scoring/scorin
 import { RuleEngine } from '../../../rule-engine/domain/rule-engine.js';
 import { appEventEmitter, AppEvent } from '../../../../shared/events/index.js';
 import { ExplainabilityViewDto, SourceSnapshot } from '../../../evaluation-data-import/domain/evaluation-data-import.types.js';
+import { EvaluationTransitionService } from './evaluation-transition.service.js';
 
 export class EvaluationService {
   constructor(
@@ -17,7 +18,8 @@ export class EvaluationService {
     private evaluationItemRepo: IEvaluationItemRepository,
     private pool: Pool,
     private auditService?: AuditService,
-    private ruleEngine?: RuleEngine
+    private ruleEngine?: RuleEngine,
+    private transitionService: EvaluationTransitionService = new EvaluationTransitionService()
   ) {}
 
   async getMyEvaluations(actor: Actor): Promise<MyEvaluationListItem[]> {
@@ -110,6 +112,10 @@ export class EvaluationService {
       throw new AppError(403, 'FORBIDDEN', 'Access denied.');
     }
 
+    if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
+      throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked.');
+    }
+
     // Self (employee) can only edit when OPEN
     if (isSelf && !isManager && !isSuperAdminOrHr && evaluation.status !== EvaluationStatus.OPEN) {
       throw new AppError(400, 'INVALID_STATUS', 'Can only save draft when evaluation is OPEN.');
@@ -146,6 +152,10 @@ export class EvaluationService {
       throw new AppError(403, 'FORBIDDEN', 'Access denied.');
     }
 
+    if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
+      throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked.');
+    }
+
     // Self (employee) can only edit when OPEN
     if (isSelf && !isManager && !isSuperAdminOrHr && evaluation.status !== EvaluationStatus.OPEN) {
       throw new AppError(400, 'INVALID_STATUS', 'Can only save draft when evaluation is OPEN.');
@@ -163,43 +173,268 @@ export class EvaluationService {
   }
 
   async submitEvaluation(evaluationId: string, actor: Actor): Promise<Evaluation> {
-    const evaluation = await this.evaluationRepo.findById(evaluationId);
-    if (!evaluation) throw new NotFound('Evaluation');
+    const executeSubmit = async (
+      client?: PoolClient,
+      evalRecord?: Evaluation
+    ): Promise<Evaluation> => {
+      let evaluation = evalRecord;
+      if (!evaluation && client) {
+        evaluation = (await this.evaluationRepo.findByIdForUpdate(evaluationId, client)) ||
+          (await this.evaluationRepo.findById(evaluationId, client)) ||
+          (await this.evaluationRepo.findById(evaluationId)) ||
+          undefined;
+      } else if (!evaluation) {
+        evaluation = (await this.evaluationRepo.findById(evaluationId)) || undefined;
+      }
 
-    const isSelf = evaluation.employee_id === actor.employeeId || evaluation.employee_id === actor.userId;
-    if (!isSelf) throw new AppError(403, 'FORBIDDEN', 'Access denied.');
-    if (evaluation.status !== EvaluationStatus.OPEN) {
-      throw new AppError(400, 'INVALID_STATUS', 'Can only submit when evaluation is OPEN.');
+      if (!evaluation) throw new NotFound('Evaluation');
+
+      const isSelf = evaluation.employee_id === actor.employeeId || evaluation.employee_id === actor.userId;
+      if (!isSelf) throw new AppError(403, 'FORBIDDEN', 'Access denied.');
+
+      if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
+        throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked.');
+      }
+
+      // Idempotency: if already submitted, return current evaluation
+      if (evaluation.status === EvaluationStatus.SUBMITTED) {
+        return evaluation;
+      }
+
+      this.transitionService.validateTransition(evaluation.status, EvaluationStatus.SUBMITTED);
+
+      // Validate required criteria have scores completed
+      const rawItems = await this.evaluationItemRepo.findByEvaluationId(evaluationId, client);
+      const items = Array.isArray(rawItems) ? rawItems : [];
+      this.transitionService.validateSubmittable(evaluation, items);
+
+      const updatePayload = {
+        status: EvaluationStatus.SUBMITTED,
+        submitted_at: new Date(),
+        updated_by: actor.userId,
+      };
+      const updated = client
+        ? await this.evaluationRepo.update(evaluationId, updatePayload, client)
+        : await this.evaluationRepo.update(evaluationId, updatePayload);
+
+      if (this.auditService && client) {
+        await this.auditService.record(client, {
+          entityType: 'EVALUATION',
+          entityId: evaluationId,
+          action: 'SUBMIT',
+          oldValue: JSON.stringify({ status: evaluation.status }),
+          newValue: JSON.stringify({ status: EvaluationStatus.SUBMITTED }),
+          performedBy: actor.userId,
+          source: 'API',
+        });
+      }
+
+      appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId });
+      return updated;
+    };
+
+    if (this.pool && typeof this.pool.connect === 'function') {
+      return withTransaction(this.pool, async (client) => {
+        const repositoryClient = client as unknown as PoolClient;
+        return executeSubmit(repositoryClient);
+      });
     }
 
-    return this.evaluationRepo.update(evaluationId, {
-      status: EvaluationStatus.SUBMITTED,
-      submitted_at: new Date(),
-      updated_by: actor.userId,
+    return executeSubmit();
+  }
+
+  private checkReviewPermission(evaluation: Evaluation, actor: Actor): void {
+    const isSuperAdminOrHr = actor.role === 'SYSTEM_ADMIN' || actor.role === 'HR_ADMIN';
+    const isDirectManager =
+      Boolean(actor.employeeId && evaluation.manager_id_snapshot === actor.employeeId) ||
+      Boolean(actor.userId && evaluation.manager_id_snapshot === actor.userId);
+    const isTeamManager =
+      Boolean(actor.managedTeamIds && actor.managedTeamIds.includes(evaluation.team_id_snapshot));
+    const isManager = actor.role === 'MANAGER' && (isDirectManager || isTeamManager);
+
+    if (!isSuperAdminOrHr && !isManager) {
+      throw new AppError(403, 'FORBIDDEN', 'Only the assigned manager or HR/Admin can perform this review action.');
+    }
+  }
+
+  async reviewEvaluation(evaluationId: string, actor: Actor): Promise<Evaluation> {
+    return withTransaction(this.pool, async (client) => {
+      const repositoryClient = client as unknown as PoolClient;
+      const evaluation = await this.evaluationRepo.findByIdForUpdate(evaluationId, repositoryClient);
+      if (!evaluation) throw new NotFound('Evaluation');
+
+      this.checkReviewPermission(evaluation, actor);
+
+      if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
+        throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked.');
+      }
+
+      if (evaluation.status === EvaluationStatus.MANAGER_REVIEW) {
+        return evaluation;
+      }
+
+      const reviewableStatuses = [EvaluationStatus.OPEN, EvaluationStatus.SUBMITTED];
+      if (!reviewableStatuses.includes(evaluation.status)) {
+        throw new AppError(400, 'INVALID_STATUS', `Cannot review evaluation in ${evaluation.status} status.`);
+      }
+
+      const updated = await this.evaluationRepo.update(evaluationId, {
+        status: EvaluationStatus.MANAGER_REVIEW,
+        updated_by: actor.userId,
+      }, repositoryClient);
+
+      if (this.auditService) {
+        await this.auditService.record(client, {
+          entityType: 'EVALUATION',
+          entityId: evaluationId,
+          action: 'REVIEW',
+          oldValue: JSON.stringify({ status: evaluation.status }),
+          newValue: JSON.stringify({ status: EvaluationStatus.MANAGER_REVIEW }),
+          performedBy: actor.userId,
+          source: 'API',
+        });
+      }
+
+      appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId });
+      return updated;
     });
   }
 
   async approveEvaluation(evaluationId: string, actor: Actor): Promise<Evaluation> {
-    const evaluation = await this.evaluationRepo.findById(evaluationId);
-    if (!evaluation) throw new NotFound('Evaluation');
+    return withTransaction(this.pool, async (client) => {
+      const repositoryClient = client as unknown as PoolClient;
+      const evaluation = await this.evaluationRepo.findByIdForUpdate(evaluationId, repositoryClient);
+      if (!evaluation) throw new NotFound('Evaluation');
 
-    const isManager = evaluation.manager_id_snapshot === actor.employeeId || evaluation.manager_id_snapshot === actor.userId;
-    const isSuperAdminOrHr = actor.role === 'SYSTEM_ADMIN' || actor.role === 'HR_ADMIN';
+      this.checkReviewPermission(evaluation, actor);
 
-    if (!isManager && !isSuperAdminOrHr) {
-      throw new AppError(403, 'FORBIDDEN', 'Only managers or HR can approve evaluations.');
+      if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
+        throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked.');
+      }
+
+      if (evaluation.status === EvaluationStatus.APPROVED) {
+        return evaluation;
+      }
+
+      const approvableStatuses = [EvaluationStatus.OPEN, EvaluationStatus.SUBMITTED, EvaluationStatus.MANAGER_REVIEW];
+      if (!approvableStatuses.includes(evaluation.status)) {
+        throw new AppError(400, 'INVALID_STATUS', 'Evaluation must be OPEN, SUBMITTED, or MANAGER_REVIEW to be approved.');
+      }
+
+      const updated = await this.evaluationRepo.update(evaluationId, {
+        status: EvaluationStatus.APPROVED,
+        approved_at: new Date(),
+        updated_by: actor.userId,
+      }, repositoryClient);
+
+      if (this.auditService) {
+        await this.auditService.record(client, {
+          entityType: 'EVALUATION',
+          entityId: evaluationId,
+          action: 'APPROVE',
+          oldValue: JSON.stringify({ status: evaluation.status }),
+          newValue: JSON.stringify({ status: EvaluationStatus.APPROVED }),
+          performedBy: actor.userId,
+          source: 'API',
+        });
+      }
+
+      appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId });
+      return updated;
+    });
+  }
+
+  async rejectEvaluation(
+    evaluationId: string,
+    actor: Actor,
+    data: { reason: string }
+  ): Promise<Evaluation> {
+    if (!data.reason || typeof data.reason !== 'string' || data.reason.trim() === '') {
+      throw new AppError(400, 'INVALID_INPUT', 'Rejection reason is required.');
     }
 
-    // Allow approval from OPEN, SUBMITTED, or MANAGER_REVIEW (workflow B: no mandatory self-assessment)
-    const approvableStatuses = [EvaluationStatus.OPEN, EvaluationStatus.SUBMITTED, 'MANAGER_REVIEW' as EvaluationStatus];
-    if (!approvableStatuses.includes(evaluation.status)) {
-      throw new AppError(400, 'INVALID_STATUS', 'Evaluation must be OPEN, SUBMITTED, or MANAGER_REVIEW to be approved.');
+    return withTransaction(this.pool, async (client) => {
+      const repositoryClient = client as unknown as PoolClient;
+      const evaluation = await this.evaluationRepo.findByIdForUpdate(evaluationId, repositoryClient);
+      if (!evaluation) throw new NotFound('Evaluation');
+
+      this.checkReviewPermission(evaluation, actor);
+
+      if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
+        throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked.');
+      }
+
+      if (evaluation.status === EvaluationStatus.APPROVED || evaluation.status === EvaluationStatus.PUBLISHED) {
+        throw new AppError(400, 'INVALID_STATUS', 'Cannot reject an evaluation that has already been approved or published.');
+      }
+
+      const updated = await this.evaluationRepo.update(evaluationId, {
+        status: EvaluationStatus.REJECTED,
+        updated_by: actor.userId,
+      }, repositoryClient);
+
+      if (this.auditService) {
+        await this.auditService.record(client, {
+          entityType: 'EVALUATION',
+          entityId: evaluationId,
+          action: 'REJECT',
+          reason: data.reason.trim(),
+          oldValue: JSON.stringify({ status: evaluation.status }),
+          newValue: JSON.stringify({ status: EvaluationStatus.REJECTED, reason: data.reason.trim() }),
+          performedBy: actor.userId,
+          source: 'API',
+        });
+      }
+
+      appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId });
+      return updated;
+    });
+  }
+
+  async requestCorrection(
+    evaluationId: string,
+    actor: Actor,
+    data: { reason: string }
+  ): Promise<Evaluation> {
+    if (!data.reason || typeof data.reason !== 'string' || data.reason.trim() === '') {
+      throw new AppError(400, 'INVALID_INPUT', 'Correction reason is required.');
     }
 
-    return this.evaluationRepo.update(evaluationId, {
-      status: EvaluationStatus.APPROVED,
-      approved_at: new Date(),
-      updated_by: actor.userId,
+    return withTransaction(this.pool, async (client) => {
+      const repositoryClient = client as unknown as PoolClient;
+      const evaluation = await this.evaluationRepo.findByIdForUpdate(evaluationId, repositoryClient);
+      if (!evaluation) throw new NotFound('Evaluation');
+
+      this.checkReviewPermission(evaluation, actor);
+
+      if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
+        throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked.');
+      }
+
+      if (evaluation.status !== EvaluationStatus.SUBMITTED && evaluation.status !== EvaluationStatus.MANAGER_REVIEW) {
+        throw new AppError(400, 'INVALID_STATUS', 'Can only request correction for SUBMITTED or MANAGER_REVIEW evaluations.');
+      }
+
+      const updated = await this.evaluationRepo.update(evaluationId, {
+        status: EvaluationStatus.OPEN,
+        updated_by: actor.userId,
+      }, repositoryClient);
+
+      if (this.auditService) {
+        await this.auditService.record(client, {
+          entityType: 'EVALUATION',
+          entityId: evaluationId,
+          action: 'REQUEST_CORRECTION',
+          reason: data.reason.trim(),
+          oldValue: JSON.stringify({ status: evaluation.status }),
+          newValue: JSON.stringify({ status: EvaluationStatus.OPEN, reason: data.reason.trim() }),
+          performedBy: actor.userId,
+          source: 'API',
+        });
+      }
+
+      appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId });
+      return updated;
     });
   }
 
@@ -228,27 +463,57 @@ export class EvaluationService {
   }
 
   async publishEvaluation(evaluationId: string, actor: Actor): Promise<Evaluation> {
-    const evaluation = await this.evaluationRepo.findById(evaluationId);
-    if (!evaluation) throw new NotFound('Evaluation');
-
     const isHrOrAdmin = actor.role === 'HR_ADMIN' || actor.role === 'SYSTEM_ADMIN';
     if (!isHrOrAdmin) {
       throw new AppError(403, 'FORBIDDEN', 'Only HR or System Admins can publish evaluations.');
     }
 
-    if (evaluation.status !== EvaluationStatus.APPROVED) {
-      throw new AppError(400, 'INVALID_STATUS', 'Evaluation must be APPROVED before it can be published.');
-    }
+    return withTransaction(this.pool, async (client) => {
+      const repositoryClient = client as unknown as PoolClient;
+      const evaluation = await this.evaluationRepo.findByIdForUpdate(evaluationId, repositoryClient);
+      if (!evaluation) throw new NotFound('Evaluation');
 
-    return this.evaluationRepo.update(evaluationId, {
-      status: EvaluationStatus.PUBLISHED,
-      published_at: new Date(),
-      published_by: actor.userId,
-      updated_by: actor.userId,
+      if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
+        throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked.');
+      }
+
+      if (evaluation.status === EvaluationStatus.PUBLISHED) {
+        return evaluation;
+      }
+
+      if (evaluation.status !== EvaluationStatus.APPROVED) {
+        throw new AppError(400, 'INVALID_STATUS', 'Evaluation must be APPROVED before it can be published.');
+      }
+
+      const updated = await this.evaluationRepo.update(evaluationId, {
+        status: EvaluationStatus.PUBLISHED,
+        published_at: new Date(),
+        published_by: actor.userId,
+        updated_by: actor.userId,
+      }, repositoryClient);
+
+      if (this.auditService) {
+        await this.auditService.record(client, {
+          entityType: 'EVALUATION',
+          entityId: evaluationId,
+          action: 'PUBLISH',
+          oldValue: JSON.stringify({ status: evaluation.status }),
+          newValue: JSON.stringify({ status: EvaluationStatus.PUBLISHED }),
+          performedBy: actor.userId,
+          source: 'API',
+        });
+      }
+
+      appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId });
+      return updated;
     });
   }
 
-  async lockEvaluation(evaluationId: string, actor: Actor): Promise<Evaluation> {
+  async lockEvaluation(
+    evaluationId: string,
+    actor: Actor,
+    options?: { throwOnConflict?: boolean }
+  ): Promise<Evaluation> {
     const isHrOrAdmin = actor.role === 'HR_ADMIN' || actor.role === 'SYSTEM_ADMIN';
     if (!isHrOrAdmin) {
       throw new AppError(403, 'FORBIDDEN', 'Only HR or System Admins can lock evaluations.');
@@ -259,9 +524,14 @@ export class EvaluationService {
       const evaluation = await this.evaluationRepo.findByIdForUpdate(evaluationId, repositoryClient);
       
       if (!evaluation) throw new NotFound('Evaluation');
+
       if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
-        throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is already locked.');
+        if (options?.throwOnConflict) {
+          throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is already locked.');
+        }
+        return evaluation;
       }
+
       if (evaluation.status !== EvaluationStatus.PUBLISHED && evaluation.status !== EvaluationStatus.APPROVED) {
         throw new AppError(400, 'INVALID_STATUS', 'Evaluation must be APPROVED or PUBLISHED before locking.');
       }
@@ -274,6 +544,19 @@ export class EvaluationService {
         updated_by: actor.userId,
       }, repositoryClient);
 
+      if (this.auditService) {
+        await this.auditService.record(client, {
+          entityType: 'EVALUATION',
+          entityId: evaluationId,
+          action: 'LOCK',
+          oldValue: JSON.stringify({ status: evaluation.status, is_locked: evaluation.is_locked }),
+          newValue: JSON.stringify({ status: EvaluationStatus.LOCKED, is_locked: true }),
+          performedBy: actor.userId,
+          source: 'API',
+        });
+      }
+
+      appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId });
       return updated;
     });
   }
@@ -285,14 +568,30 @@ export class EvaluationService {
     data: { manual_override_score: number; override_reason: string }
   ): Promise<EvaluationItem> {
     const isHrOrAdmin = actor.role === 'HR_ADMIN' || actor.role === 'SYSTEM_ADMIN';
-    if (!isHrOrAdmin) {
+    if (!isHrOrAdmin || actor.role === 'MANAGER' || actor.role === 'EMPLOYEE') {
       throw new AppError(403, 'FORBIDDEN', 'Only HR or System Admins can manually override scores.');
     }
 
-    if (data.manual_override_score < 0 || data.manual_override_score > 100) {
-      throw new AppError(400, 'INVALID_INPUT', 'Override score must be between 0 and 100.');
+    if (actor.permissions && actor.permissions.length > 0) {
+      const hasPerm =
+        actor.permissions.includes('KPI_MANUAL_OVERRIDE') ||
+        actor.permissions.includes('evaluation:manual_override');
+      if (!hasPerm) {
+        throw new AppError(403, 'FORBIDDEN', 'Actor lacks KPI_MANUAL_OVERRIDE permission.');
+      }
     }
-    if (!data.override_reason || data.override_reason.trim() === '') {
+
+    if (
+      data.manual_override_score === undefined ||
+      data.manual_override_score === null ||
+      typeof data.manual_override_score !== 'number' ||
+      Number.isNaN(data.manual_override_score) ||
+      data.manual_override_score < 0 ||
+      data.manual_override_score > 100
+    ) {
+      throw new AppError(400, 'INVALID_INPUT', 'Override score must be a number between 0 and 100.');
+    }
+    if (!data.override_reason || typeof data.override_reason !== 'string' || data.override_reason.trim() === '') {
       throw new AppError(400, 'INVALID_INPUT', 'Override reason is required.');
     }
 
@@ -304,18 +603,17 @@ export class EvaluationService {
       if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
         throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked. Scores cannot be overridden.');
       }
-      if (evaluation.status !== EvaluationStatus.APPROVED && evaluation.status !== EvaluationStatus.PUBLISHED) {
-        throw new AppError(400, 'INVALID_STATUS', 'Can only override score when evaluation is APPROVED or PUBLISHED.');
-      }
 
       const items = await this.evaluationItemRepo.findByEvaluationId(evaluationId, repositoryClient);
-      const targetItem = items.find(item => item.evaluation_item_id === kpiId);
+      const targetItem = items.find(
+        (item) => item.evaluation_item_id === kpiId || item.kpi_id_snapshot === kpiId
+      );
       
       if (!targetItem) throw new NotFound('EvaluationItem');
 
       const updatedItem = await this.evaluationItemRepo.update(targetItem.evaluation_item_id, {
         manual_override_score: data.manual_override_score,
-        override_reason: data.override_reason,
+        override_reason: data.override_reason.trim(),
         override_by: actor.userId,
         override_at: new Date(),
         updated_by: actor.userId,
@@ -326,8 +624,10 @@ export class EvaluationService {
           entityType: 'EVALUATION_ITEM',
           entityId: targetItem.evaluation_item_id,
           action: 'MANUAL_OVERRIDE',
-          oldValue: JSON.stringify({ manual_override_score: targetItem.manual_override_score }),
-          newValue: JSON.stringify({ manual_override_score: updatedItem.manual_override_score, override_reason: updatedItem.override_reason }),
+          fieldName: 'manual_override_score',
+          oldValue: targetItem.manual_override_score != null ? String(targetItem.manual_override_score) : null,
+          newValue: String(updatedItem.manual_override_score),
+          reason: data.override_reason.trim(),
           performedBy: actor.userId,
           source: 'API',
         });

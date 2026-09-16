@@ -6,6 +6,11 @@ export const AuditActionSchema = z.enum([
   'DELETE',
   'APPROVE',
   'REJECT',
+  'REVIEW',
+  'REQUEST_CORRECTION',
+  'SUBMIT',
+  'PUBLISH',
+  'LOCK',
   'ADJUST',
   'TEAM_CREATED',
   'TEAM_UPDATED',
@@ -59,6 +64,24 @@ export const AuditRecordParamsSchema = z.object({
   source: z.string().default('API')
 });
 
+export const BUSINESS_AUDIT_ENTITY_TYPES = [
+  'EMPLOYEE',
+  'DEPARTMENT',
+  'TEAM',
+  'JOB_LEVEL',
+  'EVALUATION_TEMPLATE',
+  'EVALUATION_CYCLE',
+  'EVALUATION',
+  'EVALUATION_ITEM',
+  'KPI',
+  'KPI_VERSION',
+  'KPI_RELATIONSHIP',
+  'TEMPLATE_KPI',
+  'EVALUATION_KPI'
+] as const;
+
+export type BusinessAuditEntityType = (typeof BUSINESS_AUDIT_ENTITY_TYPES)[number];
+
 export const AuditLogQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
@@ -70,7 +93,9 @@ export const AuditLogQuerySchema = z.object({
   toDate: z.string().datetime().optional(),
 });
 
-export type AuditLogQuery = z.infer<typeof AuditLogQuerySchema>;
+export type AuditLogQuery = z.infer<typeof AuditLogQuerySchema> & {
+  allowedEntityTypes?: string[];
+};
 
 export interface AuditLog {
   auditLogId: string;

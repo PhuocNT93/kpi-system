@@ -26,6 +26,7 @@ import { ReportsController } from '../modules/reports/api/reports.controller.js'
 import { createReportsRouter } from '../modules/reports/api/reports.router.js';
 import { EvaluationDataImportController } from '../modules/evaluation-data-import/api/evaluation-data-import.controller.js';
 import { createEvaluationDataImportRouter } from '../modules/evaluation-data-import/api/evaluation-data-import.router.js';
+import { CalibrationController, createCalibrationRouter } from '../modules/calibration/index.js';
 
 export interface RegisterRoutesOptions {
   authController?: AuthController;
@@ -45,6 +46,7 @@ export interface RegisterRoutesOptions {
   evaluationDataImportController?: EvaluationDataImportController;
   collectorRouter?: Router;
   reportsController?: ReportsController;
+  calibrationController?: CalibrationController;
 }
 
 export function createApiRouter(options: RegisterRoutesOptions): Router {
@@ -125,6 +127,11 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
   // ── Reports Module Routes ────────────────────────────────────────────────
   if (options.reportsController) {
     router.use('/reports', options.jwtMiddleware, createReportsRouter(options.reportsController, options.authorizationService));
+  }
+
+  // ── Calibration Module Routes ───────────────────────────────────────────
+  if (options.calibrationController) {
+    router.use('/calibration', createCalibrationRouter(options.calibrationController, options.jwtMiddleware));
   }
 
   // ── Sample: single-resource response ──────────────────────────────────────

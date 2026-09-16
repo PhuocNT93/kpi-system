@@ -1,6 +1,14 @@
 import { TransactionClient } from '../../../shared/database/transaction.js';
-import { AuditRecordParams, AuditRecordParamsSchema, AuditLogQuerySchema, PaginatedAuditLogs } from '../domain/audit.domain.js';
+import {
+  AuditRecordParams,
+  AuditRecordParamsSchema,
+  AuditLogQuerySchema,
+  AuditLogQuery,
+  PaginatedAuditLogs,
+  BUSINESS_AUDIT_ENTITY_TYPES,
+} from '../domain/audit.domain.js';
 import { AuditRepository } from '../domain/audit.repository.js';
+import { Actor } from '../../../shared/auth/types.js';
 
 export class AuditService {
   constructor(private auditRepo: AuditRepository) {}
@@ -19,10 +27,31 @@ export class AuditService {
     await this.auditRepo.insert(validParams, tx);
   }
 
-  async getLogs(query: Record<string, unknown>): Promise<PaginatedAuditLogs> {
+  async getLogs(query: Record<string, unknown>, actor?: Actor): Promise<PaginatedAuditLogs> {
     try {
       const validated = AuditLogQuerySchema.parse(query);
-      return await this.auditRepo.findMany(validated);
+      const filters: AuditLogQuery = { ...validated };
+
+      if (actor) {
+        if (actor.role === 'HR_ADMIN') {
+          // HR Admin is strictly limited to business-scope audit logs
+          if (filters.entityType) {
+            if (!BUSINESS_AUDIT_ENTITY_TYPES.includes(filters.entityType as any)) {
+              const { Forbidden } = await import('../../../api/app-error.js');
+              throw new Forbidden('HR_ADMIN can only view business-scope audit logs');
+            }
+          } else {
+            filters.allowedEntityTypes = [...BUSINESS_AUDIT_ENTITY_TYPES];
+          }
+        } else if (actor.role === 'SYSTEM_ADMIN') {
+          // System Admin sees full audit without restriction
+        } else {
+          const { Forbidden } = await import('../../../api/app-error.js');
+          throw new Forbidden('Insufficient permissions to view audit logs');
+        }
+      }
+
+      return await this.auditRepo.findMany(filters);
     } catch (error) {
       if (error instanceof Error && error.name === 'ZodError') {
         const { BadRequest } = await import('../../../api/app-error.js');

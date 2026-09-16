@@ -31,6 +31,8 @@ interface EvaluationHeaderProps {
   isHrAdmin?: boolean;
   onPublish?: () => void;
   onLock?: () => void;
+  onRequestCorrection?: () => void;
+  onReject?: () => void;
 }
 
 export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
@@ -57,6 +59,8 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
   isHrAdmin = false,
   onPublish,
   onLock,
+  onRequestCorrection,
+  onReject,
 }) => {
   const navigate = useNavigate();
 
@@ -167,6 +171,52 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
                   <span>{isSaving ? 'Đang lưu...' : hasUnsavedChanges ? 'Lưu thay đổi (Draft)' : 'Lưu nháp (Draft)'}</span>
                 </button>
 
+                {mode === 'manager' && onRequestCorrection && (
+                  <button
+                    type="button"
+                    onClick={onRequestCorrection}
+                    disabled={isSaving || isSubmitting}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 16px',
+                      borderRadius: RADII.lg,
+                      backgroundColor: '#fffbeb',
+                      border: '1px solid #fde68a',
+                      color: '#b45309',
+                      fontSize: TYPOGRAPHY.fontSize.sm,
+                      fontWeight: 600,
+                      cursor: isSaving || isSubmitting ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    <span>Yêu cầu sửa</span>
+                  </button>
+                )}
+
+                {mode === 'manager' && onReject && (
+                  <button
+                    type="button"
+                    onClick={onReject}
+                    disabled={isSaving || isSubmitting}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 16px',
+                      borderRadius: RADII.lg,
+                      backgroundColor: '#fef2f2',
+                      border: '1px solid #fecaca',
+                      color: '#b91c1c',
+                      fontSize: TYPOGRAPHY.fontSize.sm,
+                      fontWeight: 600,
+                      cursor: isSaving || isSubmitting ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    <span>Từ chối</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={onSubmit}
@@ -177,17 +227,17 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
                     gap: '6px',
                     padding: '8px 20px',
                     borderRadius: RADII.lg,
-                    backgroundColor: COLORS.primary.DEFAULT,
+                    backgroundColor: mode === 'manager' ? '#059669' : COLORS.primary.DEFAULT,
                     border: 'none',
                     color: COLORS.neutral.white,
                     fontSize: TYPOGRAPHY.fontSize.sm,
                     fontWeight: 600,
                     cursor: isSaving || isSubmitting ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 2px 4px rgba(79, 70, 229, 0.2)',
+                    boxShadow: mode === 'manager' ? '0 2px 4px rgba(5, 150, 105, 0.2)' : '0 2px 4px rgba(79, 70, 229, 0.2)',
                   }}
                 >
                   <Send size={16} />
-                  <span>{isSubmitting ? submittingLabel : submitLabel}</span>
+                  <span>{isSubmitting ? submittingLabel : mode === 'manager' ? 'Phê duyệt (Approve)' : submitLabel}</span>
                 </button>
               </div>
             )}

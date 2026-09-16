@@ -5,14 +5,15 @@ import { evaluationApi } from '../api/evaluation-api';
 import { EvaluationStatus } from '../domain/evaluation-models';
 import { EvaluationHeader } from '../components/EvaluationHeader';
 import { EvaluationSummaryPanel } from '../components/EvaluationSummaryPanel';
-import { CriterionCard } from '../components/CriterionCard';
+import { KpiEvaluationCard, type KpiGroup } from '../components/KpiEvaluationCard';
 import { SubmitConfirmModal } from '../components/SubmitConfirmModal';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
 import { AlertCircle, ArrowLeft, RefreshCw, CheckCircle2, Sparkles } from 'lucide-react';
 import { useAuth } from '@/shared/auth/auth-context';
 import { OverrideScoreModal } from '../components/OverrideScoreModal';
-import { getLocalizedText } from '../domain/evaluation-models';
+import { ReviewActionModal, type ReviewActionType } from '../components/ReviewActionModal';
+import { getLocalizedText, type ScoringKpiResult } from '../domain/evaluation-models';
 
 type EvaluationDetailMode = 'self' | 'manager';
 
@@ -32,6 +33,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
   const [draftItems, setDraftItems] = useState<Record<string, DraftItemState>>({});
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
+  const [reviewActionType, setReviewActionType] = useState<ReviewActionType | null>(null);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
   const showToast = useCallback((type: 'success' | 'error' | 'info', text: string) => {
@@ -167,6 +169,32 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
     },
   });
 
+  const rejectMutation = useMutation({
+    mutationFn: (reason: string) => evaluationApi.rejectEvaluation(id!, reason),
+    onSuccess: () => {
+      showToast('success', 'Đã từ chối bản đánh giá.');
+      setReviewActionType(null);
+      queryClient.invalidateQueries({ queryKey: ['evaluation-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['team-evaluations'] });
+    },
+    onError: (err: Error) => {
+      showToast('error', err.message || 'Lỗi khi từ chối đánh giá.');
+    },
+  });
+
+  const requestCorrectionMutation = useMutation({
+    mutationFn: (reason: string) => evaluationApi.requestCorrection(id!, reason),
+    onSuccess: () => {
+      showToast('success', 'Đã gửi yêu cầu chỉnh sửa cho nhân viên.');
+      setReviewActionType(null);
+      queryClient.invalidateQueries({ queryKey: ['evaluation-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['team-evaluations'] });
+    },
+    onError: (err: Error) => {
+      showToast('error', err.message || 'Lỗi khi gửi yêu cầu chỉnh sửa.');
+    },
+  });
+
   const recalculateMutation = useMutation({
     mutationFn: () => evaluationApi.recalculateEvaluation(id!),
     onSuccess: () => {
@@ -288,6 +316,55 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
   const formatCriterionName = (value: unknown): string => {
     return getLocalizedText(value as Record<string, string> | string | undefined);
   };
+
+  const kpiGroups = useMemo<KpiGroup[]>(() => {
+    if (!detail?.items) return [];
+
+    const groupsMap = new Map<string, KpiGroup>();
+    const scoringMap = new Map<string, ScoringKpiResult>();
+
+    if (detail.scoring_breakdown?.kpi_results) {
+      detail.scoring_breakdown.kpi_results.forEach((kr) => {
+        scoringMap.set(kr.kpi_id, kr);
+      });
+    }
+
+    detail.items.forEach((item) => {
+      const kpiId = item.kpi_id_snapshot || 'general';
+      const kpiCode = item.kpi_code_snapshot || (kpiId === 'general' ? 'GENERAL' : kpiId);
+      const kpiName = item.kpi_name_snapshot || (kpiId === 'general' ? 'Tiêu chí chung' : kpiCode);
+      const rawWeight = item.kpi_weight_snapshot;
+      const kpiWeight =
+        rawWeight !== undefined && rawWeight !== null
+          ? rawWeight <= 1 && rawWeight > 0
+            ? Math.round(rawWeight * 100)
+            : rawWeight
+          : 0;
+
+      if (!groupsMap.has(kpiId)) {
+        groupsMap.set(kpiId, {
+          kpiId,
+          kpiCode,
+          kpiName,
+          kpiWeight,
+          scoringResult: scoringMap.get(kpiId),
+          items: [],
+          manualOverrideScore: item.manual_override_score,
+          overrideReason: item.override_reason,
+        });
+      }
+
+      const group = groupsMap.get(kpiId)!;
+      group.items.push(item);
+
+      if (item.manual_override_score !== null && item.manual_override_score !== undefined) {
+        group.manualOverrideScore = item.manual_override_score;
+        group.overrideReason = item.override_reason;
+      }
+    });
+
+    return Array.from(groupsMap.values());
+  }, [detail?.items, detail?.scoring_breakdown]);
 
   const totalSystemScore = useMemo(() => {
     if (!detail?.items) return null;
@@ -519,6 +596,8 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
         isHrAdmin={isHrAdmin}
         onPublish={handlePublish}
         onLock={handleLock}
+        onRequestCorrection={() => setReviewActionType('REQUEST_CORRECTION')}
+        onReject={() => setReviewActionType('REJECT')}
         submitLabel={isManagerMode ? 'Duyệt đánh giá' : 'Nộp tự đánh giá'}
         submittingLabel={isManagerMode ? 'Đang duyệt...' : 'Đang gửi...'}
       />
@@ -624,12 +703,17 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
         </section>
       )}
 
-      {/* Criteria Section */}
-      <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.lg, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
-            Danh sách tiêu chí đánh giá ({detail.items.length})
-          </h2>
+      {/* Criteria Section Organised by KPI Cards */}
+      <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} aria-label="Criteria Section">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.lg, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
+              Danh sách tiêu chí theo nhóm KPI ({kpiGroups.length} nhóm KPI &bull; {detail.items.length} tiêu chí)
+            </h2>
+            <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, marginTop: '3px' }}>
+              Tiêu chí được nhóm theo từng thẻ KPI mục tiêu với trọng số và mức điểm đạt được.
+            </div>
+          </div>
           {isHrAdmin && (detail.status === EvaluationStatus.APPROVED || detail.status === EvaluationStatus.PUBLISHED) && !detail.is_locked && (
             <button
               type="button"
@@ -724,26 +808,24 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
           </div>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {detail.items.map((item, index) => {
-            const draft = draftItems[item.evaluation_item_id];
-            return (
-              <CriterionCard
-                key={item.evaluation_item_id}
-                item={item}
-                index={index}
-                resolvedLevel={draft?.resolved_level}
-                comment={draft?.comment}
-                isDirty={draft?.isDirty}
-                isEditable={isEditable}
-                onLevelChange={(lvl) => handleLevelChange(item.evaluation_item_id, lvl)}
-                onCommentChange={(cmt) => handleCommentChange(item.evaluation_item_id, cmt)}
-                onSaveSingle={() => handleSaveSingle(item.evaluation_item_id)}
-                isSavingSingle={savingItemId === item.evaluation_item_id}
-                mode={mode}
-              />
-            );
-          })}
+        {/* Grouped KPI Cards */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {kpiGroups.map((group, groupIdx) => (
+            <KpiEvaluationCard
+              key={group.kpiId}
+              kpiGroup={group}
+              index={groupIdx}
+              draftItems={draftItems}
+              isEditable={isEditable}
+              savingItemId={savingItemId}
+              mode={mode}
+              canOverride={isHrAdmin && (detail.status === EvaluationStatus.APPROVED || detail.status === EvaluationStatus.PUBLISHED) && !detail.is_locked}
+              onLevelChange={handleLevelChange}
+              onCommentChange={handleCommentChange}
+              onSaveSingle={handleSaveSingle}
+              onOverrideKpi={() => setIsOverrideModalOpen(true)}
+            />
+          ))}
         </div>
       </section>
 
@@ -766,6 +848,20 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
           onClose={() => setIsOverrideModalOpen(false)}
         />
       )}
+
+      <ReviewActionModal
+        isOpen={!!reviewActionType}
+        actionType={reviewActionType || 'REJECT'}
+        isSubmitting={rejectMutation.isPending || requestCorrectionMutation.isPending}
+        onConfirm={(reason) => {
+          if (reviewActionType === 'REJECT') {
+            rejectMutation.mutate(reason);
+          } else {
+            requestCorrectionMutation.mutate(reason);
+          }
+        }}
+        onClose={() => setReviewActionType(null)}
+      />
     </div>
   );
 }

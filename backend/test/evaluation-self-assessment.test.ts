@@ -122,6 +122,9 @@ describe('EvaluationService Unit Tests (Self Assessment)', () => {
       evaluation_id: 'eval-1',
       status: EvaluationStatus.SUBMITTED,
     });
+    mockEvaluationItemRepo.findByEvaluationId.mockResolvedValue([
+      { evaluation_item_id: 'item-1', resolved_level: 4, is_missing_score: false },
+    ]);
 
     const res = await service.submitEvaluation('eval-1', employeeActor);
     expect(res.status).toBe(EvaluationStatus.SUBMITTED);
