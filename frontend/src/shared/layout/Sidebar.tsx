@@ -171,6 +171,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 icon: <CalendarRange size={18} />,
               },
               {
+                id: 'calibration',
+                label: 'Calibration',
+                icon: <SlidersHorizontal size={18} />,
+              },
+              {
                 id: 'criteria',
                 label: 'Criteria & Rules',
                 icon: <SlidersHorizontal size={18} />,

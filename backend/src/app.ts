@@ -40,6 +40,7 @@ import { createImportModule } from './modules/import/import.module.js';
 import { createCollectorModule } from './modules/collector/collector.module.js';
 import { createReportsModule } from './modules/reports/reports.module.js';
 import { createEvaluationDataImportModule } from './modules/evaluation-data-import/evaluation-data-import.module.js';
+import { createCalibrationModule } from './modules/calibration/calibration.module.js';
 
 export interface AppOptions {
   userRepository?: UserRepository;
@@ -113,6 +114,9 @@ export function createApp(options: AppOptions = {}) {
   const reportsModule = pool && evaluationModule ? createReportsModule(pool, evaluationModule.evaluationRepo, evaluationModule.evaluationItemRepo) : undefined;
   const reportsController = reportsModule?.reportsController;
 
+  const calibrationModule = pool ? createCalibrationModule(pool, auditModule?.auditService) : undefined;
+  const calibrationController = calibrationModule?.calibrationController;
+
   // ── Global Middlewares ────────────────────────────────────────────────────
   app.use(requestIdMiddleware);
   app.use(localeMiddleware);
@@ -171,6 +175,7 @@ export function createApp(options: AppOptions = {}) {
         evaluationDataImportController,
         collectorRouter: collectorModule?.router,
         reportsController,
+        calibrationController,
       })
     );
   }

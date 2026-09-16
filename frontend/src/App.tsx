@@ -43,6 +43,7 @@ const UserGuidePage = lazy(() =>
 import { EmployeeReportPage } from './features/reports/pages/EmployeeReportPage';
 import { TeamReportPage } from './features/reports/pages/TeamReportPage';
 import { OrganizationReportPage } from './features/reports/pages/OrganizationReportPage';
+import { CalibrationPage } from './features/calibration/pages/CalibrationPage';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY, ThemeProvider, useTheme } from '@/shared/theme';
 import { LayoutTemplate } from 'lucide-react';
@@ -64,6 +65,7 @@ const ADMIN_PAGE_TITLES: Record<string, string> = {
   'evaluation-data-imports': 'KPI Data Imports',
   collectors: 'Auto Data Collection',
   cycles: 'Evaluation Cycles',
+  calibration: 'Calibration Sessions & Adjustment',
   'my-evaluations': 'My Evaluations',
   'team-evaluations': 'Team Evaluations',
   'user-guide': 'User Guide',
@@ -252,6 +254,11 @@ export default function App() {
               <Route path="/admin/cycles" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
                   <EvaluationCycleListPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/calibration" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
+                  <CalibrationPage />
                 </ProtectedRoute>
               } />
               <Route path="/admin/cycles/new" element={
