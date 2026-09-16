@@ -69,8 +69,8 @@ export function CalibrationPage() {
       const newSession = await createSessionMutation.mutateAsync(data);
       setSelectedSessionId(newSession.calibrationSessionId);
       setFeedbackMsg({ type: 'success', text: 'Tạo phiên hiệu chuẩn điểm thành công!' });
-    } catch (err: any) {
-      setFeedbackMsg({ type: 'error', text: err?.message || 'Lỗi khi tạo phiên hiệu chuẩn.' });
+    } catch (err: unknown) {
+      setFeedbackMsg({ type: 'error', text: err instanceof Error ? err.message : 'Lỗi khi tạo phiên hiệu chuẩn.' });
     }
   };
 
@@ -92,8 +92,8 @@ export function CalibrationPage() {
       try {
         await finalizeSessionMutation.mutateAsync();
         setFeedbackMsg({ type: 'success', text: 'Đã chốt phiên hiệu chuẩn điểm thành công!' });
-      } catch (err: any) {
-        setFeedbackMsg({ type: 'error', text: err?.message || 'Lỗi khi chốt phiên hiệu chuẩn.' });
+      } catch (err: unknown) {
+        setFeedbackMsg({ type: 'error', text: err instanceof Error ? err.message : 'Lỗi khi chốt phiên hiệu chuẩn.' });
       }
     }
   };

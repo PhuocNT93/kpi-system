@@ -36,7 +36,7 @@ export class AuditService {
         if (actor.role === 'HR_ADMIN') {
           // HR Admin is strictly limited to business-scope audit logs
           if (filters.entityType) {
-            if (!BUSINESS_AUDIT_ENTITY_TYPES.includes(filters.entityType as any)) {
+            if (!BUSINESS_AUDIT_ENTITY_TYPES.includes(filters.entityType as (typeof BUSINESS_AUDIT_ENTITY_TYPES)[number])) {
               const { Forbidden } = await import('../../../api/app-error.js');
               throw new Forbidden('HR_ADMIN can only view business-scope audit logs');
             }

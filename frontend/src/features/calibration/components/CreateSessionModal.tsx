@@ -35,8 +35,8 @@ export const CreateSessionModal: React.FC<Props> = ({
         scope_id: null,
       });
       onClose();
-    } catch (err: any) {
-      setError(err?.message || 'Không thể tạo phiên hiệu chuẩn.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Không thể tạo phiên hiệu chuẩn.');
     }
   };
 
