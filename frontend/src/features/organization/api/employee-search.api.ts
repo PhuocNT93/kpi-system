@@ -96,22 +96,63 @@ export interface EmployeeSearchResult {
   page: PageMeta;
 }
 
+function parseLocalized(val: unknown): string {
+  if (val == null) return '';
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed && typeof parsed === 'object') {
+          return String(parsed.vi || parsed.en || parsed.vn || Object.values(parsed)[0] || val);
+        }
+      } catch {
+        return val;
+      }
+    }
+    return val;
+  }
+  if (typeof val === 'object') {
+    const obj = val as Record<string, unknown>;
+    return String(obj.vi || obj.en || obj.vn || Object.values(obj)[0] || '');
+  }
+  return String(val);
+}
+
 export function mapWireEmployeeSearchItem(wire: WireEmployeeSearchItem): EmployeeSearchItem {
   return {
     employeeId: wire.employee_id,
     employeeCode: wire.employee_code,
-    fullName: wire.full_name,
+    fullName: parseLocalized(wire.full_name),
     email: wire.email,
-    department: wire.department,
-    team: wire.team,
-    role: wire.role,
-    jobLevel: {
-      id: wire.job_level.id,
-      name: wire.job_level.name,
-      code: wire.job_level.code,
-      rank: wire.job_level.rank,
+    department: {
+      id: wire.department?.id || null,
+      name: wire.department?.name ? parseLocalized(wire.department.name) : null,
+      code: wire.department?.code || null,
     },
-    manager: wire.manager,
+    team: {
+      id: wire.team?.id || null,
+      name: wire.team?.name ? parseLocalized(wire.team.name) : null,
+      code: wire.team?.code || null,
+    },
+    role: {
+      id: wire.role?.id || '',
+      name: wire.role?.name ? parseLocalized(wire.role.name) : '',
+      code: wire.role?.code || '',
+    },
+    jobLevel: {
+      id: wire.job_level?.id || '',
+      name: wire.job_level?.name ? parseLocalized(wire.job_level.name) : '',
+      code: wire.job_level?.code || '',
+      rank: wire.job_level?.rank,
+    },
+    manager: wire.manager
+      ? {
+          id: wire.manager.id,
+          name: wire.manager.name ? parseLocalized(wire.manager.name) : null,
+          code: wire.manager.code,
+        }
+      : null,
     employmentStatus: wire.employment_status,
     evaluationStatus: wire.evaluation_status,
     evaluationId: wire.evaluation_id,

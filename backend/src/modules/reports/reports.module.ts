@@ -29,7 +29,7 @@ export function createReportsModule(
     });
   }
 
-  const queryService = new ReportsQueryService(reportsRepo);
+  const queryService = new ReportsQueryService(reportsRepo, pool, projectionService);
   const reportsController = new ReportsController(queryService);
 
   return {

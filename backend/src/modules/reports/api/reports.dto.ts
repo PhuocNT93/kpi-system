@@ -6,6 +6,15 @@ export const getReportQuerySchema = z.object({
 
 export type GetReportQueryDto = z.infer<typeof getReportQuerySchema>;
 
+export const getEmployeeKpiSummaryQuerySchema = z.object({
+  evaluation_cycle_id: z.string().uuid().optional(),
+  evaluationCycleId: z.string().uuid().optional(),
+  evaluation_status: z.string().optional(),
+  evaluationStatus: z.string().optional(),
+});
+
+export type GetEmployeeKpiSummaryQueryDto = z.infer<typeof getEmployeeKpiSummaryQuerySchema>;
+
 /**
  * KPI Trend response model representing a single KPI's performance across two cycles.
  * Status can be MATCHED, NEW, or REMOVED.
