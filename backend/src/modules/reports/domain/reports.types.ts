@@ -36,6 +36,13 @@ export interface EmployeeKpiScore {
   has_evidence?: boolean;
   evidence_count?: number;
   comment?: string | null;
+  evaluation_item_id?: string;
+  display_order?: number;
+  measurement?: {
+    value?: number | string | null;
+    unit?: string | null;
+    source_label?: string | null;
+  } | null;
   last_refreshed_at: Date;
 }
 
@@ -93,4 +100,21 @@ export interface IReportsRepository {
   getTeamReport(teamId: string, cycleId: string): Promise<{ aggregate: TeamEvaluationAggregate; kpis: TeamKpiAggregate[] }>;
   getTeamKpiReport(teamId: string, cycleId: string): Promise<TeamKpiAggregate[]>;
   getOrganizationReport(cycleId: string): Promise<OrganizationAggregate[]>;
+
+  getEmployeeKpiSummary(
+    employeeId: string,
+    cycleId?: string,
+    status?: string
+  ): Promise<{
+    score: EmployeeEvaluationScore;
+    kpis: EmployeeKpiScore[];
+  } | null>;
+
+  getEmployeeKpiDetail(
+    employeeId: string,
+    evaluationItemId: string
+  ): Promise<{
+    item: Record<string, unknown>;
+    evidence: Record<string, unknown>[];
+  } | null>;
 }

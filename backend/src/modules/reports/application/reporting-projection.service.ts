@@ -53,12 +53,30 @@ export class ReportingProjectionService {
 
     // 2. Upsert KPI Scores
     const items = await this.evaluationItemRepo.findByEvaluationId(evaluationId);
-    for (const item of items) {
+    for (let idx = 0; idx < items.length; idx++) {
+      const item = items[idx];
+      if (!item) continue;
       const evRes = await this.pool.query(
         `SELECT COUNT(*)::int as count FROM evidence WHERE evaluation_item_id = $1 AND status = 'ACTIVE'`,
         [item.evaluation_item_id]
       );
       const evidenceCount = evRes.rows[0]?.count || 0;
+
+      // Query display order from template_criteria or template_criterion if available
+      let displayOrder = idx + 1;
+      if (item.template_criterion_id) {
+        const orderRes = await this.pool.query(
+          `SELECT COALESCE(
+             (SELECT display_order FROM template_criteria WHERE id = $1 LIMIT 1),
+             (SELECT display_order FROM template_criterion WHERE template_criterion_id = $1 LIMIT 1),
+             $2
+           ) as order_num`,
+          [item.template_criterion_id, idx + 1]
+        );
+        if (orderRes.rows.length > 0 && orderRes.rows[0].order_num != null) {
+          displayOrder = Number(orderRes.rows[0].order_num);
+        }
+      }
 
       await this.reportsRepo.upsertEmployeeKpiScore({
         evaluation_id: evaluation.evaluation_id,
@@ -78,6 +96,13 @@ export class ReportingProjectionService {
         has_evidence: evidenceCount > 0,
         evidence_count: evidenceCount,
         comment: item.comment || null,
+        evaluation_item_id: item.evaluation_item_id,
+        display_order: displayOrder,
+        measurement: {
+          value: item.measurement_value ?? null,
+          unit: item.measurement_unit ?? null,
+          source_label: item.system_source || (item.source_snapshot as Record<string, unknown> | null)?.source_name as string || null,
+        },
       });
     }
 

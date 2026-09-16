@@ -44,5 +44,17 @@ export function createReportsRouter(
     controller.getOrganizationReport
   );
 
+  // KPI Summary Dashboard (Scope enforced server-side in application service)
+  router.get(
+    '/employees/:employeeId/kpi-summary',
+    controller.getEmployeeKpiSummary
+  );
+
+  // KPI Detail Drill-Down (Scope enforced server-side in application service)
+  router.get(
+    '/employees/:employeeId/kpi-summary/:evaluationItemId',
+    controller.getEmployeeKpiDetail
+  );
+
   return router;
 }

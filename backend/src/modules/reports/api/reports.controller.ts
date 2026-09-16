@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { ReportsQueryService } from '../application/reports-query.service.js';
 import { sendSuccess, sendFailure } from '../../../api/http-response.js';
 import { getActorFromContext } from '../../../shared/auth/actor-context.js';
-import { getReportQuerySchema } from './reports.dto.js';
+import { getReportQuerySchema, getEmployeeKpiSummaryQuerySchema } from './reports.dto.js';
 import { z } from 'zod';
 
 export class ReportsController {
@@ -105,6 +105,67 @@ export class ReportsController {
       );
       
       sendSuccess(res, 200, 'KPI Trend retrieved successfully.', { data: trend });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  public getEmployeeKpiSummary = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      let employeeId = req.params.employeeId as string;
+      const parsedQuery = getEmployeeKpiSummaryQuerySchema.parse(req.query);
+      const cycleId = parsedQuery.evaluation_cycle_id || parsedQuery.evaluationCycleId;
+      const status = parsedQuery.evaluation_status || parsedQuery.evaluationStatus;
+      const actor = req.actor || getActorFromContext(req);
+
+      if (!actor) {
+        sendFailure(res, 401, 'Authentication required.', 'UNAUTHENTICATED');
+        return;
+      }
+
+      if (employeeId === 'me') {
+        employeeId = actor.employeeId || actor.userId;
+      }
+
+      if (!employeeId) {
+        sendFailure(res, 400, 'Employee ID is required.', 'INVALID_EMPLOYEE_ID');
+        return;
+      }
+
+      const summary = await this.queryService.getEmployeeKpiSummary(employeeId, actor, cycleId, status);
+      sendSuccess(res, 200, 'Employee KPI summary retrieved successfully.', summary);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  public getEmployeeKpiDetail = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      let employeeId = req.params.employeeId as string;
+      const evaluationItemId = req.params.evaluationItemId as string;
+      const actor = req.actor || getActorFromContext(req);
+
+      if (!actor) {
+        sendFailure(res, 401, 'Authentication required.', 'UNAUTHENTICATED');
+        return;
+      }
+
+      if (employeeId === 'me') {
+        employeeId = actor.employeeId || actor.userId;
+      }
+
+      if (!employeeId) {
+        sendFailure(res, 400, 'Employee ID is required.', 'INVALID_EMPLOYEE_ID');
+        return;
+      }
+
+      if (!evaluationItemId) {
+        sendFailure(res, 400, 'Evaluation Item ID is required.', 'INVALID_EVALUATION_ITEM_ID');
+        return;
+      }
+
+      const detail = await this.queryService.getEmployeeKpiDetail(employeeId, evaluationItemId, actor);
+      sendSuccess(res, 200, 'Employee KPI detail retrieved successfully.', detail);
     } catch (err) {
       next(err);
     }
