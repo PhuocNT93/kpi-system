@@ -2,33 +2,33 @@ export interface ManagedEmployee {
   code: string;
   name: string;
   username: string;
+  email: string;
   team: 'ALLEGRO NX Part' | 'Maritime Solutions Part';
   role?: string;
 }
 
 export const MANAGED_EMPLOYEES: ManagedEmployee[] = [
-  // ── ALLEGRO NX Part (12 nhân sự) ──
-  { code: '213813', name: 'An Le Trong', username: 'anlt', team: 'ALLEGRO NX Part', role: 'Developer' },
-  { code: '227031', name: 'Diem Tran', username: 'diemtran', team: 'ALLEGRO NX Part', role: 'Người đăng kí / Requester' },
-  { code: '173232', name: 'Duc Nguyen', username: 'ducnguyen', team: 'ALLEGRO NX Part', role: 'Developer / PIC' },
-  { code: '183322', name: 'Hieu Dao', username: 'hieudao', team: 'ALLEGRO NX Part', role: 'Người đăng kí / Requester' },
-  { code: '213844', name: 'Hy Le', username: 'hyle', team: 'ALLEGRO NX Part', role: 'Developer / PIC' },
-  { code: '163188', name: 'Ky Luong', username: 'kyluong', team: 'ALLEGRO NX Part', role: 'Senior Developer / Manager' },
-  { code: '237157', name: 'Ngoc Nguyen Ba', username: 'ngocnb', team: 'ALLEGRO NX Part', role: 'Developer / PIC' },
-  { code: '247203', name: 'Nhan Phan Huy', username: 'nhanph', team: 'ALLEGRO NX Part', role: 'Developer / PIC' },
-  { code: '203701', name: 'Nhat Pham', username: 'nhatpham', team: 'ALLEGRO NX Part', role: 'Developer / PIC' },
-  { code: '247097', name: 'Phuoc Nguyen Thanh', username: 'phuocnt', team: 'ALLEGRO NX Part', role: 'Developer / PIC' },
-  { code: '237196', name: 'Thien Vo', username: 'thienvo', team: 'ALLEGRO NX Part', role: 'Người đăng kí / Requester' },
-  { code: '213866', name: 'Tung Ha', username: 'tungha', team: 'ALLEGRO NX Part', role: 'Developer / PIC' },
+  // ── ALLEGRO NX Part (12 nhân sự gồm Manager) ──
+  { code: '163188', name: 'Lương Công Kỳ', username: 'kyluong', email: 'ky.luong@cyberlogitec.com', team: 'ALLEGRO NX Part', role: 'Senior Developer / Manager' },
+  { code: '173232', name: 'Nguyễn Quang Đức', username: 'ducnguyen', email: 'duc.nguyen@cyberlogitec.com', team: 'ALLEGRO NX Part', role: 'Developer / PIC' },
+  { code: '183322', name: 'Đào Trung Hiếu', username: 'hieudao', email: 'hieu.dao@cyberlogitec.com', team: 'ALLEGRO NX Part', role: 'Người đăng kí / Requester' },
+  { code: '213813', name: 'Lê Trọng Ân', username: 'anlt', email: 'an.lt@cyberlogitec.com', team: 'ALLEGRO NX Part', role: 'Developer' },
+  { code: '213866', name: 'Hà Việt Tùng', username: 'tungha', email: 'tung.ha@cyberlogitec.com', team: 'ALLEGRO NX Part', role: 'Developer / PIC' },
+  { code: '213844', name: 'Lê Minh Hy', username: 'hyle', email: 'hy.le@cyberlogitec.com', team: 'ALLEGRO NX Part', role: 'Developer / PIC' },
+  { code: '227031', name: 'Trần Quang Diệm', username: 'diemtran', email: 'diem.tran@cyberlogitec.com', team: 'ALLEGRO NX Part', role: 'Người đăng kí / Requester' },
+  { code: '237157', name: 'Nguyễn Bá Ngọc', username: 'ngocnb', email: 'ngoc.nb@cyberlogitec.com', team: 'ALLEGRO NX Part', role: 'Developer / PIC' },
+  { code: '237196', name: 'Võ Chí Thiện', username: 'thienvo', email: 'thien.vo@cyberlogitec.com', team: 'ALLEGRO NX Part', role: 'Người đăng kí / Requester' },
+  { code: '247203', name: 'Phan Huy Nhân', username: 'nhanph', email: 'nhan.ph@cyberlogitec.com', team: 'ALLEGRO NX Part', role: 'Developer / PIC' },
+  { code: '247097', name: 'Nguyễn Thành Phước', username: 'phuocnt', email: 'phuoc.nt@cyberlogitec.com', team: 'ALLEGRO NX Part', role: 'Developer / PIC' },
+  { code: '203701', name: 'Phạm Mai Nhật', username: 'nhatpham', email: 'nhat.pham@cyberlogitec.com', team: 'ALLEGRO NX Part', role: 'Developer / PIC' },
 
-  // ── Maritime Solutions Part (9 nhân sự) ──
-  { code: '267036', name: 'Khoa Dang', username: 'khoadang', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
-  { code: '247204', name: 'Lam Nguyen Sy Hoang', username: 'lamnguyen', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
-  { code: '213835', name: 'Minh Doan', username: 'minhdoan', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
-  { code: '247054', name: 'Nam Nguyen Doan', username: 'namnguyen', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
-  { code: '247423', name: 'Phuong Chung Quang', username: 'phuongcq', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
-  { code: '257130', name: 'Quang Nguyen', username: 'quangnguyen', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
-  { code: '247222', name: 'Thang Pham Huu', username: 'thangpham', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
-  { code: '193613', name: 'Trung Quang Nguyen', username: 'trungqn', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
-  { code: '203755', name: 'Xuan Thai', username: 'xuanthai', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
+  // ── Maritime Solutions Part (8 nhân sự) ──
+  { code: '203755', name: 'Thái Thanh Xuân', username: 'xuanthai', email: 'xuan.thai@cyberlogitec.com', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
+  { code: '247204', name: 'Nguyễn Sỹ Hoàng Lâm', username: 'lamnguyen', email: 'lam.nsh@cyberlogitec.com', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
+  { code: '247222', name: 'Phạm Hữu Thắng', username: 'thangpham', email: 'thang.ph@cyberlogitec.com', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
+  { code: '247423', name: 'Chung Quang Phương', username: 'phuongcq', email: 'phuong.cq@cyberlogitec.com', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
+  { code: '267036', name: 'Đặng Phước Khoa', username: 'khoadang', email: 'khoa.dang@cyberlogitec.com', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
+  { code: '213835', name: 'Đoàn Anh Minh', username: 'minhdoan', email: 'minh.doan@cyberlogitec.com', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
+  { code: '193613', name: 'Nguyễn Quang Trung', username: 'trungqn', email: 'trung.nguyenquang@cyberlogitec.com', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
+  { code: '257130', name: 'Nguyễn Minh Quang', username: 'quangnguyen', email: 'quang.ng@cyberlogitec.com', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
 ];

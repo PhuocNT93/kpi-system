@@ -23,35 +23,33 @@ function hashPassword(password) {
   });
 }
 
-// ── Members data (from MANAGED_EMPLOYEES constant) ─────────────────────────
+// ── Members data (official Vietnamese names, codes & @cyberlogitec.com emails) ──
 const ALLEGRO_MEMBERS = [
-  { code: '213813', name: 'An Le Trong',       username: 'anlt',      role: 'Developer' },
-  { code: '227031', name: 'Diem Tran',          username: 'diemtran',  role: 'Requester' },
-  { code: '173232', name: 'Duc Nguyen',         username: 'ducnguyen', role: 'Developer' },
-  { code: '183322', name: 'Hieu Dao',           username: 'hieudao',   role: 'Requester' },
-  { code: '213844', name: 'Hy Le',              username: 'hyle',      role: 'Developer' },
-  { code: '237157', name: 'Ngoc Nguyen Ba',     username: 'ngocnb',    role: 'Developer' },
-  { code: '247203', name: 'Nhan Phan Huy',      username: 'nhanph',    role: 'Developer' },
-  { code: '203701', name: 'Nhat Pham',          username: 'nhatpham',  role: 'Developer' },
-  { code: '247097', name: 'Phuoc Nguyen Thanh', username: 'phuocnt',   role: 'Developer' },
-  { code: '237196', name: 'Thien Vo',           username: 'thienvo',   role: 'Requester' },
-  { code: '213866', name: 'Tung Ha',            username: 'tungha',    role: 'Developer' },
-  // Khoa Dang already exists with employee_code 267036 — skip in employee seed but create account
+  { code: '173232', name: 'Nguyễn Quang Đức',    email: 'duc.nguyen@cyberlogitec.com', username: 'ducnguyen', role: 'Developer' },
+  { code: '183322', name: 'Đào Trung Hiếu',       email: 'hieu.dao@cyberlogitec.com',   username: 'hieudao',   role: 'Requester' },
+  { code: '213813', name: 'Lê Trọng Ân',          email: 'an.lt@cyberlogitec.com',      username: 'anlt',      role: 'Developer' },
+  { code: '213866', name: 'Hà Việt Tùng',         email: 'tung.ha@cyberlogitec.com',    username: 'tungha',    role: 'Developer' },
+  { code: '213844', name: 'Lê Minh Hy',           email: 'hy.le@cyberlogitec.com',      username: 'hyle',      role: 'Developer' },
+  { code: '227031', name: 'Trần Quang Diệm',      email: 'diem.tran@cyberlogitec.com',  username: 'diemtran',  role: 'Requester' },
+  { code: '237157', name: 'Nguyễn Bá Ngọc',       email: 'ngoc.nb@cyberlogitec.com',    username: 'ngocnb',    role: 'Developer' },
+  { code: '237196', name: 'Võ Chí Thiện',       email: 'thien.vo@cyberlogitec.com',   username: 'thienvo',   role: 'Requester' },
+  { code: '247203', name: 'Phan Huy Nhân',        email: 'nhan.ph@cyberlogitec.com',    username: 'nhanph',    role: 'Developer' },
+  { code: '247097', name: 'Nguyễn Thành Phước',   email: 'phuoc.nt@cyberlogitec.com',   username: 'phuocnt',   role: 'Developer' },
+  { code: '203701', name: 'Phạm Mai Nhật',        email: 'nhat.pham@cyberlogitec.com',  username: 'nhatpham',  role: 'Developer' },
 ];
 
 const MARITIME_MEMBERS = [
-  { code: '267036', name: 'Khoa Dang',             username: 'khoadang',   role: 'Developer' },
-  { code: '247204', name: 'Lam Nguyen Sy Hoang',   username: 'lamnguyen',  role: 'Developer' },
-  { code: '213835', name: 'Minh Doan',              username: 'minhdoan',   role: 'Developer' },
-  { code: '247054', name: 'Nam Nguyen Doan',        username: 'namnguyen',  role: 'Developer' },
-  { code: '247423', name: 'Phuong Chung Quang',    username: 'phuongcq',   role: 'Developer' },
-  { code: '257130', name: 'Quang Nguyen',           username: 'quangnguyen',role: 'Developer' },
-  { code: '247222', name: 'Thang Pham Huu',        username: 'thangpham',  role: 'Developer' },
-  { code: '193613', name: 'Trung Quang Nguyen',    username: 'trungqn',    role: 'Developer' },
-  { code: '203755', name: 'Xuan Thai',             username: 'xuanthai',   role: 'Developer' },
+  { code: '203755', name: 'Thái Thanh Xuân',       email: 'xuan.thai@cyberlogitec.com',        username: 'xuanthai',   role: 'Developer' },
+  { code: '247204', name: 'Nguyễn Sỹ Hoàng Lâm',   email: 'lam.nsh@cyberlogitec.com',          username: 'lamnguyen',  role: 'Developer' },
+  { code: '247222', name: 'Phạm Hữu Thắng',        email: 'thang.ph@cyberlogitec.com',         username: 'thangpham',  role: 'Developer' },
+  { code: '247423', name: 'Chung Quang Phương',    email: 'phuong.cq@cyberlogitec.com',        username: 'phuongcq',   role: 'Developer' },
+  { code: '267036', name: 'Đặng Phước Khoa',       email: 'khoa.dang@cyberlogitec.com',        username: 'khoadang',   role: 'Developer' },
+  { code: '213835', name: 'Đoàn Anh Minh',         email: 'minh.doan@cyberlogitec.com',        username: 'minhdoan',   role: 'Developer' },
+  { code: '193613', name: 'Nguyễn Quang Trung',   email: 'trung.nguyenquang@cyberlogitec.com',username: 'trungqn',    role: 'Developer' },
+  { code: '257130', name: 'Nguyễn Minh Quang',     email: 'quang.ng@cyberlogitec.com',         username: 'quangnguyen',role: 'Developer' },
 ];
 
-const MANAGER = { code: '163188', name: 'Ky Luong', username: 'kyluong', email: 'kyld.admin@kpi.com' };
+const MANAGER = { code: '163188', name: 'Lương Công Kỳ', username: 'kyluong', email: 'ky.luong@cyberlogitec.com', appUserEmail: 'kyld.admin@kpi.com' };
 const DEFAULT_PASSWORD = 'Kpi@2026';
 
 async function main() {
@@ -169,88 +167,101 @@ async function main() {
           (SELECT job_level_id FROM job_level LIMIT 1),
           1
         RETURNING employee_id
-      `, [MANAGER.code, MANAGER.name, `${MANAGER.username}@cyberlogitec.com`, allegroTeamId]);
+      `, [MANAGER.code, MANAGER.name, MANAGER.email, allegroTeamId]);
       managerEmployeeId = r.rows[0].employee_id;
       console.log(`  Created manager employee: ${MANAGER.name}`);
     } else {
       managerEmployeeId = managerEmpRes.rows[0].employee_id;
-      console.log(`  Manager employee already exists`);
+      await client.query(
+        `UPDATE employee SET full_name = $1, email = $2, team_id = $3 WHERE employee_id = $4`,
+        [MANAGER.name, MANAGER.email, allegroTeamId, managerEmployeeId]
+      );
+      console.log(`  Updated manager employee: ${MANAGER.name}`);
     }
 
-    // Link kyld.admin app_user → manager employee
-    await client.query(
-      `UPDATE app_user SET employee_id = $1 WHERE email = $2`,
-      [managerEmployeeId, MANAGER.email]
-    );
-    console.log(`  Linked kyld.admin → employee ${managerEmployeeId}`);
+      // Link kyld.admin app_user → manager employee (employee_id is UNIQUE in app_user)
+      await client.query(
+        `UPDATE app_user SET employee_id = $1, name = $2 WHERE email = $3`,
+        [managerEmployeeId, MANAGER.name, MANAGER.appUserEmail]
+      );
+      await client.query(
+        `UPDATE app_user SET name = $1 WHERE email = 'kyld.manager@kpi.com'`,
+        [MANAGER.name]
+      );
+      console.log(`  Linked kyld.admin → employee ${managerEmployeeId}`);
 
-    // Make kyld.admin have HR_ADMIN role
-    const hrAdminRoleRes = await client.query(
-      `SELECT role_id FROM role WHERE code IN ('HR_ADMIN', 'SYSTEM_ADMIN') LIMIT 1`
-    );
-    if (hrAdminRoleRes.rows.length > 0) {
-      const hrRoleId = hrAdminRoleRes.rows[0].role_id;
-      const kyAdminUserRes = await client.query(`SELECT id FROM app_user WHERE email = 'kyld.admin@kpi.com'`);
-      if (kyAdminUserRes.rows.length > 0) {
-        const kyAdminUserId = kyAdminUserRes.rows[0].id;
-        await client.query(
-          `INSERT INTO user_role (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-          [kyAdminUserId, hrRoleId]
-        );
-        console.log(`  Assigned HR_ADMIN role to kyld.admin`);
+      // Make kyld.admin have HR_ADMIN role
+      const hrAdminRoleRes = await client.query(
+        `SELECT role_id FROM role WHERE code IN ('HR_ADMIN', 'SYSTEM_ADMIN') LIMIT 1`
+      );
+      if (hrAdminRoleRes.rows.length > 0) {
+        const hrRoleId = hrAdminRoleRes.rows[0].role_id;
+        const kyAdminUserRes = await client.query(`SELECT id FROM app_user WHERE email = 'kyld.admin@kpi.com'`);
+        if (kyAdminUserRes.rows.length > 0) {
+          const kyAdminUserId = kyAdminUserRes.rows[0].id;
+          await client.query(
+            `INSERT INTO user_role (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+            [kyAdminUserId, hrRoleId]
+          );
+          console.log(`  Assigned HR_ADMIN role to kyld.admin`);
+        }
       }
-    }
 
-    // ── Step 4: Get default role/job_level for employees ──────────────────
-    const defaultRoleRes = await client.query(`SELECT role_id FROM role WHERE code IN ('SI', 'EMPLOYEE', 'DEVELOPER') LIMIT 1`);
-    const defaultJobLevelRes = await client.query(`SELECT job_level_id FROM job_level LIMIT 1`);
-    const defaultRoleId = defaultRoleRes.rows[0]?.role_id;
-    const defaultJobLevelId = defaultJobLevelRes.rows[0]?.job_level_id;
+      // ── Step 4: Get default role/job_level for employees ──────────────────
+      const defaultRoleRes = await client.query(`SELECT role_id FROM role WHERE code IN ('SI', 'EMPLOYEE', 'DEVELOPER') LIMIT 1`);
+      const defaultJobLevelRes = await client.query(`SELECT job_level_id FROM job_level LIMIT 1`);
+      const defaultRoleId = defaultRoleRes.rows[0]?.role_id;
+      const defaultJobLevelId = defaultJobLevelRes.rows[0]?.job_level_id;
 
-    // ── Step 5: Seed ALLEGRO members ──────────────────────────────────────
-    console.log('👥 Step 4: Seeding ALLEGRO NX Part members...');
-    const allegroEmployeeIds = [];
-    for (const m of ALLEGRO_MEMBERS) {
-      let empRes = await client.query(`SELECT employee_id FROM employee WHERE employee_code = $1`, [m.code]);
-      let empId;
-      if (empRes.rows.length === 0) {
-        const r = await client.query(`
-          INSERT INTO employee (employee_code, full_name, email, team_id, manager_id, employment_status, join_date, role_id, job_level_id, version)
-          VALUES ($1, $2, $3, $4, $5, 'ACTIVE', CURRENT_DATE, $6, $7, 1)
-          RETURNING employee_id
-        `, [m.code, m.name, `${m.username}@cyberlogitec.com`, allegroTeamId, managerEmployeeId, defaultRoleId, defaultJobLevelId]);
-        empId = r.rows[0].employee_id;
-        console.log(`  Created: ${m.name} (${m.code})`);
-      } else {
-        empId = empRes.rows[0].employee_id;
-        // Update manager_id
-        await client.query(`UPDATE employee SET manager_id = $1, team_id = $2 WHERE employee_id = $3`, [managerEmployeeId, allegroTeamId, empId]);
-        console.log(`  Updated: ${m.name} (${m.code})`);
+      // ── Step 5: Seed ALLEGRO members ──────────────────────────────────────
+      console.log('👥 Step 4: Seeding ALLEGRO NX Part members...');
+      const allegroEmployeeIds = [];
+      for (const m of ALLEGRO_MEMBERS) {
+        let empRes = await client.query(`SELECT employee_id FROM employee WHERE employee_code = $1`, [m.code]);
+        let empId;
+        if (empRes.rows.length === 0) {
+          const r = await client.query(`
+            INSERT INTO employee (employee_code, full_name, email, team_id, manager_id, employment_status, join_date, role_id, job_level_id, version)
+            VALUES ($1, $2, $3, $4, $5, 'ACTIVE', CURRENT_DATE, $6, $7, 1)
+            RETURNING employee_id
+          `, [m.code, m.name, m.email, allegroTeamId, managerEmployeeId, defaultRoleId, defaultJobLevelId]);
+          empId = r.rows[0].employee_id;
+          console.log(`  Created: ${m.name} (${m.code})`);
+        } else {
+          empId = empRes.rows[0].employee_id;
+          await client.query(
+            `UPDATE employee SET manager_id = $1, team_id = $2, full_name = $3, email = $4 WHERE employee_id = $5`,
+            [managerEmployeeId, allegroTeamId, m.name, m.email, empId]
+          );
+          console.log(`  Updated: ${m.name} (${m.code})`);
+        }
+        allegroEmployeeIds.push({ ...m, employeeId: empId });
       }
-      allegroEmployeeIds.push({ ...m, employeeId: empId });
-    }
 
-    // ── Step 6: Seed MARITIME members ─────────────────────────────────────
-    console.log('👥 Step 5: Seeding Maritime Solutions Part members...');
-    const maritimeEmployeeIds = [];
-    for (const m of MARITIME_MEMBERS) {
-      let empRes = await client.query(`SELECT employee_id FROM employee WHERE employee_code = $1`, [m.code]);
-      let empId;
-      if (empRes.rows.length === 0) {
-        const r = await client.query(`
-          INSERT INTO employee (employee_code, full_name, email, team_id, manager_id, employment_status, join_date, role_id, job_level_id, version)
-          VALUES ($1, $2, $3, $4, $5, 'ACTIVE', CURRENT_DATE, $6, $7, 1)
-          RETURNING employee_id
-        `, [m.code, m.name, `${m.username}@cyberlogitec.com`, maritimeTeamId, managerEmployeeId, defaultRoleId, defaultJobLevelId]);
-        empId = r.rows[0].employee_id;
-        console.log(`  Created: ${m.name} (${m.code})`);
-      } else {
-        empId = empRes.rows[0].employee_id;
-        await client.query(`UPDATE employee SET manager_id = $1, team_id = $2 WHERE employee_id = $3`, [managerEmployeeId, maritimeTeamId, empId]);
-        console.log(`  Updated: ${m.name} (${m.code})`);
+      // ── Step 6: Seed MARITIME members ─────────────────────────────────────
+      console.log('👥 Step 5: Seeding Maritime Solutions Part members...');
+      const maritimeEmployeeIds = [];
+      for (const m of MARITIME_MEMBERS) {
+        let empRes = await client.query(`SELECT employee_id FROM employee WHERE employee_code = $1`, [m.code]);
+        let empId;
+        if (empRes.rows.length === 0) {
+          const r = await client.query(`
+            INSERT INTO employee (employee_code, full_name, email, team_id, manager_id, employment_status, join_date, role_id, job_level_id, version)
+            VALUES ($1, $2, $3, $4, $5, 'ACTIVE', CURRENT_DATE, $6, $7, 1)
+            RETURNING employee_id
+          `, [m.code, m.name, m.email, maritimeTeamId, managerEmployeeId, defaultRoleId, defaultJobLevelId]);
+          empId = r.rows[0].employee_id;
+          console.log(`  Created: ${m.name} (${m.code})`);
+        } else {
+          empId = empRes.rows[0].employee_id;
+          await client.query(
+            `UPDATE employee SET manager_id = $1, team_id = $2, full_name = $3, email = $4 WHERE employee_id = $5`,
+            [managerEmployeeId, maritimeTeamId, m.name, m.email, empId]
+          );
+          console.log(`  Updated: ${m.name} (${m.code})`);
+        }
+        maritimeEmployeeIds.push({ ...m, employeeId: empId });
       }
-      maritimeEmployeeIds.push({ ...m, employeeId: empId });
-    }
 
     const allMembers = [...allegroEmployeeIds, ...maritimeEmployeeIds];
 

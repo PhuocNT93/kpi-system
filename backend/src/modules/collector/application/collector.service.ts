@@ -912,32 +912,31 @@ export class CollectorService {
       return this.bpMembersCache;
     }
 
-    // 21 Management team members from Blueprint UI_TAT_029 (ALLEGRO NX Part & Maritime Solutions Part)
+    // 20 Management team members from Blueprint UI_TAT_029 (ALLEGRO NX Part & Maritime Solutions Part)
     const priorityMembers: Array<{ id: string; name: string; role: string; email?: string }> = [
       // ALLEGRO NX Part (12 members)
-      { id: 'anlt', name: 'An Le Trong (213813)', role: 'Developer', email: 'anlt@cyberlogitec.com.vn' },
-      { id: 'diemtran', name: 'Diem Tran (227031)', role: 'Người đăng kí / Requester', email: 'diemtran@cyberlogitec.com.vn' },
-      { id: 'ducnguyen', name: 'Duc Nguyen (173232)', role: 'Developer / PIC', email: 'ducnguyen@cyberlogitec.com.vn' },
-      { id: 'hieudao', name: 'Hieu Dao (183322)', role: 'Người đăng kí / Requester', email: 'hieudao@cyberlogitec.com.vn' },
-      { id: 'hyle', name: 'Hy Le (213844)', role: 'Developer / PIC', email: 'hyle@cyberlogitec.com.vn' },
-      { id: 'kyluong', name: 'Ky Luong (163188)', role: 'Senior Developer / Manager', email: 'kyluong@cyberlogitec.com.vn' },
-      { id: 'ngocnb', name: 'Ngoc Nguyen Ba (237157)', role: 'Developer / PIC', email: 'ngocnb@cyberlogitec.com.vn' },
-      { id: 'nhanph', name: 'Nhan Phan Huy (247203)', role: 'Developer / PIC', email: 'nhanph@cyberlogitec.com.vn' },
-      { id: 'nhatpham', name: 'Nhat Pham (203701)', role: 'Developer / PIC', email: 'nhatpham@cyberlogitec.com.vn' },
-      { id: 'phuocnt', name: 'Phuoc Nguyen Thanh (247097)', role: 'Developer / PIC', email: 'phuocnt@cyberlogitec.com.vn' },
-      { id: 'thienvo', name: 'Thien Vo (237196)', role: 'Người đăng kí / Requester', email: 'thienvo@cyberlogitec.com.vn' },
-      { id: 'tungha', name: 'Tung Ha (213866)', role: 'Developer / PIC', email: 'tungha@cyberlogitec.com.vn' },
+      { id: 'kyluong', name: 'Lương Công Kỳ (163188)', role: 'Senior Developer / Manager', email: 'ky.luong@cyberlogitec.com' },
+      { id: 'ducnguyen', name: 'Nguyễn Quang Đức (173232)', role: 'Developer / PIC', email: 'duc.nguyen@cyberlogitec.com' },
+      { id: 'hieudao', name: 'Đào Trung Hiếu (183322)', role: 'Người đăng kí / Requester', email: 'hieu.dao@cyberlogitec.com' },
+      { id: 'anlt', name: 'Lê Trọng Ân (213813)', role: 'Developer', email: 'an.lt@cyberlogitec.com' },
+      { id: 'tungha', name: 'Hà Việt Tùng (213866)', role: 'Developer / PIC', email: 'tung.ha@cyberlogitec.com' },
+      { id: 'hyle', name: 'Lê Minh Hy (213844)', role: 'Developer / PIC', email: 'hy.le@cyberlogitec.com' },
+      { id: 'diemtran', name: 'Trần Quang Diệm (227031)', role: 'Người đăng kí / Requester', email: 'diem.tran@cyberlogitec.com' },
+      { id: 'ngocnb', name: 'Nguyễn Bá Ngọc (237157)', role: 'Developer / PIC', email: 'ngoc.nb@cyberlogitec.com' },
+      { id: 'thienvo', name: 'Võ Chí Thiện (237196)', role: 'Người đăng kí / Requester', email: 'thien.vo@cyberlogitec.com' },
+      { id: 'nhanph', name: 'Phan Huy Nhân (247203)', role: 'Developer / PIC', email: 'nhan.ph@cyberlogitec.com' },
+      { id: 'phuocnt', name: 'Nguyễn Thành Phước (247097)', role: 'Developer / PIC', email: 'phuoc.nt@cyberlogitec.com' },
+      { id: 'nhatpham', name: 'Phạm Mai Nhật (203701)', role: 'Developer / PIC', email: 'nhat.pham@cyberlogitec.com' },
 
-      // Maritime Solutions Part (9 members)
-      { id: 'khoadang', name: 'Khoa Dang (267036)', role: 'Developer / PIC', email: 'khoadang@cyberlogitec.com.vn' },
-      { id: 'lamnguyen', name: 'Lam Nguyen Sy Hoang (247204)', role: 'Developer / PIC', email: 'lamnguyen@cyberlogitec.com.vn' },
-      { id: 'minhdoan', name: 'Minh Doan (213835)', role: 'Developer / PIC', email: 'minhdoan@cyberlogitec.com.vn' },
-      { id: 'namnguyen', name: 'Nam Nguyen Doan (247054)', role: 'Developer / PIC', email: 'namnguyen@cyberlogitec.com.vn' },
-      { id: 'phuongcq', name: 'Phuong Chung Quang (247423)', role: 'Developer / PIC', email: 'phuongcq@cyberlogitec.com.vn' },
-      { id: 'quangnguyen', name: 'Quang Nguyen (257130)', role: 'Developer / PIC', email: 'quangnguyen@cyberlogitec.com.vn' },
-      { id: 'thangpham', name: 'Thang Pham Huu (247222)', role: 'Developer / PIC', email: 'thangpham@cyberlogitec.com.vn' },
-      { id: 'trungqn', name: 'Trung Quang Nguyen (193613)', role: 'Developer / PIC', email: 'trungqn@cyberlogitec.com.vn' },
-      { id: 'xuanthai', name: 'Xuan Thai (203755)', role: 'Developer / PIC', email: 'xuanthai@cyberlogitec.com.vn' },
+      // Maritime Solutions Part (8 members)
+      { id: 'xuanthai', name: 'Thái Thanh Xuân (203755)', role: 'Developer / PIC', email: 'xuan.thai@cyberlogitec.com' },
+      { id: 'lamnguyen', name: 'Nguyễn Sỹ Hoàng Lâm (247204)', role: 'Developer / PIC', email: 'lam.nsh@cyberlogitec.com' },
+      { id: 'thangpham', name: 'Phạm Hữu Thắng (247222)', role: 'Developer / PIC', email: 'thang.ph@cyberlogitec.com' },
+      { id: 'phuongcq', name: 'Chung Quang Phương (247423)', role: 'Developer / PIC', email: 'phuong.cq@cyberlogitec.com' },
+      { id: 'khoadang', name: 'Đặng Phước Khoa (267036)', role: 'Developer / PIC', email: 'khoa.dang@cyberlogitec.com' },
+      { id: 'minhdoan', name: 'Đoàn Anh Minh (213835)', role: 'Developer / PIC', email: 'minh.doan@cyberlogitec.com' },
+      { id: 'trungqn', name: 'Nguyễn Quang Trung (193613)', role: 'Developer / PIC', email: 'trung.nguyenquang@cyberlogitec.com' },
+      { id: 'quangnguyen', name: 'Nguyễn Minh Quang (257130)', role: 'Developer / PIC', email: 'quang.ng@cyberlogitec.com' },
     ];
 
     const memberMap = new Map<string, { id: string; name: string; role: string; email?: string }>();
