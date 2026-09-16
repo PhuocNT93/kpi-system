@@ -162,4 +162,16 @@ export interface BlueprintTeamAttendanceSummary {
   teams: BlueprintOrgTeam[];
 }
 
-
+export interface CollectorMonthlySnapshot {
+  id: string;
+  source_type: 'ATTENDANCE' | 'TASKS' | 'VACATION' | 'TEAM_ATTENDANCE';
+  year_month: string;
+  target_member: string;
+  team_id?: string | null;
+  data_json: Record<string, unknown>;
+  score10?: number | null;
+  total_records: number;
+  is_locked: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
