@@ -28,6 +28,9 @@ async function main() {
     const passwordHasher = new SimplePasswordHasher();
 
     await seedIamData(roleRepo, permRepo, userRoleRepo, rolePermRepo, userRepo, passwordHasher);
+    await pool.query(
+      `UPDATE app_user SET name = 'Lương Công Kỳ' WHERE email IN ('kyld.admin@kpi.com', 'kyld.manager@kpi.com')`
+    );
     console.log('IAM & User seed data successfully populated.');
 
     await seedOrganizationModule(pool);
