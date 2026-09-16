@@ -30,6 +30,13 @@ export function errorHandler(
     return;
   }
 
+  // Handle body-parser JSON syntax errors gracefully
+  const errObj = error as unknown as Record<string, unknown>;
+  if (error instanceof SyntaxError && typeof errObj?.status === 'number' && errObj.status === 400) {
+    sendFailure(response, 400, 'Invalid JSON format in request body.', 'INVALID_JSON');
+    return;
+  }
+
   // Unknown or unhandled error — log fully server-side, return safe message to client.
   console.error(error);
   sendFailure(response, 500, 'An unexpected error occurred.', 'INTERNAL_SERVER_ERROR');

@@ -55,6 +55,7 @@ export interface AppOptions {
   googleIdentityVerifier?: GoogleIdentityVerifier;
   employeeController?: EmployeeController;
   reportsController?: ReportsController;
+  calibrationController?: import('./modules/calibration/api/calibration.controller.js').CalibrationController;
 }
 
 export function createApp(options: AppOptions = {}) {
@@ -117,7 +118,7 @@ export function createApp(options: AppOptions = {}) {
   const reportsController = options.reportsController ?? reportsModule?.reportsController;
 
   const calibrationModule = pool ? createCalibrationModule(pool, auditModule?.auditService) : undefined;
-  const calibrationController = calibrationModule?.calibrationController;
+  const calibrationController = options.calibrationController ?? calibrationModule?.calibrationController;
 
   // ── Global Middlewares ────────────────────────────────────────────────────
   app.use(requestIdMiddleware);

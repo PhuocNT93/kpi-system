@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import type { CalibrationScopeType, CreateSessionDTO } from '../types/calibration-types';
+import { useDepartments } from '@/features/organization/hooks/useDepartments';
+import { useTeams } from '@/features/organization/hooks/useTeams';
 import { Button } from '@/shared/ui/Button/Button';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
 import { PlusCircle, X, AlertCircle } from 'lucide-react';
@@ -22,17 +24,36 @@ export const CreateSessionModal: React.FC<Props> = ({
   isPending,
 }) => {
   const [scopeType, setScopeType] = useState<CalibrationScopeType>('ORG');
+  const [scopeId, setScopeId] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+
+  const departmentsQuery = useDepartments();
+  const teamsQuery = useTeams();
 
   if (!isOpen) return null;
 
+  const handleScopeTypeChange = (newType: CalibrationScopeType) => {
+    setScopeType(newType);
+    setScopeId('');
+    setError(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (scopeType !== 'ORG' && (!scopeId || scopeId.trim() === '')) {
+      setError(
+        scopeType === 'DEPARTMENT'
+          ? 'Vui lòng chọn phòng ban cần hiệu chuẩn.'
+          : 'Vui lòng chọn nhóm dự án cần hiệu chuẩn.'
+      );
+      return;
+    }
+
     try {
       await onSubmit({
         evaluation_cycle_id: cycleId,
         scope_type: scopeType,
-        scope_id: null,
+        scope_id: scopeType === 'ORG' ? null : scopeId,
       });
       onClose();
     } catch (err: unknown) {
@@ -147,11 +168,11 @@ export const CreateSessionModal: React.FC<Props> = ({
 
           <div>
             <label style={{ display: 'block', fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
-              Phạm vi hiệu chuẩn (Scope)
+              Phạm vi hiệu chuẩn (Scope Type)
             </label>
             <select
               value={scopeType}
-              onChange={(e) => setScopeType(e.target.value as CalibrationScopeType)}
+              onChange={(e) => handleScopeTypeChange(e.target.value as CalibrationScopeType)}
               style={{
                 width: '100%',
                 padding: '9px 12px',
@@ -168,6 +189,66 @@ export const CreateSessionModal: React.FC<Props> = ({
               <option value="TEAM">Theo nhóm dự án (Team)</option>
             </select>
           </div>
+
+          {scopeType === 'DEPARTMENT' && (
+            <div>
+              <label style={{ display: 'block', fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
+                Chọn Phòng ban <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <select
+                value={scopeId}
+                onChange={(e) => setScopeId(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: RADII.md,
+                  border: '1px solid #cbd5e1',
+                  fontSize: TYPOGRAPHY.fontSize.sm,
+                  backgroundColor: '#fff',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+                required
+              >
+                <option value="">-- Chọn phòng ban --</option>
+                {departmentsQuery.data?.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name} ({d.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {scopeType === 'TEAM' && (
+            <div>
+              <label style={{ display: 'block', fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
+                Chọn Nhóm dự án (Team) <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <select
+                value={scopeId}
+                onChange={(e) => setScopeId(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: RADII.md,
+                  border: '1px solid #cbd5e1',
+                  fontSize: TYPOGRAPHY.fontSize.sm,
+                  backgroundColor: '#fff',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+                required
+              >
+                <option value="">-- Chọn nhóm dự án --</option>
+                {teamsQuery.data?.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} ({t.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
             <Button type="button" variant="outlined" size="sm" onClick={onClose} disabled={isPending}>

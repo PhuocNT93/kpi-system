@@ -176,11 +176,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 label: 'Evaluation Cycles',
                 icon: <CalendarRange size={18} />,
               },
-              {
-                id: 'calibration',
-                label: 'Calibration',
-                icon: <SlidersHorizontal size={18} />,
-              },
+              ...(user?.role === 'HR_ADMIN'
+                ? [
+                    {
+                      id: 'calibration',
+                      label: 'Calibration',
+                      icon: <SlidersHorizontal size={18} />,
+                    },
+                  ]
+                : []),
               {
                 id: 'criteria',
                 label: 'Criteria & Rules',

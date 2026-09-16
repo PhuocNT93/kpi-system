@@ -41,7 +41,9 @@ export class PostgresCalibrationRepository implements CalibrationRepository {
       [input.evaluation_cycle_id, input.scope_type, input.scope_id ?? null, createdBy]
     );
 
-    return result.rows[0] as unknown as CalibrationSession;
+    const created = result.rows[0] as unknown as CalibrationSession;
+    const full = await this.getSessionById(created.calibrationSessionId, client);
+    return full ?? created;
   }
 
   async getSessionById(sessionId: string, client?: TransactionClient): Promise<CalibrationSession | null> {
@@ -72,6 +74,66 @@ export class PostgresCalibrationRepository implements CalibrationRepository {
       [sessionId]
     );
 
+    if (result.rows.length === 0) return null;
+    return result.rows[0] as unknown as CalibrationSession;
+  }
+
+  async getSessionByIdForUpdate(sessionId: string, client: TransactionClient): Promise<CalibrationSession | null> {
+    const result = await client.query(
+      `SELECT 
+        cs.calibration_session_id AS "calibrationSessionId",
+        cs.evaluation_cycle_id AS "evaluationCycleId",
+        cs.scope_type AS "scopeType",
+        cs.scope_id AS "scopeId",
+        cs.status,
+        cs.created_at AS "createdAt",
+        cs.updated_at AS "updatedAt",
+        cs.created_by AS "createdBy"
+      FROM calibration_session cs
+      WHERE cs.calibration_session_id = $1
+      FOR UPDATE`,
+      [sessionId]
+    );
+
+    if (result.rows.length === 0) return null;
+    return result.rows[0] as unknown as CalibrationSession;
+  }
+
+  async getExistingSession(
+    cycleId: string,
+    scopeType: string,
+    scopeId: string | null,
+    client?: TransactionClient
+  ): Promise<CalibrationSession | null> {
+    const executor = this.getExecutor(client);
+    const query = scopeId
+      ? `SELECT 
+          cs.calibration_session_id AS "calibrationSessionId",
+          cs.evaluation_cycle_id AS "evaluationCycleId",
+          cs.scope_type AS "scopeType",
+          cs.scope_id AS "scopeId",
+          cs.status,
+          cs.created_at AS "createdAt",
+          cs.updated_at AS "updatedAt",
+          cs.created_by AS "createdBy"
+        FROM calibration_session cs
+        WHERE cs.evaluation_cycle_id = $1 AND cs.scope_type = $2 AND cs.scope_id = $3 AND cs.status = 'OPEN'
+        LIMIT 1`
+      : `SELECT 
+          cs.calibration_session_id AS "calibrationSessionId",
+          cs.evaluation_cycle_id AS "evaluationCycleId",
+          cs.scope_type AS "scopeType",
+          cs.scope_id AS "scopeId",
+          cs.status,
+          cs.created_at AS "createdAt",
+          cs.updated_at AS "updatedAt",
+          cs.created_by AS "createdBy"
+        FROM calibration_session cs
+        WHERE cs.evaluation_cycle_id = $1 AND cs.scope_type = $2 AND cs.scope_id IS NULL AND cs.status = 'OPEN'
+        LIMIT 1`;
+
+    const params = scopeId ? [cycleId, scopeType, scopeId] : [cycleId, scopeType];
+    const result = await executor.query(query, params);
     if (result.rows.length === 0) return null;
     return result.rows[0] as unknown as CalibrationSession;
   }
@@ -225,6 +287,17 @@ export class PostgresCalibrationRepository implements CalibrationRepository {
     };
   }
 
+  async isCycleLocked(cycleId: string, client?: TransactionClient): Promise<boolean> {
+    const executor = this.getExecutor(client);
+    const result = await executor.query(
+      `SELECT locked_at, status FROM evaluation_cycle WHERE evaluation_cycle_id = $1`,
+      [cycleId]
+    );
+    if (result.rows.length === 0) return false;
+    const row = result.rows[0] as QueryResultRow;
+    return Boolean(row.locked_at) || row.status === 'LOCKED';
+  }
+
   async insertAdjustment(
     params: {
       calibrationSessionId: string;
@@ -287,6 +360,25 @@ export class PostgresCalibrationRepository implements CalibrationRepository {
        SET final_score = $2, updated_at = CURRENT_TIMESTAMP
        WHERE evaluation_id = $1`,
       [evaluationId, finalScore]
+    );
+  }
+
+  async transitionEvaluationsAndAutoPublish(
+    evaluationIds: string[],
+    updatedBy: string,
+    client: TransactionClient
+  ): Promise<void> {
+    if (evaluationIds.length === 0) return;
+    await client.query(
+      `UPDATE evaluation
+       SET status = 'PUBLISHED',
+           approved_at = COALESCE(approved_at, CURRENT_TIMESTAMP),
+           published_at = CURRENT_TIMESTAMP,
+           published_by = $2,
+           updated_by = $2,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE evaluation_id = ANY($1) AND is_locked = false`,
+      [evaluationIds, updatedBy]
     );
   }
 

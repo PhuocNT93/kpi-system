@@ -131,7 +131,9 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
 
   // ── Calibration Module Routes ───────────────────────────────────────────
   if (options.calibrationController) {
-    router.use('/calibration', createCalibrationRouter(options.calibrationController, options.jwtMiddleware));
+    const calibrationRouter = createCalibrationRouter(options.calibrationController, options.jwtMiddleware);
+    router.use('/calibration', calibrationRouter);
+    router.use('/calibration-sessions', calibrationRouter);
   }
 
   // ── Sample: single-resource response ──────────────────────────────────────

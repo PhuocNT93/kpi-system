@@ -47,10 +47,21 @@ export class CalibrationController {
     }
   };
 
+  getDistribution = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const actor = this.getActor(req);
+      const sessionId = req.params.id as string;
+      const distribution = await this.calibrationService.getDistribution(sessionId, actor);
+      sendSuccess(res, 200, 'Thông tin phân phối điểm được tải thành công.', distribution);
+    } catch (err) {
+      next(err);
+    }
+  };
+
   listSessions = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const actor = this.getActor(req);
-      const cycleId = (req.query.cycle_id || req.query.cycleId) as string;
+      const cycleId = (req.query.cycle_id || req.query.cycleId || req.query.evaluation_cycle_id) as string;
       if (!cycleId) {
         sendSuccess(res, 200, 'Danh sách phiên hiệu chuẩn điểm.', []);
         return;
@@ -68,6 +79,17 @@ export class CalibrationController {
       const sessionId = req.params.id as string;
       const result = await this.calibrationService.adjustScore(sessionId, req.body, actor);
       sendSuccess(res, 200, 'Điểm số nhân viên đã được hiệu chuẩn thành công.', result);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  getAdjustments = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const actor = this.getActor(req);
+      const sessionId = req.params.id as string;
+      const adjustments = await this.calibrationService.getAdjustments(sessionId, actor);
+      sendSuccess(res, 200, 'Lịch sử điều chỉnh điểm hiệu chuẩn tải thành công.', adjustments);
     } catch (err) {
       next(err);
     }
