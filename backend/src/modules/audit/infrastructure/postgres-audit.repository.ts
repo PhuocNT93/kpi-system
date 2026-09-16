@@ -47,6 +47,9 @@ export class PostgresAuditRepository implements AuditRepository {
     if (filters.entityType) {
       conditions.push(`a.entity_type = $${paramIndex++}`);
       values.push(filters.entityType);
+    } else if (filters.allowedEntityTypes && filters.allowedEntityTypes.length > 0) {
+      conditions.push(`a.entity_type = ANY($${paramIndex++})`);
+      values.push(filters.allowedEntityTypes);
     }
     if (filters.entityId) {
       conditions.push(`a.entity_id = $${paramIndex++}`);
