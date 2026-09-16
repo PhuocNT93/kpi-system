@@ -10,6 +10,7 @@ import { ScoringEngine, type ScoringKpiInput } from '../../domain/scoring/scorin
 import { RuleEngine } from '../../../rule-engine/domain/rule-engine.js';
 import { appEventEmitter, AppEvent } from '../../../../shared/events/index.js';
 import { ExplainabilityViewDto, SourceSnapshot } from '../../../evaluation-data-import/domain/evaluation-data-import.types.js';
+import { EvaluationTransitionService } from './evaluation-transition.service.js';
 
 export class EvaluationService {
   constructor(
@@ -17,7 +18,8 @@ export class EvaluationService {
     private evaluationItemRepo: IEvaluationItemRepository,
     private pool: Pool,
     private auditService?: AuditService,
-    private ruleEngine?: RuleEngine
+    private ruleEngine?: RuleEngine,
+    private transitionService: EvaluationTransitionService = new EvaluationTransitionService()
   ) {}
 
   async getMyEvaluations(actor: Actor): Promise<MyEvaluationListItem[]> {
@@ -171,25 +173,74 @@ export class EvaluationService {
   }
 
   async submitEvaluation(evaluationId: string, actor: Actor): Promise<Evaluation> {
-    const evaluation = await this.evaluationRepo.findById(evaluationId);
-    if (!evaluation) throw new NotFound('Evaluation');
+    const executeSubmit = async (
+      client?: PoolClient,
+      evalRecord?: Evaluation
+    ): Promise<Evaluation> => {
+      let evaluation = evalRecord;
+      if (!evaluation && client) {
+        evaluation = (await this.evaluationRepo.findByIdForUpdate(evaluationId, client)) ||
+          (await this.evaluationRepo.findById(evaluationId, client)) ||
+          (await this.evaluationRepo.findById(evaluationId)) ||
+          undefined;
+      } else if (!evaluation) {
+        evaluation = (await this.evaluationRepo.findById(evaluationId)) || undefined;
+      }
 
-    const isSelf = evaluation.employee_id === actor.employeeId || evaluation.employee_id === actor.userId;
-    if (!isSelf) throw new AppError(403, 'FORBIDDEN', 'Access denied.');
+      if (!evaluation) throw new NotFound('Evaluation');
 
-    if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
-      throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked.');
+      const isSelf = evaluation.employee_id === actor.employeeId || evaluation.employee_id === actor.userId;
+      if (!isSelf) throw new AppError(403, 'FORBIDDEN', 'Access denied.');
+
+      if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
+        throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked.');
+      }
+
+      // Idempotency: if already submitted, return current evaluation
+      if (evaluation.status === EvaluationStatus.SUBMITTED) {
+        return evaluation;
+      }
+
+      this.transitionService.validateTransition(evaluation.status, EvaluationStatus.SUBMITTED);
+
+      // Validate required criteria have scores completed
+      const rawItems = await this.evaluationItemRepo.findByEvaluationId(evaluationId, client);
+      const items = Array.isArray(rawItems) ? rawItems : [];
+      this.transitionService.validateSubmittable(evaluation, items);
+
+      const updatePayload = {
+        status: EvaluationStatus.SUBMITTED,
+        submitted_at: new Date(),
+        updated_by: actor.userId,
+      };
+      const updated = client
+        ? await this.evaluationRepo.update(evaluationId, updatePayload, client)
+        : await this.evaluationRepo.update(evaluationId, updatePayload);
+
+      if (this.auditService && client) {
+        await this.auditService.record(client, {
+          entityType: 'EVALUATION',
+          entityId: evaluationId,
+          action: 'SUBMIT',
+          oldValue: JSON.stringify({ status: evaluation.status }),
+          newValue: JSON.stringify({ status: EvaluationStatus.SUBMITTED }),
+          performedBy: actor.userId,
+          source: 'API',
+        });
+      }
+
+      appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId });
+      return updated;
+    };
+
+    if (this.pool && typeof this.pool.connect === 'function') {
+      return withTransaction(this.pool, async (client) => {
+        const repositoryClient = client as unknown as PoolClient;
+        return executeSubmit(repositoryClient);
+      });
     }
 
-    if (evaluation.status !== EvaluationStatus.OPEN) {
-      throw new AppError(400, 'INVALID_STATUS', 'Can only submit when evaluation is OPEN.');
-    }
-
-    return this.evaluationRepo.update(evaluationId, {
-      status: EvaluationStatus.SUBMITTED,
-      submitted_at: new Date(),
-      updated_by: actor.userId,
-    });
+    return executeSubmit();
   }
 
   private checkReviewPermission(evaluation: Evaluation, actor: Actor): void {
