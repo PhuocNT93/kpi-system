@@ -285,14 +285,30 @@ export class EvaluationService {
     data: { manual_override_score: number; override_reason: string }
   ): Promise<EvaluationItem> {
     const isHrOrAdmin = actor.role === 'HR_ADMIN' || actor.role === 'SYSTEM_ADMIN';
-    if (!isHrOrAdmin) {
+    if (!isHrOrAdmin || actor.role === 'MANAGER' || actor.role === 'EMPLOYEE') {
       throw new AppError(403, 'FORBIDDEN', 'Only HR or System Admins can manually override scores.');
     }
 
-    if (data.manual_override_score < 0 || data.manual_override_score > 100) {
-      throw new AppError(400, 'INVALID_INPUT', 'Override score must be between 0 and 100.');
+    if (actor.permissions && actor.permissions.length > 0) {
+      const hasPerm =
+        actor.permissions.includes('KPI_MANUAL_OVERRIDE') ||
+        actor.permissions.includes('evaluation:manual_override');
+      if (!hasPerm) {
+        throw new AppError(403, 'FORBIDDEN', 'Actor lacks KPI_MANUAL_OVERRIDE permission.');
+      }
     }
-    if (!data.override_reason || data.override_reason.trim() === '') {
+
+    if (
+      data.manual_override_score === undefined ||
+      data.manual_override_score === null ||
+      typeof data.manual_override_score !== 'number' ||
+      Number.isNaN(data.manual_override_score) ||
+      data.manual_override_score < 0 ||
+      data.manual_override_score > 100
+    ) {
+      throw new AppError(400, 'INVALID_INPUT', 'Override score must be a number between 0 and 100.');
+    }
+    if (!data.override_reason || typeof data.override_reason !== 'string' || data.override_reason.trim() === '') {
       throw new AppError(400, 'INVALID_INPUT', 'Override reason is required.');
     }
 
@@ -304,18 +320,17 @@ export class EvaluationService {
       if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
         throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked. Scores cannot be overridden.');
       }
-      if (evaluation.status !== EvaluationStatus.APPROVED && evaluation.status !== EvaluationStatus.PUBLISHED) {
-        throw new AppError(400, 'INVALID_STATUS', 'Can only override score when evaluation is APPROVED or PUBLISHED.');
-      }
 
       const items = await this.evaluationItemRepo.findByEvaluationId(evaluationId, repositoryClient);
-      const targetItem = items.find(item => item.evaluation_item_id === kpiId);
+      const targetItem = items.find(
+        (item) => item.evaluation_item_id === kpiId || item.kpi_id_snapshot === kpiId
+      );
       
       if (!targetItem) throw new NotFound('EvaluationItem');
 
       const updatedItem = await this.evaluationItemRepo.update(targetItem.evaluation_item_id, {
         manual_override_score: data.manual_override_score,
-        override_reason: data.override_reason,
+        override_reason: data.override_reason.trim(),
         override_by: actor.userId,
         override_at: new Date(),
         updated_by: actor.userId,
@@ -326,8 +341,10 @@ export class EvaluationService {
           entityType: 'EVALUATION_ITEM',
           entityId: targetItem.evaluation_item_id,
           action: 'MANUAL_OVERRIDE',
-          oldValue: JSON.stringify({ manual_override_score: targetItem.manual_override_score }),
-          newValue: JSON.stringify({ manual_override_score: updatedItem.manual_override_score, override_reason: updatedItem.override_reason }),
+          fieldName: 'manual_override_score',
+          oldValue: targetItem.manual_override_score != null ? String(targetItem.manual_override_score) : null,
+          newValue: String(updatedItem.manual_override_score),
+          reason: data.override_reason.trim(),
           performedBy: actor.userId,
           source: 'API',
         });

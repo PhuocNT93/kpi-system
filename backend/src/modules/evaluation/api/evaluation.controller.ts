@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { EvaluationService } from '../application/services/evaluation.service.js';
 import { sendSuccess } from '../../../api/http-response.js';
 import { getActorOrThrow } from '../../../shared/auth/actor-context.js';
@@ -104,16 +104,24 @@ export class EvaluationController {
     sendSuccess(res, 200, 'Evaluation locked successfully.', result);
   };
 
-  overrideKpiScore = async (req: Request, res: Response): Promise<void> => {
-    const actor = this.getActor(req);
-    const id = req.params.id as string;
-    const kpiId = req.params.kpiId as string;
-    const { manual_override_score, override_reason } = req.body;
-    const result = await this.evaluationService.overrideKpiScore(id, kpiId, actor, {
-      manual_override_score: Number(manual_override_score),
-      override_reason: override_reason as string,
-    });
-    sendSuccess(res, 200, 'KPI score override applied successfully.', result);
+  overrideKpiScore = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const actor = this.getActor(req);
+      const id = req.params.id as string;
+      const kpiId = req.params.kpiId as string;
+      const { manual_override_score, override_reason } = req.body;
+      const scoreNum =
+        manual_override_score !== undefined && manual_override_score !== null && manual_override_score !== ''
+          ? Number(manual_override_score)
+          : NaN;
+      const result = await this.evaluationService.overrideKpiScore(id, kpiId, actor, {
+        manual_override_score: scoreNum,
+        override_reason: override_reason as string,
+      });
+      sendSuccess(res, 200, 'KPI score override applied successfully.', result);
+    } catch (err) {
+      next(err);
+    }
   };
 
   getKpiEvidence = async (req: Request, res: Response): Promise<void> => {
