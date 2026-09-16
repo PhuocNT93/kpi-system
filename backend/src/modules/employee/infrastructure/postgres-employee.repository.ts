@@ -100,8 +100,15 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
     let idx = 1;
 
     if (params.departmentId) {
-      conditions.push(`department_id = $${idx++}`);
+      conditions.push(`(department_id = $${idx} OR EXISTS (
+        SELECT 1
+        FROM employee_assignment ea
+        WHERE ea.employee_id = employee.employee_id
+          AND ea.department_id = $${idx}
+          AND ea.effective_to IS NULL
+      ))`);
       values.push(params.departmentId);
+      idx++;
     }
     if (params.teamId) {
       conditions.push(`team_id = $${idx++}`);

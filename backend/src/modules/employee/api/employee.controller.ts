@@ -67,16 +67,8 @@ export class EmployeeController {
     const { limit, offset, buildPageMeta } = parsePaginationQuery(req.query as Record<string, unknown>);
 
     if (this.employeeRepo && this.hasDb()) {
-      const result = await this.employeeRepo.findMany({
-        departmentId: req.query.department_id as string,
-        teamId: req.query.team_id as string,
-        roleId: req.query.role_id as string,
-        jobLevelId: req.query.job_level_id as string,
-        employmentStatus: req.query.employment_status as string,
-        search: req.query.search as string,
-        limit,
-        offset,
-      });
+      console.log('Fetching employees with limit:', limit, 'and offset:', offset);
+      const result = await this.employeeRepo.findMany({ limit, offset });
       const data = result.employees.map(this.mapEmployeeToResponse);
       sendCollection(res, 'Employees retrieved successfully', data, buildPageMeta(result.total));
       return;
@@ -1381,4 +1373,4 @@ export class EmployeeController {
       active_member_count: team.activeMemberCount,
     };
   };
-}
+}
