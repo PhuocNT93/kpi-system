@@ -14,7 +14,7 @@ import {
   CreateCalibrationAdjustmentInput,
 } from '../domain/calibration.domain.js';
 import { CalibrationRepository } from '../domain/calibration.repository.js';
-import { NotFound, Forbidden, Conflict, Locked, BadRequest } from '../../../api/app-error.js';
+import { NotFound, Forbidden, Conflict, Unprocessable, BadRequest } from '../../../api/app-error.js';
 
 export class CalibrationService {
   constructor(
@@ -23,17 +23,35 @@ export class CalibrationService {
     private auditService?: AuditService
   ) {}
 
-  private requireHrOrAdmin(actor: Actor): void {
-    if (actor.role !== 'HR_ADMIN' && actor.role !== 'SYSTEM_ADMIN') {
-      throw new Forbidden('Chỉ Quản trị viên nhân sự (HR_ADMIN) hoặc Quản trị hệ thống (SYSTEM_ADMIN) mới có quyền thực hiện hiệu chuẩn điểm.');
+  private requireHrAdmin(actor: Actor): void {
+    if (actor.role !== 'HR_ADMIN') {
+      throw new Forbidden('Chỉ Quản trị viên nhân sự (HR_ADMIN) mới có quyền thực hiện hiệu chuẩn điểm.');
     }
   }
 
   async createSession(input: CreateCalibrationSessionInput, actor: Actor): Promise<CalibrationSession> {
-    this.requireHrOrAdmin(actor);
+    this.requireHrAdmin(actor);
+
     const parsed = CreateCalibrationSessionSchema.safeParse(input);
     if (!parsed.success) {
       throw new BadRequest(parsed.error.issues.map((e) => e.message).join(', '));
+    }
+
+    const isLocked = await this.calibrationRepo.isCycleLocked(parsed.data.evaluation_cycle_id);
+    if (isLocked) {
+      throw new Conflict('Kỳ đánh giá này đã bị khóa (LOCKED), không thể tạo phiên hiệu chuẩn mới.', 'EVALUATION_LOCKED');
+    }
+
+    const existingOpen = await this.calibrationRepo.getExistingSession(
+      parsed.data.evaluation_cycle_id,
+      parsed.data.scope_type,
+      parsed.data.scope_id ?? null
+    );
+    if (existingOpen) {
+      throw new Conflict(
+        'Đã tồn tại một phiên hiệu chuẩn điểm đang mở (OPEN) cho phạm vi này trong kỳ đánh giá.',
+        'CALIBRATION_SESSION_ALREADY_EXISTS'
+      );
     }
 
     if (!this.auditService) {
@@ -47,7 +65,7 @@ export class CalibrationService {
         entityType: 'CALIBRATION_SESSION',
         entityId: session.calibrationSessionId,
         action: 'CREATE',
-        reason: `Khởi tạo phiên cân bằng điểm (Scope: ${session.scopeType})`,
+        reason: `Khởi tạo phiên hiệu chuẩn điểm (Scope: ${session.scopeType})`,
         performedBy: actor.userId,
       });
 
@@ -56,10 +74,11 @@ export class CalibrationService {
   }
 
   async getSessionDetail(sessionId: string, actor: Actor): Promise<CalibrationSessionDetail> {
-    this.requireHrOrAdmin(actor);
+    this.requireHrAdmin(actor);
+
     const session = await this.calibrationRepo.getSessionById(sessionId);
     if (!session) {
-      throw new NotFound('Không tìm thấy phiên hiệu chuẩn điểm (Calibration Session).');
+      throw new NotFound('Phiên hiệu chuẩn điểm (Calibration Session)');
     }
 
     const [evaluations, adjustments] = await Promise.all([
@@ -77,9 +96,32 @@ export class CalibrationService {
     };
   }
 
+  async getDistribution(sessionId: string, actor: Actor): Promise<CalibrationDistribution> {
+    this.requireHrAdmin(actor);
+
+    const session = await this.calibrationRepo.getSessionById(sessionId);
+    if (!session) {
+      throw new NotFound('Phiên hiệu chuẩn điểm (Calibration Session)');
+    }
+
+    const evaluations = await this.calibrationRepo.getEvaluationsForSession(session);
+    return this.calculateDistribution(evaluations);
+  }
+
   async listSessions(cycleId: string, actor: Actor): Promise<CalibrationSession[]> {
-    this.requireHrOrAdmin(actor);
+    this.requireHrAdmin(actor);
     return this.calibrationRepo.listSessionsByCycle(cycleId);
+  }
+
+  async getAdjustments(sessionId: string, actor: Actor) {
+    this.requireHrAdmin(actor);
+
+    const session = await this.calibrationRepo.getSessionById(sessionId);
+    if (!session) {
+      throw new NotFound('Phiên hiệu chuẩn điểm (Calibration Session)');
+    }
+
+    return this.calibrationRepo.getAdjustmentsBySession(sessionId);
   }
 
   async adjustScore(
@@ -87,28 +129,52 @@ export class CalibrationService {
     input: CreateCalibrationAdjustmentInput,
     actor: Actor
   ): Promise<CalibrationSessionDetail> {
-    this.requireHrOrAdmin(actor);
-    const parsed = CreateCalibrationAdjustmentSchema.safeParse(input);
+    this.requireHrAdmin(actor);
+
+    const trimmedReason = input.reason ? input.reason.trim() : '';
+    if (!trimmedReason || trimmedReason.length < 3) {
+      throw new Unprocessable(
+        'Lý do điều chỉnh là bắt buộc và phải có ít nhất 3 ký tự.',
+        'CALIBRATION_REASON_REQUIRED'
+      );
+    }
+
+    const parsed = CreateCalibrationAdjustmentSchema.safeParse({
+      ...input,
+      reason: trimmedReason,
+    });
     if (!parsed.success) {
-      throw new BadRequest(parsed.error.issues.map((e) => e.message).join(', '));
+      throw new Unprocessable(parsed.error.issues.map((e) => e.message).join(', '), 'INVALID_CALIBRATION_SCORE');
     }
 
     const session = await this.calibrationRepo.getSessionById(sessionId);
     if (!session) {
-      throw new NotFound('Không tìm thấy phiên hiệu chuẩn điểm.');
+      throw new NotFound('Phiên hiệu chuẩn điểm (Calibration Session)');
     }
 
     if (session.status === 'FINALIZED') {
-      throw new Conflict('Phiên hiệu chuẩn điểm này đã được chốt (FINALIZED) và không thể điều chỉnh điểm nữa.');
+      throw new Conflict(
+        'Phiên hiệu chuẩn điểm này đã được chốt (FINALIZED) và không thể điều chỉnh điểm nữa.',
+        'CALIBRATION_SESSION_ALREADY_FINALIZED'
+      );
+    }
+
+    const isCycleLocked = await this.calibrationRepo.isCycleLocked(session.evaluationCycleId);
+    if (isCycleLocked) {
+      throw new Conflict('Kỳ đánh giá này đã bị khóa (LOCKED).', 'EVALUATION_LOCKED');
     }
 
     const evaluation = await this.calibrationRepo.getEvaluationById(parsed.data.evaluation_id);
     if (!evaluation) {
-      throw new NotFound('Không tìm thấy phiếu đánh giá của nhân viên.');
+      throw new NotFound('Phiếu đánh giá của nhân viên');
+    }
+
+    if (evaluation.evaluationCycleId !== session.evaluationCycleId) {
+      throw new NotFound('Phiếu đánh giá không thuộc kỳ đánh giá của phiên này.');
     }
 
     if (evaluation.isLocked) {
-      throw new Locked('Phiếu đánh giá này');
+      throw new Conflict('Phiếu đánh giá này đã bị khóa (LOCKED).', 'EVALUATION_LOCKED');
     }
 
     const oldFinalScore =
@@ -143,7 +209,7 @@ export class CalibrationService {
         audit.record({
           entityType: 'EVALUATION',
           entityId: parsed.data.evaluation_id,
-          action: 'ADJUST',
+          action: 'CALIBRATION_ADJUST',
           fieldName: 'final_score',
           oldValue: String(oldFinalScore),
           newValue: String(parsed.data.new_final_score),
@@ -173,27 +239,56 @@ export class CalibrationService {
   }
 
   async finalizeSession(sessionId: string, actor: Actor): Promise<CalibrationSession> {
-    this.requireHrOrAdmin(actor);
-    const session = await this.calibrationRepo.getSessionById(sessionId);
-    if (!session) {
-      throw new NotFound('Không tìm thấy phiên hiệu chuẩn điểm.');
-    }
-
-    if (session.status === 'FINALIZED') {
-      return session; // Idempotent
-    }
+    this.requireHrAdmin(actor);
 
     const executeFinalize = async (client: TransactionClient, audit?: AuditCollector) => {
+      const session = await this.calibrationRepo.getSessionByIdForUpdate(sessionId, client);
+      if (!session) {
+        throw new NotFound('Phiên hiệu chuẩn điểm (Calibration Session)');
+      }
+
+      if (session.status === 'FINALIZED') {
+        throw new Conflict(
+          'Phiên hiệu chuẩn điểm này đã được chốt (FINALIZED).',
+          'CALIBRATION_SESSION_ALREADY_FINALIZED'
+        );
+      }
+
+      const isCycleLocked = await this.calibrationRepo.isCycleLocked(session.evaluationCycleId, client);
+      if (isCycleLocked) {
+        throw new Conflict('Kỳ đánh giá này đã bị khóa (LOCKED).', 'EVALUATION_LOCKED');
+      }
+
+      const evaluations = await this.calibrationRepo.getEvaluationsForSession(session, client);
+      if (evaluations.some((e) => e.isLocked)) {
+        throw new Conflict('Một hoặc nhiều phiếu đánh giá trong phiên này đã bị khóa (LOCKED).', 'EVALUATION_LOCKED');
+      }
+
       await this.calibrationRepo.finalizeSession(sessionId, actor.userId, client);
+
+      const evaluationIds = evaluations.map((e) => e.evaluationId);
+      await this.calibrationRepo.transitionEvaluationsAndAutoPublish(evaluationIds, actor.userId, client);
 
       if (audit) {
         audit.record({
           entityType: 'CALIBRATION_SESSION',
           entityId: sessionId,
-          action: 'FINALIZE',
-          reason: 'Chốt phiên cân bằng điểm calibration thành công',
+          action: 'CALIBRATION_FINALIZE',
+          reason: 'Chốt phiên hiệu chuẩn điểm calibration và tự động xuất bản (auto-publish)',
           performedBy: actor.userId,
         });
+
+        for (const evalId of evaluationIds) {
+          audit.record({
+            entityType: 'EVALUATION',
+            entityId: evalId,
+            action: 'PUBLISH',
+            oldValue: JSON.stringify({ status: 'CALIBRATION' }),
+            newValue: JSON.stringify({ status: 'PUBLISHED' }),
+            reason: 'Tự động xuất bản sau khi chốt phiên hiệu chuẩn điểm',
+            performedBy: actor.userId,
+          });
+        }
       }
     };
 
@@ -217,9 +312,11 @@ export class CalibrationService {
     return updated!;
   }
 
-  private calculateDistribution(evaluations: { calculatedScore: number | null; finalScore: number | null }[]): CalibrationDistribution {
+  calculateDistribution(
+    evaluations: { calculatedScore: number | null; finalScore: number | null }[]
+  ): CalibrationDistribution {
     const scores = evaluations
-      .map((e) => (e.finalScore != null ? e.finalScore : e.calculatedScore))
+      .map((e) => (e.calculatedScore != null ? Number(e.calculatedScore) : null))
       .filter((s): s is number => s != null && !isNaN(s));
 
     const totalEvaluations = evaluations.length;
@@ -229,6 +326,7 @@ export class CalibrationService {
         minScore: null,
         maxScore: null,
         averageScore: null,
+        medianScore: null,
         buckets: this.buildEmptyBuckets(),
       };
     }
@@ -238,12 +336,19 @@ export class CalibrationService {
     const sum = scores.reduce((acc, curr) => acc + curr, 0);
     const averageScore = Math.round((sum / scores.length) * 100) / 100;
 
+    const sorted = [...scores].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    const medianScore: number =
+      sorted.length % 2 !== 0
+        ? (sorted[mid] ?? 0)
+        : Math.round((((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2) * 100) / 100;
+
     const bucketsDef = [
-      { range: '< 2.0 (Kém)', min: -Infinity, max: 2.0 },
-      { range: '2.0 - 2.9 (Cần cải thiện)', min: 2.0, max: 3.0 },
-      { range: '3.0 - 3.9 (Đạt yêu cầu)', min: 3.0, max: 4.0 },
-      { range: '4.0 - 4.5 (Tốt)', min: 4.0, max: 4.5 },
-      { range: '> 4.5 (Xuất sắc)', min: 4.5, max: Infinity },
+      { range: '< 60 (Không đạt)', min: -Infinity, max: 60 },
+      { range: '60 - 69.99 (Cần cải thiện)', min: 60, max: 70 },
+      { range: '70 - 79.99 (Đạt yêu cầu)', min: 70, max: 80 },
+      { range: '80 - 89.99 (Tốt)', min: 80, max: 90 },
+      { range: '>= 90 (Xuất sắc)', min: 90, max: Infinity },
     ];
 
     const buckets: ScoreBucket[] = bucketsDef.map((b) => {
@@ -261,17 +366,18 @@ export class CalibrationService {
       minScore: Math.round(minScore * 100) / 100,
       maxScore: Math.round(maxScore * 100) / 100,
       averageScore,
+      medianScore,
       buckets,
     };
   }
 
   private buildEmptyBuckets(): ScoreBucket[] {
     return [
-      { range: '< 2.0 (Kém)', count: 0, percentage: 0 },
-      { range: '2.0 - 2.9 (Cần cải thiện)', count: 0, percentage: 0 },
-      { range: '3.0 - 3.9 (Đạt yêu cầu)', count: 0, percentage: 0 },
-      { range: '4.0 - 4.5 (Tốt)', count: 0, percentage: 0 },
-      { range: '> 4.5 (Xuất sắc)', count: 0, percentage: 0 },
+      { range: '< 60 (Không đạt)', count: 0, percentage: 0 },
+      { range: '60 - 69.99 (Cần cải thiện)', count: 0, percentage: 0 },
+      { range: '70 - 79.99 (Đạt yêu cầu)', count: 0, percentage: 0 },
+      { range: '80 - 89.99 (Tốt)', count: 0, percentage: 0 },
+      { range: '>= 90 (Xuất sắc)', count: 0, percentage: 0 },
     ];
   }
 }

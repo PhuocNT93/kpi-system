@@ -259,6 +259,10 @@ export const CalibrationAdjustmentModal: React.FC<Props> = ({
             />
           </div>
 
+          <div style={{ fontSize: '11px', color: '#64748b', fontStyle: 'italic' }}>
+            Lưu ý: Thay đổi này sẽ được ghi nhận vào lịch sử hiệu chuẩn và nhật ký kiểm toán (audit log) có tính pháp lý.
+          </div>
+
           {/* Actions */}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
             <Button type="button" variant="outlined" size="sm" onClick={onClose} disabled={isPending}>

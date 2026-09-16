@@ -56,6 +56,7 @@ export interface CalibrationDistribution {
   minScore: number | null;
   maxScore: number | null;
   averageScore: number | null;
+  medianScore: number | null;
   buckets: ScoreBucket[];
 }
 

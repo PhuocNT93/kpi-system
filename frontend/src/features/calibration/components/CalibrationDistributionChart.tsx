@@ -2,7 +2,7 @@ import React from 'react';
 import type { CalibrationDistribution } from '../types/calibration-types';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
-import { BarChart3, TrendingUp, Award, Users } from 'lucide-react';
+import { BarChart3, TrendingUp, Award, Users, Activity } from 'lucide-react';
 
 interface Props {
   distribution: CalibrationDistribution;
@@ -12,15 +12,15 @@ export const CalibrationDistributionChart: React.FC<Props> = ({ distribution }) 
   const getBucketColor = (index: number) => {
     switch (index) {
       case 0:
-        return '#ef4444'; // Red for Poor (< 2.0)
+        return '#ef4444'; // Red for Poor (< 60)
       case 1:
-        return '#f97316'; // Orange for Needs Improvement (2.0 - 2.9)
+        return '#f97316'; // Orange for Needs Improvement (60 - 69.99)
       case 2:
-        return '#eab308'; // Yellow for Meets (3.0 - 3.9)
+        return '#eab308'; // Yellow for Meets (70 - 79.99)
       case 3:
-        return '#3b82f6'; // Blue for Exceeds (4.0 - 4.5)
+        return '#3b82f6'; // Blue for Exceeds (80 - 89.99)
       case 4:
-        return '#10b981'; // Green for Outstanding (> 4.5)
+        return '#10b981'; // Green for Outstanding (>= 90)
       default:
         return COLORS.primary[500];
     }
@@ -28,7 +28,7 @@ export const CalibrationDistributionChart: React.FC<Props> = ({ distribution }) 
 
   return (
     <section
-      aria-label="Phân phối điểm số"
+      aria-label="Phân phối điểm số hiệu chuẩn"
       style={{
         backgroundColor: '#fff',
         borderRadius: RADII.xl,
@@ -58,10 +58,10 @@ export const CalibrationDistributionChart: React.FC<Props> = ({ distribution }) 
           </span>
           <div>
             <h2 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.base, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral[900] }}>
-              Phân phối điểm hiệu chuẩn (Score Distribution)
+              Phân phối điểm số gốc (Score Distribution)
             </h2>
             <p style={{ margin: '2px 0 0 0', fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral[500] }}>
-              Tỷ lệ phân bổ điểm số của nhân viên trong phạm vi phiên hiệu chuẩn này.
+              Số liệu thống kê mô tả từ điểm tính toán gốc (overall_weighted_score). Không xếp hạng hay ép chuẩn.
             </p>
           </div>
         </div>
@@ -101,9 +101,29 @@ export const CalibrationDistributionChart: React.FC<Props> = ({ distribution }) 
           >
             <TrendingUp size={16} color="#2563eb" />
             <div>
-              <div style={{ fontSize: '11px', color: '#64748b' }}>Điểm trung bình</div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>Trung bình (Avg)</div>
               <div style={{ fontSize: '14px', fontWeight: 700, color: '#2563eb' }}>
                 {distribution.averageScore != null ? distribution.averageScore.toFixed(2) : 'N/A'}
+              </div>
+            </div>
+          </div>
+
+          <div
+            style={{
+              padding: '8px 14px',
+              borderRadius: RADII.lg,
+              backgroundColor: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+          >
+            <Activity size={16} color="#0891b2" />
+            <div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>Trung vị (Median)</div>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: '#0891b2' }}>
+                {distribution.medianScore != null ? distribution.medianScore.toFixed(2) : 'N/A'}
               </div>
             </div>
           </div>

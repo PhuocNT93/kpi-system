@@ -15,6 +15,15 @@ export interface CalibrationRepository {
 
   getSessionById(sessionId: string, client?: TransactionClient): Promise<CalibrationSession | null>;
 
+  getSessionByIdForUpdate(sessionId: string, client: TransactionClient): Promise<CalibrationSession | null>;
+
+  getExistingSession(
+    cycleId: string,
+    scopeType: string,
+    scopeId: string | null,
+    client?: TransactionClient
+  ): Promise<CalibrationSession | null>;
+
   listSessionsByCycle(cycleId: string, client?: TransactionClient): Promise<CalibrationSession[]>;
 
   finalizeSession(sessionId: string, updatedBy: string | null, client?: TransactionClient): Promise<void>;
@@ -32,6 +41,8 @@ export interface CalibrationRepository {
     isLocked: boolean;
   } | null>;
 
+  isCycleLocked(cycleId: string, client?: TransactionClient): Promise<boolean>;
+
   insertAdjustment(
     params: {
       calibrationSessionId: string;
@@ -47,6 +58,12 @@ export interface CalibrationRepository {
   updateEvaluationFinalScore(
     evaluationId: string,
     finalScore: number,
+    client: TransactionClient
+  ): Promise<void>;
+
+  transitionEvaluationsAndAutoPublish(
+    evaluationIds: string[],
+    updatedBy: string,
     client: TransactionClient
   ): Promise<void>;
 

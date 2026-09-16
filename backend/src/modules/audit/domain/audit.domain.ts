@@ -16,7 +16,11 @@ export const AuditActionSchema = z.enum([
   'TEAM_UPDATED',
   'TEAM_DEACTIVATED',
   'EXPORT',
-  'IMPORT_APPLY'
+  'IMPORT_APPLY',
+  'CALIBRATION_SESSION_CREATE',
+  'CALIBRATION_ADJUST',
+  'CALIBRATION_FINALIZE',
+  'FINALIZE'
 ]);
 
 export type AuditAction = z.infer<typeof AuditActionSchema>;
@@ -35,7 +39,9 @@ export const AuditEntityTypeSchema = z.enum([
   'KPI_VERSION',
   'KPI_RELATIONSHIP',
   'TEMPLATE_KPI',
-  'EVALUATION_KPI'
+  'EVALUATION_KPI',
+  'CALIBRATION_SESSION',
+  'CALIBRATION_ADJUSTMENT'
 ]);
 
 export type AuditEntityType = z.infer<typeof AuditEntityTypeSchema> | string; // Allowing string fallback for flexibility if needed, but primarily typed.
