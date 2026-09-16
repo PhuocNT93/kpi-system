@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { Pool, QueryResultRow } from 'pg';
 import { TransactionClient } from '../../../shared/database/transaction.js';
 import {
   CalibrationSession,
@@ -168,7 +168,7 @@ export class PostgresCalibrationRepository implements CalibrationRepository {
     values.push(session.calibrationSessionId);
 
     const result = await executor.query(query, values);
-    return result.rows.map((row: any) => ({
+    return result.rows.map((row: QueryResultRow) => ({
       evaluationId: row.evaluationId,
       employeeId: row.employeeId,
       employeeCode: row.employeeCode,
@@ -212,7 +212,7 @@ export class PostgresCalibrationRepository implements CalibrationRepository {
     );
 
     if (result.rows.length === 0) return null;
-    const row = result.rows[0] as any;
+    const row = result.rows[0] as QueryResultRow;
     return {
       evaluationId: row.evaluationId,
       evaluationCycleId: row.evaluationCycleId,
@@ -264,7 +264,7 @@ export class PostgresCalibrationRepository implements CalibrationRepository {
       ]
     );
 
-    const row = result.rows[0] as any;
+    const row = result.rows[0] as QueryResultRow;
     return {
       calibrationAdjustmentId: row.calibrationAdjustmentId,
       calibrationSessionId: row.calibrationSessionId,
@@ -314,7 +314,7 @@ export class PostgresCalibrationRepository implements CalibrationRepository {
       [sessionId]
     );
 
-    return result.rows.map((row: any) => ({
+    return result.rows.map((row: QueryResultRow) => ({
       calibrationAdjustmentId: row.calibrationAdjustmentId,
       calibrationSessionId: row.calibrationSessionId,
       evaluationId: row.evaluationId,

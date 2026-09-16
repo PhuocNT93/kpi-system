@@ -20,7 +20,7 @@ export function CriterionLibraryPanel({
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const { data: kpiPage, isLoading: isLoadingKpis } = useKpisQuery({ search: '' });
-  const kpis = kpiPage?.items || [];
+  const kpis = useMemo(() => kpiPage?.items || [], [kpiPage?.items]);
   const kpiCriteriaQueries = useQueries({
     queries: kpis.map((kpi) => ({
       queryKey: ['templates', 'kpi-criteria', kpi.kpiId] as const,

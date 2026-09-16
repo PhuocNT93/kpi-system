@@ -1,5 +1,6 @@
 import { Pool } from 'pg';
-import { withAuditedTransaction } from '../../audit/application/audit-transaction.js';
+import { withAuditedTransaction, AuditCollector } from '../../audit/application/audit-transaction.js';
+import { TransactionClient } from '../../../shared/database/transaction.js';
 import { AuditService } from '../../audit/application/audit.service.js';
 import { Actor } from '../../../shared/auth/types.js';
 import {
@@ -119,7 +120,7 @@ export class CalibrationService {
         ? evaluation.selfScore
         : 0;
 
-    const executeAdjustment = async (client: any, audit?: any) => {
+    const executeAdjustment = async (client: TransactionClient, audit?: AuditCollector) => {
       await this.calibrationRepo.insertAdjustment(
         {
           calibrationSessionId: sessionId,
@@ -182,7 +183,7 @@ export class CalibrationService {
       return session; // Idempotent
     }
 
-    const executeFinalize = async (client: any, audit?: any) => {
+    const executeFinalize = async (client: TransactionClient, audit?: AuditCollector) => {
       await this.calibrationRepo.finalizeSession(sessionId, actor.userId, client);
 
       if (audit) {

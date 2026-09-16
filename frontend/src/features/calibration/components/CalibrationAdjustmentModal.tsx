@@ -51,8 +51,8 @@ export const CalibrationAdjustmentModal: React.FC<Props> = ({
     try {
       await onSubmit(evaluation.evaluationId, scoreNum, reason.trim());
       onClose();
-    } catch (err: any) {
-      setError(err?.message || 'Có lỗi xảy ra khi cập nhật điểm hiệu chuẩn.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Có lỗi xảy ra khi cập nhật điểm hiệu chuẩn.');
     }
   };
 
