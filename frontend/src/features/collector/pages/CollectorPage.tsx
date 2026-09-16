@@ -397,7 +397,7 @@ export function CollectorPage() {
 
 
   // Unified Fetch: Fetches all criteria concurrently based on global filter
-  const handleUnifiedFetch = useCallback(async () => {
+  const handleUnifiedFetch = useCallback(async (force?: boolean) => {
     setIsUnifiedFetching(true);
     setTeamAttendanceError(null);
     setTasksError(null);
@@ -431,6 +431,7 @@ export function CollectorPage() {
           teamId: selectedTeam === 'ALL' ? undefined : selectedTeam,
           fromDate: fromMDY,
           toDate: toMDY,
+          forceRefresh: force,
         }).then((data) => {
           setPreviewTeamAttendance(data);
           if (data.records && data.records.length > 0) {
@@ -460,6 +461,7 @@ export function CollectorPage() {
           fromDate: unifiedFromDate,
           toDate: unifiedToDate,
           filterRole: 'both',
+          forceRefresh: force,
         }).then((data) => {
           setPreviewTasks(data);
         }).catch((err) => {
@@ -677,6 +679,52 @@ export function CollectorPage() {
             <span>Người vận hành: <strong style={{ color: '#fff' }}>{user?.name || user?.email}</strong> ({user?.role})</span>
           </div>
 
+
+          {(previewTeamAttendance?.cacheInfo?.fromCache || previewTasks?.cacheInfo?.fromCache) && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '6px 14px',
+                borderRadius: RADII.full,
+                backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                border: '1px solid rgba(16, 185, 129, 0.4)',
+                color: '#6ee7b7',
+                fontSize: TYPOGRAPHY.fontSize.xs,
+                fontWeight: 600,
+              }}
+              title="Dữ liệu các tháng quá khứ đã được lưu đệm trong PostgreSQL. Chỉ tháng hiện tại mới gọi live từ Blueprint."
+            >
+              <Zap size={14} style={{ color: '#10b981' }} />
+              <span>⚡ Tăng tốc bộ nhớ đệm ({previewTeamAttendance?.cacheInfo?.cachedMonths?.length || previewTasks?.cacheInfo?.cachedMonths?.length || 0} tháng từ DB)</span>
+            </div>
+          )}
+
+          <button
+            onClick={() => {
+              handleUnifiedFetch(true);
+              loadEvaluationCycles();
+            }}
+            disabled={isUnifiedFetching}
+            title="Bỏ qua bộ nhớ đệm và kéo lại toàn bộ dữ liệu mới nhất từ máy chủ Blueprint"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 16px',
+              backgroundColor: 'rgba(239, 68, 68, 0.15)',
+              border: '1px solid rgba(239, 68, 68, 0.35)',
+              borderRadius: RADII.lg,
+              color: '#fca5a5',
+              cursor: 'pointer',
+              fontSize: TYPOGRAPHY.fontSize.sm,
+              fontWeight: 500,
+            }}
+          >
+            <RefreshCw size={15} className={isUnifiedFetching ? 'spin' : ''} />
+            Bỏ qua cache & Kéo lại từ Blueprint
+          </button>
 
           <button
             onClick={() => {

@@ -5,9 +5,12 @@ import {
   CollectorRunLog,
   BlueprintAttendanceSummary,
   BlueprintTaskSummary,
+  BlueprintTaskRecord,
   BlueprintVacationSummary,
   BlueprintTeamAttendanceSummary,
+  BlueprintTeamMemberAttendance,
   BlueprintOrgTeam,
+  CollectorMonthlySnapshot,
 } from '../domain/collector.types.js';
 import { BlueprintCollector, BlueprintCredentials } from '../plugins/blueprint.collector.js';
 
@@ -121,11 +124,343 @@ export class CollectorService {
     }
   }
 
+  // ──────────────────────────── Monthly Snapshot Caching & Helper Methods ────────────────────────────
+
+  getMonthsBetween(fromDate?: string, toDate?: string): string[] {
+    const parseYearMonth = (dStr?: string): { year: number; month: number } | null => {
+      if (!dStr) return null;
+      const s = String(dStr).trim();
+      if (/^\d{4}-\d{2}/.test(s)) {
+        const parts = s.split('-');
+        const yStr = parts[0];
+        const mStr = parts[1];
+        if (yStr && mStr) {
+          return { year: parseInt(yStr, 10), month: parseInt(mStr, 10) };
+        }
+      }
+      if (s.includes('/')) {
+        const parts = s.split('/');
+        const p0 = parts[0];
+        const p2 = parts[2];
+        if (parts.length === 3 && p2 && p2.length === 4 && p0) {
+          const m = parseInt(p0, 10);
+          const y = parseInt(p2, 10);
+          return { year: y, month: m };
+        }
+      }
+      const monthMap: Record<string, number> = {
+        jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+        jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+      };
+      if (s.includes('-')) {
+        const parts = s.split('-');
+        const p0 = parts[0];
+        const p2 = parts[2];
+        if (parts.length === 3 && p2 && p2.length === 4 && p0) {
+          const m = monthMap[p0.toLowerCase()] || parseInt(p0, 10);
+          const y = parseInt(p2, 10);
+          if (m >= 1 && m <= 12) return { year: y, month: m };
+        }
+      }
+      return null;
+    };
+
+    const start = parseYearMonth(fromDate) || { year: new Date().getFullYear(), month: new Date().getMonth() + 1 };
+    const end = parseYearMonth(toDate) || start;
+
+    const months: string[] = [];
+    let curY = start.year;
+    let curM = start.month;
+
+    while (curY < end.year || (curY === end.year && curM <= end.month)) {
+      months.push(`${curY}-${String(curM).padStart(2, '0')}`);
+      curM++;
+      if (curM > 12) {
+        curM = 1;
+        curY++;
+      }
+    }
+    return months.length > 0 ? months : [`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`];
+  }
+
+  normalizeToYearMonth(dateStr?: string | null): string {
+    if (!dateStr) return '';
+    const clean = String(dateStr).trim();
+    if (/^\d{4}-\d{2}/.test(clean)) return clean.slice(0, 7);
+    if (/^\d{8}$/.test(clean)) return `${clean.slice(0, 4)}-${clean.slice(4, 6)}`;
+    const monthMap: Record<string, string> = {
+      jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+      jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
+    };
+    const partsDash = clean.split('-');
+    const pd0 = partsDash[0];
+    const pd2 = partsDash[2];
+    if (partsDash.length === 3 && pd2 && pd2.length === 4 && pd0) {
+      const m = monthMap[pd0.toLowerCase()] || pd0.padStart(2, '0');
+      return `${pd2}-${m}`;
+    }
+    const partsSlash = clean.split('/');
+    const ps0 = partsSlash[0];
+    const ps2 = partsSlash[2];
+    if (partsSlash.length === 3 && ps2 && ps2.length === 4 && ps0) {
+      return `${ps2}-${ps0.padStart(2, '0')}`;
+    }
+    return '';
+  }
+
+  async getMonthlySnapshots(
+    sourceType: 'ATTENDANCE' | 'TASKS' | 'VACATION' | 'TEAM_ATTENDANCE',
+    targetMember: string,
+    yearMonths: string[]
+  ): Promise<CollectorMonthlySnapshot[]> {
+    if (yearMonths.length === 0) return [];
+    const res = await this.pool.query(
+      `SELECT * FROM collector_monthly_snapshot
+       WHERE source_type = $1 AND target_member = $2 AND year_month = ANY($3::text[])
+       ORDER BY year_month ASC`,
+      [sourceType, targetMember, yearMonths]
+    );
+    return res.rows;
+  }
+
+  async saveMonthlySnapshot(snapshot: {
+    sourceType: 'ATTENDANCE' | 'TASKS' | 'VACATION' | 'TEAM_ATTENDANCE';
+    yearMonth: string;
+    targetMember: string;
+    teamId?: string | null;
+    dataJson: Record<string, unknown>;
+    score10?: number | null;
+    totalRecords: number;
+    isLocked: boolean;
+  }): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO collector_monthly_snapshot
+        (source_type, year_month, target_member, team_id, data_json, score10, total_records, is_locked, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+       ON CONFLICT (source_type, year_month, target_member)
+       DO UPDATE SET
+         team_id = EXCLUDED.team_id,
+         data_json = EXCLUDED.data_json,
+         score10 = EXCLUDED.score10,
+         total_records = EXCLUDED.total_records,
+         is_locked = EXCLUDED.is_locked,
+         updated_at = NOW()`,
+      [
+        snapshot.sourceType,
+        snapshot.yearMonth,
+        snapshot.targetMember,
+        snapshot.teamId || null,
+        JSON.stringify(snapshot.dataJson),
+        snapshot.score10 ?? null,
+        snapshot.totalRecords,
+        snapshot.isLocked,
+      ]
+    );
+  }
+
+  aggregateTeamAttendanceRecords(
+    records: BlueprintTeamMemberAttendance[],
+    teamId?: string,
+    fromDate?: string,
+    toDate?: string,
+    employeeName?: string,
+    teams: BlueprintOrgTeam[] = []
+  ): BlueprintTeamAttendanceSummary {
+    let finalRecords = records;
+    let totalMembers = records.length;
+    let attendedMembers = 0;
+    let onTimeMembers = 0;
+    let lateMembers = 0;
+    let leaveMembers = 0;
+    let absentMembers = 0;
+
+    if (employeeName && employeeName !== 'ALL') {
+      const q = employeeName.toLowerCase().trim();
+      const matched = records.filter(
+        (r) =>
+          (r.usrId && r.usrId.toLowerCase() === q) ||
+          r.empeNo.toLowerCase() === q ||
+          r.empeName.toLowerCase().includes(q)
+      );
+      if (matched.length > 0) {
+        finalRecords = matched;
+        totalMembers = matched.length;
+      }
+    }
+
+    for (const r of finalRecords) {
+      if (r.status === 'LEAVE') {
+        leaveMembers++;
+      } else if (r.status === 'ON_TIME') {
+        attendedMembers++;
+        onTimeMembers++;
+      } else if (r.status === 'LATE') {
+        attendedMembers++;
+        lateMembers++;
+      } else if (r.status === 'ABSENT') {
+        absentMembers++;
+      }
+    }
+
+    const countableMembers =
+      attendedMembers > 0
+        ? attendedMembers
+        : Math.max(1, totalMembers - leaveMembers);
+    const punctualityRate =
+      countableMembers > 0 ? Math.round((onTimeMembers / countableMembers) * 10000) / 100 : 100;
+
+    let score10 = 3;
+    let grade: 'S' | 'A' | 'B' | 'C' | 'D' = 'D';
+    if (punctualityRate >= 100) {
+      score10 = 10;
+      grade = 'S';
+    } else if (punctualityRate >= 90) {
+      score10 = 8;
+      grade = 'A';
+    } else if (punctualityRate >= 80) {
+      score10 = 6;
+      grade = 'B';
+    } else if (punctualityRate >= 70) {
+      score10 = 5;
+      grade = 'C';
+    } else {
+      score10 = 3;
+      grade = 'D';
+    }
+
+    const suggestedLevel =
+      score10 === 10 ? 5 : score10 >= 8 ? 4 : score10 >= 6 ? 3 : score10 >= 5 ? 2 : 1;
+
+    return {
+      teamId,
+      teamName: teamId ? (teams.find((t) => t.orzId === teamId)?.orzNm || teamId) : 'Tất cả Team (ALLEGRO NX & Maritime)',
+      fromDate: fromDate || '',
+      toDate: toDate || '',
+      totalMembers,
+      attendedMembers,
+      onTimeMembers,
+      lateMembers,
+      leaveMembers,
+      absentMembers,
+      punctualityRate,
+      score10,
+      grade,
+      suggestedLevel,
+      records: finalRecords,
+      teams,
+    };
+  }
+
+  aggregateTasks(
+    tasks: BlueprintTaskRecord[],
+    projectName: string = 'Allegro NX',
+    member?: string,
+    fromDate?: string,
+    toDate?: string,
+    filterRole?: string,
+    dateType?: string
+  ): BlueprintTaskSummary {
+    let completedTasks = 0;
+    let onTimeTasks = 0;
+    let delayedTasks = 0;
+
+    for (const t of tasks) {
+      const sts = (t.status || '').toLowerCase();
+      if (sts.includes('finish') || sts.includes('closed') || sts.includes('complete')) {
+        completedTasks++;
+      }
+      if (t.isOnTime) {
+        onTimeTasks++;
+      } else {
+        delayedTasks++;
+      }
+    }
+
+    const totalCount = tasks.length;
+    const onTimeRate = totalCount > 0 ? Math.round((onTimeTasks / totalCount) * 10000) / 100 : 0;
+
+    let score10 = 3;
+    let grade: 'S' | 'A' | 'B' | 'C' | 'D' = 'D';
+    if (onTimeRate >= 100) {
+      score10 = 10;
+      grade = 'S';
+    } else if (onTimeRate >= 90) {
+      score10 = 9;
+      grade = 'A';
+    } else if (onTimeRate >= 80) {
+      score10 = 6;
+      grade = 'B';
+    } else if (onTimeRate >= 70) {
+      score10 = 5;
+      grade = 'C';
+    } else {
+      score10 = 3;
+      grade = 'D';
+    }
+
+    const suggestedLevel =
+      score10 === 10 ? 5 : score10 >= 8 ? 4 : score10 >= 6 ? 3 : score10 >= 5 ? 2 : 1;
+    const delayedTaskList = tasks.filter((t) => !t.isOnTime);
+
+    return {
+      projectName,
+      totalTasks: totalCount,
+      completedTasks,
+      onTimeTasks,
+      delayedTasks,
+      onTimeRate,
+      score10,
+      grade,
+      suggestedLevel,
+      tasks,
+      delayedTaskList,
+      username: member,
+      fromDate: fromDate || null,
+      toDate: toDate || null,
+      filterRole,
+      dateType,
+    };
+  }
+
   // ──────────────────────────── Preview & Direct Sync ────────────────────────────
 
-  async previewBlueprint(credentials: BlueprintCredentials, month: string = '2026-09'): Promise<BlueprintAttendanceSummary> {
+  async previewBlueprint(
+    credentials: BlueprintCredentials,
+    month: string = '2026-09',
+    options?: { forceRefresh?: boolean }
+  ): Promise<BlueprintAttendanceSummary & { cacheInfo?: { fromCache: boolean } }> {
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const targetMember = credentials.username;
+
+    if (!options?.forceRefresh) {
+      const snaps = await this.getMonthlySnapshots('ATTENDANCE', targetMember, [month]);
+      const firstSnap = snaps[0];
+      if (firstSnap && (firstSnap.is_locked || firstSnap.year_month < currentMonth)) {
+        return {
+          ...(firstSnap.data_json as unknown as BlueprintAttendanceSummary),
+          cacheInfo: { fromCache: true },
+        };
+      }
+    }
+
     const collector = BlueprintCollector.getInstance(credentials);
-    return collector.fetchAttendance(month);
+    const summary = await collector.fetchAttendance(month);
+
+    const isLocked = month < currentMonth;
+    await this.saveMonthlySnapshot({
+      sourceType: 'ATTENDANCE',
+      yearMonth: month,
+      targetMember,
+      dataJson: summary as unknown as Record<string, unknown>,
+      score10: summary.punctualityRate >= 95 ? 10 : 7,
+      totalRecords: summary.records?.length || 0,
+      isLocked,
+    }).catch((e) => console.warn('Failed to save attendance snapshot:', e));
+
+    return {
+      ...summary,
+      cacheInfo: { fromCache: false },
+    };
   }
 
   async previewBlueprintTeamAttendance(
@@ -133,10 +468,133 @@ export class CollectorService {
     teamId?: string,
     fromDate?: string,
     toDate?: string,
-    employeeName?: string
-  ): Promise<BlueprintTeamAttendanceSummary> {
+    employeeName?: string,
+    options?: { forceRefresh?: boolean }
+  ): Promise<BlueprintTeamAttendanceSummary & { cacheInfo?: { cachedMonths: string[]; liveMonths: string[]; fromCache: boolean } }> {
+    const cacheTarget = teamId && teamId !== 'ALL' ? teamId : 'ALL';
+    const allMonths = this.getMonthsBetween(fromDate, toDate);
+    const currentMonth = new Date().toISOString().slice(0, 7);
+
+    let cachedSnapshots: CollectorMonthlySnapshot[] = [];
+    if (!options?.forceRefresh) {
+      cachedSnapshots = await this.getMonthlySnapshots('TEAM_ATTENDANCE', cacheTarget, allMonths);
+    }
+
+    const cachedMonthsMap = new Map<string, CollectorMonthlySnapshot>();
+    for (const s of cachedSnapshots) {
+      if (s.is_locked || s.year_month < currentMonth) {
+        cachedMonthsMap.set(s.year_month, s);
+      }
+    }
+
+    const cachedMonths = allMonths.filter((m) => cachedMonthsMap.has(m));
+    const uncachedMonths = allMonths.filter((m) => !cachedMonthsMap.has(m));
+
     const collector = BlueprintCollector.getInstance(credentials);
-    return collector.fetchTeamAttendance(teamId, fromDate, toDate, employeeName);
+
+    // If all months are cached and no force refresh requested, return purely from cache
+    if (uncachedMonths.length === 0 && cachedMonths.length > 0) {
+      const allRecords: BlueprintTeamMemberAttendance[] = [];
+      for (const m of cachedMonths) {
+        const snap = cachedMonthsMap.get(m)!;
+        const recs = (snap.data_json?.records as BlueprintTeamMemberAttendance[]) || [];
+        allRecords.push(...recs);
+      }
+      const teams = await this.getBlueprintTeams(credentials).catch(() => []);
+      const summary = this.aggregateTeamAttendanceRecords(allRecords, teamId, fromDate, toDate, employeeName, teams);
+      return {
+        ...summary,
+        cacheInfo: {
+          cachedMonths,
+          liveMonths: [],
+          fromCache: true,
+        },
+      };
+    }
+
+    // Live query: If some past months are cached, query Blueprint only for the uncached period
+    let liveRecords: BlueprintTeamMemberAttendance[] = [];
+    let liveFetchedSummary: BlueprintTeamAttendanceSummary | null = null;
+
+    if (cachedMonths.length > 0 && uncachedMonths.length > 0) {
+      const firstUncached = uncachedMonths[0] || currentMonth;
+      const lastUncached = uncachedMonths[uncachedMonths.length - 1] || firstUncached;
+      const liveFrom = `${firstUncached}-01`;
+      const lastDay = new Date(parseInt(lastUncached.slice(0, 4), 10), parseInt(lastUncached.slice(5, 7), 10), 0).getDate();
+      const liveTo = `${lastUncached}-${String(lastDay).padStart(2, '0')}`;
+
+      liveFetchedSummary = await collector.fetchTeamAttendance(teamId, liveFrom, toDate || liveTo, employeeName);
+      liveRecords = liveFetchedSummary.records || [];
+    } else {
+      liveFetchedSummary = await collector.fetchTeamAttendance(teamId, fromDate, toDate, employeeName);
+      liveRecords = liveFetchedSummary.records || [];
+    }
+
+    // Save/update snapshots for each month from the fetched records
+    const recordsByMonth = new Map<string, BlueprintTeamMemberAttendance[]>();
+    for (const r of liveRecords) {
+      const ym = this.normalizeToYearMonth(r.date);
+      if (ym) {
+        if (!recordsByMonth.has(ym)) recordsByMonth.set(ym, []);
+        recordsByMonth.get(ym)!.push(r);
+      }
+    }
+
+    const monthsToSave = options?.forceRefresh ? allMonths : uncachedMonths;
+    for (const m of monthsToSave) {
+      const mRecords = recordsByMonth.get(m) || [];
+      const isLocked = m < currentMonth;
+      const onTime = mRecords.filter((r) => r.status === 'ON_TIME').length;
+      const attended = mRecords.filter((r) => r.punchIn !== null).length;
+      const late = mRecords.filter((r) => r.status === 'LATE').length;
+      const total = mRecords.length;
+      const countable = attended + late > 0 ? attended + late : Math.max(1, total);
+      const punctualityRate = countable > 0 ? Math.round((onTime / countable) * 10000) / 100 : 100;
+      const score10 = punctualityRate >= 100 ? 10 : punctualityRate >= 90 ? 8 : punctualityRate >= 80 ? 6 : punctualityRate >= 70 ? 5 : 3;
+
+      await this.saveMonthlySnapshot({
+        sourceType: 'TEAM_ATTENDANCE',
+        yearMonth: m,
+        targetMember: cacheTarget,
+        teamId: teamId || null,
+        dataJson: { records: mRecords, punctualityRate },
+        score10,
+        totalRecords: mRecords.length,
+        isLocked,
+      }).catch((e) => console.warn(`Failed to save snapshot for ${m}:`, e));
+    }
+
+    // Combine cached records with live records
+    const combinedRecords: BlueprintTeamMemberAttendance[] = [];
+    for (const m of cachedMonths) {
+      const snap = cachedMonthsMap.get(m)!;
+      const recs = (snap.data_json?.records as BlueprintTeamMemberAttendance[]) || [];
+      combinedRecords.push(...recs);
+    }
+    combinedRecords.push(...liveRecords);
+
+    // Deduplicate records by empeNo/usrId + date
+    const seen = new Set<string>();
+    const finalRecords: BlueprintTeamMemberAttendance[] = [];
+    for (const r of combinedRecords) {
+      const key = `${r.empeNo || r.usrId}_${r.date}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        finalRecords.push(r);
+      }
+    }
+
+    const teams = liveFetchedSummary?.teams || (await this.getBlueprintTeams(credentials).catch(() => []));
+    const aggregated = this.aggregateTeamAttendanceRecords(finalRecords, teamId, fromDate, toDate, employeeName, teams);
+
+    return {
+      ...aggregated,
+      cacheInfo: {
+        cachedMonths,
+        liveMonths: uncachedMonths,
+        fromCache: cachedMonths.length > 0,
+      },
+    };
   }
 
   async getBlueprintTeams(credentials?: BlueprintCredentials): Promise<BlueprintOrgTeam[]> {
@@ -161,10 +619,151 @@ export class CollectorService {
     fromDate?: string,
     toDate?: string,
     filterRole?: 'requester' | 'assignee' | 'both',
-    dateType?: 'registered' | 'due' | 'finished'
-  ): Promise<BlueprintTaskSummary> {
+    dateType?: 'registered' | 'due' | 'finished',
+    options?: { forceRefresh?: boolean }
+  ): Promise<BlueprintTaskSummary & { cacheInfo?: { cachedMonths: string[]; liveMonths: string[]; fromCache: boolean } }> {
+    const memberKey = targetMember || credentials.username;
+    const allMonths = this.getMonthsBetween(fromDate, toDate);
+    const currentMonth = new Date().toISOString().slice(0, 7);
+
+    let cachedSnapshots: CollectorMonthlySnapshot[] = [];
+    if (!options?.forceRefresh) {
+      cachedSnapshots = await this.getMonthlySnapshots('TASKS', memberKey, allMonths);
+    }
+
+    const cachedMonthsMap = new Map<string, CollectorMonthlySnapshot>();
+    for (const s of cachedSnapshots) {
+      if (s.is_locked || s.year_month < currentMonth) {
+        cachedMonthsMap.set(s.year_month, s);
+      }
+    }
+
+    const cachedMonths = allMonths.filter((m) => cachedMonthsMap.has(m));
+    const uncachedMonths = allMonths.filter((m) => !cachedMonthsMap.has(m));
+
     const collector = BlueprintCollector.getInstance(credentials);
-    return collector.fetchTasks(projectFilter, targetMember, fromDate, toDate, filterRole, dateType);
+
+    // If all months are cached, return purely from cache
+    if (uncachedMonths.length === 0 && cachedMonths.length > 0) {
+      const allTasksMap = new Map<string, BlueprintTaskRecord>();
+      for (const m of cachedMonths) {
+        const snap = cachedMonthsMap.get(m)!;
+        const tasks = (snap.data_json?.tasks as BlueprintTaskRecord[]) || [];
+        for (const t of tasks) {
+          allTasksMap.set(t.id, t);
+        }
+      }
+      const aggregated = this.aggregateTasks(
+        Array.from(allTasksMap.values()),
+        projectFilter,
+        memberKey,
+        fromDate,
+        toDate,
+        filterRole,
+        dateType
+      );
+      return {
+        ...aggregated,
+        cacheInfo: {
+          cachedMonths,
+          liveMonths: [],
+          fromCache: true,
+        },
+      };
+    }
+
+    // Live query for missing or current months
+    let liveTasks: BlueprintTaskRecord[] = [];
+    let liveSummary: BlueprintTaskSummary | null = null;
+
+    if (cachedMonths.length > 0 && uncachedMonths.length > 0) {
+      const firstUncached = uncachedMonths[0] || currentMonth;
+      const lastUncached = uncachedMonths[uncachedMonths.length - 1] || firstUncached;
+      const liveFrom = `${firstUncached}-01`;
+      const lastDay = new Date(parseInt(lastUncached.slice(0, 4), 10), parseInt(lastUncached.slice(5, 7), 10), 0).getDate();
+      const liveTo = `${lastUncached}-${String(lastDay).padStart(2, '0')}`;
+
+      liveSummary = await collector.fetchTasks(
+        projectFilter,
+        targetMember,
+        liveFrom,
+        toDate || liveTo,
+        filterRole,
+        dateType
+      );
+      liveTasks = liveSummary.tasks || [];
+    } else {
+      liveSummary = await collector.fetchTasks(
+        projectFilter,
+        targetMember,
+        fromDate,
+        toDate,
+        filterRole,
+        dateType
+      );
+      liveTasks = liveSummary.tasks || [];
+    }
+
+    // Group live tasks by month and save snapshots
+    const tasksByMonth = new Map<string, BlueprintTaskRecord[]>();
+    for (const t of liveTasks) {
+      const taskDate = t.actualFinish || t.plannedDue || t.registeredDate || '';
+      const ym = this.normalizeToYearMonth(taskDate) || currentMonth;
+      if (!tasksByMonth.has(ym)) tasksByMonth.set(ym, []);
+      tasksByMonth.get(ym)!.push(t);
+    }
+
+    const monthsToSave = options?.forceRefresh ? allMonths : uncachedMonths;
+    for (const m of monthsToSave) {
+      const mTasks = tasksByMonth.get(m) || [];
+      const isLocked = m < currentMonth;
+      const onTime = mTasks.filter((t) => t.isOnTime).length;
+      const total = mTasks.length;
+      const onTimeRate = total > 0 ? Math.round((onTime / total) * 10000) / 100 : 0;
+      const score10 = onTimeRate >= 100 ? 10 : onTimeRate >= 90 ? 9 : onTimeRate >= 80 ? 6 : onTimeRate >= 70 ? 5 : 3;
+
+      await this.saveMonthlySnapshot({
+        sourceType: 'TASKS',
+        yearMonth: m,
+        targetMember: memberKey,
+        dataJson: { tasks: mTasks, onTimeRate },
+        score10,
+        totalRecords: mTasks.length,
+        isLocked,
+      }).catch((e) => console.warn(`Failed to save task snapshot for ${m}:`, e));
+    }
+
+    // Merge cached tasks with live tasks
+    const combinedTaskMap = new Map<string, BlueprintTaskRecord>();
+    for (const m of cachedMonths) {
+      const snap = cachedMonthsMap.get(m)!;
+      const tasks = (snap.data_json?.tasks as BlueprintTaskRecord[]) || [];
+      for (const t of tasks) {
+        combinedTaskMap.set(t.id, t);
+      }
+    }
+    for (const t of liveTasks) {
+      combinedTaskMap.set(t.id, t);
+    }
+
+    const aggregated = this.aggregateTasks(
+      Array.from(combinedTaskMap.values()),
+      projectFilter,
+      memberKey,
+      fromDate,
+      toDate,
+      filterRole,
+      dateType
+    );
+
+    return {
+      ...aggregated,
+      cacheInfo: {
+        cachedMonths,
+        liveMonths: uncachedMonths,
+        fromCache: cachedMonths.length > 0,
+      },
+    };
   }
 
   async previewBlueprintVacation(
@@ -172,10 +771,40 @@ export class CollectorService {
     year?: string,
     targetMember?: string,
     fromDate?: string,
-    toDate?: string
-  ): Promise<BlueprintVacationSummary> {
+    toDate?: string,
+    options?: { forceRefresh?: boolean }
+  ): Promise<BlueprintVacationSummary & { cacheInfo?: { fromCache: boolean } }> {
+    const member = targetMember || credentials.username;
+    const vctYear = (year || '2026').slice(0, 4);
+
+    if (!options?.forceRefresh) {
+      const snaps = await this.getMonthlySnapshots('VACATION', member, [vctYear]);
+      const firstSnap = snaps[0];
+      if (firstSnap) {
+        return {
+          ...(firstSnap.data_json as unknown as BlueprintVacationSummary),
+          cacheInfo: { fromCache: true },
+        };
+      }
+    }
+
     const collector = BlueprintCollector.getInstance(credentials);
-    return collector.fetchVacationProfile(year, targetMember, fromDate, toDate);
+    const summary = await collector.fetchVacationProfile(year, targetMember, fromDate, toDate);
+
+    await this.saveMonthlySnapshot({
+      sourceType: 'VACATION',
+      yearMonth: vctYear,
+      targetMember: member,
+      dataJson: summary as unknown as Record<string, unknown>,
+      score10: summary.score10,
+      totalRecords: summary.vacationDetails?.length || 0,
+      isLocked: false,
+    }).catch((e) => console.warn('Failed to save vacation snapshot:', e));
+
+    return {
+      ...summary,
+      cacheInfo: { fromCache: false },
+    };
   }
 
   async syncBlueprintAttendance(options: {
@@ -187,6 +816,7 @@ export class CollectorService {
     month?: string;
     cycleId?: string;
     employeeId?: string;
+    forceRefresh?: boolean;
   }): Promise<{ success: boolean; score10: number; grade: string; weightedScore: number; comment: string; summary: BlueprintAttendanceSummary | Record<string, unknown> }> {
     let creds = options.credentials || (options.username && options.password ? { username: options.username, password: options.password, baseUrl: options.baseUrl } : undefined);
     if (!creds && options.sourceId) {
@@ -204,8 +834,7 @@ export class CollectorService {
     }
 
     const month = options.month || '2026-09';
-    const collector = BlueprintCollector.getInstance(creds);
-    const summary = await collector.fetchAttendance(month);
+    const summary = await this.previewBlueprint(creds, month, { forceRefresh: options.forceRefresh });
 
     let cycleId = options.cycleId;
     if (!cycleId) {
@@ -292,6 +921,7 @@ export class CollectorService {
     cycleId?: string;
     employeeId?: string;
     targetMember?: string;
+    forceRefresh?: boolean;
   }): Promise<{ success: boolean; score10: number; grade: string; weightedScore: number; comment: string; summary: BlueprintTeamAttendanceSummary }> {
     let creds = options.credentials || (options.username && options.password ? { username: options.username, password: options.password, baseUrl: options.baseUrl } : undefined);
     if (!creds && options.sourceId) {
@@ -308,8 +938,14 @@ export class CollectorService {
       throw new Error('Chưa có tài khoản và mật khẩu kết nối Blueprint. Vui lòng nhập thông tin trên giao diện.');
     }
 
-    const collector = BlueprintCollector.getInstance(creds);
-    const summary = await collector.fetchTeamAttendance(options.teamId, options.fromDate, options.toDate);
+    const summary = await this.previewBlueprintTeamAttendance(
+      creds,
+      options.teamId,
+      options.fromDate,
+      options.toDate,
+      options.targetMember,
+      { forceRefresh: options.forceRefresh }
+    );
 
     let cycleId = options.cycleId;
     const targetMember = options.targetMember || creds.username;
@@ -405,6 +1041,7 @@ export class CollectorService {
     toDate?: string;
     filterRole?: 'requester' | 'assignee' | 'both';
     dateType?: 'registered' | 'due' | 'finished';
+    forceRefresh?: boolean;
   }): Promise<{ success: boolean; score10: number; grade: string; weightedScore: number; comment: string; tasksSummary: BlueprintTaskSummary | Record<string, unknown> }> {
     let creds = options.credentials || (options.username && options.password ? { username: options.username, password: options.password, baseUrl: options.baseUrl } : undefined);
     if (!creds && options.sourceId) {
@@ -423,14 +1060,15 @@ export class CollectorService {
 
     const projectFilter = options.projectFilter || 'ALLEGRO';
     const targetMember = options.member || creds.username;
-    const collector = BlueprintCollector.getInstance(creds);
-    const tasksSummary = await collector.fetchTasks(
+    const tasksSummary = await this.previewBlueprintTasks(
+      creds,
       projectFilter,
       targetMember,
       options.fromDate,
       options.toDate,
       options.filterRole,
-      options.dateType
+      options.dateType,
+      { forceRefresh: options.forceRefresh }
     );
 
     let cycleId = options.cycleId;
@@ -523,6 +1161,7 @@ export class CollectorService {
     member?: string;
     fromDate?: string;
     toDate?: string;
+    forceRefresh?: boolean;
   }): Promise<{ success: boolean; score10: number; grade: string; weightedScore: number; comment: string; summary: BlueprintVacationSummary }> {
     let creds = options.credentials || (options.username && options.password ? { username: options.username, password: options.password, baseUrl: options.baseUrl } : undefined);
     if (!creds && options.sourceId) {
@@ -541,8 +1180,14 @@ export class CollectorService {
 
     const year = options.year || '2026';
     const targetMember = options.member || creds.username;
-    const collector = BlueprintCollector.getInstance(creds);
-    const summary = await collector.fetchVacationProfile(year, targetMember, options.fromDate, options.toDate);
+    const summary = await this.previewBlueprintVacation(
+      creds,
+      year,
+      targetMember,
+      options.fromDate,
+      options.toDate,
+      { forceRefresh: options.forceRefresh }
+    );
 
     let cycleId = options.cycleId;
     if (!cycleId) {
@@ -633,6 +1278,7 @@ export class CollectorService {
     toDate?: string;
     filterRole?: 'requester' | 'assignee' | 'both';
     dateType?: 'registered' | 'due' | 'finished';
+    forceRefresh?: boolean;
   }): Promise<{
     success: boolean;
     cycleId: string;
@@ -677,7 +1323,6 @@ export class CollectorService {
     }
 
     const creds: BlueprintCredentials = { username, password, baseUrl };
-    const collector = BlueprintCollector.getInstance(creds);
 
     // 2. Resolve cycle
     let cycleId = options.cycleId;
@@ -705,7 +1350,7 @@ export class CollectorService {
     }
 
     // 3. Fetch attendance & apply to KPI #18
-    const attendanceSummary = await collector.fetchAttendance(month);
+    const attendanceSummary = await this.previewBlueprint(creds, month, { forceRefresh: options.forceRefresh });
     const attRes = await this.applyBlueprintAttendanceToCycle(
       cycleId,
       'ATTITUDE_COMPANY_CULTURE',
@@ -746,13 +1391,15 @@ export class CollectorService {
     }
 
     // 4. Fetch tasks & apply to KPI #1
-    const tasksSummary = await collector.fetchTasks(
+    const tasksSummary = await this.previewBlueprintTasks(
+      creds,
       projectFilter,
       targetMember,
       options.fromDate,
       options.toDate,
       options.filterRole || 'requester',
-      options.dateType || 'registered'
+      options.dateType || 'registered',
+      { forceRefresh: options.forceRefresh }
     );
     const taskRes = await this.applyBlueprintTasksToCycle(
       cycleId,

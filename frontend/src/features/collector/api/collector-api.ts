@@ -39,6 +39,12 @@ export interface AttendanceDayRecord {
   leaveDesc?: string | null;
 }
 
+export interface CollectorCacheInfo {
+  cachedMonths?: string[];
+  liveMonths?: string[];
+  fromCache?: boolean;
+}
+
 export interface BlueprintAttendanceSummary {
   username: string;
   month: string;
@@ -50,6 +56,7 @@ export interface BlueprintAttendanceSummary {
   leaveDays: number;
   punctualityRate: number;
   records: AttendanceDayRecord[];
+  cacheInfo?: CollectorCacheInfo;
 }
 
 export interface BlueprintTeamMemberAttendance {
@@ -90,6 +97,7 @@ export interface BlueprintTeamAttendanceSummary {
   grade: 'S' | 'A' | 'B' | 'C' | 'D';
   suggestedLevel: number;
   records: BlueprintTeamMemberAttendance[];
+  cacheInfo?: CollectorCacheInfo;
 }
 
 export interface CollectorRunLog {
@@ -137,6 +145,7 @@ export interface BlueprintTasksSummary {
   fromDate?: string | null;
   toDate?: string | null;
   filterRole?: string;
+  cacheInfo?: CollectorCacheInfo;
 }
 
 export interface BlueprintMemberItem {
@@ -170,6 +179,7 @@ export interface BlueprintVacationSummary {
   suggestedLevel: number;
   vacationDetails: BlueprintVacationDetail[];
   deductions: BlueprintDeductionItem[];
+  cacheInfo?: CollectorCacheInfo;
 }
 
 export const collectorApi = {
@@ -182,7 +192,7 @@ export const collectorApi = {
     postApi<{ success: boolean; message: string }>('/api/collectors/sources/test', data),
 
   // Live Blueprint Preview & Direct Sync
-  previewBlueprint: (data: { username: string; password: string; baseUrl?: string; month?: string }) =>
+  previewBlueprint: (data: { username: string; password: string; baseUrl?: string; month?: string; forceRefresh?: boolean }) =>
     postApi<BlueprintAttendanceSummary>('/api/collectors/blueprint/preview', data),
 
   getBlueprintTeams: () =>
@@ -196,6 +206,7 @@ export const collectorApi = {
     fromDate?: string;
     toDate?: string;
     employeeName?: string;
+    forceRefresh?: boolean;
   }) =>
     postApi<BlueprintTeamAttendanceSummary>('/api/collectors/blueprint/preview-team-attendance', data),
 
@@ -209,6 +220,7 @@ export const collectorApi = {
     cycleId?: string;
     employeeId?: string;
     targetMember?: string;
+    forceRefresh?: boolean;
   }) =>
     postApi<{
       success: boolean;
@@ -229,6 +241,7 @@ export const collectorApi = {
     toDate?: string;
     filterRole?: 'requester' | 'assignee' | 'both';
     dateType?: 'registered' | 'due' | 'finished';
+    forceRefresh?: boolean;
   }) =>
     postApi<BlueprintTasksSummary>('/api/collectors/blueprint/preview-tasks', data),
 
@@ -242,6 +255,7 @@ export const collectorApi = {
     month?: string;
     cycleId?: string;
     employeeId?: string;
+    forceRefresh?: boolean;
   }) =>
     postApi<{
       success: boolean;
@@ -264,6 +278,7 @@ export const collectorApi = {
     toDate?: string;
     filterRole?: 'requester' | 'assignee' | 'both';
     dateType?: 'registered' | 'due' | 'finished';
+    forceRefresh?: boolean;
   }) =>
     postApi<{
       success: boolean;
@@ -282,6 +297,7 @@ export const collectorApi = {
     member?: string;
     fromDate?: string;
     toDate?: string;
+    forceRefresh?: boolean;
   }) =>
     postApi<BlueprintVacationSummary>('/api/collectors/blueprint/preview-vacation', data),
 
@@ -295,6 +311,7 @@ export const collectorApi = {
     member?: string;
     fromDate?: string;
     toDate?: string;
+    forceRefresh?: boolean;
   }) =>
     postApi<{
       success: boolean;
@@ -318,6 +335,7 @@ export const collectorApi = {
     toDate?: string;
     filterRole?: 'requester' | 'assignee' | 'both';
     dateType?: 'registered' | 'due' | 'finished';
+    forceRefresh?: boolean;
   }) =>
     postApi<{
       success: boolean;

@@ -73,14 +73,15 @@ export class CollectorController {
 
   previewBlueprint = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { username, password, baseUrl, month } = req.body;
+      const { username, password, baseUrl, month, forceRefresh } = req.body;
       if (!username || !password) {
         sendFailure(res, 400, 'Username and password are required', 'BAD_REQUEST');
         return;
       }
       const summary = await this.collectorService.previewBlueprint(
         { username, password, baseUrl },
-        month || '2026-09'
+        month || '2026-09',
+        { forceRefresh: Boolean(forceRefresh) }
       );
       sendSuccess(res, 200, 'Blueprint attendance retrieved successfully', summary);
     } catch (err: unknown) {
@@ -90,7 +91,7 @@ export class CollectorController {
 
   previewBlueprintTeamAttendance = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { teamId, fromDate, toDate, employeeName } = req.body;
+      const { teamId, fromDate, toDate, employeeName, forceRefresh } = req.body;
       let { username, password, baseUrl } = req.body;
       if (!username || !password) {
         const saved = await this.collectorService.getBlueprintConfig();
@@ -107,7 +108,8 @@ export class CollectorController {
         teamId,
         fromDate,
         toDate,
-        employeeName
+        employeeName,
+        { forceRefresh: Boolean(forceRefresh) }
       );
       sendSuccess(res, 200, 'Blueprint team attendance retrieved successfully', summary);
     } catch (err: unknown) {
@@ -135,7 +137,7 @@ export class CollectorController {
 
   previewBlueprintTasks = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { projectFilter, member, fromDate, toDate, filterRole, dateType } = req.body;
+      const { projectFilter, member, fromDate, toDate, filterRole, dateType, forceRefresh } = req.body;
       let { username, password, baseUrl } = req.body;
       if (!username || !password) {
         const saved = await this.collectorService.getBlueprintConfig();
@@ -154,7 +156,8 @@ export class CollectorController {
         fromDate,
         toDate,
         filterRole || 'requester',
-        dateType
+        dateType,
+        { forceRefresh: Boolean(forceRefresh) }
       );
       sendSuccess(res, 200, 'Blueprint tasks retrieved successfully', tasksSummary);
     } catch (err: unknown) {
@@ -191,7 +194,7 @@ export class CollectorController {
 
   previewBlueprintVacation = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { year, member, fromDate, toDate } = req.body;
+      const { year, member, fromDate, toDate, forceRefresh } = req.body;
       let { username, password, baseUrl } = req.body;
       if (!username || !password) {
         const saved = await this.collectorService.getBlueprintConfig();
@@ -208,7 +211,8 @@ export class CollectorController {
         year || '2026',
         member,
         fromDate,
-        toDate
+        toDate,
+        { forceRefresh: Boolean(forceRefresh) }
       );
       sendSuccess(res, 200, 'Blueprint vacation & discipline retrieved successfully', summary);
     } catch (err: unknown) {
