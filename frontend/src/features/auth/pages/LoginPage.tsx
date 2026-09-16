@@ -122,7 +122,7 @@ export function LoginPage() {
             </label>
             <input
               id="login-email" type="text" aria-required="true"
-              placeholder="khoadang hoặc khoadang@kpi.com"
+              placeholder="VD: ky.luong@cyberlogitec.com hoặc mã NV (163188)"
               aria-describedby={errors.email ? 'login-email-error' : undefined}
               autoComplete="username" {...register('email')}
               style={{ display: 'block', width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: 4 }}

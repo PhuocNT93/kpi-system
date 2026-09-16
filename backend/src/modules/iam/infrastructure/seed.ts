@@ -29,7 +29,7 @@ async function main() {
 
     await seedIamData(roleRepo, permRepo, userRoleRepo, rolePermRepo, userRepo, passwordHasher);
     await pool.query(
-      `UPDATE app_user SET name = 'Lương Công Kỳ' WHERE email IN ('kyld.admin@kpi.com', 'kyld.manager@kpi.com')`
+      `UPDATE app_user SET name = 'Lương Công Kỳ' WHERE email = 'ky.luong@cyberlogitec.com'`
     );
     console.log('IAM & User seed data successfully populated.');
 

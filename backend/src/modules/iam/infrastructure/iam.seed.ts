@@ -229,8 +229,7 @@ export async function seedIamData(
       { email: 'employee@kpi.com', name: 'Employee User', password: 'Password123!', roleCode: 'EMPLOYEE' },
       { email: 'manager@kpi.com', name: 'Manager User', password: 'Password123!', roleCode: 'MANAGER' },
       { email: 'hradmin@kpi.com', name: 'HR Admin User', password: 'Password123!', roleCode: 'HR_ADMIN' },
-      { email: 'kyld.manager@kpi.com', name: 'Lương Công Kỳ', password: 'Password123!', roleCode: 'MANAGER' },
-      { email: 'kyld.admin@kpi.com', name: 'Lương Công Kỳ', password: 'Password123!', roleCode: 'SYSTEM_ADMIN' },
+      { email: 'ky.luong@cyberlogitec.com', name: 'Lương Công Kỳ', password: 'Password123!', roleCode: 'SYSTEM_ADMIN' },
     ];
 
     for (const u of seedUsersData) {

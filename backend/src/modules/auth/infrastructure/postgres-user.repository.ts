@@ -58,7 +58,9 @@ export class PostgresUserRepository implements UserRepository {
       FROM app_user u
       LEFT JOIN employee e ON u.employee_id = e.employee_id
       WHERE LOWER(u.email) = $1
+         OR LOWER(u.email) = LOWER($1 || '@cyberlogitec.com')
          OR LOWER(u.email) = LOWER($1 || '@kpi.com')
+         OR LOWER(COALESCE(e.email, '')) = $1
          OR LOWER(u.name) = $1
          OR LOWER(COALESCE(e.employee_code, '')) = $1
       LIMIT 1

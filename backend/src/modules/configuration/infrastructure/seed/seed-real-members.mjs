@@ -49,8 +49,8 @@ const MARITIME_MEMBERS = [
   { code: '257130', name: 'Nguyễn Minh Quang',     email: 'quang.ng@cyberlogitec.com',         username: 'quangnguyen',role: 'Developer' },
 ];
 
-const MANAGER = { code: '163188', name: 'Lương Công Kỳ', username: 'kyluong', email: 'ky.luong@cyberlogitec.com', appUserEmail: 'kyld.admin@kpi.com' };
-const DEFAULT_PASSWORD = 'Kpi@2026';
+const MANAGER = { code: '163188', name: 'Lương Công Kỳ', username: 'kyluong', email: 'ky.luong@cyberlogitec.com' };
+const DEFAULT_PASSWORD = 'Password123!';
 
 async function main() {
   const client = await pool.connect();
@@ -77,10 +77,11 @@ async function main() {
     // audit_log: TRUNCATE bypasses row-level trigger (only DELETE/UPDATE is blocked)
     await client.query(`TRUNCATE TABLE audit_log RESTART IDENTITY CASCADE`);
 
-    // Delete mock app_users FIRST (before employees due to FK app_user.employee_id -> employee)
+    // Delete old app_users (remove all old @kpi.com member & kyld accounts)
     await client.query(`
       DELETE FROM app_user
-      WHERE email NOT IN ('kyld.admin@kpi.com', 'kyld.manager@kpi.com')
+      WHERE email IN ('kyld.admin@kpi.com', 'kyld.manager@kpi.com')
+         OR (email LIKE '%@kpi.com' AND email NOT IN ('admin@kpi.com', 'manager@kpi.com', 'hradmin@kpi.com', 'employee@kpi.com'))
     `);
 
     // Delete mock employees (NOT Khoa Dang 267036, NOT Ky Luong 163188)
@@ -179,33 +180,37 @@ async function main() {
       console.log(`  Updated manager employee: ${MANAGER.name}`);
     }
 
-      // Link kyld.admin app_user → manager employee (employee_id is UNIQUE in app_user)
-      await client.query(
-        `UPDATE app_user SET employee_id = $1, name = $2 WHERE email = $3`,
-        [managerEmployeeId, MANAGER.name, MANAGER.appUserEmail]
-      );
-      await client.query(
-        `UPDATE app_user SET name = $1 WHERE email = 'kyld.manager@kpi.com'`,
-        [MANAGER.name]
-      );
-      console.log(`  Linked kyld.admin → employee ${managerEmployeeId}`);
-
-      // Make kyld.admin have HR_ADMIN role
-      const hrAdminRoleRes = await client.query(
-        `SELECT role_id FROM role WHERE code IN ('HR_ADMIN', 'SYSTEM_ADMIN') LIMIT 1`
-      );
-      if (hrAdminRoleRes.rows.length > 0) {
-        const hrRoleId = hrAdminRoleRes.rows[0].role_id;
-        const kyAdminUserRes = await client.query(`SELECT id FROM app_user WHERE email = 'kyld.admin@kpi.com'`);
-        if (kyAdminUserRes.rows.length > 0) {
-          const kyAdminUserId = kyAdminUserRes.rows[0].id;
-          await client.query(
-            `INSERT INTO user_role (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-            [kyAdminUserId, hrRoleId]
-          );
-          console.log(`  Assigned HR_ADMIN role to kyld.admin`);
-        }
+      // Upsert app_user for manager (ky.luong@cyberlogitec.com)
+      const defaultPasswordHash = await hashPassword(DEFAULT_PASSWORD);
+      const kyUserRes = await client.query(`SELECT id FROM app_user WHERE email = $1`, [MANAGER.email]);
+      let kyUserId;
+      if (kyUserRes.rows.length === 0) {
+        const r = await client.query(`
+          INSERT INTO app_user (email, name, password_hash, employee_id)
+          VALUES ($1, $2, $3, $4)
+          RETURNING id
+        `, [MANAGER.email, MANAGER.name, defaultPasswordHash, managerEmployeeId]);
+        kyUserId = r.rows[0].id;
+        console.log(`  Created manager user: ${MANAGER.email}`);
+      } else {
+        kyUserId = kyUserRes.rows[0].id;
+        await client.query(`
+          UPDATE app_user SET employee_id = $1, name = $2, password_hash = $3 WHERE id = $4
+        `, [managerEmployeeId, MANAGER.name, defaultPasswordHash, kyUserId]);
+        console.log(`  Updated manager user: ${MANAGER.email}`);
       }
+
+      // Assign SYSTEM_ADMIN, HR_ADMIN, MANAGER roles to ky.luong@cyberlogitec.com
+      const adminRolesRes = await client.query(
+        `SELECT role_id FROM role WHERE code IN ('SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER')`
+      );
+      for (const row of adminRolesRes.rows) {
+        await client.query(
+          `INSERT INTO user_role (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+          [kyUserId, row.role_id]
+        );
+      }
+      console.log(`  Assigned SYSTEM_ADMIN, HR_ADMIN, MANAGER roles to ${MANAGER.email}`);
 
       // ── Step 4: Get default role/job_level for employees ──────────────────
       const defaultRoleRes = await client.query(`SELECT role_id FROM role WHERE code IN ('SI', 'EMPLOYEE', 'DEVELOPER') LIMIT 1`);
@@ -267,14 +272,13 @@ async function main() {
 
     // ── Step 7: Create app_user accounts for all members ──────────────────
     console.log('🔑 Step 6: Creating app_user accounts...');
-    const defaultPasswordHash = await hashPassword(DEFAULT_PASSWORD);
     const employeeRoleRes = await client.query(
       `SELECT role_id FROM role WHERE code = 'EMPLOYEE' LIMIT 1`
     );
     const employeeRoleId = employeeRoleRes.rows[0]?.role_id;
 
     for (const m of allMembers) {
-      const email = `${m.username}@kpi.com`;
+      const email = m.email;
       const existing = await client.query(`SELECT id FROM app_user WHERE email = $1`, [email]);
       let userId;
       if (existing.rows.length === 0) {
@@ -288,8 +292,8 @@ async function main() {
       } else {
         userId = existing.rows[0].id;
         await client.query(
-          `UPDATE app_user SET employee_id = $1, name = $2 WHERE id = $3`,
-          [m.employeeId, m.name, userId]
+          `UPDATE app_user SET employee_id = $1, name = $2, password_hash = $3 WHERE id = $4`,
+          [m.employeeId, m.name, defaultPasswordHash, userId]
         );
         console.log(`  Updated user: ${email}`);
       }
@@ -449,8 +453,8 @@ async function main() {
     console.log(`  Teams: ALLEGRO-NX (${allegroEmployeeIds.length} members), MARITIME-SOL (${maritimeEmployeeIds.length} members)`);
     console.log(`  Total members: ${allMembers.length}`);
     console.log(`  Cycle: 2026 H2 KPI (${cycleId})`);
-    console.log(`  Manager account: kyld.admin@kpi.com`);
-    console.log(`  Member accounts: <username>@kpi.com / password: ${DEFAULT_PASSWORD}`);
+    console.log(`  Manager account: ${MANAGER.email} / password: ${DEFAULT_PASSWORD}`);
+    console.log(`  Member accounts: <email>@cyberlogitec.com / password: ${DEFAULT_PASSWORD}`);
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('❌ Error:', err);
