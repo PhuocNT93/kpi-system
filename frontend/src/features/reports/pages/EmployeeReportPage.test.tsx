@@ -9,24 +9,15 @@ import * as reportsApi from '../api/reports.api';
 import * as cycleApi from '../../evaluation-cycles/api/cycle-api';
 import type { EvaluationCycleDTO } from '../../evaluation-cycles/types/cycle-types';
 
-vi.mock('../api/reports.api', () => ({
-  fetchEmployeeReport: vi.fn(),
-  fetchKpiEvidence: vi.fn(),
-}));
-
-vi.mock('../../evaluation-cycles/api/cycle-api', () => ({
-  evaluationCycleApi: {
-    getCycles: vi.fn(),
-  },
-}));
+vi.mock('../api/reports.api');
+vi.mock('../../evaluation-cycles/api/cycle-api');
 
 vi.mock('@/shared/auth/auth-context', () => ({
   useAuth: () => ({
     user: {
-      id: 'usr-1',
-      employeeId: 'emp-001',
-      email: 'employee@kpi.com',
-      name: 'John Doe',
+      id: 'emp-001',
+      name: 'Nguyen Van A',
+      email: 'a.nguyen@example.com',
       role: 'EMPLOYEE',
     },
     isAuthenticated: true,
@@ -43,7 +34,7 @@ describe('EmployeeReportPage', () => {
       queryClient.clear();
     }
     queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
     });
     vi.mocked(cycleApi.evaluationCycleApi.getCycles).mockResolvedValue([
       {

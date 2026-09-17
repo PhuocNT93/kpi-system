@@ -6,6 +6,7 @@ import { NotificationBell } from '../components/NotificationBell';
 import { ThemeProvider } from '@/shared/theme';
 import { AuthContext } from '@/shared/auth/auth-context';
 import { notificationApi } from '../api/notification-api';
+import type { NotificationLog } from '../types/notification-types';
 
 vi.mock('../api/notification-api', () => ({
   notificationApi: {
@@ -22,7 +23,7 @@ const mockUser = {
   role: 'EMPLOYEE' as const,
 };
 
-const mockNotifications = [
+const mockNotifications: NotificationLog[] = [
   {
     notificationLogId: 'notif-1',
     notificationType: 'CYCLE_OPENED',
@@ -51,13 +52,12 @@ const mockNotifications = [
 
 describe('NotificationBell Component', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    (notificationApi.getMyNotifications as any).mockResolvedValue({
+    vi.mocked(notificationApi.getMyNotifications).mockResolvedValue({
       items: mockNotifications,
       unreadCount: 1,
     });
-    (notificationApi.toggleNotificationRead as any).mockResolvedValue(undefined);
-    (notificationApi.markAllNotificationsRead as any).mockResolvedValue(undefined);
+    vi.mocked(notificationApi.toggleNotificationRead).mockResolvedValue();
+    vi.mocked(notificationApi.markAllNotificationsRead).mockResolvedValue();
   });
 
   afterEach(() => {

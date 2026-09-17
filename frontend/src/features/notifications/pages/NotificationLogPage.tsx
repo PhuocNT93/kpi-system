@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, useCallback, type FormEvent } from 'react';
 import { notificationApi } from '../api/notification-api';
 import type {
   NotificationLog,
@@ -8,9 +8,9 @@ import type {
 
 export function NotificationLogPage() {
   const [logs, setLogs] = useState<NotificationLog[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState<number>(0);
+  const [page, setPage] = useState<number>(1);
+  const [loading, setLoading] = useState<boolean>(true);
   const pageSize = 20;
 
   // Filters
@@ -25,11 +25,7 @@ export function NotificationLogPage() {
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  useEffect(() => {
-    loadLogs();
-  }, [page, statusFilter, typeFilter]);
-
-  async function loadLogs() {
+  const loadLogs = useCallback(async () => {
     try {
       setLoading(true);
       const res = await notificationApi.getLogs({
@@ -37,7 +33,7 @@ export function NotificationLogPage() {
         notificationType: typeFilter ? (typeFilter as NotificationType) : undefined,
         recipientEmail: emailFilter.trim() || undefined,
         page,
-        pageSize,
+        pageSize: 15,
       });
       setLogs(Array.isArray(res?.items) ? res.items : []);
       setTotal(res?.total ?? (Array.isArray(res?.items) ? res.items.length : 0));
@@ -47,7 +43,11 @@ export function NotificationLogPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [page, statusFilter, typeFilter, emailFilter]);
+
+  useEffect(() => {
+    loadLogs();
+  }, [loadLogs]);
 
   function handleSearchSubmit(e: FormEvent) {
     e.preventDefault();

@@ -83,3 +83,28 @@ Tính năng hỗ trợ đa ngôn ngữ (**English baseline** mặc định và b
    - Khi đồng ý, bản ghi được tự động chuyển về trạng thái `PENDING`, reset số lần retry và kích hoạt Outbox Worker gửi lại ngay lập tức. Thao tác được ghi vết kiểm toán với mã `NOTIFICATION_RESEND`.
 5. **Phân trang (Pagination):**
    - Hỗ trợ xem danh sách lớn với phân trang 20 bản ghi/trang, chuyển trang trước/sau mượt mà.
+
+---
+
+## 5. Thanh Điều Hướng: Icon Chuông Thông Báo (Notification Bell)
+
+- **Vị trí hiển thị:** Cố định ở góc trên bên phải thanh Header của hệ thống cho mọi người dùng đã đăng nhập.
+- **Huy hiệu số lượng chưa đọc:** Badge đỏ hiển thị số thông báo chưa đọc (`unreadCount`), tự động cập nhật và polling định kỳ 60 giây.
+- **Thao tác Click Event:**
+  1. **Xem nhanh danh sách:** Bấm vào icon chuông để mở popover dropdown xem 30 thông báo gần nhất kèm mốc thời gian gửi tương đối (`5m ago`, `2h ago`).
+  2. **Đánh dấu Đã đọc / Chưa đọc (Read/Unread Toggle):** Click trực tiếp vào thông báo hoặc nút toggle chuyển đổi trạng thái đọc/chưa đọc ngay lập tức (phản hồi tức thì Optimistic UI và đồng bộ server).
+  3. **Đánh dấu tất cả đã đọc:** Bấm nút **"Mark all read"** để chuyển tất cả thông báo về trạng thái đã đọc.
+  4. **Bộ lọc nhanh:** Chuyển đổi giữa tab "All" và "Unread" để quản lý thông báo thuận tiện.
+
+---
+
+## 6. Màn hình Tùy Chọn: Nút & Popup Test Notification (Dành riêng cho HR & Admin)
+
+- **Vị trí hiển thị:** Đặt tại góc trên bên phải màn hình **Notification Preferences** (`/notifications/preferences`), không chiếm diện tích trên thanh Header bar chung.
+- **Phân quyền bảo mật (RBAC):** Chỉ hiển thị và cho phép sử dụng đối với vai trò **`HR_ADMIN`** và **`SYSTEM_ADMIN`** (tự động ẩn đối với nhân viên `EMPLOYEE` và quản lý `MANAGER`).
+- **Chức năng thử nghiệm trực tiếp kết nối Google SMTP:**
+  1. **Nhập Email người nhận (`Email To`):** Cho phép nhập bất kỳ địa chỉ email nào bạn muốn nhận email thử nghiệm (mặc định điền sẵn email tài khoản hiện tại).
+  2. **Chọn loại thông báo / biểu mẫu thử nghiệm:** Lựa chọn 1 trong 9 loại sự kiện thông báo để xem email HTML thực tế đính kèm bảng thông tin tóm tắt.
+  3. **Lựa chọn ngôn ngữ:** Hỗ trợ chọn **Tiếng Việt (`vi`)** hoặc **English (`en`)**.
+  4. **Nút "Gửi Test Email Ngay":** Gọi API gửi trực tiếp qua máy chủ Google Workspace SMTP và hiển thị hộp chẩn đoán kết quả (kèm `Message ID`) hoặc chi tiết lỗi cấu hình (nếu tài khoản hoặc App Password chưa chính xác).
+

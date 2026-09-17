@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { notificationApi } from '../api/notification-api';
 import type { NotificationTemplate } from '../types/notification-types';
 
@@ -17,18 +17,24 @@ export function NotificationTemplatesPage() {
   const [editBodyVi, setEditBodyVi] = useState('');
   const [editActive, setEditActive] = useState(true);
 
-  useEffect(() => {
-    loadTemplates();
-  }, []);
-
-  async function loadTemplates() {
+  const loadTemplates = useCallback(async () => {
     try {
       setLoading(true);
       const data = await notificationApi.getTemplates();
       const list = Array.isArray(data) ? data : [];
       setTemplates(list);
-      if (list.length > 0 && !selectedTemplate) {
-        selectTemplate(list[0]);
+      if (list.length > 0) {
+        setSelectedTemplate((prev) => {
+          const found = prev ? list.find((t) => t.notificationTemplateId === prev.notificationTemplateId) : null;
+          const current = found || list[0];
+          setEditSubjectEn(current.subject);
+          setEditBodyEn(current.bodyHtml);
+          setEditActive(current.active);
+          const viTranslations = current.translations?.['vi'] || {};
+          setEditSubjectVi(viTranslations['subject'] || current.subject);
+          setEditBodyVi(viTranslations['body_html'] || current.bodyHtml);
+          return current;
+        });
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Không thể tải danh sách mẫu email.';
@@ -36,7 +42,11 @@ export function NotificationTemplatesPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    loadTemplates();
+  }, [loadTemplates]);
 
   function selectTemplate(tmpl: NotificationTemplate) {
     setSelectedTemplate(tmpl);

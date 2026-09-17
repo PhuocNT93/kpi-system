@@ -55,7 +55,7 @@ export const NotificationBell: React.FC = () => {
   }, [isOpen]);
 
   // Fetch notifications
-  const fetchNotifications = async () => {
+  const fetchNotifications = React.useCallback(async () => {
     if (!user) return;
     try {
       setLoading(true);
@@ -67,7 +67,7 @@ export const NotificationBell: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -76,7 +76,7 @@ export const NotificationBell: React.FC = () => {
       const timer = setInterval(fetchNotifications, 60000);
       return () => clearInterval(timer);
     }
-  }, [user]);
+  }, [user, fetchNotifications]);
 
   // Toggle read / unread status on click
   const handleToggleRead = async (e: React.MouseEvent, item: NotificationLog) => {

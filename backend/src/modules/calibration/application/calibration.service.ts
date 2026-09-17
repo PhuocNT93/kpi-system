@@ -288,13 +288,13 @@ export class CalibrationService {
       }
 
       const evaluations = await this.calibrationRepo.getEvaluationsForSession(session, client);
-      if (evaluations.some((e: any) => e.isLocked)) {
+      if (evaluations.some((e) => e.isLocked)) {
         throw new Conflict('Một hoặc nhiều phiếu đánh giá trong phiên này đã bị khóa (LOCKED).', 'EVALUATION_LOCKED');
       }
 
       await this.calibrationRepo.finalizeSession(sessionId, actor.userId, client);
 
-      const evaluationIds = evaluations.map((e: any) => e.evaluationId);
+      const evaluationIds = evaluations.map((e) => e.evaluationId);
       await this.calibrationRepo.transitionEvaluationsAndAutoPublish(evaluationIds, actor.userId, client);
 
       if (audit) {

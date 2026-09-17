@@ -6,6 +6,7 @@ import { NotificationPreferencesPage } from '../pages/NotificationPreferencesPag
 import { ThemeProvider } from '@/shared/theme';
 import { AuthContext } from '@/shared/auth/auth-context';
 import { notificationApi } from '../api/notification-api';
+import type { UserNotificationPreference } from '../types/notification-types';
 
 vi.mock('../api/notification-api', () => ({
   notificationApi: {
@@ -15,7 +16,7 @@ vi.mock('../api/notification-api', () => ({
   },
 }));
 
-const mockPreferences = [
+const mockPreferences: UserNotificationPreference[] = [
   {
     notification_type: 'CYCLE_OPENED',
     enabled: true,
@@ -52,7 +53,7 @@ const mockEmployeeUser = {
 describe('NotificationPreferencesPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (notificationApi.getUserPreferences as any).mockResolvedValue(mockPreferences);
+    vi.mocked(notificationApi.getUserPreferences).mockResolvedValue(mockPreferences);
   });
 
   afterEach(() => {

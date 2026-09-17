@@ -111,7 +111,7 @@ describe('TestNotificationModal Component', () => {
   });
 
   it('submits form and displays success result', async () => {
-    (notificationApi.testSmtp as any).mockResolvedValue({
+    vi.mocked(notificationApi.testSmtp).mockResolvedValue({
       success: true,
       message: 'Test email successfully sent via Google SMTP',
       messageId: '<test-msg-123@google.com>',
@@ -152,7 +152,7 @@ describe('TestNotificationModal Component', () => {
   });
 
   it('displays error message when SMTP sending fails', async () => {
-    (notificationApi.testSmtp as any).mockResolvedValue({
+    vi.mocked(notificationApi.testSmtp).mockResolvedValue({
       success: false,
       message: 'Failed to send test email via Google SMTP: Invalid login',
       error: '535-5.7.8 Username and Password not accepted',
@@ -184,7 +184,7 @@ describe('TestNotificationModal Component', () => {
   });
 
   it('allows user to enter custom recipient email and sends test email to that address', async () => {
-    (notificationApi.testSmtp as any).mockResolvedValue({
+    vi.mocked(notificationApi.testSmtp).mockResolvedValue({
       success: true,
       message: 'Email sent',
       messageId: '<custom-123@google.com>',
