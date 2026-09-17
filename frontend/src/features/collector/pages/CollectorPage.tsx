@@ -369,6 +369,11 @@ export function CollectorPage() {
 
   const handleTeamChange = (team: 'ALL' | 'ALLEGRO NX Part' | 'Maritime Solutions Part') => {
     setSelectedTeam(team);
+    if (team === 'Maritime Solutions Part') {
+      setProjectFilter('MARITIME - ADDITIONAL SOLUTIONS');
+    } else if (team === 'ALLEGRO NX Part') {
+      setProjectFilter('Allegro NX');
+    }
     if (team !== 'ALL') {
       const currentEmp = MANAGED_EMPLOYEES.find((m) => m.username === unifiedMember || m.code === unifiedMember);
       if (!currentEmp || currentEmp.team !== team) {
@@ -376,6 +381,11 @@ export function CollectorPage() {
         if (firstInTeam) {
           setUnifiedMember(firstInTeam.username);
           setSelectedTaskMember(firstInTeam.username);
+          if (firstInTeam.team === 'Maritime Solutions Part') {
+            setProjectFilter('MARITIME - ADDITIONAL SOLUTIONS');
+          } else if (firstInTeam.team === 'ALLEGRO NX Part') {
+            setProjectFilter('Allegro NX');
+          }
         }
       }
     }
@@ -453,10 +463,12 @@ export function CollectorPage() {
       );
 
       // 2. Tasks & Progress (Module 2)
+      const currentTargetEmp = MANAGED_EMPLOYEES.find((m) => m.username === unifiedMember || m.code === unifiedMember);
+      const effectiveProject = currentTargetEmp?.team === 'Maritime Solutions Part' ? 'MARITIME - ADDITIONAL SOLUTIONS' : projectFilter;
       promises.push(
         collectorApi.previewBlueprintTasks({
           baseUrl,
-          projectFilter,
+          projectFilter: effectiveProject,
           member: targetMember,
           fromDate: unifiedFromDate,
           toDate: unifiedToDate,
@@ -1014,6 +1026,12 @@ export function CollectorPage() {
                     setSelectedTaskMember(val);
                     setAttendancePage(1);
                     setTasksPage(1);
+                    const emp = MANAGED_EMPLOYEES.find((m) => m.username === val || m.code === val);
+                    if (emp?.team === 'Maritime Solutions Part') {
+                      setProjectFilter('MARITIME - ADDITIONAL SOLUTIONS');
+                    } else if (emp?.team === 'ALLEGRO NX Part') {
+                      setProjectFilter('Allegro NX');
+                    }
                   }}
                   style={{
                     flex: 1,

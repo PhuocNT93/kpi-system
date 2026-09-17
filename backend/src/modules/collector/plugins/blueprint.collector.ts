@@ -354,10 +354,45 @@ export class BlueprintCollector {
   ): Promise<BlueprintTaskSummary> {
     await this.ensureLoggedIn();
 
-    // 1. Root project is ALLEGRO (PJT20190724000000001)
-    const rootProjectId = 'PJT20190724000000001';
+    const MARITIME_MEMBERS = new Set([
+      'xuanthai',
+      'lamnsh',
+      'lamnguyen',
+      'thangph',
+      'thangpham',
+      'phuongcq',
+      'khoadang',
+      'minhdoan',
+      'trungqn',
+      'quangng',
+      'quangnguyen',
+    ]);
 
-    // 2. Fetch categories under project
+    const USERNAME_ALIASES: Record<string, string> = {
+      anle: 'anlt',
+      thangpham: 'thangph',
+      lamnguyen: 'lamnsh',
+      quangnguyen: 'quangng',
+    };
+
+    let member = (targetMember || this.credentials.username).toLowerCase().trim();
+    const alias = USERNAME_ALIASES[member];
+    if (alias) {
+      member = alias;
+    }
+
+    // 1. Determine root project:
+    // If member belongs to Maritime or projectFilter specifies Maritime, route to MARITIME root project
+    const isMaritime =
+      MARITIME_MEMBERS.has(member) ||
+      (projectFilter && (
+        projectFilter.toLowerCase().includes('maritime') ||
+        projectFilter === 'PJT20250417000000006'
+      ));
+
+    const rootProjectId = isMaritime ? 'PJT20250417000000006' : 'PJT20190724000000001';
+
+    // 2. Fetch categories under root project
     interface BlueprintCategory {
       pjtId: string;
       pjtNm?: string;
@@ -391,23 +426,32 @@ export class BlueprintCollector {
       // Fallback
     }
 
-    // 3. Find target category: Allegro NX (PJT20230208000000001) or custom filter
-    let targetCategory = categories.find((c) => c.pjtId === 'PJT20230208000000001'); // Allegro NX
-    if (projectFilter) {
-      const match = categories.find((c) =>
-        c.pjtNm?.toLowerCase().includes(projectFilter.toLowerCase()) ||
-        c.pjtId === projectFilter
-      );
-      if (match) targetCategory = match;
-    }
-    if (!targetCategory) {
-      targetCategory = categories.find((c) => c.pjtNm?.toLowerCase().includes('nx')) || categories[0] || { pjtId: 'PJT20190724000000001', pjtNm: 'Allegro NX' };
-    }
-
-    let member = targetMember || this.credentials.username;
-    // Map anle to anlt (An Le Trong's actual Blueprint username)
-    if (member.toLowerCase() === 'anle') {
-      member = 'anlt';
+    // 3. Find target category: Allegro NX, Maritime root, or custom filter
+    let targetCategory: BlueprintCategory | undefined;
+    if (isMaritime) {
+      if (projectFilter && projectFilter !== 'Allegro NX') {
+        const match = categories.find((c) =>
+          c.pjtNm?.toLowerCase().includes(projectFilter.toLowerCase()) ||
+          c.pjtId === projectFilter
+        );
+        if (match) targetCategory = match;
+      }
+      if (!targetCategory) {
+        // Default to Maritime root project to capture tasks across all Maritime categories
+        targetCategory = { pjtId: 'PJT20250417000000006', pjtNm: 'MARITIME - ADDITIONAL SOLUTIONS' };
+      }
+    } else {
+      targetCategory = categories.find((c) => c.pjtId === 'PJT20230208000000001'); // Allegro NX
+      if (projectFilter) {
+        const match = categories.find((c) =>
+          c.pjtNm?.toLowerCase().includes(projectFilter.toLowerCase()) ||
+          c.pjtId === projectFilter
+        );
+        if (match) targetCategory = match;
+      }
+      if (!targetCategory) {
+        targetCategory = categories.find((c) => c.pjtNm?.toLowerCase().includes('nx')) || categories[0] || { pjtId: 'PJT20190724000000001', pjtNm: 'Allegro NX' };
+      }
     }
 
     const toYYYYMMDD = (d?: string): string => {
@@ -481,9 +525,11 @@ export class BlueprintCollector {
       createUser?: string;
       assignee?: string;
       assiUsrId?: string;
+      matchedRole?: 'requester' | 'assignee';
       [key: string]: unknown;
     }
     const rawTasks: BlueprintRawTask[] = [];
+    const existingIds = new Set<string>();
 
     // A. Query as requester (creUsrId) - default per user request
     if (filterRole === 'requester' || filterRole === 'both') {
@@ -495,7 +541,14 @@ export class BlueprintCollector {
 
       if (reqRes.ok) {
         const reqData = await reqRes.json();
-        if (Array.isArray(reqData.lstReq)) rawTasks.push(...(reqData.lstReq as BlueprintRawTask[]));
+        if (Array.isArray(reqData.lstReq)) {
+          for (const t of reqData.lstReq as BlueprintRawTask[]) {
+            if (!existingIds.has(t.reqId)) {
+              existingIds.add(t.reqId);
+              rawTasks.push({ ...t, matchedRole: 'requester' });
+            }
+          }
+        }
       }
     }
 
@@ -510,27 +563,18 @@ export class BlueprintCollector {
       if (picRes.ok) {
         const picData = await picRes.json();
         if (Array.isArray(picData.lstReq)) {
-          const existingIds = new Set(rawTasks.map((t) => t.reqId));
           for (const t of picData.lstReq as BlueprintRawTask[]) {
             if (!existingIds.has(t.reqId)) {
-              rawTasks.push(t);
               existingIds.add(t.reqId);
+              rawTasks.push({ ...t, matchedRole: 'assignee' });
             }
           }
         }
       }
     }
 
-    // Safety guard: strictly filter tasks to guarantee they belong to this member and match role & date range
-    const memberLower = member.toLowerCase().trim();
-    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const normMember = normalize(memberLower);
-
+    // Safety guard: strictly filter tasks by date range
     const filteredRawTasks = rawTasks.filter((t) => {
-      const cId = (t.createUserId || '').toLowerCase();
-      const cNm = (t.createUser || '').toLowerCase();
-      const aNm = (t.assignee || '').toLowerCase();
-      const aId = (t.assiUsrId || '').toLowerCase();
       if (cleanFromDate || cleanToDate) {
         const regDt = String(t.createDate || '').substring(0, 8);
         const dueDt = String(t.plnDueDt || '').substring(0, 8);
@@ -558,38 +602,7 @@ export class BlueprintCollector {
           }
         }
       }
-
-      const normCId = normalize(cId);
-      const normCNm = normalize(cNm);
-      const normANm = normalize(aNm);
-      const normAId = normalize(aId);
-
-      if (filterRole === 'requester') {
-        if (normCId === normMember || normCNm === normMember || normCNm.includes(normMember)) return true;
-        if (normMember === 'anlt' || normMember === 'anle') return normCId.includes('anl') || normCNm.includes('anle') || normCNm.includes('antrong');
-        if (normMember === 'kyluong') return normCId.includes('kyluong') || normCNm.includes('kyluong');
-        if (normMember === 'khoadang') return normCId.includes('khoadang') || normCNm.includes('khoadang');
-        if (normMember === 'hieudao') return normCId.includes('hieudao') || normCNm.includes('hieudao');
-        if (normMember === 'thienvo') return normCId.includes('thienvo') || normCNm.includes('thienvo');
-        if (normMember === 'diemtran') return normCId.includes('diemtran') || normCNm.includes('diemtran');
-        return normCNm.includes(normMember) || normCId === normMember;
-      }
-
-      if (filterRole === 'assignee') {
-        if (normAId === normMember || normANm === normMember || normANm.includes(normMember)) return true;
-        if (normMember === 'anlt' || normMember === 'anle') return normAId.includes('anl') || normANm.includes('anle') || normANm.includes('antrong');
-        if (normMember === 'kyluong') return normAId.includes('kyluong') || normANm.includes('kyluong');
-        if (normMember === 'khoadang') return normAId.includes('khoadang') || normANm.includes('khoadang');
-        if (normMember === 'hieudao') return normAId.includes('hieudao') || normANm.includes('hieudao');
-        if (normMember === 'thienvo') return normAId.includes('thienvo') || normANm.includes('thienvo');
-        if (normMember === 'diemtran') return normAId.includes('diemtran') || normANm.includes('diemtran');
-        return normANm.includes(normMember) || normAId === normMember;
-      }
-
-      // both
-      if (normCId === normMember || normAId === normMember || normCNm.includes(normMember) || normANm.includes(normMember)) return true;
-      if (normMember === 'anlt' || normMember === 'anle') return normCId.includes('anl') || normAId.includes('anl') || normCNm.includes('anle') || normANm.includes('anle');
-      return normCNm.includes(normMember) || normANm.includes(normMember);
+      return true;
     });
 
     let completedTasks = 0;
