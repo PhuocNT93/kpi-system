@@ -14,6 +14,7 @@ import {
 import { EvaluationCycleTransitionService } from './evaluation-cycle-transition.service.js';
 import { CriterionApplicabilityResolver } from './criterion-applicability.resolver.js';
 import { AuditService } from '../../audit/application/audit.service.js';
+import { NotificationType, NotificationService } from '../../notification/index.js';
 
 export interface OpenCycleResult {
   id: string;
@@ -28,7 +29,8 @@ export class EvaluationCycleOpeningService {
     private evaluationRepo: IEvaluationRepository,
     private evaluationItemRepo: IEvaluationItemRepository,
     private transitionService: EvaluationCycleTransitionService,
-    private auditService?: AuditService
+    private auditService?: AuditService,
+    private notificationService?: NotificationService
   ) {}
 
   public async  openCycle(cycleId: string, actorEmployeeId: string | null): Promise<OpenCycleResult> {
@@ -706,6 +708,36 @@ export class EvaluationCycleOpeningService {
           performedBy: validActorUserId,
           source: 'API',
         });
+      }
+
+      // 13. Enqueue CYCLE_OPENED notification for participating employees
+      if (this.notificationService && createdEvaluations.length > 0) {
+        for (const createdEval of createdEvaluations) {
+          const userRes = await dbClient.query(
+            `SELECT u.id as user_id, u.email
+             FROM employee e
+             JOIN app_user u ON LOWER(u.email) = LOWER(e.email)
+             WHERE e.employee_id = $1
+             LIMIT 1`,
+            [createdEval.employeeId]
+          );
+          if (userRes.rows.length > 0 && userRes.rows[0]) {
+            await this.notificationService.enqueueNotification(
+              {
+                notificationType: NotificationType.CYCLE_OPENED,
+                relatedEntityType: 'EVALUATION_CYCLE',
+                relatedEntityId: cycle.evaluationCycleId,
+                recipientUserAccountId: String(userRes.rows[0].user_id),
+                recipientEmail: String(userRes.rows[0].email),
+                contextPayload: {
+                  cycle_name: cycle.name,
+                  deadline: typeof cycle.endDate === 'string' ? cycle.endDate : cycle.endDate ? String(cycle.endDate) : '',
+                },
+              },
+              dbClient
+            );
+          }
+        }
       }
 
       return {

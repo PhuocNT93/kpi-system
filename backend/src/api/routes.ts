@@ -47,6 +47,7 @@ export interface RegisterRoutesOptions {
   collectorRouter?: Router;
   reportsController?: ReportsController;
   calibrationController?: CalibrationController;
+  notificationRouter?: Router;
 }
 
 export function createApiRouter(options: RegisterRoutesOptions): Router {
@@ -166,6 +167,11 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
       { field: 'page_size', code: 'OUT_OF_RANGE', message: 'page_size must be between 1 and 100.' },
     ]);
   });
+
+  // ── Notification Module Routes ─────────────────────────────────────────
+  if (options.notificationRouter) {
+    router.use('/', options.notificationRouter);
+  }
 
   return router;
 }

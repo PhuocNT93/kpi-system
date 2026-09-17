@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { TYPOGRAPHY, RADII } from '@/shared/theme';
 import { useTheme } from '@/shared/theme';
 import { Sun, Moon } from 'lucide-react';
+import { NotificationBell } from '@/features/notifications';
 
 export interface HeaderProps {
   title?: string;
   subtitle?: string;
   actions?: React.ReactNode;
   showThemeToggle?: boolean;
+  showNotificationBell?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -15,6 +17,7 @@ export const Header: React.FC<HeaderProps> = ({
   subtitle,
   actions,
   showThemeToggle = true,
+  showNotificationBell = true,
 }) => {
   const { isDark, toggleTheme } = useTheme();
   const [toggleHovered, setToggleHovered] = useState(false);
@@ -69,8 +72,9 @@ export const Header: React.FC<HeaderProps> = ({
         )}
       </div>
 
-      {/* Right-hand Controls: Dark Mode Switch & Page Actions */}
+      {/* Right-hand Controls: Dark Mode Switch, Notification Bell & Page Actions */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        {showNotificationBell && <NotificationBell />}
         {showThemeToggle && (
           <button
             type="button"

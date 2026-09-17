@@ -6,7 +6,14 @@ import { EvaluationController } from './api/evaluation.controller.js';
 import { AuditService } from '../audit/application/audit.service.js';
 import { RuleEngine } from '../rule-engine/domain/rule-engine.js';
 
-export function createEvaluationModule(pool: Pool, auditService?: AuditService, ruleEngine?: RuleEngine) {
+import { NotificationService } from '../notification/application/notification.service.js';
+
+export function createEvaluationModule(
+  pool: Pool,
+  auditService?: AuditService,
+  ruleEngine?: RuleEngine,
+  notificationService?: NotificationService
+) {
   const evaluationRepo = new PostgresEvaluationRepository(pool);
   const evaluationItemRepo = new PostgresEvaluationItemRepository(pool);
   
@@ -15,7 +22,9 @@ export function createEvaluationModule(pool: Pool, auditService?: AuditService, 
     evaluationItemRepo,
     pool,
     auditService,
-    ruleEngine
+    ruleEngine,
+    undefined,
+    notificationService
   );
   
   const evaluationController = new EvaluationController(evaluationService);

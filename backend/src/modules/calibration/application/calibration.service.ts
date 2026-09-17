@@ -13,14 +13,16 @@ import {
   CreateCalibrationSessionInput,
   CreateCalibrationAdjustmentInput,
 } from '../domain/calibration.domain.js';
-import { CalibrationRepository } from '../domain/calibration.repository.js';
 import { NotFound, Forbidden, Conflict, Unprocessable, BadRequest } from '../../../api/app-error.js';
+import { PostgresCalibrationRepository } from '../infrastructure/postgres-calibration.repository.js';
+import { NotificationType, NotificationService } from '../../notification/index.js';
 
 export class CalibrationService {
   constructor(
     private pool: Pool,
-    private calibrationRepo: CalibrationRepository,
-    private auditService?: AuditService
+    private calibrationRepo: PostgresCalibrationRepository,
+    private auditService?: AuditService,
+    private notificationService?: NotificationService
   ) {}
 
   private requireHrAdmin(actor: Actor): void {
@@ -216,6 +218,32 @@ export class CalibrationService {
           reason: parsed.data.reason,
           performedBy: actor.userId,
         });
+      }
+
+      if (evaluation.status === 'PUBLISHED' && this.notificationService) {
+        const userRes = await client.query(
+          `SELECT u.id as user_id, u.email
+           FROM employee e
+           JOIN app_user u ON LOWER(u.email) = LOWER(e.email)
+           WHERE e.employee_id = $1
+           LIMIT 1`,
+          [evaluation.employeeId]
+        );
+        if (userRes.rows.length > 0 && userRes.rows[0]) {
+          await this.notificationService.enqueueNotification(
+            {
+              notificationType: NotificationType.SCORE_ADJUSTED,
+              relatedEntityType: 'CALIBRATION_SESSION',
+              relatedEntityId: sessionId,
+              recipientUserAccountId: String(userRes.rows[0].user_id),
+              recipientEmail: String(userRes.rows[0].email),
+              contextPayload: {
+                evaluation_id: parsed.data.evaluation_id,
+              },
+            },
+            client
+          );
+        }
       }
     };
 

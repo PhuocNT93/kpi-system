@@ -15,6 +15,7 @@ import { EvaluationCycleTransitionService } from './evaluation-cycle-transition.
 import { AuditService } from '../../audit/application/audit.service.js';
 import { CreateEvaluationCycleInput, UpdateEvaluationCycleInput } from '../api/evaluation-cycle.dto.js';
 import { appEventEmitter, AppEvent } from '../../../shared/events/index.js';
+import { NotificationType, NotificationService } from '../../notification/index.js';
 
 export class EvaluationCycleService {
   constructor(
@@ -22,7 +23,8 @@ export class EvaluationCycleService {
     private cycleRepo: IEvaluationCycleRepository,
     private evaluationRepo: IEvaluationRepository,
     private transitionService: EvaluationCycleTransitionService,
-    private auditService?: AuditService
+    private auditService?: AuditService,
+    private notificationService?: NotificationService
   ) {}
 
   public async createCycle(
@@ -281,6 +283,28 @@ export class EvaluationCycleService {
           performedBy: validActorUserId,
           source: 'API',
         });
+      }
+
+      if (this.notificationService && validActorUserId) {
+        const userRes = await dbClient.query(
+          'SELECT email FROM app_user WHERE id = $1 LIMIT 1',
+          [validActorUserId]
+        );
+        if (userRes.rows.length > 0) {
+          await this.notificationService.enqueueNotification(
+            {
+              notificationType: NotificationType.CYCLE_LOCKED,
+              relatedEntityType: 'EVALUATION_CYCLE',
+              relatedEntityId: id,
+              recipientUserAccountId: validActorUserId,
+              recipientEmail: userRes.rows[0].email,
+              contextPayload: {
+                cycle_name: lockedCycle.name,
+              },
+            },
+            client
+          );
+        }
       }
 
       appEventEmitter.emit(AppEvent.CYCLE_LOCKED, { cycleId: id });
