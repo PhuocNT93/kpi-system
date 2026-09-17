@@ -18,6 +18,7 @@ import {
   Activity,
   BookOpen,
   Award,
+  Mail,
 } from 'lucide-react';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY, SHADOWS } from '@/shared/theme';
@@ -99,6 +100,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           label: 'User Guide',
           icon: <BookOpen size={18} />,
         },
+        {
+          id: 'notification-preferences',
+          label: 'Email Notifications',
+          icon: <Mail size={18} />,
+        },
       ],
     },
     {
@@ -154,11 +160,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       label: 'Evaluation Cycles',
                       icon: <CalendarRange size={18} />,
                     },
-                    {
-                      id: 'calibration',
-                      label: 'Calibration',
-                      icon: <SlidersHorizontal size={18} />,
-                    },
+                    ...(user?.role === 'HR_ADMIN'
+                      ? [
+                          {
+                            id: 'calibration',
+                            label: 'Calibration',
+                            icon: <SlidersHorizontal size={18} />,
+                          },
+                        ]
+                      : []),
                     {
                       id: 'criteria',
                       label: 'Criteria & Rules',
@@ -187,6 +197,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       id: 'i18n',
                       label: 'I18n Translation',
                       icon: <SlidersHorizontal size={18} />,
+                    },
+                    {
+                      id: 'notification-templates',
+                      label: 'Email Templates',
+                      icon: <Mail size={18} />,
+                    },
+                    {
+                      id: 'notification-logs',
+                      label: 'Email Delivery Logs',
+                      icon: <Mail size={18} />,
                     },
                     {
                       id: 'iam',

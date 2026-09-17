@@ -47,6 +47,7 @@ export interface RegisterRoutesOptions {
   collectorRouter?: Router;
   reportsController?: ReportsController;
   calibrationController?: CalibrationController;
+  notificationRouter?: Router;
 }
 
 export function createApiRouter(options: RegisterRoutesOptions): Router {
@@ -131,7 +132,9 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
 
   // ── Calibration Module Routes ───────────────────────────────────────────
   if (options.calibrationController) {
-    router.use('/calibration', createCalibrationRouter(options.calibrationController, options.jwtMiddleware));
+    const calibrationRouter = createCalibrationRouter(options.calibrationController, options.jwtMiddleware);
+    router.use('/calibration', calibrationRouter);
+    router.use('/calibration-sessions', calibrationRouter);
   }
 
   // ── Sample: single-resource response ──────────────────────────────────────
@@ -164,6 +167,11 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
       { field: 'page_size', code: 'OUT_OF_RANGE', message: 'page_size must be between 1 and 100.' },
     ]);
   });
+
+  // ── Notification Module Routes ─────────────────────────────────────────
+  if (options.notificationRouter) {
+    router.use('/', options.notificationRouter);
+  }
 
   return router;
 }

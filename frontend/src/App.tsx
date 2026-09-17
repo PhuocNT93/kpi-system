@@ -42,6 +42,11 @@ import { TeamReportPage } from './features/reports/pages/TeamReportPage';
 import { CalibrationPage } from './features/calibration/pages/CalibrationPage';
 import { KpiSummaryDashboardPage } from './features/reports/employee-kpi-summary/pages/KpiSummaryDashboardPage';
 import { UnifiedPerformanceReportsPage } from './features/reports/pages/UnifiedPerformanceReportsPage';
+import {
+  NotificationPreferencesPage,
+  NotificationTemplatesPage,
+  NotificationLogPage,
+} from './features/notifications';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY, ThemeProvider, useTheme } from '@/shared/theme';
 import { LayoutTemplate } from 'lucide-react';
@@ -70,6 +75,9 @@ const ADMIN_PAGE_TITLES: Record<string, string> = {
   'my-evaluations': 'My Evaluations',
   'team-evaluations': 'Team Evaluations',
   'user-guide': 'User Guide',
+  'notification-preferences': 'Notification Preferences',
+  'notification-templates': 'Email Templates',
+  'notification-logs': 'Email Delivery Logs',
   'my-report': 'Performance Reports',
   'team-report': 'Performance Reports',
   'org-report': 'Performance Reports',
@@ -329,6 +337,21 @@ export default function App() {
               <Route path="/admin/reports/employees/:employeeId/kpi-summary" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
                   <KpiSummaryDashboardPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/notification-preferences" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
+                  <NotificationPreferencesPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/notification-templates" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
+                  <NotificationTemplatesPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/notification-logs" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
+                  <NotificationLogPage />
                 </ProtectedRoute>
               } />
               <Route path="/draft" element={

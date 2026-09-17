@@ -42,6 +42,7 @@ import { createReportsModule } from './modules/reports/reports.module.js';
 import { ReportsController } from './modules/reports/api/reports.controller.js';
 import { createEvaluationDataImportModule } from './modules/evaluation-data-import/evaluation-data-import.module.js';
 import { createCalibrationModule } from './modules/calibration/calibration.module.js';
+import { createNotificationModule } from './modules/notification/notification.module.js';
 
 export interface AppOptions {
   userRepository?: UserRepository;
@@ -55,6 +56,8 @@ export interface AppOptions {
   googleIdentityVerifier?: GoogleIdentityVerifier;
   employeeController?: EmployeeController;
   reportsController?: ReportsController;
+  calibrationController?: import('./modules/calibration/api/calibration.controller.js').CalibrationController;
+  customSmtpSender?: import('./modules/notification/application/smtp-sender.service.js').SmtpSenderService;
 }
 
 export function createApp(options: AppOptions = {}) {
@@ -85,8 +88,18 @@ export function createApp(options: AppOptions = {}) {
   );
 
   const auditModule = pool ? createAuditModule(pool) : undefined;
+  const i18nModule = pool ? createI18nModule(pool, auditModule?.auditService) : undefined;
   const ruleEngineModule = createRuleEngineModule();
-  const evaluationModule = pool ? createEvaluationModule(pool, auditModule?.auditService, ruleEngineModule.engine) : undefined;
+  const notificationModule = pool
+    ? createNotificationModule(
+        pool,
+        i18nModule?.service,
+        auditModule?.auditService,
+        jwtMiddleware,
+        options.customSmtpSender
+      )
+    : undefined;
+  const evaluationModule = pool ? createEvaluationModule(pool, auditModule?.auditService, ruleEngineModule.engine, notificationModule?.notificationService) : undefined;
   const evaluationController = evaluationModule?.evaluationController;
 
   const employeeModule = pool && auditModule ? createEmployeeModule(pool, auditModule.auditService, evaluationModule?.evaluationService) : undefined;
@@ -102,11 +115,10 @@ export function createApp(options: AppOptions = {}) {
   const kpiRelationshipController = kpiModule?.relationshipController;
   const kpiController = kpiModule?.kpiController;
 
-  const evaluationCycleModule = pool ? createEvaluationCycleModule(pool, auditModule?.auditService) : undefined;
+  const evaluationCycleModule = pool ? createEvaluationCycleModule(pool, auditModule?.auditService, notificationModule?.notificationService) : undefined;
   const evaluationCycleController = evaluationCycleModule?.cycleController;
 
-  const i18nModule = pool ? createI18nModule(pool, auditModule?.auditService) : undefined;
-  const importModule = pool && evaluationModule ? createImportModule(pool, evaluationModule.evaluationService) : undefined;
+  const importModule = pool && evaluationModule ? createImportModule(pool, evaluationModule.evaluationService, notificationModule?.notificationService) : undefined;
   const importController = importModule?.importController;
 
   const evaluationDataImportModule = pool && evaluationModule ? createEvaluationDataImportModule(pool, evaluationModule.evaluationService) : undefined;
@@ -116,8 +128,8 @@ export function createApp(options: AppOptions = {}) {
   const reportsModule = pool && evaluationModule ? createReportsModule(pool, evaluationModule.evaluationRepo, evaluationModule.evaluationItemRepo) : undefined;
   const reportsController = options.reportsController ?? reportsModule?.reportsController;
 
-  const calibrationModule = pool ? createCalibrationModule(pool, auditModule?.auditService) : undefined;
-  const calibrationController = calibrationModule?.calibrationController;
+  const calibrationModule = pool ? createCalibrationModule(pool, auditModule?.auditService, notificationModule?.notificationService) : undefined;
+  const calibrationController = options.calibrationController ?? calibrationModule?.calibrationController;
 
   // ── Global Middlewares ────────────────────────────────────────────────────
   app.use(requestIdMiddleware);
@@ -178,6 +190,7 @@ export function createApp(options: AppOptions = {}) {
         collectorRouter: collectorModule?.router,
         reportsController,
         calibrationController,
+        notificationRouter: notificationModule?.router,
       })
     );
   }

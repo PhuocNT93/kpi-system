@@ -20,7 +20,13 @@ export interface EvaluationCycleModule {
   cycleController: EvaluationCycleController;
 }
 
-export function createEvaluationCycleModule(pool: Pool, auditService?: AuditService): EvaluationCycleModule {
+import { NotificationService } from '../notification/application/notification.service.js';
+
+export function createEvaluationCycleModule(
+  pool: Pool,
+  auditService?: AuditService,
+  notificationService?: NotificationService
+): EvaluationCycleModule {
   const cycleRepo = new PostgresEvaluationCycleRepository(pool);
   const evaluationRepo = new PostgresEvaluationRepository(pool);
   const evaluationItemRepo = new PostgresEvaluationItemRepository(pool);
@@ -32,7 +38,8 @@ export function createEvaluationCycleModule(pool: Pool, auditService?: AuditServ
     cycleRepo,
     evaluationRepo,
     transitionService,
-    auditService
+    auditService,
+    notificationService
   );
 
   const openingService = new EvaluationCycleOpeningService(
@@ -41,7 +48,8 @@ export function createEvaluationCycleModule(pool: Pool, auditService?: AuditServ
     evaluationRepo,
     evaluationItemRepo,
     transitionService,
-    auditService
+    auditService,
+    notificationService
   );
 
   const cycleController = new EvaluationCycleController(cycleService, openingService);

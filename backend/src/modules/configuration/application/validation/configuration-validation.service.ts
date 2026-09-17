@@ -19,7 +19,7 @@ export class ConfigurationValidationService {
     const errors: ValidationErrorDetail[] = [];
     const warnings: ValidationErrorDetail[] = [];
 
-    const enabledCriteria = criteria.filter((c) => c.enabled);
+    const enabledCriteria = criteria.filter((c) => c.enabled !== false);
 
     if (enabledCriteria.length === 0) {
       errors.push({

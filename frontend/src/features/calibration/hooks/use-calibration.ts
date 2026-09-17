@@ -6,6 +6,8 @@ export const calibrationKeys = {
   all: ['calibration'] as const,
   list: (cycleId: string) => [...calibrationKeys.all, 'list', cycleId] as const,
   detail: (sessionId: string) => [...calibrationKeys.all, 'detail', sessionId] as const,
+  distribution: (sessionId: string) => [...calibrationKeys.all, 'distribution', sessionId] as const,
+  adjustments: (sessionId: string) => [...calibrationKeys.all, 'adjustments', sessionId] as const,
 };
 
 export function useCalibrationSessions(cycleId?: string) {
@@ -24,12 +26,29 @@ export function useCalibrationSessionDetail(sessionId?: string) {
   });
 }
 
+export function useCalibrationDistribution(sessionId?: string) {
+  return useQuery({
+    queryKey: calibrationKeys.distribution(sessionId || ''),
+    queryFn: () => (sessionId ? calibrationApi.getDistribution(sessionId) : Promise.reject(new Error('No session ID'))),
+    enabled: Boolean(sessionId),
+  });
+}
+
+export function useCalibrationAdjustments(sessionId?: string) {
+  return useQuery({
+    queryKey: calibrationKeys.adjustments(sessionId || ''),
+    queryFn: () => (sessionId ? calibrationApi.getAdjustments(sessionId) : Promise.reject(new Error('No session ID'))),
+    enabled: Boolean(sessionId),
+  });
+}
+
 export function useCreateCalibrationSessionMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: CreateSessionDTO) => calibrationApi.createSession(data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: calibrationKeys.list(variables.evaluation_cycle_id) });
+      queryClient.invalidateQueries({ queryKey: calibrationKeys.all });
     },
   });
 }
@@ -40,6 +59,9 @@ export function useAdjustScoreMutation(sessionId: string) {
     mutationFn: (data: CreateAdjustmentDTO) => calibrationApi.adjustScore(sessionId, data),
     onSuccess: (data) => {
       queryClient.setQueryData(calibrationKeys.detail(sessionId), data);
+      queryClient.invalidateQueries({ queryKey: calibrationKeys.detail(sessionId) });
+      queryClient.invalidateQueries({ queryKey: calibrationKeys.distribution(sessionId) });
+      queryClient.invalidateQueries({ queryKey: calibrationKeys.adjustments(sessionId) });
       queryClient.invalidateQueries({ queryKey: calibrationKeys.all });
     },
   });

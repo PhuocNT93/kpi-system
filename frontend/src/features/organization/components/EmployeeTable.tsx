@@ -93,10 +93,13 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
     return cadence.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   };
 
-  const formatDate = (dateString: string | null) => {
+  const formatMonthYear = (dateString: string | null) => {
     if (!dateString) return '-';
-    const date = new Date(dateString);
-    return date.toLocaleDateString();
+    const parsedDate = new Date(dateString);
+    if (Number.isNaN(parsedDate.getTime())) return '-';
+
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${monthNames[parsedDate.getMonth()]} ${parsedDate.getFullYear()}`;
   };
 
   return (
@@ -186,10 +189,10 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
                       )}
                     </td>
                     <td style={{ padding: '0.75rem 1rem', color: '#4b5563', fontSize: '0.875rem' }}>
-                      {formatDate(emp.lastEvaluationCompletedAt)}
+                      {formatMonthYear(emp.lastEvaluationCompletedAt)}
                     </td>
                     <td style={{ padding: '0.75rem 1rem', color: '#ea580c', fontSize: '0.875rem', fontWeight: 500 }}>
-                      {formatDate(emp.nextReviewDueDate)}
+                      {formatMonthYear(emp.nextReviewDueDate)}
                     </td>
                     <td style={{ padding: '0.75rem 1rem' }}>
                       <StatusBadge status={emp.employmentStatus} />

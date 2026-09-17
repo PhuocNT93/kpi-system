@@ -1,6 +1,6 @@
 # LLD — Employee Performance Evaluation Management System
 
-> **Trạng thái tài liệu:** v1.5 — cập nhật kiến trúc Đa ngôn ngữ sang bảng `i18n_translation` generic (hỗ trợ mở rộng >2 ngôn ngữ trong tương lai). Xem changelog cuối tài liệu.
+> **Trạng thái tài liệu:** v1.7 — Email Notification qua SMTP, đã chốt policy notification (bắt buộc RESULT_PUBLISHED, retention 1 năm). Xem changelog cuối tài liệu.
 > **18 tiêu chí hiện tại (Performance / Capability / Contribution) chỉ được coi là *seed data / sample configuration*.** Toàn bộ hệ thống được thiết kế theo hướng **Configurable, Rule-driven Evaluation Framework** — không hard-code criterion, weight, level, hay tool phụ thuộc vào application code.
 
 ---
@@ -25,6 +25,7 @@ Kiến trúc đề xuất: **Modular Monolith**, tách rõ các bounded context 
 - Audit log đầy đủ, immutable cho mọi thay đổi có ảnh hưởng đến điểm số.
 - RBAC rõ ràng theo 4 nhóm role: Employee, Team Lead/Manager, HR/Admin, System Admin.
 - **Đa ngôn ngữ (EN/VI)** — dữ liệu master (Criterion, Level, Department, Team, Role, Job Level, Review Cadence...) và UI hiển thị được cả tiếng Anh lẫn tiếng Việt, mặc định EN (✅ mới, xem mục 21.1).
+- **Email Notification (SMTP)** — thông báo tự động qua email cho các thay đổi/kết quả quan trọng trong kỳ đánh giá (mở cycle, submit, publish kết quả, review due reminder...) (✅ mới, xem mục 21.2).
 
 ### Non-goals (giai đoạn MVP)
 - Không xây dựng full BPMN workflow engine (dùng state machine cấu hình đơn giản).
@@ -77,6 +78,8 @@ Insight quan trọng rút ra từ dữ liệu mẫu để đưa vào rule engine
 - Scoring Engine (raw score → weighted score → overall score)
 - Basic evaluation workflow (configurable steps, tối thiểu: Self-assessment **bắt buộc** → Manager Assessment → Approval → Publish **tự động** → Lock — ✅ đã chốt, xem mục 14)
 - **Review Cadence & Scheduling** *(mới)* — chu kỳ đánh giá riêng theo từng nhân viên (2 tháng/6 tháng/1 năm...), Review Due Dashboard, tạo evaluation riêng bán tự động (xem mục 14.1)
+- **Đa ngôn ngữ EN/VI** *(mới)* — master data + UI đa ngôn ngữ qua bảng `i18n_translation` (xem mục 21.1)
+- **Email Notification (SMTP)** *(mới, chuyển từ Phase 2 lên MVP theo yêu cầu)* — thông báo tự động cho các sự kiện chính trong kỳ đánh giá (mở cycle, submit, publish, review due reminder...), template configurable, gửi bất đồng bộ qua queue (xem mục 21.2)
 - Immutable historical evaluation (snapshot)
 - Audit log (mọi thay đổi weight/score/level/cadence)
 - RBAC (4 role nhóm)
@@ -87,7 +90,7 @@ Insight quan trọng rút ra từ dữ liệu mẫu để đưa vào rule engine
 - Peer review
 - Advanced reporting/BI, trend analysis nhiều cycle
 - Score normalization giữa các team
-- Notification/Email integration (**bao gồm nhắc lịch review due tự động** — MVP chỉ có dashboard, chưa gửi email/notification chủ động)
+- **Notification nâng cao** — digest email tổng hợp hàng tuần, push notification mobile/app, SMS, rich HTML branding tùy chỉnh theo tổ chức (MVP chỉ gửi plain/simple HTML email theo sự kiện, xem mục 21.2)
 - **Auto-tạo evaluation hoàn toàn tự động khi đến due date** (MVP vẫn cần HR/Manager bấm xác nhận, xem mục 14.1)
 - Jira/Git integration (tự động lấy measurement)
 - Goal tracking, performance trend, promotion recommendation
@@ -161,12 +164,14 @@ flowchart TB
         CAL[Calibration]
         AUDIT[Audit Log]
         REPORT[Reporting]
+        NOTIF[Notification - mới]
     end
 
     DB[(Primary DB - PostgreSQL)]
     FILE[(File Storage - CSV / Evidence)]
     CACHE[(Cache - Redis)]
-    QUEUE[(Job Queue - async import/report)]
+    QUEUE[(Job Queue - async import/report/notification)]
+    SMTP[(SMTP Server - Google Workspace relay)]
 
     WebApp --> GW
     GW --> IAM
@@ -176,6 +181,7 @@ flowchart TB
     GW --> IMPORT
     GW --> CAL
     GW --> REPORT
+    GW --> NOTIF
 
     EVAL --> RULE
     IMPORT --> RULE
@@ -185,6 +191,11 @@ flowchart TB
     CAL --> AUDIT
     IMPORT --> QUEUE
     REPORT --> CACHE
+    EVAL --> NOTIF
+    IMPORT --> NOTIF
+    WF --> NOTIF
+    NOTIF --> QUEUE
+    QUEUE --> SMTP
 
     IAM --> DB
     ORG --> DB
@@ -194,6 +205,7 @@ flowchart TB
     IMPORT --> FILE
     AUDIT --> DB
     REPORT --> DB
+    NOTIF --> DB
 ```
 
 ---
@@ -209,6 +221,7 @@ flowchart TB
 | Workflow | Quản lý state transition + permission theo state | Không tính điểm |
 | Calibration | So sánh, ghi adjustment, không tự động sửa score gốc mà tạo `final_score` riêng | — |
 | Audit | Ghi log bất biến cho mọi thay đổi có ý nghĩa nghiệp vụ | Không cho update/delete |
+| **Notification** *(mới)* | Nhận sự kiện từ Evaluation/Workflow/Import, ghi `notification_log` (outbox), render template theo locale, enqueue gửi SMTP bất đồng bộ | **Không** quyết định business logic (không tự ý thay đổi state); **không** chặn/rollback transaction chính nếu gửi email thất bại |
 
 ---
 
@@ -1291,6 +1304,121 @@ Khi thêm ngôn ngữ mới (vd `ja`), response tự động có thêm key `"ja"
 
 ---
 
+## 21.2 Notification (Email via SMTP) — ✅ tính năng mới
+
+> **Yêu cầu:** gửi email thông báo tự động cho user khi có **thay đổi hoặc kết quả** quan trọng trong kỳ đánh giá. Thiết kế tái sử dụng tối đa hạ tầng đã có: **Job Queue** (đã dùng cho CSV import, mục 15), **i18n** (mục 21.1, nội dung email theo `user_account.locale`), và **transactional outbox pattern** — cùng nguyên tắc "ghi cùng transaction" đã áp dụng cho Audit Log (mục 18).
+
+### 21.2.1 Danh sách sự kiện kích hoạt notification (MVP)
+
+| # | Sự kiện | Người nhận | Nội dung tóm tắt |
+|---|---|---|---|
+| 1 | Cycle `OPEN` — evaluation vừa được sinh cho employee | Employee | "Kỳ đánh giá {cycle_name} đã bắt đầu, vui lòng hoàn thành self-assessment trước {deadline}" |
+| 2 | Employee `self-submit` thành công | Manager | "{employee} đã nộp self-assessment, vui lòng đánh giá" |
+| 3 | Manager `submit` thành công (→ REVIEWING) | Reviewer/HR | "Đánh giá của {employee} đã sẵn sàng để review" |
+| 4 | `request-correction` | Manager | "Cần chỉnh sửa đánh giá cho {employee} — lý do: {reason}" |
+| 5 | **Approve & Auto-Publish** (mục 14) | Employee | "Kết quả đánh giá kỳ {cycle_name} đã có — xem ngay" |
+| 6 | Calibration `adjustment` làm thay đổi final_score sau khi đã Published (hiếm, edge case) | Employee | "Điểm đánh giá của bạn vừa được điều chỉnh, xem chi tiết" |
+| 7 | **Review Due Reminder** (mục 14.1) — employee sắp/đã đến hạn | HR/Manager (không gửi Employee) | "{N} nhân viên sắp/đã đến hạn đánh giá — xem Review Due Dashboard" |
+| 8 | CSV Import hoàn tất (mục 15) | HR/Admin (người thực hiện import) | "Import hoàn tất: {success} thành công, {error} lỗi" |
+| 9 | Cycle `LOCKED` | HR/Admin (người tạo cycle) | "Cycle {cycle_name} đã được khóa" |
+
+> Sự kiện #7 chính là phần **"nhắc lịch review due tự động"** — trước đây đánh dấu Phase 2 (chỉ có dashboard), nay **chuyển vào MVP** theo yêu cầu bổ sung notification lần này.
+
+### 21.2.2 Nguyên tắc thiết kế quan trọng
+
+**Nguyên tắc 1 — Notification KHÔNG được làm fail business transaction.** Nếu SMTP server down/lỗi, hành động nghiệp vụ (Approve, Submit, Open Cycle...) **vẫn phải thành công bình thường** — gửi email là "best-effort", tách rời khỏi transaction chính.
+
+**Nguyên tắc 2 — Transactional Outbox Pattern** (nhất quán với Audit Log, mục 18):
+```
+1. Business action (vd Approve) commit trong 1 transaction, CÙNG LÚC insert 1 dòng vào
+   notification_log (status=PENDING) — trong CÙNG transaction đó.
+2. Một worker riêng (poll định kỳ, vd mỗi 30s) đọc các dòng PENDING, render nội dung,
+   gửi qua SMTP, cập nhật status=SENT/FAILED.
+3. Nếu bước 2 lỗi (SMTP down), dòng vẫn ở PENDING/FAILED trong DB — không mất, retry được sau.
+```
+→ Đảm bảo **không bao giờ mất event cần thông báo** (khác với việc gọi SMTP trực tiếp ngay trong request — nếu lỗi giữa chừng sẽ mất, không retry được), đồng thời **không** cần 2-phase-commit giữa DB và message queue.
+
+**Nguyên tắc 3 — Không gửi dữ liệu nhạy cảm (score/comment chi tiết) qua email.** Email chỉ chứa **thông báo + link dẫn vào hệ thống** (yêu cầu đăng nhập lại qua Google SSO, mục 21) — không nhúng điểm số/nhận xét trực tiếp trong nội dung email, tránh rò rỉ PII qua kênh email không mã hóa đầu-cuối.
+
+**Nguyên tắc 4 — Nội dung email theo `user_account.locale`** (tái sử dụng mục 21.1) — subject/body render theo ngôn ngữ người nhận, fallback EN nếu thiếu bản dịch.
+
+### 21.2.3 Database Design — bổ sung mục 10 (10.10 Notification)
+
+**notification_template** *(configurable, HR/Admin tự sửa nội dung, không hard-code trong code)*
+| Column | Type | Null | Note |
+|---|---|---|---|
+| notification_template_id | uuid | N | PK |
+| code | varchar(50) | N | UNIQUE, vd `CYCLE_OPENED`, `RESULT_PUBLISHED`, `REVIEW_DUE_REMINDER` (tương ứng 9 sự kiện mục 21.2.1) |
+| active | boolean | N | cho phép tắt hẳn 1 loại notification toàn hệ thống |
+
+> Subject/body của từng `notification_template` resolve qua **`i18n_translation`** (`entity_type='NOTIFICATION_TEMPLATE'`, `field_name='subject'` hoặc `'body_html'`) — tái sử dụng 100% hạ tầng đa ngôn ngữ đã có (mục 21.1), không tạo cơ chế riêng. Body hỗ trợ placeholder dạng `{{employee_name}}`, `{{cycle_name}}`, `{{deadline}}`, `{{link}}`... — render bằng template engine đơn giản (vd Handlebars/Mustache).
+
+**notification_log** *(outbox — nguồn sự thật cho việc gửi/đã gửi)*
+| Column | Type | Null | Note |
+|---|---|---|---|
+| notification_log_id | uuid | N | PK |
+| notification_type | varchar(50) | N | = `notification_template.code` |
+| related_entity_type | varchar(50) | Y | vd `EVALUATION`, `EVALUATION_CYCLE`, `IMPORT_JOB` |
+| related_entity_id | uuid | Y | |
+| recipient_user_account_id | uuid | N | FK → user_account |
+| recipient_email | varchar(200) | N | snapshot email tại thời điểm gửi (phòng khi user đổi email sau) |
+| locale_used | varchar(10) | N | locale đã dùng để render (audit lại được đã gửi bằng ngôn ngữ gì) |
+| subject_rendered | text | N | nội dung đã render, lưu lại để tra cứu/debug |
+| status | varchar(20) | N | ENUM `PENDING` / `SENT` / `FAILED` / `SKIPPED` (user tắt loại này) |
+| retry_count | int | N | default 0 |
+| error_message | text | Y | lỗi lần gửi gần nhất nếu FAILED |
+| created_at | timestamptz | N | thời điểm business event xảy ra (= thời điểm insert, trong transaction chính) |
+| sent_at | timestamptz | Y | thời điểm gửi thành công |
+
+Index: `(status, created_at)` — phục vụ worker poll các dòng PENDING theo thứ tự thời gian.
+
+> **Retention (✅ đã chốt): 1 năm.** Job định kỳ purge các dòng `created_at` cũ hơn 1 năm — **tách riêng** khỏi archive job của `audit_log` (2 năm, mục 18) vì bản chất khác nhau: `notification_log` là log vận hành, có thể xóa hẳn; `audit_log` là bằng chứng nghiệp vụ, phải chuyển cold storage chứ không xóa.
+
+**user_notification_preference**
+| Column | Type | Null | Note |
+|---|---|---|---|
+| user_account_id | uuid | N | FK, PK compound |
+| notification_type | varchar(50) | N | = `notification_template.code`, PK compound |
+| enabled | boolean | N | default true — user tự tắt loại thông báo không muốn nhận (self-service) |
+
+Unique: `(user_account_id, notification_type)`.
+
+### 21.2.4 SMTP Configuration
+
+- **Khuyến nghị:** dùng **Google Workspace SMTP relay** (`smtp-relay.gmail.com`) — nhất quán với hạ tầng Google Workspace đã dùng cho SSO (mục 21), không cần thêm nhà cung cấp email thứ 3, tận dụng domain uy tín sẵn có (giảm khả năng bị đánh dấu spam so với SMTP server mới toanh).
+- Cấu hình qua biến môi trường, **không hard-code**: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` (hoặc OAuth2 XOAUTH2 token — khuyến nghị hơn app password vì an toàn hơn), `SMTP_FROM_ADDRESS`, `SMTP_FROM_NAME`.
+- **Rate limiting gửi email** — Google Workspace SMTP relay có giới hạn số email/ngày; worker gửi theo batch có throttle (vd tối đa N email/phút) để tránh vượt quota hoặc bị tạm khóa.
+
+### 21.2.5 API bổ sung (mục 16)
+
+| Method | Endpoint | Auth | Note |
+|---|---|---|---|
+| GET | `/users/me/notification-preferences` | Bearer JWT | xem danh sách loại notification + trạng thái bật/tắt của chính mình |
+| PATCH | `/users/me/notification-preferences` | Bearer JWT | self-service bật/tắt từng loại |
+| GET/PUT | `/notification-templates` | HR/Admin | quản lý nội dung template (subject/body theo từng locale, qua `/i18n/*` đã có) |
+| GET | `/admin/notifications` | HR/Admin, System Admin | xem `notification_log`, filter theo status/type/date — giống Import History (mục 20) |
+| POST | `/admin/notifications/{id}/resend` | HR/Admin, System Admin | gửi lại thủ công 1 notification bị FAILED |
+
+### 21.2.6 UI
+
+| Screen | Purpose | Permission |
+|---|---|---|
+| **Notification Preferences** *(mới)* | User tự bật/tắt từng loại thông báo muốn nhận | Mọi user (self) |
+| **Notification Templates** *(mới, Admin)* | Sửa nội dung subject/body theo từng locale (tái dùng UI đa-tab i18n, mục 21.1) | HR/Admin |
+| **Notification Log** *(mới, Admin)* | Xem lịch sử gửi, trạng thái, resend thủ công | HR/Admin, System Admin |
+
+### 21.2.7 Audit
+- Thay đổi `notification_template` (nội dung email) ghi `audit_log` như mọi thay đổi config khác (mục 18).
+- `notification_log` **không cần** ghi thêm vào `audit_log` (bản thân nó đã là 1 dạng log outbox riêng, mục đích khác — audit_log ghi *quyết định nghiệp vụ*, notification_log ghi *đã thông báo hay chưa*). Tránh trùng lặp 2 hệ thống log cho cùng 1 mục đích.
+
+### 21.2.8 Business rules bổ sung
+- **Rule 15:** Gửi email **không bao giờ** nằm trong cùng transaction DB với business write chính (Approve/Submit/...) — chỉ **ghi outbox** (`notification_log`, status=PENDING) cùng transaction; việc gửi thật sự xảy ra **ngoài** transaction, bất đồng bộ.
+- **Rule 16:** Email **không chứa** điểm số/comment/evidence chi tiết trong nội dung — chỉ có thông báo tóm tắt + link yêu cầu đăng nhập lại.
+- **Rule 17 (✅ đã chốt):** User có thể tắt **từng loại** notification riêng lẻ (self-service), nhưng **không thể tắt hoàn toàn tất cả** — tối thiểu vẫn phải giữ khả năng nhận notification loại `RESULT_PUBLISHED` liên quan trực tiếp quyền lợi của chính họ. Validate ở **tầng API**: chặn cứng mọi request set `enabled=false` cho `notification_type='RESULT_PUBLISHED'` (trả `422 MANDATORY_NOTIFICATION_TYPE`), và UI hiển thị loại này ở trạng thái toggle bị disable kèm tooltip giải thích lý do.
+- **Rule 18:** Retry tối đa 3 lần cho mỗi notification FAILED (exponential backoff), sau đó giữ nguyên `status=FAILED` để Admin thấy và resend thủ công qua UI — không retry vô hạn.
+- **Rule 19 (✅ đã chốt):** Retention `notification_log` = **1 năm**, sau đó archive/purge bằng job định kỳ riêng (tách biệt với archive job của `audit_log` vốn giữ 2 năm, mục 18). `notification_log` chỉ là log vận hành (đã gửi/chưa gửi), không phải bằng chứng nghiệp vụ — nên có thể **purge hẳn** sau 1 năm thay vì bắt buộc chuyển cold storage như `audit_log`.
+
+---
 
 ## 22. Performance & Scalability
 
@@ -1368,7 +1496,7 @@ flowchart LR
         App2[App Instance 2]
     end
     subgraph "Async"
-        Worker[Background Worker - Import/Report jobs]
+        Worker[Background Worker - Import/Report/Notification jobs]
         MQ[(Message Queue)]
     end
     subgraph "Data Tier"
@@ -1404,7 +1532,8 @@ flowchart LR
 | Cache | Redis | Memcached | Redis hỗ trợ cấu trúc phức tạp hơn (cần cho report cache/session) |
 | File storage | S3-compatible (MinIO on-prem hoặc AWS S3) | Local disk | Cần scale & backup dễ dàng cho CSV/evidence |
 | Auth | **Google OAuth2/OIDC** (`accounts.google.com`), domain-restricted (✅ đã chốt — xem mục 21) | Keycloak/Auth0 self-host | Công ty đã dùng Google Workspace cho email nội bộ nên tận dụng làm IdP trực tiếp, không cần thêm hạ tầng identity provider riêng; trade-off: phụ thuộc uptime của Google (chấp nhận được vì công ty vốn đã phụ thuộc Google Workspace cho email) |
-| Background job | BullMQ (Node) / Spring Batch (Java) + Redis/RabbitMQ | AWS SQS | Tùy hạ tầng sẵn có; BullMQ đơn giản nếu đã chọn Node |
+| Background job | BullMQ (Node) / Spring Batch (Java) + Redis/RabbitMQ | AWS SQS | Tùy hạ tầng sẵn có; BullMQ đơn giản nếu đã chọn Node; dùng chung queue này cho cả Import job (mục 15) và Notification job (mục 21.2) |
+| **Email/SMTP** | **Nodemailer** (Node.js) qua **Google Workspace SMTP relay** | SendGrid/AWS SES (third-party) | Tận dụng Google Workspace đã có sẵn cho SSO (mục 21) — không thêm nhà cung cấp/chi phí thứ 3; trade-off: giới hạn quota gửi/ngày của Workspace SMTP relay so với dịch vụ email transactional chuyên dụng (chấp nhận được ở quy mô ~1,000 employee, mục 22) |
 | Reporting | Materialized view trong Postgres + Metabase (cho HR tự khám phá data) | Dedicated BI (Looker) | Metabase đủ dùng ở quy mô MVP, chi phí thấp |
 | Logging | ELK stack hoặc Loki+Grafana | CloudWatch (nếu AWS) | Tùy hạ tầng |
 | Monitoring | Prometheus + Grafana | Datadog | Prometheus mã nguồn mở, không phụ thuộc vendor |
@@ -1427,6 +1556,9 @@ flowchart LR
 12. **[MỚI] `next_review_due_date` tính sai nếu quên cập nhật `last_evaluation_completed_at`** khi có luồng ghi điểm ngoài quy trình chuẩn (vd import CSV tạo thẳng evaluation đã PUBLISHED cho dữ liệu lịch sử/migration) — cần đảm bảo mọi đường dẫn khiến evaluation đạt PUBLISHED đều chạy qua cùng 1 hàm cập nhật due-date, không rải rác nhiều nơi.
 13. **[MỚI] Đa ngôn ngữ tăng chi phí nhập liệu cho HR** — mỗi lần tạo Criterion/Template mới, HR phải cân nhắc nhập thêm bản dịch (dù optional) để tránh hiển thị fallback EN cho user chọn locale khác — cần UX nhắc nhở (badge cảnh báo) nhưng không nên chặn cứng (bắt buộc sẽ làm chậm quá trình tạo mới không cần thiết).
 14. ~~Inline column `_en`/`_vi` giới hạn khả năng mở rộng ngôn ngữ~~ **✅ Đã giải quyết** — đổi sang bảng `i18n_translation` generic (mục 21.1, mục 10.9) ngay từ đầu vì đã xác nhận có kế hoạch mở rộng >2 ngôn ngữ. Rủi ro còn lại chỉ là chi phí JOIN nhẹ, đã có phương án cache Redis giảm thiểu.
+15. **[MỚI] Google Workspace SMTP relay có giới hạn quota gửi/ngày** — nếu tổ chức mở batch cycle cho toàn bộ ~1,000 employee cùng lúc (mục 21.2, sự kiện #1 Cycle Opened), có thể phát sinh spike gửi email lớn trong thời gian ngắn → cần throttle worker (gửi rải trong vài giờ thay vì đồng loạt) để tránh vượt quota hoặc bị Google tạm khóa relay.
+16. ~~Notification outbox (`notification_log`) tăng trưởng theo thời gian~~ **✅ Đã giải quyết** — chốt retention **1 năm**, purge bằng job định kỳ riêng (mục 21.2, Rule 19). Rủi ro còn lại chỉ là vận hành: cần giám sát job purge chạy đúng lịch, tránh bảng phình to âm thầm.
+17. **[MỚI] Email đến nhầm người** nếu `employee.email`/`user_account` bị cấu hình sai (vd 2 nhân viên trùng email do lỗi nhập liệu) — rủi ro rò rỉ thông tin đánh giá dù đã áp dụng Nguyên tắc 3 (không nhúng nội dung nhạy cảm), vẫn lộ **việc ai đó đang được đánh giá** — nhấn mạnh lại tầm quan trọng validate email unique ở Employee Bulk Import (mục Import Center).
 
 ---
 
@@ -1447,6 +1579,8 @@ flowchart LR
 13. **[MỚI] Khi đổi cadence (vd thăng chức đổi job level), `next_review_due_date` có nên "grandfather" (giữ nguyên lịch cũ đến hết chu kỳ hiện tại) hay tính lại ngay theo cadence mới?**
 14. ~~`name_vi` có nên bắt buộc nhập ngay khi tạo Criterion/Template mới, hay cho phép để trống?~~ **✅ Đã chốt: để trống được**, chỉ cảnh báo UI (badge), không chặn.
 15. ~~Ngoài EN/VI, tổ chức có kế hoạch mở rộng thêm ngôn ngữ khác trong 1-2 năm tới không?~~ **✅ Đã chốt: Có** — đã đổi kiến trúc sang bảng `i18n_translation` generic (mục 21.1) để sẵn sàng mở rộng mà không cần `ALTER TABLE` mỗi lần thêm ngôn ngữ.
+16. ~~User có được phép tắt hoàn toàn tất cả notification (kể cả RESULT_PUBLISHED) không?~~ **✅ Đã chốt: Không** — giữ tối thiểu loại `RESULT_PUBLISHED` bắt buộc, chặn cứng ở tầng API (mục 21.2, Rule 17).
+17. ~~Thời gian retention cho `notification_log` là bao lâu?~~ **✅ Đã chốt: 1 năm**, purge hẳn bằng job riêng (mục 21.2, Rule 19).
 
 ---
 
@@ -1470,6 +1604,8 @@ flowchart LR
 | 14 | **[MỚI]** MVP có tự động tạo evaluation khi due, hay bắt buộc HR/Manager bấm xác nhận? | Đề xuất tạm: bán tự động — chỉ dashboard + nút xác nhận, auto-create để Phase 2 | Product Owner |
 | 15 | `name_vi` bắt buộc hay optional khi tạo mới? | **✅ Đã chốt: optional**, chỉ cảnh báo UI | HR |
 | 16 | Có kế hoạch mở rộng >2 ngôn ngữ trong tương lai gần không? | **✅ Đã chốt: Có** — kiến trúc đã đổi sang `i18n_translation` generic | Product Owner |
+| 17 | User có được tắt hoàn toàn mọi notification (kể cả RESULT_PUBLISHED)? | **✅ Đã chốt: Không** — giữ tối thiểu `RESULT_PUBLISHED` bắt buộc | HR |
+| 18 | Retention `notification_log` bao lâu? | **✅ Đã chốt: 1 năm**, purge hẳn (không cần cold storage) | Compliance/HR |
 
 ---
 
@@ -1576,4 +1712,20 @@ Security review, performance test (import lớn, concurrent), UAT với 18 KPI m
 
 ---
 
-*Hết tài liệu — v1.5.*
+## Changelog v1.5 → v1.6 / v1.7
+
+| # | Thay đổi | Vị trí |
+|---|---|---|
+| 13 | **[MỚI] Email Notification qua SMTP** — thông báo tự động cho 9 sự kiện chính trong kỳ đánh giá (mở cycle, submit, publish kết quả, review due reminder, import hoàn tất...); chuyển "nhắc lịch review due" từ Phase 2 lên MVP | Mục 2, 5 (Feature Breakdown), 7-8 (Module Architecture — Notification module mới), **21.2 (mới — thiết kế đầy đủ)**, 10.10 (bảng mới: `notification_template`, `notification_log`, `user_notification_preference`), 16 (API), 26 (Deployment), 27 (Tech Stack — Nodemailer/Google SMTP relay), 28 (Risk #15-17), 29 (Decision #16-17), 30 (Open Question #17-18) |
+
+**Thiết kế cốt lõi của tính năng mới (tóm tắt):**
+- **Transactional Outbox Pattern** — ghi `notification_log` (status=PENDING) **cùng transaction** với business write chính, worker riêng poll và gửi bất đồng bộ — nhất quán với cách Audit Log hoạt động (mục 18), đảm bảo không bao giờ mất event cần thông báo và **không** làm fail transaction chính nếu SMTP lỗi.
+- **Tái sử dụng 100% hạ tầng đã có:** Job Queue (đã dùng cho CSV import) cho việc gửi bất đồng bộ; bảng `i18n_translation` (mục 21.1) cho nội dung template theo locale — không xây cơ chế riêng.
+- **SMTP qua Google Workspace relay** — nhất quán với hạ tầng Google đã dùng cho SSO (mục 21), tránh thêm nhà cung cấp thứ 3.
+- **Không gửi dữ liệu nhạy cảm qua email** — chỉ thông báo tóm tắt + link yêu cầu đăng nhập lại, tránh rò rỉ PII qua kênh không mã hóa.
+- **User tự quản lý preference** (bật/tắt từng loại), nhưng không được tắt hết hoàn toàn — giữ tối thiểu thông báo liên quan quyền lợi cá nhân (RESULT_PUBLISHED).
+- **2 quyết định đã chốt:** user **không** được tắt hoàn toàn mọi notification (giữ tối thiểu `RESULT_PUBLISHED`, Rule 17); retention `notification_log` = **1 năm**, purge hẳn bằng job riêng (Rule 19).
+
+---
+
+*Hết tài liệu — v1.7.*

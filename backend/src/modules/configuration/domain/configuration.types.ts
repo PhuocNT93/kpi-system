@@ -250,7 +250,7 @@ export interface EvaluationTemplateVersion {
 export interface TemplateCriterion {
   id: string;
   template_version_id: string;
-  template_kpi_id: string;
+  template_kpi_id?: string | null;
   criterion_version_id: string;
   weight: number;
   display_order: number;
@@ -274,6 +274,7 @@ export interface TemplateSnapshotCriterionData {
 export interface TemplateKpi {
   id: string;
   template_version_id: string;
+  template_criterion_id?: string | null;
   kpi_id: string;
   weight: number;
   display_order: number;

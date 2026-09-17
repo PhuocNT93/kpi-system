@@ -14,6 +14,7 @@ export interface EmployeeResponse extends BaseResourceResponse {
   termination_date?: string;
   review_cadence?: string;
   last_evaluation_completed_at?: string;
+  next_review_due_date?: string;
   version: number;
 }
 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/shared/auth/auth-context';
 import { useEvaluationCyclesQuery } from '../../evaluation-cycles/hooks/use-evaluation-cycles';
 import {
   useCalibrationSessions,
@@ -23,14 +24,20 @@ import {
   History,
   Calendar,
   Layers,
+  ShieldAlert,
+  AlertTriangle,
 } from 'lucide-react';
 
 export function CalibrationPage() {
+  const { user } = useAuth();
   const [selectedCycleId, setSelectedCycleId] = useState<string>('');
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
   const [adjustingEvaluation, setAdjustingEvaluation] = useState<CalibrationEvaluationRow | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
+  const [isFinalizeModalOpen, setIsFinalizeModalOpen] = useState<boolean>(false);
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const isHrAdmin = user?.role === 'HR_ADMIN';
 
   const cyclesQuery = useEvaluationCyclesQuery();
   const sessionsQuery = useCalibrationSessions(selectedCycleId);
@@ -40,7 +47,7 @@ export function CalibrationPage() {
   const adjustScoreMutation = useAdjustScoreMutation(selectedSessionId);
   const finalizeSessionMutation = useFinalizeSessionMutation(selectedSessionId);
 
-  // Auto-select first cycle when cycles load
+  // Auto-select first active cycle when cycles load
   useEffect(() => {
     if (cyclesQuery.data && cyclesQuery.data.length > 0 && !selectedCycleId) {
       const activeCycle = cyclesQuery.data.find(
@@ -63,6 +70,47 @@ export function CalibrationPage() {
   const selectedCycle = cyclesQuery.data?.find((c) => c.id === selectedCycleId);
   const sessionDetail = sessionDetailQuery.data;
   const isFinalized = sessionDetail?.session.status === 'FINALIZED';
+  const isCycleLocked = selectedCycle?.status === 'LOCKED';
+
+  // Unauthorized screen for non-HR
+  if (!isHrAdmin) {
+    return (
+      <main style={{ padding: '3rem', maxWidth: '800px', margin: '0 auto', textAlign: 'center' }}>
+        <div
+          style={{
+            padding: '3rem 2rem',
+            borderRadius: RADII.xl,
+            backgroundColor: '#fff',
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '16px',
+          }}
+        >
+          <span
+            style={{
+              display: 'inline-flex',
+              padding: '16px',
+              borderRadius: RADII.full,
+              backgroundColor: '#fee2e2',
+              color: '#dc2626',
+            }}
+          >
+            <ShieldAlert size={36} />
+          </span>
+          <h2 style={{ fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: TYPOGRAPHY.fontWeight.bold, margin: 0, color: '#1e293b' }}>
+            Không có quyền truy cập (403 Forbidden)
+          </h2>
+          <p style={{ color: '#64748b', fontSize: TYPOGRAPHY.fontSize.sm, maxWidth: '480px', margin: 0 }}>
+            Tính năng Hiệu chuẩn điểm (Calibration) chỉ dành riêng cho Quản trị viên nhân sự (HR_ADMIN).
+            Nhân viên, Quản lý và Quản trị hệ thống không có quyền thực hiện nghiệp vụ này.
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   const handleCreateSession = async (data: CreateSessionDTO) => {
     try {
@@ -75,26 +123,32 @@ export function CalibrationPage() {
   };
 
   const handleAdjustSubmit = async (evaluationId: string, newScore: number, reason: string) => {
-    await adjustScoreMutation.mutateAsync({
-      evaluation_id: evaluationId,
-      new_final_score: newScore,
-      reason,
-    });
-    setFeedbackMsg({ type: 'success', text: 'Hiệu chuẩn điểm số thành công và đã ghi log kiểm toán.' });
+    try {
+      await adjustScoreMutation.mutateAsync({
+        evaluation_id: evaluationId,
+        new_final_score: newScore,
+        reason,
+      });
+      setFeedbackMsg({ type: 'success', text: 'Hiệu chuẩn điểm số thành công và đã ghi nhận vào kiểm toán (audit log).' });
+    } catch (err: unknown) {
+      setFeedbackMsg({ type: 'error', text: err instanceof Error ? err.message : 'Lỗi khi lưu điểm hiệu chuẩn.' });
+    }
   };
 
-  const handleFinalize = async () => {
-    if (
-      window.confirm(
-        'Bạn có chắc chắn muốn chốt (Finalize) phiên hiệu chuẩn này? Điểm số cuối cùng của nhân viên sẽ được khóa và không thể chỉnh sửa thêm trong phiên này.'
-      )
-    ) {
-      try {
-        await finalizeSessionMutation.mutateAsync();
-        setFeedbackMsg({ type: 'success', text: 'Đã chốt phiên hiệu chuẩn điểm thành công!' });
-      } catch (err: unknown) {
-        setFeedbackMsg({ type: 'error', text: err instanceof Error ? err.message : 'Lỗi khi chốt phiên hiệu chuẩn.' });
-      }
+  const handleFinalizeConfirm = async () => {
+    try {
+      await finalizeSessionMutation.mutateAsync();
+      setIsFinalizeModalOpen(false);
+      setFeedbackMsg({
+        type: 'success',
+        text: 'Đã chốt (Finalize) phiên hiệu chuẩn thành công! Các phiếu đánh giá đã được chuyển sang trạng thái xuất bản (PUBLISHED).',
+      });
+    } catch (err: unknown) {
+      setIsFinalizeModalOpen(false);
+      setFeedbackMsg({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Lỗi khi chốt phiên hiệu chuẩn. Vui lòng làm mới trang và thử lại.',
+      });
     }
   };
 
@@ -122,13 +176,13 @@ export function CalibrationPage() {
               Hiệu chuẩn điểm đánh giá (Calibration Sessions)
             </h1>
             <p style={{ margin: '3px 0 0 0', fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral[500] }}>
-              Cân bằng phân bổ điểm số của các phòng ban/nhóm, điều chỉnh điểm cuối cùng (Final Score) kèm lý do bắt buộc.
+              So sánh phân phối điểm số, điều chỉnh điểm cuối cùng (Final Score) kèm lý do bắt buộc và chốt phiên tự động xuất bản.
             </p>
           </div>
         </div>
 
         {/* Action button */}
-        {selectedCycleId && (
+        {selectedCycleId && !isCycleLocked && (
           <Button size="sm" onClick={() => setIsCreateModalOpen(true)}>
             <PlusCircle size={16} style={{ marginRight: '6px' }} />
             Tạo phiên hiệu chuẩn mới
@@ -159,6 +213,28 @@ export function CalibrationPage() {
           >
             &times;
           </button>
+        </div>
+      )}
+
+      {/* Locked cycle banner */}
+      {isCycleLocked && (
+        <div
+          style={{
+            padding: '12px 18px',
+            borderRadius: RADII.lg,
+            backgroundColor: '#fef3c7',
+            border: '1px solid #fcd34d',
+            color: '#92400e',
+            fontSize: TYPOGRAPHY.fontSize.sm,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+          }}
+        >
+          <Lock size={18} />
+          <span>
+            <strong>Kỳ đánh giá đã bị khóa (LOCKED):</strong> Tất cả các phiên hiệu chuẩn thuộc kỳ đánh giá này đều ở chế độ chỉ đọc. Không thể tạo mới hay điều chỉnh điểm số.
+          </span>
         </div>
       )}
 
@@ -280,10 +356,10 @@ export function CalibrationPage() {
             </div>
 
             <div>
-              {!isFinalized ? (
+              {!isFinalized && !isCycleLocked ? (
                 <Button
                   size="sm"
-                  onClick={handleFinalize}
+                  onClick={() => setIsFinalizeModalOpen(true)}
                   disabled={finalizeSessionMutation.isPending}
                 >
                   <CheckCircle2 size={16} style={{ marginRight: '6px' }} />
@@ -292,7 +368,7 @@ export function CalibrationPage() {
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 600 }}>
                   <Lock size={16} />
-                  <span>Phiên đã chốt hoàn tất (Chỉ đọc)</span>
+                  <span>Phiên đã chốt hoàn tất (Chế độ chỉ đọc)</span>
                 </div>
               )}
             </div>
@@ -326,7 +402,7 @@ export function CalibrationPage() {
                   Danh sách nhân viên ({sessionDetail.evaluations.length})
                 </h3>
                 <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#64748b' }}>
-                  Điểm tính toán gốc và điểm cuối cùng sau hiệu chuẩn.
+                  Điểm tính toán gốc giữ nguyên; điểm sau hiệu chuẩn là điểm số có hiệu lực chính thức.
                 </div>
               </div>
             </div>
@@ -339,9 +415,9 @@ export function CalibrationPage() {
                     <th style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>Mã NV</th>
                     <th style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>Nhóm / Phòng ban</th>
                     <th style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>Trạng thái</th>
-                    <th style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>Điểm gốc</th>
-                    <th style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>Điểm sau hiệu chuẩn</th>
-                    <th style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>Lịch sử điều chỉnh</th>
+                    <th style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>Điểm tính toán gốc (Weighted)</th>
+                    <th style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>Điểm cuối cùng (Final Score)</th>
+                    <th style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>Lý do điều chỉnh gần nhất</th>
                     <th style={{ padding: '10px 16px', fontWeight: 600, color: '#475569', textAlign: 'right' }}>Thao tác</th>
                   </tr>
                 </thead>
@@ -431,7 +507,7 @@ export function CalibrationPage() {
                               size="sm"
                               variant="outlined"
                               onClick={() => setAdjustingEvaluation(row)}
-                              disabled={isFinalized || row.isLocked}
+                              disabled={isFinalized || row.isLocked || isCycleLocked}
                             >
                               Hiệu chuẩn điểm
                             </Button>
@@ -446,7 +522,7 @@ export function CalibrationPage() {
           </section>
 
           {/* Adjustments Log */}
-          {sessionDetail.adjustments.length > 0 && (
+          {(sessionDetail.adjustments?.length ?? 0) > 0 && (
             <section
               style={{
                 backgroundColor: '#fff',
@@ -459,7 +535,7 @@ export function CalibrationPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
                 <History size={18} color="#2563eb" />
                 <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.base, fontWeight: 700, color: '#0f172a' }}>
-                  Lịch sử các lần hiệu chuẩn trong phiên này ({sessionDetail.adjustments.length})
+                  Lịch sử các lần hiệu chuẩn trong phiên ({sessionDetail.adjustments.length})
                 </h3>
               </div>
 
@@ -524,6 +600,89 @@ export function CalibrationPage() {
         onSubmit={handleAdjustSubmit}
         isPending={adjustScoreMutation.isPending}
       />
+
+      {/* Finalize Confirmation Modal */}
+      {isFinalizeModalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.6)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1100,
+            padding: '16px',
+          }}
+          onClick={() => setIsFinalizeModalOpen(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: RADII.xl,
+              width: '100%',
+              maxWidth: '480px',
+              padding: '24px',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+              border: '1px solid #e2e8f0',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  padding: '10px',
+                  borderRadius: RADII.lg,
+                  backgroundColor: '#fee2e2',
+                  color: '#dc2626',
+                }}
+              >
+                <AlertTriangle size={24} />
+              </span>
+              <div>
+                <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.base, fontWeight: 700, color: '#0f172a' }}>
+                  Xác nhận chốt phiên hiệu chuẩn?
+                </h3>
+                <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#64748b' }}>
+                  Thao tác này mang tính quyết định và không thể hoàn tác.
+                </div>
+              </div>
+            </div>
+
+            <div style={{ fontSize: TYPOGRAPHY.fontSize.sm, color: '#334155', lineHeight: 1.5 }}>
+              Sau khi chốt phiên hiệu chuẩn:
+              <ul style={{ margin: '8px 0 0 18px', padding: 0 }}>
+                <li>Không thể thực hiện thêm bất kỳ điều chỉnh điểm số nào trong phiên này.</li>
+                <li>Tất cả phiếu đánh giá sẽ tự động được phê duyệt (APPROVED).</li>
+                <li>Hệ thống tự động xuất bản (PUBLISHED) kết quả đánh giá cho nhân viên.</li>
+              </ul>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
+              <Button
+                variant="outlined"
+                size="sm"
+                onClick={() => setIsFinalizeModalOpen(false)}
+                disabled={finalizeSessionMutation.isPending}
+              >
+                Hủy bỏ
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleFinalizeConfirm}
+                disabled={finalizeSessionMutation.isPending}
+              >
+                {finalizeSessionMutation.isPending ? 'Đang chốt...' : 'Xác nhận chốt & Xuất bản'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

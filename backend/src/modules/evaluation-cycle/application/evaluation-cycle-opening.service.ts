@@ -14,6 +14,7 @@ import {
 import { EvaluationCycleTransitionService } from './evaluation-cycle-transition.service.js';
 import { CriterionApplicabilityResolver } from './criterion-applicability.resolver.js';
 import { AuditService } from '../../audit/application/audit.service.js';
+import { NotificationType, NotificationService } from '../../notification/index.js';
 
 export interface OpenCycleResult {
   id: string;
@@ -28,7 +29,8 @@ export class EvaluationCycleOpeningService {
     private evaluationRepo: IEvaluationRepository,
     private evaluationItemRepo: IEvaluationItemRepository,
     private transitionService: EvaluationCycleTransitionService,
-    private auditService?: AuditService
+    private auditService?: AuditService,
+    private notificationService?: NotificationService
   ) {}
 
   public async  openCycle(cycleId: string, actorEmployeeId: string | null): Promise<OpenCycleResult> {
@@ -162,29 +164,31 @@ export class EvaluationCycleOpeningService {
       // 4. Load template criteria & defensive weight check
       const tcRes = await dbClient.query(
         `SELECT tc.id AS template_criterion_id,
-                tc.template_kpi_id,
                 tc.template_version_id AS evaluation_template_version_id,
                 tc.criterion_version_id,
-                tc.weight AS effective_weight,
+                tc.weight AS criterion_weight,
                 tc.applicability,
                 NOT tc.enabled AS is_disabled,
                 tc.display_order,
+                tk.template_kpi_id,
+                tk.kpi_id,
                 tk.weight AS kpi_weight,
+                (tc.weight * tk.weight / 100.0) AS effective_weight,
                 k.code AS kpi_code,
                 k.name AS kpi_name,
                 c.id AS criterion_id,
                 c.code AS criterion_code,
                 c.name AS criterion_name,
                 sr.rule_type,
-                  sr.config AS rule_config
+                sr.config AS rule_config
          FROM template_criteria tc
-         JOIN template_kpi tk ON tc.template_kpi_id = tk.template_kpi_id
+         JOIN template_kpi tk ON tk.template_criterion_id = tc.id
          JOIN kpi k ON tk.kpi_id = k.kpi_id
          JOIN criterion_versions cv ON tc.criterion_version_id = cv.id
          JOIN criteria c ON cv.criterion_id = c.id
          JOIN scoring_rules sr ON cv.scoring_rule_id = sr.id
          WHERE tc.template_version_id = $1
-         ORDER BY tc.display_order ASC`,
+         ORDER BY tc.display_order ASC, tk.display_order ASC`,
         [cycle.evaluationTemplateVersionId]
       );
 
@@ -382,10 +386,11 @@ export class EvaluationCycleOpeningService {
       }
 
       // evaluation_item still references the legacy template_criterion table.
-      // Mirror the current template_criteria rows into the legacy table so FK validation succeeds.
+      // Mirror the current criterion/KPI rows into the legacy table so FK validation succeeds.
       for (const tc of criteriaWithApplicability as Record<string, unknown>[]) {
         const currentId = tc.template_criterion_id as string;
         const currentCriterionVersionId = tc.criterion_version_id as string;
+        const currentTemplateKpiId = tc.template_kpi_id as string;
         const legacyCriterionVersionId = legacyCriterionVersionIdByCurrentId.get(currentCriterionVersionId);
         if (!legacyCriterionVersionId) {
           throw new AppError(
@@ -400,8 +405,9 @@ export class EvaluationCycleOpeningService {
            FROM template_criterion
            WHERE evaluation_template_version_id = $1
              AND criterion_version_id = $2
+             AND template_kpi_id = $3
            LIMIT 1`,
-          [legacyTemplateVersionId, legacyCriterionVersionId]
+          [legacyTemplateVersionId, legacyCriterionVersionId, currentTemplateKpiId]
         );
 
         if (legacyRes.rows.length > 0) {
@@ -412,16 +418,18 @@ export class EvaluationCycleOpeningService {
         const legacyInsertRes = await dbClient.query(
           `INSERT INTO template_criterion (
              evaluation_template_version_id,
+             template_kpi_id,
              criterion_version_id,
              effective_weight,
              applicable_role_ids,
              applicable_team_ids,
              is_disabled,
              display_order
-           ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
            RETURNING template_criterion_id`,
           [
             legacyTemplateVersionId,
+            currentTemplateKpiId,
             legacyCriterionVersionId,
             tc.effective_weight,
             (tc.applicable_role_ids as string[])?.length ? tc.applicable_role_ids : null,
@@ -448,7 +456,9 @@ export class EvaluationCycleOpeningService {
       }
 
       // 5. Load levels for criterion versions
-      const criterionVersionIds = criteriaWithApplicability.map((tc: Record<string, unknown>) => tc.criterion_version_id);
+      const criterionVersionIds = Array.from(
+        new Set(criteriaWithApplicability.map((tc: Record<string, unknown>) => tc.criterion_version_id).filter(Boolean))
+      );
       const levelsRes = await dbClient.query(
         `SELECT criterion_level_id, criterion_version_id, level_no, label_en, label_vn, score_value
          FROM criterion_level
@@ -698,6 +708,36 @@ export class EvaluationCycleOpeningService {
           performedBy: validActorUserId,
           source: 'API',
         });
+      }
+
+      // 13. Enqueue CYCLE_OPENED notification for participating employees
+      if (this.notificationService && createdEvaluations.length > 0) {
+        for (const createdEval of createdEvaluations) {
+          const userRes = await dbClient.query(
+            `SELECT u.id as user_id, u.email
+             FROM employee e
+             JOIN app_user u ON LOWER(u.email) = LOWER(e.email)
+             WHERE e.employee_id = $1
+             LIMIT 1`,
+            [createdEval.employeeId]
+          );
+          if (userRes.rows.length > 0 && userRes.rows[0]) {
+            await this.notificationService.enqueueNotification(
+              {
+                notificationType: NotificationType.CYCLE_OPENED,
+                relatedEntityType: 'EVALUATION_CYCLE',
+                relatedEntityId: cycle.evaluationCycleId,
+                recipientUserAccountId: String(userRes.rows[0].user_id),
+                recipientEmail: String(userRes.rows[0].email),
+                contextPayload: {
+                  cycle_name: cycle.name,
+                  deadline: typeof cycle.endDate === 'string' ? cycle.endDate : cycle.endDate ? String(cycle.endDate) : '',
+                },
+              },
+              dbClient
+            );
+          }
+        }
       }
 
       return {
