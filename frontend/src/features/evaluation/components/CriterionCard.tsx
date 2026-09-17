@@ -7,7 +7,6 @@ import { RADII, TYPOGRAPHY } from '@/shared/theme';
 import {
   ChevronDown,
   ChevronUp,
-  AlertCircle,
   CheckCircle2,
   FileText,
   Save,
@@ -79,7 +78,7 @@ export const CriterionCard: React.FC<CriterionCardProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState<boolean>(true);
 
-  const isDisabled = item.is_disabled_for_employee;
+  const isDisabled = false;
   const levelSnapshot = item.level_definition_snapshot as { levels?: LevelItem[] } | LevelItem[] | null;
 
   const weightNum = Number(item.weight_snapshot);
@@ -118,11 +117,7 @@ export const CriterionCard: React.FC<CriterionCardProps> = ({
     }
     return DEFAULT_COMPANY_LEVELS;
   }, [levelSnapshot, isCoreKpi]);
-
-
-  const ruleSnapshot = item.scoring_rule_snapshot as { rule_type?: string; name?: string } | null;
-  const ruleType = ruleSnapshot?.rule_type || ruleSnapshot?.name || 'Chuẩn';
-  const criterionName = parseCriterionName(item.criterion_name_snapshot);
+  const kpiName = parseCriterionName(item.kpi_name_snapshot || item.kpi_code_snapshot || 'KPI');
 
   const isCompleted = isDisabled || (resolvedLevel !== null && resolvedLevel !== undefined);
 
@@ -287,38 +282,8 @@ export const CriterionCard: React.FC<CriterionCardProps> = ({
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <span style={{ fontSize: TYPOGRAPHY.fontSize.base, fontWeight: 600, color: COLORS.neutral.textPrimary }}>
-                {criterionName}
+                {kpiName}
               </span>
-              <span
-                style={{
-                  fontSize: TYPOGRAPHY.fontSize.xs,
-                  fontWeight: 600,
-                  color: COLORS.neutral[500],
-                  backgroundColor: COLORS.neutral[200],
-                  padding: '2px 6px',
-                  borderRadius: RADII.sm,
-                }}
-              >
-                {item.criterion_code_snapshot}
-              </span>
-
-              {isDisabled && (
-                <span
-                  style={{
-                    fontSize: TYPOGRAPHY.fontSize.xs,
-                    fontWeight: 600,
-                    color: '#b45309',
-                    backgroundColor: '#fef3c7',
-                    padding: '2px 8px',
-                    borderRadius: RADII.md,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                  }}
-                >
-                  <AlertCircle size={12} /> Không áp dụng cho bạn
-                </span>
-              )}
 
               {isDirty && (
                 <span
@@ -336,7 +301,6 @@ export const CriterionCard: React.FC<CriterionCardProps> = ({
                 </span>
               )}
 
-              {/* Status Badge */}
               {mode === 'self' ? (
                 resolvedLevel !== null && resolvedLevel !== undefined ? (
                   <span
@@ -353,109 +317,16 @@ export const CriterionCard: React.FC<CriterionCardProps> = ({
                       gap: '4px',
                     }}
                   >
-                    <CheckCircle2 size={12} /> Đã tự đánh giá: Mức {resolvedLevel}
+                    <CheckCircle2 size={12} /> Đã chấm mức {resolvedLevel}
                   </span>
-                ) : (
-                  <span
-                    style={{
-                      fontSize: TYPOGRAPHY.fontSize.xs,
-                      fontWeight: 600,
-                      color: '#b45309',
-                      backgroundColor: '#fffbeb',
-                      border: '1px solid #fde68a',
-                      padding: '2px 8px',
-                      borderRadius: RADII.md,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                    }}
-                  >
-                    Chờ tự đánh giá
-                  </span>
-                )
-              ) : (
-                item.raw_score !== null && item.raw_score !== undefined && (
-                  <span
-                    style={{
-                      fontSize: TYPOGRAPHY.fontSize.xs,
-                      fontWeight: 700,
-                      color: '#047857',
-                      backgroundColor: '#ecfdf5',
-                      border: '1px solid #a7f3d0',
-                      padding: '2px 8px',
-                      borderRadius: RADII.md,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                    }}
-                  >
-                    Điểm hệ 10: {item.raw_score}/10 {item.weighted_score !== null && item.weighted_score !== undefined ? `(+${Number(item.weighted_score).toFixed(2)}đ)` : ''}
-                  </span>
-                )
-              )}
-
-              {/* System benchmark badge if available */}
-              {item.system_suggested_score !== undefined && item.system_suggested_score !== null && (
-                <span
-                  style={{
-                    fontSize: TYPOGRAPHY.fontSize.xs,
-                    fontWeight: 700,
-                    color: '#4338ca',
-                    backgroundColor: '#e0e7ff',
-                    border: '1px solid #c7d2fe',
-                    padding: '2px 8px',
-                    borderRadius: RADII.md,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                  }}
-                >
-                  <Cpu size={12} /> Gợi ý hệ thống: {item.system_suggested_score}/10
-                </span>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px', fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, flexWrap: 'wrap' }}>
-              <span>Trọng số: <strong>{formattedWeight}%</strong></span>
-              <span>•</span>
-              <span>Quy tắc: <strong>{ruleType}</strong></span>
-              <span>•</span>
-              {isCoreKpi ? (
-                <span
-                  style={{
-                    color: '#b45309',
-                    backgroundColor: '#fef3c7',
-                    border: '1px solid #fde68a',
-                    padding: '1px 6px',
-                    borderRadius: RADII.sm,
-                    fontWeight: 700,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                  }}
-                  title="KPI Cốt lõi: Hoàn thành đạt chuẩn (>= 90%) sẽ nhận 9/10 điểm"
-                >
-                  ⭐ KPI Cốt lõi (Core KPI - Đạt chuẩn = 9đ)
-                </span>
-              ) : (
-                <span
-                  style={{
-                    color: '#475569',
-                    backgroundColor: '#f1f5f9',
-                    padding: '1px 6px',
-                    borderRadius: RADII.sm,
-                    fontWeight: 600,
-                  }}
-                >
-                  KPI Bình thường (Đạt chuẩn = 8đ)
-                </span>
-              )}
+                ) : null
+              ) : null}
             </div>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {isDirty && onSaveSingle && isEditable && !isDisabled && (
+          {isDirty && onSaveSingle && !isDisabled && (
             <button
               type="button"
               onClick={(e) => {
@@ -1005,7 +876,7 @@ export const CriterionCard: React.FC<CriterionCardProps> = ({
                   levels={levels}
                   selectedLevel={resolvedLevel}
                   onSelectLevel={onLevelChange}
-                  disabled={!isEditable}
+                  disabled={false}
                 />
               </div>
 
@@ -1029,7 +900,6 @@ export const CriterionCard: React.FC<CriterionCardProps> = ({
                   </span>
                 </div>
                 <textarea
-                  disabled={!isEditable}
                   value={comment}
                   onChange={(e) => onCommentChange(e.target.value)}
                   placeholder={
@@ -1043,7 +913,7 @@ export const CriterionCard: React.FC<CriterionCardProps> = ({
                     padding: '12px',
                     borderRadius: RADII.lg,
                     border: `1px solid ${COLORS.neutral[300]}`,
-                    backgroundColor: !isEditable ? COLORS.neutral[100] : COLORS.neutral.white,
+                    backgroundColor: COLORS.neutral.white,
                     fontFamily: 'inherit',
                     fontSize: TYPOGRAPHY.fontSize.sm,
                     lineHeight: 1.5,

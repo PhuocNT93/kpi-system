@@ -168,7 +168,7 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
                   }}
                 >
                   <Save size={16} />
-                  <span>{isSaving ? 'Đang lưu...' : hasUnsavedChanges ? 'Lưu thay đổi (Draft)' : 'Lưu nháp (Draft)'}</span>
+                  <span>{isSaving ? 'Đang lưu toàn bộ...' : hasUnsavedChanges ? 'Lưu toàn bộ mức đánh giá' : 'Đã lưu toàn bộ mức đánh giá'}</span>
                 </button>
 
                 {mode === 'manager' && onRequestCorrection && (
