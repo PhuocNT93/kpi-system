@@ -49,7 +49,6 @@ export interface EvaluationItem {
   raw_score?: number;
   normalized_score?: number;
   weighted_score?: number;
-  is_disabled_for_employee: boolean;
   is_missing_score: boolean;
   manual_override_score?: number | null;
   override_reason?: string | null;
@@ -104,6 +103,9 @@ export interface EmployeeSummary {
   email: string;
   team_name?: string;
   role_name?: string;
+  join_date?: string;
+  created_at?: string;
+  next_review_due_date?: string;
 }
 
 export interface TeamEvaluation {

@@ -138,13 +138,15 @@ function sum(values: readonly Decimal[]): Decimal {
 
 const KPI_SCORE_BREAKPOINTS = [
   { achievement: 0, score: 0 },
-  { achievement: 80, score: 5 },
-  { achievement: 85, score: 6 },
-  { achievement: 90, score: 7 },
-  { achievement: 95, score: 8 },
-  { achievement: 100, score: 9 },
-  { achievement: 110, score: 10 },
+  { achievement: 80, score: 2.5 },
+  { achievement: 85, score: 3 },
+  { achievement: 90, score: 3.5 },
+  { achievement: 95, score: 4 },
+  { achievement: 100, score: 4.5 },
+  { achievement: 110, score: 5 },
 ] as const;
+
+const MAX_CRITERION_SCORE = KPI_SCORE_BREAKPOINTS[KPI_SCORE_BREAKPOINTS.length - 1]!.score;
 
 function interpolateScore(achievementPercent: number): number {
   if (!Number.isFinite(achievementPercent)) {
@@ -171,6 +173,10 @@ function interpolateScore(achievementPercent: number): number {
   }
 
   return 0;
+}
+
+function scoreToRatio(score: number): Decimal {
+  return Decimal.from(score).divide(Decimal.from(MAX_CRITERION_SCORE));
 }
 
 function normalizeAchievementPercent(criterion: ScoringCriterionInput): number | null {
@@ -217,7 +223,7 @@ export class ScoringEngine {
     const kpiResults = input.kpis.map((kpi) => this.calculateKpi(kpi));
     const applicableKpis = kpiResults.filter((kpi) => !kpi.is_na);
     const numerator = sum(applicableKpis.map((kpi) =>
-      Decimal.from(kpi.normalized_score!).multiply(Decimal.from(kpi.effective_weight))
+      scoreToRatio(kpi.normalized_score!).multiply(Decimal.from(kpi.effective_weight))
     ));
     const denominator = sum(applicableKpis.map((kpi) => Decimal.from(kpi.effective_weight)));
 
@@ -242,14 +248,16 @@ export class ScoringEngine {
     const criterionResults = kpi.criteria.map((criterion) => this.calculateCriterion(criterion));
     const applicableCriteria = criterionResults.filter((criterion) => !criterion.is_na);
     const numerator = sum(applicableCriteria.map((criterion) =>
-      Decimal.from(criterion.normalized_score!).multiply(Decimal.from(criterion.effective_weight))
+      scoreToRatio(criterion.normalized_score!).multiply(Decimal.from(criterion.effective_weight))
     ));
     const denominator = sum(applicableCriteria.map((criterion) => Decimal.from(criterion.effective_weight)));
     const isNa = denominator.isZero();
-    const normalizedScore = isNa ? null : numerator.divide(denominator).toNumber();
+    const normalizedScore = isNa
+      ? null
+      : numerator.divide(denominator).multiply(Decimal.from(MAX_CRITERION_SCORE)).toNumber();
     const weightedContribution = isNa
       ? null
-      : Decimal.from(normalizedScore!).multiply(Decimal.from(kpi.effective_weight)).toNumber();
+      : scoreToRatio(normalizedScore!).multiply(Decimal.from(kpi.effective_weight)).toNumber();
 
     return {
       kpi_id: kpi.kpi_id,
@@ -277,11 +285,11 @@ export class ScoringEngine {
     const normalizedScore = isNa
       ? null
       : criterion.raw_score != null && criterion.actual_value == null && criterion.target_value == null
-        ? achievementPercent / 100
+        ? (achievementPercent / 100) * MAX_CRITERION_SCORE
         : interpolateScore(achievementPercent);
     const weightedContribution = isNa
       ? null
-      : Decimal.from(normalizedScore!).multiply(Decimal.from(criterion.effective_weight)).toNumber();
+      : scoreToRatio(normalizedScore!).multiply(Decimal.from(criterion.effective_weight)).toNumber();
 
     return {
       criterion_id: criterion.criterion_id,
