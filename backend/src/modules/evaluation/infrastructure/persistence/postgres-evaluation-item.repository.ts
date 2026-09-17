@@ -131,6 +131,71 @@ export class PostgresEvaluationItemRepository implements IEvaluationItemReposito
     return result.rows.length === 0 ? null : this.mapRow(result.rows[0]);
   }
 
+  async updateScoringResultsBatch(
+    updates: Array<{ id: string; expectedVersion: number; patch: Partial<EvaluationItem> }>,
+    client: PoolClient
+  ): Promise<EvaluationItem[]> {
+    if (updates.length === 0) return [];
+
+    const ids: string[] = [];
+    const expectedVersions: number[] = [];
+    const resolvedLevels: (number | null)[] = [];
+    const rawScores: (number | null)[] = [];
+    const normalizedScores: (number | null)[] = [];
+    const weightedScores: (number | null)[] = [];
+    const isMissingScores: boolean[] = [];
+    const updatedBys: (string | null)[] = [];
+
+    for (const u of updates) {
+      ids.push(u.id);
+      expectedVersions.push(u.expectedVersion);
+      resolvedLevels.push(u.patch.resolved_level ?? null);
+      rawScores.push(u.patch.raw_score ?? null);
+      normalizedScores.push(u.patch.normalized_score ?? null);
+      weightedScores.push(u.patch.weighted_score ?? null);
+      isMissingScores.push(u.patch.is_missing_score ?? false);
+      updatedBys.push(u.patch.updated_by ?? null);
+    }
+
+    const query = `
+      UPDATE evaluation_item AS ei
+      SET resolved_level = data.resolved_level,
+          raw_score = data.raw_score,
+          normalized_score = data.normalized_score,
+          weighted_score = data.weighted_score,
+          is_missing_score = data.is_missing_score,
+          updated_by = data.updated_by,
+          updated_at = CURRENT_TIMESTAMP,
+          version = ei.version + 1
+      FROM (
+        SELECT 
+          unnest($1::uuid[]) AS id,
+          unnest($2::int[]) AS expected_version,
+          unnest($3::int[]) AS resolved_level,
+          unnest($4::numeric[]) AS raw_score,
+          unnest($5::numeric[]) AS normalized_score,
+          unnest($6::numeric[]) AS weighted_score,
+          unnest($7::boolean[]) AS is_missing_score,
+          unnest($8::uuid[]) AS updated_by
+      ) AS data
+      WHERE ei.evaluation_item_id = data.id AND ei.version = data.expected_version
+      RETURNING ei.*
+    `;
+
+    const result = await client.query(query, [
+      ids,
+      expectedVersions,
+      resolvedLevels,
+      rawScores,
+      normalizedScores,
+      weightedScores,
+      isMissingScores,
+      updatedBys,
+    ]);
+
+    return result.rows.map((row) => this.mapRow(row));
+  }
+
   async batchUpdate(evaluationId: string, items: { id: string; resolved_level?: number; comment?: string }[], client?: PoolClient): Promise<void> {
     if (!items.length) return;
     
