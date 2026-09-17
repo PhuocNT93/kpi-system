@@ -7,7 +7,6 @@ import {
   CalendarRange,
   SlidersHorizontal,
   LayoutTemplate,
-  FileSpreadsheet,
   UserCheck,
   ClipboardCheck,
   ShieldCheck,
@@ -136,116 +135,91 @@ export const Sidebar: React.FC<SidebarProps> = ({
       collapsible: true,
       items: [
         {
-          id: 'kpi-summary',
-          label: 'KPI Summary',
+          id: 'reports',
+          label: 'Performance Reports',
           icon: <Award size={18} />,
         },
-        {
-          id: 'my-report',
-          label: 'My Report',
-          icon: <ClipboardCheck size={18} />,
-        },
-        ...(user?.role === 'MANAGER' || canViewConfig
-          ? [
-              {
-                id: 'team-report',
-                label: 'Team Report',
-                icon: <Users size={18} />,
-              },
-            ]
-          : []),
-        ...(canViewConfig
-          ? [
-              {
-                id: 'org-report',
-                label: 'Org Report',
-                icon: <LayoutDashboard size={18} />,
-              },
-            ]
-          : []),
       ],
     },
-    ...(canViewConfig
+    ...(canViewConfig || user?.role === 'MANAGER'
       ? [
           {
             key: 'configuration',
             title: 'Configuration',
             collapsible: true,
             items: [
-              {
-                id: 'organization',
-                label: 'Organization',
-                icon: <Users size={18} />,
-              },
-              {
-                id: 'cycles',
-                label: 'Evaluation Cycles',
-                icon: <CalendarRange size={18} />,
-              },
-              ...(user?.role === 'HR_ADMIN'
+              ...(canViewConfig
                 ? [
                     {
-                      id: 'calibration',
-                      label: 'Calibration',
+                      id: 'organization',
+                      label: 'Organization',
+                      icon: <Users size={18} />,
+                    },
+                    {
+                      id: 'cycles',
+                      label: 'Evaluation Cycles',
+                      icon: <CalendarRange size={18} />,
+                    },
+                    ...(user?.role === 'HR_ADMIN'
+                      ? [
+                          {
+                            id: 'calibration',
+                            label: 'Calibration',
+                            icon: <SlidersHorizontal size={18} />,
+                          },
+                        ]
+                      : []),
+                    {
+                      id: 'criteria',
+                      label: 'Criteria & Rules',
                       icon: <SlidersHorizontal size={18} />,
+                    },
+                    {
+                      id: 'kpis',
+                      label: 'KPI Library',
+                      icon: <GitFork size={18} />,
+                    },
+                    {
+                      id: 'templates',
+                      label: 'Template Builder',
+                      icon: <LayoutTemplate size={18} />,
                     },
                   ]
                 : []),
               {
-                id: 'criteria',
-                label: 'Criteria & Rules',
-                icon: <SlidersHorizontal size={18} />,
-              },
-              {
-                id: 'kpis',
-                label: 'KPI Library',
-                icon: <GitFork size={18} />,
-              },
-              {
-                id: 'templates',
-                label: 'Template Builder',
-                icon: <LayoutTemplate size={18} />,
-              },
-              {
-                id: 'imports',
-                label: 'Import Center',
-                icon: <FileSpreadsheet size={18} />,
-              },
-              {
-                id: 'evaluation-data-imports',
-                label: 'KPI Data Imports',
-                icon: <FileSpreadsheet size={18} />,
-              },
-              {
-                id: 'collectors',
-                label: 'Auto Collect',
+                id: 'ingestion',
+                label: 'Data Ingestion Hub',
                 icon: <Activity size={18} />,
               },
-              {
-                id: 'i18n',
-                label: 'I18n Translation',
-                icon: <SlidersHorizontal size={18} />,
-              },
-              {
-                id: 'notification-templates',
-                label: 'Email Templates',
-                icon: <Mail size={18} />,
-              },
-              {
-                id: 'notification-logs',
-                label: 'Email Delivery Logs',
-                icon: <Mail size={18} />,
-              },
-              {
-                id: 'iam',
-                label: 'Identity & Access',
-                icon: <Shield size={18} />,
-              },
-              {
-                id: 'audit-logs',
-                label: 'Audit Log',
-                icon: <ShieldCheck size={18} />,
-              },
+              ...(canViewConfig
+                ? [
+                    {
+                      id: 'i18n',
+                      label: 'I18n Translation',
+                      icon: <SlidersHorizontal size={18} />,
+                    },
+                    {
+                      id: 'notification-templates',
+                      label: 'Email Templates',
+                      icon: <Mail size={18} />,
+                    },
+                    {
+                      id: 'notification-logs',
+                      label: 'Email Delivery Logs',
+                      icon: <Mail size={18} />,
+                    },
+                    {
+                      id: 'iam',
+                      label: 'Identity & Access',
+                      icon: <Shield size={18} />,
+                    },
+                    {
+                      id: 'audit-logs',
+                      label: 'Audit Log',
+                      icon: <ShieldCheck size={18} />,
+                    },
+                  ]
+                : []),
             ],
           },
         ]

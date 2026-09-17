@@ -31,20 +31,17 @@ import {
 } from './features/evaluation-cycles';
 import { AppLayout } from '@/shared/layout';
 import { KpiPage } from './features/kpi/pages/KpiPage';
-import { ImportUploadPage } from './features/imports/pages/ImportUploadPage';
-import { ImportHistoryPage } from './features/imports/pages/ImportHistoryPage';
 import { ImportDetailPage } from './features/imports/pages/ImportDetailPage';
-import { EvaluationDataImportPage } from './features/imports/pages/EvaluationDataImportPage';
-import { CollectorPage } from './features/collector/pages/CollectorPage';
+import { DataIngestionHubPage } from './features/imports/pages/DataIngestionHubPage';
 // Lazy-loaded: pulls in react-markdown/remark-gfm, kept out of the main bundle
 const UserGuidePage = lazy(() =>
   import('./features/help/pages/UserGuidePage').then((m) => ({ default: m.UserGuidePage }))
 );
 import { EmployeeReportPage } from './features/reports/pages/EmployeeReportPage';
 import { TeamReportPage } from './features/reports/pages/TeamReportPage';
-import { OrganizationReportPage } from './features/reports/pages/OrganizationReportPage';
 import { CalibrationPage } from './features/calibration/pages/CalibrationPage';
 import { KpiSummaryDashboardPage } from './features/reports/employee-kpi-summary/pages/KpiSummaryDashboardPage';
+import { UnifiedPerformanceReportsPage } from './features/reports/pages/UnifiedPerformanceReportsPage';
 import {
   NotificationPreferencesPage,
   NotificationTemplatesPage,
@@ -63,14 +60,16 @@ const ADMIN_PAGE_TITLES: Record<string, string> = {
   organization: 'Organization',
   employees: 'Employee Directory & Search',
   'employee-search': 'Employee Directory & Search',
-  'kpi-summary': 'KPI Summary Dashboard',
+  'kpi-summary': 'Performance Reports',
+  reports: 'Performance Reports',
+  ingestion: 'KPI Data Ingestion Hub',
   templates: 'Evaluation Templates',
   criteria: 'Criteria',
   i18n: 'Translation Settings',
   kpis: 'KPI Management',
-  imports: 'CSV Imports',
-  'evaluation-data-imports': 'KPI Data Imports',
-  collectors: 'Auto Data Collection',
+  imports: 'KPI Data Ingestion Hub',
+  'evaluation-data-imports': 'KPI Data Ingestion Hub',
+  collectors: 'KPI Data Ingestion Hub',
   cycles: 'Evaluation Cycles',
   calibration: 'Calibration Sessions & Adjustment',
   'my-evaluations': 'My Evaluations',
@@ -79,9 +78,9 @@ const ADMIN_PAGE_TITLES: Record<string, string> = {
   'notification-preferences': 'Notification Preferences',
   'notification-templates': 'Email Templates',
   'notification-logs': 'Email Delivery Logs',
-  'my-report': 'Performance Report',
-  'team-report': 'Team Dashboard',
-  'org-report': 'Organization Dashboard',
+  'my-report': 'Performance Reports',
+  'team-report': 'Performance Reports',
+  'org-report': 'Performance Reports',
 };
 
 function ProtectedLayout() {
@@ -90,10 +89,12 @@ function ProtectedLayout() {
   const { user, logout } = useAuth();
   const { isDark } = useTheme();
 
-  // Extract active menu from URL (e.g. /admin/iam -> iam, /admin/imports/upload -> imports, /reports/kpi-summary -> kpi-summary)
+  // Extract active menu from URL
   const pathParts = location.pathname.split('/');
-  const activeMenu = pathParts.includes('kpi-summary')
-    ? 'kpi-summary'
+  const activeMenu = pathParts.includes('reports') || pathParts.includes('kpi-summary') || pathParts.includes('my-report') || pathParts.includes('team-report') || pathParts.includes('org-report')
+    ? 'reports'
+    : pathParts.includes('ingestion') || pathParts.includes('collectors') || pathParts.includes('imports') || pathParts.includes('evaluation-data-imports')
+    ? 'ingestion'
     : pathParts.length > 2 ? pathParts[2] : 'iam';
   const pageTitle = ADMIN_PAGE_TITLES[activeMenu] ?? 'System Layout';
 
@@ -150,9 +151,12 @@ function ProtectedLayout() {
     <AppLayout
       activeMenuItem={activeMenu}
       onSelectMenuItem={(id) => {
-        if (id === 'imports') navigate('/admin/imports/upload');
+        if (id === 'ingestion') navigate('/admin/ingestion');
+        else if (id === 'reports') navigate('/admin/reports');
+        else if (id === 'imports') navigate('/admin/ingestion?tab=csv');
+        else if (id === 'collectors') navigate('/admin/ingestion?tab=blueprint');
         else if (id === 'employee-search') navigate('/admin/employees/search');
-        else if (id === 'kpi-summary') navigate('/reports/kpi-summary');
+        else if (id === 'kpi-summary') navigate('/admin/reports?scope=summary');
         else navigate(`/admin/${id}`);
       }}
       pageTitle={pageTitle}
@@ -239,14 +243,9 @@ export default function App() {
                   <KpiPage />
                 </ProtectedRoute>
               } />
-              <Route path="/admin/imports" element={
-                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
-                  <ImportHistoryPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/imports/upload" element={
-                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
-                  <ImportUploadPage />
+              <Route path="/admin/ingestion" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER']}>
+                  <DataIngestionHubPage />
                 </ProtectedRoute>
               } />
               <Route path="/admin/imports/:id" element={
@@ -254,16 +253,10 @@ export default function App() {
                   <ImportDetailPage />
                 </ProtectedRoute>
               } />
-              <Route path="/admin/evaluation-data-imports" element={
-                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
-                  <EvaluationDataImportPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/collectors" element={
-                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER']}>
-                  <CollectorPage />
-                </ProtectedRoute>
-              } />
+              <Route path="/admin/collectors" element={<Navigate to="/admin/ingestion?tab=blueprint" replace />} />
+              <Route path="/admin/imports" element={<Navigate to="/admin/ingestion?tab=history" replace />} />
+              <Route path="/admin/imports/upload" element={<Navigate to="/admin/ingestion?tab=csv" replace />} />
+              <Route path="/admin/evaluation-data-imports" element={<Navigate to="/admin/ingestion?tab=api" replace />} />
               <Route path="/admin/cycles" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
                   <EvaluationCycleListPage />
@@ -316,46 +309,31 @@ export default function App() {
                   </Suspense>
                 </ProtectedRoute>
               } />
-              <Route path="/admin/my-report" element={
+              <Route path="/admin/reports" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
-                  <EmployeeReportPage />
+                  <UnifiedPerformanceReportsPage />
                 </ProtectedRoute>
               } />
+              <Route path="/admin/my-report" element={<Navigate to="/admin/reports?scope=my" replace />} />
               <Route path="/admin/my-report/:employeeId" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
                   <EmployeeReportPage />
                 </ProtectedRoute>
               } />
-              <Route path="/admin/team-report" element={
-                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER']}>
-                  <TeamReportPage />
-                </ProtectedRoute>
-              } />
+              <Route path="/admin/team-report" element={<Navigate to="/admin/reports?scope=team" replace />} />
               <Route path="/admin/team-report/:teamId" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER']}>
                   <TeamReportPage />
                 </ProtectedRoute>
               } />
-              <Route path="/admin/org-report" element={
-                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
-                  <OrganizationReportPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/reports/kpi-summary" element={
-                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
-                  <KpiSummaryDashboardPage />
-                </ProtectedRoute>
-              } />
+              <Route path="/admin/org-report" element={<Navigate to="/admin/reports?scope=org" replace />} />
+              <Route path="/reports/kpi-summary" element={<Navigate to="/admin/reports?scope=summary" replace />} />
               <Route path="/reports/employees/:employeeId/kpi-summary" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
                   <KpiSummaryDashboardPage />
                 </ProtectedRoute>
               } />
-              <Route path="/admin/reports/kpi-summary" element={
-                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
-                  <KpiSummaryDashboardPage />
-                </ProtectedRoute>
-              } />
+              <Route path="/admin/reports/kpi-summary" element={<Navigate to="/admin/reports?scope=summary" replace />} />
               <Route path="/admin/reports/employees/:employeeId/kpi-summary" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
                   <KpiSummaryDashboardPage />
