@@ -11,6 +11,8 @@ import { RuleEngine } from '../../../rule-engine/domain/rule-engine.js';
 import { appEventEmitter, AppEvent } from '../../../../shared/events/index.js';
 import { ExplainabilityViewDto, SourceSnapshot } from '../../../evaluation-data-import/domain/evaluation-data-import.types.js';
 import { EvaluationTransitionService } from './evaluation-transition.service.js';
+import { NotificationType } from '../../../notification/domain/notification.types.js';
+import { NotificationService } from '../../../notification/application/notification.service.js';
 
 export class EvaluationService {
   constructor(
@@ -19,8 +21,32 @@ export class EvaluationService {
     private pool: Pool,
     private auditService?: AuditService,
     private ruleEngine?: RuleEngine,
-    private transitionService: EvaluationTransitionService = new EvaluationTransitionService()
+    private transitionService: EvaluationTransitionService = new EvaluationTransitionService(),
+    private notificationService?: NotificationService
   ) {}
+
+  private async resolveUserForEmployee(employeeId: string, client?: PoolClient): Promise<{ userId: string; email: string } | null> {
+    const executor = client ?? this.pool;
+    const res = await executor.query(
+      `SELECT u.id as user_id, u.email
+       FROM employee e
+       JOIN app_user u ON LOWER(u.email) = LOWER(e.email)
+       WHERE e.employee_id = $1
+       LIMIT 1`,
+      [employeeId]
+    );
+    if (res.rows.length === 0) {
+      const userRes = await executor.query(
+        `SELECT id as user_id, email FROM app_user WHERE id = $1 LIMIT 1`,
+        [employeeId]
+      );
+      if (userRes.rows.length > 0) {
+        return { userId: userRes.rows[0].user_id, email: userRes.rows[0].email };
+      }
+      return null;
+    }
+    return { userId: res.rows[0].user_id, email: res.rows[0].email };
+  }
 
   async getMyEvaluations(actor: Actor): Promise<MyEvaluationListItem[]> {
     const isSuperAdminOrHr = actor.role === 'SYSTEM_ADMIN' || actor.role === 'HR_ADMIN';
@@ -229,6 +255,25 @@ export class EvaluationService {
         });
       }
 
+      if (this.notificationService && evaluation.manager_id_snapshot && client) {
+        const managerUser = await this.resolveUserForEmployee(evaluation.manager_id_snapshot, client);
+        if (managerUser) {
+          await this.notificationService.enqueueNotification(
+            {
+              notificationType: NotificationType.SELF_SUBMITTED,
+              relatedEntityType: 'EVALUATION',
+              relatedEntityId: evaluationId,
+              recipientUserAccountId: managerUser.userId,
+              recipientEmail: managerUser.email,
+              contextPayload: {
+                evaluation_id: evaluationId,
+              },
+            },
+            client
+          );
+        }
+      }
+
       appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId });
       return updated;
     };
@@ -293,6 +338,30 @@ export class EvaluationService {
           performedBy: actor.userId,
           source: 'API',
         });
+      }
+
+      if (this.notificationService) {
+        const hrRes = await (client ?? this.pool).query(
+          `SELECT u.id as user_id, u.email
+           FROM app_user u
+           JOIN user_role ur ON ur.user_id = u.id::text
+           JOIN role r ON r.role_id = ur.role_id
+           WHERE r.code IN ('HR_ADMIN', 'SYSTEM_ADMIN')
+           LIMIT 1`
+        );
+        if (hrRes.rows.length > 0 && hrRes.rows[0]) {
+          await this.notificationService.enqueueNotification(
+            {
+              notificationType: NotificationType.MANAGER_SUBMITTED,
+              relatedEntityType: 'EVALUATION',
+              relatedEntityId: evaluationId,
+              recipientUserAccountId: String(hrRes.rows[0].user_id),
+              recipientEmail: String(hrRes.rows[0].email),
+              contextPayload: { evaluation_id: evaluationId },
+            },
+            client
+          );
+        }
       }
 
       appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId });
@@ -433,6 +502,26 @@ export class EvaluationService {
         });
       }
 
+      if (this.notificationService && evaluation.manager_id_snapshot) {
+        const managerUser = await this.resolveUserForEmployee(evaluation.manager_id_snapshot, repositoryClient);
+        if (managerUser) {
+          await this.notificationService.enqueueNotification(
+            {
+              notificationType: NotificationType.CORRECTION_REQUESTED,
+              relatedEntityType: 'EVALUATION',
+              relatedEntityId: evaluationId,
+              recipientUserAccountId: managerUser.userId,
+              recipientEmail: managerUser.email,
+              contextPayload: {
+                evaluation_id: evaluationId,
+                reason: data.reason.trim(),
+              },
+            },
+            client
+          );
+        }
+      }
+
       appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId });
       return updated;
     });
@@ -502,6 +591,25 @@ export class EvaluationService {
           performedBy: actor.userId,
           source: 'API',
         });
+      }
+
+      if (this.notificationService) {
+        const employeeUser = await this.resolveUserForEmployee(evaluation.employee_id, repositoryClient);
+        if (employeeUser) {
+          await this.notificationService.enqueueNotification(
+            {
+              notificationType: NotificationType.RESULT_PUBLISHED,
+              relatedEntityType: 'EVALUATION',
+              relatedEntityId: evaluationId,
+              recipientUserAccountId: employeeUser.userId,
+              recipientEmail: employeeUser.email,
+              contextPayload: {
+                evaluation_id: evaluationId,
+              },
+            },
+            client
+          );
+        }
       }
 
       appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId });

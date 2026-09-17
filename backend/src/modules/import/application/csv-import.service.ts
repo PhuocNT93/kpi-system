@@ -5,12 +5,14 @@ import { randomUUID } from 'crypto';
 import { IImportRepository, ImportJob, ImportRow } from '../domain/import.types.js';
 
 import { EvaluationService } from '../../evaluation/application/services/evaluation.service.js';
+import { NotificationType, NotificationService } from '../../notification/index.js';
 
 export class CsvImportService {
   constructor(
     public importRepo: IImportRepository,
     private pool: Pool,
-    private evaluationService: EvaluationService
+    private evaluationService: EvaluationService,
+    private notificationService?: NotificationService
   ) { }
 
   public async processUpload(
@@ -342,7 +344,7 @@ export class CsvImportService {
       while (hasMore) {
         // Fetch pending valid rows (or all valid if strict mode is implied by validation)
         const rows = await this.importRepo.getImportRows(jobId, ['VALID'], batchSize, offset);
-        if (rows.length === 0) {
+        if (!rows || rows.length === 0) {
           hasMore = false;
           break;
         }
@@ -364,6 +366,28 @@ export class CsvImportService {
         status: finalStatus,
         finished_at: new Date()
       });
+
+      if (this.notificationService && finalStatus === 'COMPLETED') {
+        const userRes = await this.pool.query(
+          'SELECT email FROM app_user WHERE id = $1 LIMIT 1',
+          [actor.userId]
+        );
+        const job = await this.importRepo.getImportJobById(jobId);
+        if (userRes.rows.length > 0 && job) {
+          await this.notificationService.enqueueNotification({
+            notificationType: NotificationType.IMPORT_COMPLETED,
+            relatedEntityType: 'IMPORT_JOB',
+            relatedEntityId: jobId,
+            recipientUserAccountId: actor.userId,
+            recipientEmail: userRes.rows[0].email,
+            contextPayload: {
+              filename: job.file_name,
+              success_count: job.success_rows,
+              error_count: job.error_rows,
+            },
+          });
+        }
+      }
     } catch (error) {
       console.error(`Error processing job ${jobId}:`, error);
       await this.importRepo.updateImportJob({

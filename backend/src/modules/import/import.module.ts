@@ -5,13 +5,18 @@ import { CsvTemplateService } from './application/csv-template.service.js';
 import { CsvImportService } from './application/csv-import.service.js';
 import { ImportController } from './api/import.controller.js';
 import { EvaluationService } from '../evaluation/application/services/evaluation.service.js';
+import { NotificationService } from '../notification/application/notification.service.js';
 
-export function createImportModule(pool: Pool, evaluationService: EvaluationService) {
+export function createImportModule(
+  pool: Pool,
+  evaluationService: EvaluationService,
+  notificationService?: NotificationService
+) {
   const csvTemplateRepo = new PostgresCsvTemplateRepository(pool);
   const importRepo = new PostgresImportRepository(pool);
   
   const csvTemplateService = new CsvTemplateService(csvTemplateRepo);
-  const csvImportService = new CsvImportService(importRepo, pool, evaluationService);
+  const csvImportService = new CsvImportService(importRepo, pool, evaluationService, notificationService);
   
   const importController = new ImportController(csvTemplateService, csvImportService);
 
