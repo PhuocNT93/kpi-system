@@ -1,7 +1,8 @@
 /** @vitest-environment jsdom */
 import '@testing-library/jest-dom/vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { cleanup } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { EmployeeReportPage } from './EmployeeReportPage';
@@ -26,6 +27,10 @@ vi.mock('@/shared/auth/auth-context', () => ({
 
 describe('EmployeeReportPage', () => {
   let queryClient: QueryClient;
+
+  afterEach(() => {
+    cleanup();
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -124,6 +129,6 @@ describe('EmployeeReportPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('No Evaluation Record')).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
   });
 });

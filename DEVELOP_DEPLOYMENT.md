@@ -202,6 +202,11 @@ Configure the `develop` environment with:
 - Vercel `VITE_API_BASE_URL`: the Render develop API URL
 - Render Blueprint: `render.develop.yaml`
 - Render `DATABASE_URL`: the Neon develop pooled connection string, used by the running backend
+- Render `JWT_SECRET`: a randomly generated secret for signing JWT tokens
+- Render `SMTP_USER`: Gmail/Google Workspace address used to send emails (e.g. `noreply@yourcompany.com`)
+- Render `SMTP_PASSWORD`: the Google App Password for `SMTP_USER` (16-character app-specific password, not the Google account password)
+- Render `SMTP_FROM_ADDRESS`: sender display address (can be the same as `SMTP_USER`)
+- Render `PORTAL_BASE_URL`: the full public URL of the Render backend, used to build action links inside notification emails (e.g. `https://kpi-system-develop-api.onrender.com`)
 - A Render deploy hook belonging to the develop service
 - GitHub `DEVELOP_DATABASE_URL`: the same Neon develop pooled connection string, used only by the manual migration/seed job
 
@@ -264,3 +269,24 @@ Limitations to be aware of:
 - The keep-alive job fails with an empty URL: `DEVELOP_API_BASE_URL` is missing from the GitHub Environment `develop`.
 - The keep-alive job returns `503`: the API is up but Neon is unreachable. Check the Neon project state and the `DATABASE_URL` value configured on Render.
 - The first request of the day is still slow: check whether the scheduled workflow was disabled by GitHub or delayed, and re-enable it from the Actions tab.
+
+### Network Error: Could not connect to the backend server
+
+This error appears in the frontend when the browser cannot reach the backend URL at all (the fetch request fails before getting any HTTP response). Check:
+
+1. `VITE_API_BASE_URL` is set to the correct Render develop backend URL in the GitHub `develop` environment secret `DEVELOP_API_BASE_URL` (e.g. `https://kpi-system-develop-api.onrender.com`). Vite bakes this value into the frontend bundle at build time — a missing or wrong value means every API call goes to the wrong host.
+2. The Render service is running. Check the Render dashboard for deploy errors or instance suspension.
+3. If the service is on a free Render plan, the first request may take 30–90 seconds (cold start). The frontend will show "The server is starting up" after the timeout.
+
+### SMTP 530 Authentication Required
+
+This error appears when the email notification feature tries to send an email but the SMTP credentials are not configured on Render. Set these variables on the Render dashboard under the develop service's Environment tab:
+
+```text
+SMTP_USER=your-gmail-address@gmail.com
+SMTP_PASSWORD=your-16-char-app-password
+SMTP_FROM_ADDRESS=your-gmail-address@gmail.com
+```
+
+`SMTP_PASSWORD` must be a Google App Password, not your Google account password. Generate one at <https://myaccount.google.com/apppasswords>. The Gmail account must have 2-Step Verification enabled.
+
