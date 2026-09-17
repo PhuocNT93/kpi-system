@@ -20,7 +20,7 @@ import {
 } from '../api/notification.dto.js';
 import { TemplateRendererService } from './template-renderer.service.js';
 import { OutboxWorkerService } from './outbox-worker.service.js';
-import { SmtpSenderService } from './smtp-sender.service.js';
+import type { IEmailSender } from './email-sender.interface.js';
 
 export class NotificationService {
   constructor(
@@ -29,7 +29,7 @@ export class NotificationService {
     private readonly i18nService?: I18nService,
     private readonly auditService?: AuditService,
     private readonly outboxWorker?: OutboxWorkerService,
-    private readonly smtpSender?: SmtpSenderService
+    private readonly smtpSender?: IEmailSender
   ) {}
 
   /**
@@ -356,15 +356,15 @@ export class NotificationService {
       locale
     );
 
-    // 3. Deliver via SMTP
+    // 3. Deliver via configured email provider
     if (!this.smtpSender) {
       return {
         success: false,
-        message: 'SMTP sender is not configured on this server',
+        message: 'Email sender is not configured on this server',
         recipientEmail: input.recipientEmail,
         notificationType: type,
         subject,
-        error: 'SMTP_NOT_CONFIGURED',
+        error: 'EMAIL_SENDER_NOT_CONFIGURED',
       };
     }
 
@@ -385,7 +385,7 @@ export class NotificationService {
 
       return {
         success: true,
-        message: 'Test email successfully sent via Google SMTP',
+        message: 'Test email successfully sent',
         recipientEmail: input.recipientEmail,
         notificationType: type,
         subject,
@@ -405,7 +405,7 @@ export class NotificationService {
 
       return {
         success: false,
-        message: 'Failed to send test email via Google SMTP: ' + errorMsg,
+        message: 'Failed to send test email: ' + errorMsg,
         recipientEmail: input.recipientEmail,
         notificationType: type,
         subject,

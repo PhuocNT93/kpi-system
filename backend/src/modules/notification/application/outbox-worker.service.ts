@@ -4,7 +4,7 @@ import {
   NotificationLog,
   NotificationStatus,
 } from '../domain/notification.types.js';
-import { SmtpSenderService } from './smtp-sender.service.js';
+import type { IEmailSender } from './email-sender.interface.js';
 import { TemplateRendererService } from './template-renderer.service.js';
 
 export interface OutboxWorkerOptions {
@@ -27,7 +27,7 @@ export class OutboxWorkerService {
 
   constructor(
     private readonly notificationRepo: INotificationRepository,
-    private readonly smtpSender: SmtpSenderService,
+    private readonly smtpSender: IEmailSender,
     private readonly templateRenderer: TemplateRendererService,
     options?: OutboxWorkerOptions
   ) {

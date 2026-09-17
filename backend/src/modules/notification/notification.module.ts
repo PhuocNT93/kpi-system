@@ -4,17 +4,18 @@ import { I18nService } from '../i18n/application/i18n.service.js';
 import { AuditService } from '../audit/application/audit.service.js';
 import { PostgresNotificationRepository } from './infrastructure/postgres-notification.repository.js';
 import { TemplateRendererService } from './application/template-renderer.service.js';
-import { SmtpSenderService } from './application/smtp-sender.service.js';
 import { OutboxWorkerService } from './application/outbox-worker.service.js';
 import { NotificationRetentionService } from './application/notification-retention.service.js';
 import { NotificationService } from './application/notification.service.js';
 import { NotificationController } from './api/notification.controller.js';
 import { createNotificationRouter } from './api/notification.router.js';
+import { createEmailSender } from './application/email-sender.factory.js';
+import type { IEmailSender } from './application/email-sender.interface.js';
 
 export interface NotificationModule {
   notificationRepo: PostgresNotificationRepository;
   templateRenderer: TemplateRendererService;
-  smtpSender: SmtpSenderService;
+  emailSender: IEmailSender;
   outboxWorker: OutboxWorkerService;
   retentionService: NotificationRetentionService;
   notificationService: NotificationService;
@@ -27,14 +28,15 @@ export function createNotificationModule(
   i18nService?: I18nService,
   auditService?: AuditService,
   jwtMiddleware?: RequestHandler,
-  customSmtpSender?: SmtpSenderService
+  customSmtpSender?: IEmailSender
 ): NotificationModule {
   const notificationRepo = new PostgresNotificationRepository(pool);
   const templateRenderer = new TemplateRendererService(i18nService);
-  const smtpSender = customSmtpSender ?? new SmtpSenderService();
+  // customSmtpSender is accepted for test injection; otherwise use factory to pick smtp/resend
+  const emailSender: IEmailSender = customSmtpSender ?? createEmailSender();
   const outboxWorker = new OutboxWorkerService(
     notificationRepo,
-    smtpSender,
+    emailSender,
     templateRenderer
   );
   const retentionService = new NotificationRetentionService(notificationRepo);
@@ -45,7 +47,7 @@ export function createNotificationModule(
     i18nService,
     auditService,
     outboxWorker,
-    smtpSender
+    emailSender
   );
 
   const notificationController = new NotificationController(notificationService);
@@ -59,7 +61,7 @@ export function createNotificationModule(
   return {
     notificationRepo,
     templateRenderer,
-    smtpSender,
+    emailSender,
     outboxWorker,
     retentionService,
     notificationService,

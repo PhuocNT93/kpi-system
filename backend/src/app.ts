@@ -57,7 +57,7 @@ export interface AppOptions {
   employeeController?: EmployeeController;
   reportsController?: ReportsController;
   calibrationController?: import('./modules/calibration/api/calibration.controller.js').CalibrationController;
-  customSmtpSender?: import('./modules/notification/application/smtp-sender.service.js').SmtpSenderService;
+  customSmtpSender?: import('./modules/notification/application/email-sender.interface.js').IEmailSender;
 }
 
 export function createApp(options: AppOptions = {}) {

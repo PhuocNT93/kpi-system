@@ -1,10 +1,7 @@
 import nodemailer, { Transporter } from 'nodemailer';
+import type { IEmailSender, SendMailOptions } from './email-sender.interface.js';
 
-export interface SendMailOptions {
-  to: string;
-  subject: string;
-  html: string;
-}
+export type { SendMailOptions };
 
 export interface SmtpConfig {
   host?: string;
@@ -16,17 +13,21 @@ export interface SmtpConfig {
   fromName?: string;
 }
 
-export class SmtpSenderService {
+export class SmtpSenderService implements IEmailSender {
   private transporter: Transporter;
   private readonly fromAddress: string;
   private readonly fromName: string;
+
   constructor(config?: SmtpConfig, customTransporter?: Transporter) {
-    const user = config?.user || process.env.SMTP_USER;
+    const rawUser = config?.user || process.env.SMTP_USER;
+    const user = rawUser?.replace(/^["']|["']$/g, '').trim();
+
     const rawFrom = config?.fromAddress || process.env.SMTP_FROM_ADDRESS;
-    if (!rawFrom || rawFrom.includes('yourdomain.com') || rawFrom.includes('kpi-system.local')) {
-      this.fromAddress = user || rawFrom || 'no-reply@kpi-system.local';
+    const cleanFrom = rawFrom?.replace(/^["']|["']$/g, '').trim();
+    if (!cleanFrom || cleanFrom.includes('yourdomain.com') || cleanFrom.includes('kpi-system.local')) {
+      this.fromAddress = user || cleanFrom || 'no-reply@kpi-system.local';
     } else {
-      this.fromAddress = rawFrom;
+      this.fromAddress = cleanFrom;
     }
     this.fromName = config?.fromName || process.env.SMTP_FROM_NAME || 'Performance Evaluation System';
 
@@ -54,6 +55,13 @@ export class SmtpSenderService {
         port,
         secure,
         auth,
+        // Fail fast on cloud hosting where SMTP ports may be blocked/throttled
+        connectionTimeout: 15_000, // 15 s to establish TCP connection
+        greetingTimeout: 15_000,   // 15 s to receive SMTP greeting
+        socketTimeout: 30_000,     // 30 s idle socket timeout
+        tls: {
+          rejectUnauthorized: false,
+        },
       });
     }
   }
