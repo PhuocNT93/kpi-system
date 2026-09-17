@@ -24,11 +24,11 @@ export const MANAGED_EMPLOYEES: ManagedEmployee[] = [
 
   // ── Maritime Solutions Part (8 nhân sự) ──
   { code: '203755', name: 'Thái Thanh Xuân', username: 'xuanthai', email: 'xuan.thai@cyberlogitec.com', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
-  { code: '247204', name: 'Nguyễn Sỹ Hoàng Lâm', username: 'lamnguyen', email: 'lam.nsh@cyberlogitec.com', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
-  { code: '247222', name: 'Phạm Hữu Thắng', username: 'thangpham', email: 'thang.ph@cyberlogitec.com', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
+  { code: '247204', name: 'Nguyễn Sỹ Hoàng Lâm', username: 'lamnsh', email: 'lam.nsh@cyberlogitec.com', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
+  { code: '247222', name: 'Phạm Hữu Thắng', username: 'thangph', email: 'thang.ph@cyberlogitec.com', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
   { code: '247423', name: 'Chung Quang Phương', username: 'phuongcq', email: 'phuong.cq@cyberlogitec.com', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
   { code: '267036', name: 'Đặng Phước Khoa', username: 'khoadang', email: 'khoa.dang@cyberlogitec.com', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
   { code: '213835', name: 'Đoàn Anh Minh', username: 'minhdoan', email: 'minh.doan@cyberlogitec.com', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
   { code: '193613', name: 'Nguyễn Quang Trung', username: 'trungqn', email: 'trung.nguyenquang@cyberlogitec.com', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
-  { code: '257130', name: 'Nguyễn Minh Quang', username: 'quangnguyen', email: 'quang.ng@cyberlogitec.com', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
+  { code: '257130', name: 'Nguyễn Minh Quang', username: 'quangng', email: 'quang.ng@cyberlogitec.com', team: 'Maritime Solutions Part', role: 'Developer / PIC' },
 ];
