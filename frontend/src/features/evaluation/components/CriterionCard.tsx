@@ -18,6 +18,7 @@ import {
   RefreshCw,
   AlertTriangle,
   Calendar,
+  Sliders,
 } from 'lucide-react';
 import { collectorApi } from '@/features/collector/api/collector-api';
 import type { BlueprintTasksSummary, BlueprintMemberItem } from '@/features/collector/api/collector-api';
@@ -301,6 +302,27 @@ export const CriterionCard: React.FC<CriterionCardProps> = ({
               >
                 {item.criterion_code_snapshot}
               </span>
+
+              {item.manual_override_score !== null && item.manual_override_score !== undefined && (
+                <span
+                  style={{
+                    fontSize: TYPOGRAPHY.fontSize.xs,
+                    fontWeight: 700,
+                    color: '#92400e',
+                    backgroundColor: '#fef3c7',
+                    border: '1px solid #fde68a',
+                    padding: '2px 8px',
+                    borderRadius: RADII.md,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                  title={item.override_reason ? `Lý do: ${item.override_reason}` : undefined}
+                >
+                  <Sliders size={12} />
+                  Đã hiệu chỉnh: {item.manual_override_score}%
+                </span>
+              )}
 
               {isDisabled && (
                 <span

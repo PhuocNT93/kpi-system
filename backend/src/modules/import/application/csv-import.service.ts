@@ -77,7 +77,16 @@ export class CsvImportService {
       idempotency_key: idempotencyKey,
     };
 
-    await this.importRepo.createImportJob(newJob);
+    try {
+      await this.importRepo.createImportJob(newJob);
+    } catch (err: unknown) {
+      if ((err as { code?: string })?.code === '23505') {
+        const dupErr = new Error('This CSV file has already been uploaded for the selected evaluation cycle.') as Error & { code?: string };
+        dupErr.code = 'DUPLICATE_IMPORT';
+        throw dupErr;
+      }
+      throw err;
+    }
 
     // 5. Parse CSV
     const rows = await this.parseCsv(fileBuffer);
@@ -307,6 +316,19 @@ export class CsvImportService {
       throw err;
     }
 
+    // Check if evaluation cycle is locked
+    if (job.evaluation_cycle_id && this.pool && typeof this.pool.query === 'function') {
+      const cycleRes = await this.pool.query(
+        `SELECT status, locked_at FROM evaluation_cycle WHERE evaluation_cycle_id = $1`,
+        [job.evaluation_cycle_id]
+      );
+      if (cycleRes && cycleRes.rows && cycleRes.rows.length > 0 && (cycleRes.rows[0].status === 'LOCKED' || cycleRes.rows[0].locked_at)) {
+        const err = new Error('Cannot import into locked evaluation cycle.') as Error & { code?: string };
+        err.code = 'EVALUATION_LOCKED';
+        throw err;
+      }
+    }
+
     // 4. Determine Execution Mode
     const targetRows = strictMode ? job.total_rows : job.success_rows;
     if (targetRows === 0) {
@@ -428,7 +450,7 @@ export class CsvImportService {
     if (!job) return true;
 
     const evaluationsRes = await this.pool.query(
-      `SELECT evaluation_id, employee_id FROM evaluation WHERE evaluation_cycle_id = $1 AND employee_id = ANY($2)`,
+      `SELECT evaluation_id, employee_id FROM evaluation WHERE evaluation_cycle_id = $1 AND employee_id = ANY($2) AND is_locked = false AND status != 'LOCKED'`,
       [job.evaluation_cycle_id, employeeUuids]
     );
     const evalMap = new Map<string, string>();

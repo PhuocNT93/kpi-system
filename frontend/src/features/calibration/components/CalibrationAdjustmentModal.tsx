@@ -52,7 +52,18 @@ export const CalibrationAdjustmentModal: React.FC<Props> = ({
       await onSubmit(evaluation.evaluationId, scoreNum, reason.trim());
       onClose();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Có lỗi xảy ra khi cập nhật điểm hiệu chuẩn.');
+      const errorObj = err as { status?: number; response?: { status?: number }; message?: string; code?: string };
+      const isConflict =
+        errorObj?.status === 409 ||
+        errorObj?.response?.status === 409 ||
+        errorObj?.message?.includes('409') ||
+        errorObj?.code === 'VERSION_MISMATCH' ||
+        errorObj?.code === 'EVALUATION_LOCKED';
+      setError(
+        isConflict
+          ? 'Xung đột dữ liệu (409 Conflict): Phiếu đánh giá đã bị thay đổi bởi người dùng khác hoặc kỳ đánh giá đã bị khóa. Vui lòng tải lại dữ liệu.'
+          : (err instanceof Error ? err.message : 'Có lỗi xảy ra khi cập nhật điểm hiệu chuẩn.')
+      );
     }
   };
 

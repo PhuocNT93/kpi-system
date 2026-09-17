@@ -382,6 +382,47 @@ describe('Task 42: KPI-Level Manual Override', () => {
         })
       );
     });
+
+    it('recalculates total evaluation score in percentage following KPI-level manual override', async () => {
+      // Setup items: item-1 with weight 60 and manual_override_score 90%; item-2 with weight 40 and raw_score 80%
+      const item1: EvaluationItem = {
+        ...sampleItem,
+        evaluation_item_id: 'item-1',
+        kpi_id_snapshot: 'kpi-1',
+        weight_snapshot: 100,
+        kpi_weight_snapshot: 60,
+        manual_override_score: 90,
+      };
+      const item2: EvaluationItem = {
+        ...sampleItem,
+        evaluation_item_id: 'item-2',
+        kpi_id_snapshot: 'kpi-2',
+        weight_snapshot: 100,
+        kpi_weight_snapshot: 40,
+        raw_score: 80,
+        level_definition_snapshot: [{ level: 1, score_value: 100 }],
+        manual_override_score: null,
+      };
+
+      mockEvaluationItemRepo.findByEvaluationId.mockResolvedValue([item1, item2]);
+      mockEvaluationItemRepo.update.mockResolvedValue(item1);
+
+      await service.overrideKpiScore('eval-1', 'item-1', hrActorWithPerm, {
+        manual_override_score: 90,
+        override_reason: 'Adjust KPI 1 to 90%',
+      });
+
+      // Expected total: (90% * 60 + 80% * 40) / 100 = (54 + 32) = 86.00%
+      expect(mockEvaluationRepo.update).toHaveBeenCalledWith(
+        'eval-1',
+        expect.objectContaining({
+          manager_score: 86,
+          final_score: 86,
+          updated_by: 'user-hr-1',
+        }),
+        mockClient
+      );
+    });
   });
 
   describe('HTTP API endpoint: POST /evaluations/:id/kpis/:kpiId/override', () => {

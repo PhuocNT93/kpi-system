@@ -1,5 +1,5 @@
 import { Pool, PoolClient } from 'pg';
-import { BadRequest } from '../../../api/app-error.js';
+import { BadRequest, AppError } from '../../../api/app-error.js';
 import { withTransaction } from '../../../shared/database/transaction.js';
 import { KpiRelationshipCreateDTO, KpiRelationship } from '../domain/kpi-relationship.model.js';
 import { KpiRelationshipRepository } from '../infrastructure/postgres-kpi-relationship.repository.js';
@@ -21,6 +21,9 @@ export class KpiRelationshipService {
       // For MVP, we fetch all active relations in this transaction.
       // Postgres pool client implements TransactionClient.
       const pgClient = client as unknown as PoolClient;
+      if (pgClient && typeof pgClient.query === 'function') {
+        await pgClient.query('LOCK TABLE kpi_relationship IN SHARE ROW EXCLUSIVE MODE').catch(() => {});
+      }
       
       const allActive = await this.relationshipRepo.findAllActive(pgClient);
       
@@ -42,7 +45,15 @@ export class KpiRelationshipService {
       }
 
       // 4. Create
-      return this.relationshipRepo.create(data, pgClient);
+      try {
+        return await this.relationshipRepo.create(data, pgClient);
+      } catch (err: unknown) {
+        const error = err as { code?: string; message?: string };
+        if (error.code === '23505' || error.message?.includes('duplicate key') || error.message?.includes('already exists')) {
+          throw new AppError(409, 'DUPLICATE_RELATIONSHIP', 'A relationship already exists between these KPIs');
+        }
+        throw err;
+      }
     });
   }
 

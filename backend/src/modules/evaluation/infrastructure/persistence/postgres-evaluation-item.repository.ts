@@ -1,6 +1,7 @@
 import { Pool, PoolClient } from 'pg';
 import { EvaluationItem } from '../../domain/evaluation.types.js';
 import { IEvaluationItemRepository } from '../../domain/repositories.interface.js';
+import { AppError, NotFound } from '../../../../api/app-error.js';
 
 export class PostgresEvaluationItemRepository implements IEvaluationItemRepository {
   constructor(private pool: Pool) {}
@@ -92,14 +93,14 @@ export class PostgresEvaluationItemRepository implements IEvaluationItemReposito
     return res.rows.map(r => this.mapRow(r));
   }
 
-  async update(id: string, item: Partial<EvaluationItem>, client?: PoolClient): Promise<EvaluationItem> {
+  async update(id: string, item: Partial<EvaluationItem>, client?: PoolClient, expectedVersion?: number): Promise<EvaluationItem> {
     const runner = client || this.pool;
     const fields: string[] = [];
     const values: unknown[] = [];
     let idx = 1;
 
     for (const [key, value] of Object.entries(item)) {
-      if (value !== undefined) {
+      if (value !== undefined && key !== 'version') {
         fields.push(`${key} = $${idx++}`);
         values.push(value);
       }
@@ -107,13 +108,31 @@ export class PostgresEvaluationItemRepository implements IEvaluationItemReposito
 
     if (fields.length === 0) throw new Error('No fields to update');
     
+    fields.push(`version = version + 1`);
+    fields.push(`updated_at = CURRENT_TIMESTAMP`);
+
     values.push(id);
-    const res = await runner.query(`
+    let sql = `
       UPDATE evaluation_item
       SET ${fields.join(', ')}
-      WHERE evaluation_item_id = $${idx}
-      RETURNING *
-    `, values);
+      WHERE evaluation_item_id = $${idx++}
+    `;
+
+    const versionToCheck = expectedVersion !== undefined ? expectedVersion : item.version;
+    if (versionToCheck !== undefined) {
+      sql += ` AND version = $${idx++}`;
+      values.push(versionToCheck);
+    }
+
+    sql += ` RETURNING *`;
+
+    const res = await runner.query(sql, values);
+    if (res.rows.length === 0) {
+      if (versionToCheck !== undefined) {
+        throw new AppError(409, 'VERSION_MISMATCH', 'Evaluation item has been modified by another transaction. Please reload and try again.');
+      }
+      throw new NotFound('EvaluationItem');
+    }
     return this.mapRow(res.rows[0]);
   }
 
@@ -131,7 +150,11 @@ export class PostgresEvaluationItemRepository implements IEvaluationItemReposito
     return result.rows.length === 0 ? null : this.mapRow(result.rows[0]);
   }
 
-  async batchUpdate(evaluationId: string, items: { id: string; resolved_level?: number; comment?: string }[], client?: PoolClient): Promise<void> {
+  async batchUpdate(
+    evaluationId: string,
+    items: { id: string; resolved_level?: number; comment?: string; version?: number }[],
+    client?: PoolClient
+  ): Promise<void> {
     if (!items.length) return;
     
     let shouldRelease = false;
@@ -146,12 +169,24 @@ export class PostgresEvaluationItemRepository implements IEvaluationItemReposito
 
     try {
       for (const item of items) {
-        await trxClient.query(
-          `UPDATE evaluation_item 
-           SET resolved_level = $1, comment = $2, updated_at = CURRENT_TIMESTAMP
-           WHERE evaluation_item_id = $3 AND evaluation_id = $4`,
-          [item.resolved_level, item.comment, item.id, evaluationId]
-        );
+        if (item.version !== undefined) {
+          const res = await trxClient.query(
+            `UPDATE evaluation_item 
+             SET resolved_level = $1, comment = $2, updated_at = CURRENT_TIMESTAMP, version = version + 1
+             WHERE evaluation_item_id = $3 AND evaluation_id = $4 AND version = $5`,
+            [item.resolved_level, item.comment, item.id, evaluationId, item.version]
+          );
+          if (res.rowCount === 0) {
+            throw new AppError(409, 'VERSION_MISMATCH', 'Evaluation item has been modified by another transaction. Please reload and try again.');
+          }
+        } else {
+          await trxClient.query(
+            `UPDATE evaluation_item 
+             SET resolved_level = $1, comment = $2, updated_at = CURRENT_TIMESTAMP, version = version + 1
+             WHERE evaluation_item_id = $3 AND evaluation_id = $4`,
+            [item.resolved_level, item.comment, item.id, evaluationId]
+          );
+        }
       }
       if (shouldRelease) {
         await trxClient.query('COMMIT');

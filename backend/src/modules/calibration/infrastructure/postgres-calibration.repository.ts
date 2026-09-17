@@ -289,8 +289,9 @@ export class PostgresCalibrationRepository implements CalibrationRepository {
 
   async isCycleLocked(cycleId: string, client?: TransactionClient): Promise<boolean> {
     const executor = this.getExecutor(client);
+    const lockClause = client ? ' FOR SHARE' : '';
     const result = await executor.query(
-      `SELECT locked_at, status FROM evaluation_cycle WHERE evaluation_cycle_id = $1`,
+      `SELECT locked_at, status FROM evaluation_cycle WHERE evaluation_cycle_id = $1${lockClause}`,
       [cycleId]
     );
     if (result.rows.length === 0) return false;

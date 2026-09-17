@@ -161,10 +161,10 @@ export class ImportController {
       });
     } catch (err: unknown) {
       const error = err as Error & { code?: string };
-      if (error.code === 'DUPLICATE_IMPORT') {
+      if (error.code === 'DUPLICATE_IMPORT' || (err as { code?: string })?.code === '23505') {
         return response.status(409).json({
           success: false,
-          message: error.message,
+          message: 'This CSV file has already been uploaded for the selected evaluation cycle.',
           data: null,
           meta: {
             request_id: requestId,
@@ -225,6 +225,17 @@ export class ImportController {
       
       if (error.code === 'NOT_FOUND') {
         return response.status(404).json({ success: false, message: error.message });
+      }
+      if (error.code === 'EVALUATION_LOCKED') {
+        return response.status(409).json({
+          success: false,
+          message: error.message,
+          data: null,
+          meta: {
+            request_id: requestId,
+            error: { code: 'EVALUATION_LOCKED', field: null, details: [] }
+          }
+        });
       }
       if (error.code === 'INVALID_STATUS' || error.code === 'STRICT_MODE_VIOLATION') {
         return response.status(400).json({ success: false, message: error.message });

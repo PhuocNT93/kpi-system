@@ -71,6 +71,7 @@ export function CalibrationPage() {
   const sessionDetail = sessionDetailQuery.data;
   const isFinalized = sessionDetail?.session.status === 'FINALIZED';
   const isCycleLocked = selectedCycle?.status === 'LOCKED';
+  const isCalibrationEnabled = selectedCycle?.calibration?.enabled ?? selectedCycle?.calibrationEnabled ?? true;
 
   // Unauthorized screen for non-HR
   if (!isHrAdmin) {
@@ -131,7 +132,19 @@ export function CalibrationPage() {
       });
       setFeedbackMsg({ type: 'success', text: 'Hiệu chuẩn điểm số thành công và đã ghi nhận vào kiểm toán (audit log).' });
     } catch (err: unknown) {
-      setFeedbackMsg({ type: 'error', text: err instanceof Error ? err.message : 'Lỗi khi lưu điểm hiệu chuẩn.' });
+      const errorObj = err as { status?: number; response?: { status?: number }; message?: string; code?: string };
+      const isConflict =
+        errorObj?.status === 409 ||
+        errorObj?.response?.status === 409 ||
+        errorObj?.message?.includes('409') ||
+        errorObj?.code === 'VERSION_MISMATCH' ||
+        errorObj?.code === 'EVALUATION_LOCKED';
+      setFeedbackMsg({
+        type: 'error',
+        text: isConflict
+          ? 'Xung đột dữ liệu (409 Conflict): Phiếu đánh giá đã bị thay đổi bởi người dùng khác hoặc kỳ đánh giá đã bị khóa. Vui lòng làm mới trang để nhận dữ liệu mới nhất.'
+          : (err instanceof Error ? err.message : 'Lỗi khi lưu điểm hiệu chuẩn.'),
+      });
     }
   };
 
@@ -145,9 +158,18 @@ export function CalibrationPage() {
       });
     } catch (err: unknown) {
       setIsFinalizeModalOpen(false);
+      const errorObj = err as { status?: number; response?: { status?: number }; message?: string; code?: string };
+      const isConflict =
+        errorObj?.status === 409 ||
+        errorObj?.response?.status === 409 ||
+        errorObj?.message?.includes('409') ||
+        errorObj?.code === 'CALIBRATION_SESSION_ALREADY_FINALIZED' ||
+        errorObj?.code === 'EVALUATION_LOCKED';
       setFeedbackMsg({
         type: 'error',
-        text: err instanceof Error ? err.message : 'Lỗi khi chốt phiên hiệu chuẩn. Vui lòng làm mới trang và thử lại.',
+        text: isConflict
+          ? 'Xung đột dữ liệu (409 Conflict): Phiên hiệu chuẩn đã được chốt bởi người khác hoặc kỳ đánh giá đã bị khóa. Vui lòng tải lại trang.'
+          : (err instanceof Error ? err.message : 'Lỗi khi chốt phiên hiệu chuẩn. Vui lòng làm mới trang và thử lại.'),
       });
     }
   };
@@ -182,7 +204,7 @@ export function CalibrationPage() {
         </div>
 
         {/* Action button */}
-        {selectedCycleId && !isCycleLocked && (
+        {selectedCycleId && !isCycleLocked && isCalibrationEnabled && (
           <Button size="sm" onClick={() => setIsCreateModalOpen(true)}>
             <PlusCircle size={16} style={{ marginRight: '6px' }} />
             Tạo phiên hiệu chuẩn mới
@@ -234,6 +256,28 @@ export function CalibrationPage() {
           <Lock size={18} />
           <span>
             <strong>Kỳ đánh giá đã bị khóa (LOCKED):</strong> Tất cả các phiên hiệu chuẩn thuộc kỳ đánh giá này đều ở chế độ chỉ đọc. Không thể tạo mới hay điều chỉnh điểm số.
+          </span>
+        </div>
+      )}
+
+      {/* Calibration disabled banner */}
+      {!isCalibrationEnabled && (
+        <div
+          style={{
+            padding: '12px 18px',
+            borderRadius: RADII.lg,
+            backgroundColor: '#fef2f2',
+            border: '1px solid #fecaca',
+            color: '#991b1b',
+            fontSize: TYPOGRAPHY.fontSize.sm,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+          }}
+        >
+          <AlertTriangle size={18} />
+          <span>
+            <strong>Hiệu chuẩn điểm bị tắt (Calibration Disabled):</strong> Kỳ đánh giá này được cấu hình không áp dụng bước hiệu chuẩn. Đánh giá sẽ chuyển thẳng từ Đang duyệt (REVIEWING) sang Phê duyệt (APPROVED).
           </span>
         </div>
       )}

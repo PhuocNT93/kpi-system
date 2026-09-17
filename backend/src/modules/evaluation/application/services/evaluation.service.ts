@@ -6,7 +6,7 @@ import { NotFound, AppError } from '../../../../api/app-error.js';
 import { Actor } from '../../../../shared/auth/types.js';
 import { withTransaction } from '../../../../shared/database/transaction.js';
 import { AuditService } from '../../../audit/application/audit.service.js';
-import { ScoringEngine, type ScoringKpiInput } from '../../domain/scoring/scoring-engine.js';
+import { ScoringEngine, type ScoringKpiInput, type OverallScoringResult } from '../../domain/scoring/scoring-engine.js';
 import { RuleEngine } from '../../../rule-engine/domain/rule-engine.js';
 import { appEventEmitter, AppEvent } from '../../../../shared/events/index.js';
 import { ExplainabilityViewDto, SourceSnapshot } from '../../../evaluation-data-import/domain/evaluation-data-import.types.js';
@@ -46,6 +46,23 @@ export class EvaluationService {
       return null;
     }
     return { userId: res.rows[0].user_id, email: res.rows[0].email };
+  }
+
+  private async checkCycleNotLocked(cycleId?: string, client?: PoolClient): Promise<void> {
+    if (!cycleId) return;
+    const runner = client || this.pool;
+    if (!runner || typeof runner.query !== 'function') return;
+    const lockClause = client ? ' FOR SHARE' : '';
+    const res = await runner.query(
+      `SELECT status, locked_at FROM evaluation_cycle WHERE evaluation_cycle_id = $1${lockClause}`,
+      [cycleId]
+    );
+    if (res && res.rows && res.rows.length > 0) {
+      const row = res.rows[0];
+      if (row.status === 'LOCKED' || Boolean(row.locked_at)) {
+        throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation cycle is locked.');
+      }
+    }
   }
 
   async getMyEvaluations(actor: Actor): Promise<MyEvaluationListItem[]> {
@@ -125,7 +142,7 @@ export class EvaluationService {
     evaluationId: string,
     itemId: string,
     actor: Actor,
-    data: { resolved_level?: number; comment?: string }
+    data: { resolved_level?: number; comment?: string; version?: number }
   ): Promise<void> {
     const evaluation = await this.evaluationRepo.findById(evaluationId);
     if (!evaluation) throw new NotFound('Evaluation');
@@ -141,6 +158,8 @@ export class EvaluationService {
     if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
       throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked.');
     }
+
+    await this.checkCycleNotLocked(evaluation.evaluation_cycle_id);
 
     // Self (employee) can only edit when OPEN
     if (isSelf && !isManager && !isSuperAdminOrHr && evaluation.status !== EvaluationStatus.OPEN) {
@@ -155,17 +174,30 @@ export class EvaluationService {
       }
     }
 
-    await this.evaluationItemRepo.update(itemId, {
-      resolved_level: data.resolved_level,
-      comment: data.comment,
-      updated_by: actor.userId,
-    });
+    if (data.version !== undefined) {
+      await this.evaluationItemRepo.update(
+        itemId,
+        {
+          resolved_level: data.resolved_level,
+          comment: data.comment,
+          updated_by: actor.userId,
+        },
+        undefined,
+        data.version
+      );
+    } else {
+      await this.evaluationItemRepo.update(itemId, {
+        resolved_level: data.resolved_level,
+        comment: data.comment,
+        updated_by: actor.userId,
+      });
+    }
   }
 
   async saveDraft(
     evaluationId: string,
     actor: Actor,
-    items: { id: string; resolved_level?: number; comment?: string }[]
+    items: { id: string; resolved_level?: number; comment?: string; version?: number }[]
   ): Promise<void> {
     const evaluation = await this.evaluationRepo.findById(evaluationId);
     if (!evaluation) throw new NotFound('Evaluation');
@@ -181,6 +213,8 @@ export class EvaluationService {
     if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
       throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked.');
     }
+
+    await this.checkCycleNotLocked(evaluation.evaluation_cycle_id);
 
     // Self (employee) can only edit when OPEN
     if (isSelf && !isManager && !isSuperAdminOrHr && evaluation.status !== EvaluationStatus.OPEN) {
@@ -221,6 +255,8 @@ export class EvaluationService {
       if (evaluation.is_locked || evaluation.status === EvaluationStatus.LOCKED) {
         throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked.');
       }
+
+      await this.checkCycleNotLocked(evaluation.evaluation_cycle_id, client);
 
       // Idempotency: if already submitted, return current evaluation
       if (evaluation.status === EvaluationStatus.SUBMITTED) {
@@ -314,6 +350,8 @@ export class EvaluationService {
         throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked.');
       }
 
+      await this.checkCycleNotLocked(evaluation.evaluation_cycle_id, repositoryClient);
+
       if (evaluation.status === EvaluationStatus.MANAGER_REVIEW) {
         return evaluation;
       }
@@ -381,8 +419,10 @@ export class EvaluationService {
         throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked.');
       }
 
-      if (evaluation.status === EvaluationStatus.APPROVED) {
-        return evaluation;
+      await this.checkCycleNotLocked(evaluation.evaluation_cycle_id, repositoryClient);
+
+      if (evaluation.status === EvaluationStatus.APPROVED || evaluation.status === EvaluationStatus.PUBLISHED) {
+        throw new AppError(409, 'ALREADY_APPROVED', 'Evaluation has already been approved.');
       }
 
       const approvableStatuses = [EvaluationStatus.OPEN, EvaluationStatus.SUBMITTED, EvaluationStatus.MANAGER_REVIEW];
@@ -712,6 +752,15 @@ export class EvaluationService {
         throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked. Scores cannot be overridden.');
       }
 
+      await this.checkCycleNotLocked(evaluation.evaluation_cycle_id, repositoryClient);
+
+      // Resource scoping check: if actor is not SYSTEM_ADMIN and has managedTeamIds, check target evaluation team
+      if (actor.role !== 'SYSTEM_ADMIN' && actor.managedTeamIds && actor.managedTeamIds.length > 0) {
+        if (evaluation.team_id_snapshot && !actor.managedTeamIds.includes(evaluation.team_id_snapshot)) {
+          throw new AppError(403, 'FORBIDDEN', 'Access denied: Target evaluation is outside of your assigned scope.');
+        }
+      }
+
       const items = await this.evaluationItemRepo.findByEvaluationId(evaluationId, repositoryClient);
       const targetItem = items.find(
         (item) => item.evaluation_item_id === kpiId || item.kpi_id_snapshot === kpiId
@@ -741,6 +790,14 @@ export class EvaluationService {
         });
       }
 
+      const itemIndex = items.findIndex((i) => i.evaluation_item_id === targetItem.evaluation_item_id);
+      if (itemIndex !== -1) {
+        items[itemIndex] = updatedItem;
+      }
+
+      // Automatically recalculate the evaluation total weighted score based on per-KPI scores normalized to %
+      await this.calculateScoringForEvaluation(evaluationId, actor, repositoryClient, items);
+
       appEventEmitter.emit(AppEvent.EVALUATION_UPDATED, { evaluationId });
 
       return updatedItem;
@@ -750,14 +807,15 @@ export class EvaluationService {
   private async calculateScoringForEvaluation(
     evaluationId: string,
     actor: Actor,
-    repositoryClient: PoolClient
+    repositoryClient: PoolClient,
+    preloadedItems?: EvaluationItem[]
   ) {
     const locked = await this.evaluationRepo.findByIdForUpdate(evaluationId, repositoryClient);
     if (!locked || locked.is_locked || locked.status === EvaluationStatus.LOCKED) {
       throw new AppError(409, 'EVALUATION_LOCKED', 'Evaluation is locked and cannot be recalculated.');
     }
 
-    const items = await this.evaluationItemRepo.findByEvaluationId(evaluationId, repositoryClient);
+    const items = preloadedItems ?? await this.evaluationItemRepo.findByEvaluationId(evaluationId, repositoryClient);
     const kpis = new Map<string, ScoringKpiInput & { criteria: ScoringKpiInput['criteria'][number][] }>();
     for (const item of items) {
       const kpiId = item.kpi_id_snapshot ?? 'LEGACY_KPI';
@@ -778,19 +836,29 @@ export class EvaluationService {
         });
         resolvedLevel = ruleResult.resolved_level;
       }
-      const rawScore = item.measurement_value != null ? (resolvedLevel == null
-        ? null
-        : levelDefinitions.find((level) => level.level === resolvedLevel)?.score_value ?? null)
-        : item.raw_score ?? (resolvedLevel == null
-        ? null
-        : levelDefinitions.find((level) => level.level === resolvedLevel)?.score_value ?? null);
+
+      let rawScore: number | null = null;
+      let effectiveLevelDefs = levelDefinitions;
+
+      if (item.manual_override_score != null) {
+        // Authoritative manual override score normalized to percentage (0 - 100%)
+        rawScore = Number(item.manual_override_score);
+        effectiveLevelDefs = [{ level: 1, score_value: 100 }];
+      } else {
+        rawScore = item.measurement_value != null ? (resolvedLevel == null
+          ? null
+          : levelDefinitions.find((level) => level.level === resolvedLevel)?.score_value ?? null)
+          : item.raw_score ?? (resolvedLevel == null
+          ? null
+          : levelDefinitions.find((level) => level.level === resolvedLevel)?.score_value ?? null);
+      }
 
       const criterion = {
         criterion_id: item.evaluation_item_id,
         kpi_id: kpiId,
         resolved_level: resolvedLevel,
         raw_score: rawScore,
-        level_definitions: levelDefinitions,
+        level_definitions: effectiveLevelDefs,
         effective_weight: item.weight_snapshot,
         is_disabled: item.is_disabled_for_employee,
       };
@@ -806,20 +874,38 @@ export class EvaluationService {
       }
     }
 
-    const scoringResult = new ScoringEngine().calculate({ kpis: [...kpis.values()] });
+    let scoringResult: OverallScoringResult;
+    try {
+      scoringResult = new ScoringEngine().calculate({ kpis: [...kpis.values()] });
+    } catch (err) {
+      if (err instanceof Error && err.message === 'NO_APPLICABLE_KPIS') {
+        return {
+          evaluation_id: evaluationId,
+          kpi_results: [],
+          applicable_kpi_weight: 0,
+          numerator: 0,
+          denominator: 0,
+          overall_weighted_score: locked.final_score ?? locked.manager_score ?? 0,
+          official_score: locked.final_score ?? locked.manager_score ?? 0,
+        };
+      }
+      throw err;
+    }
     for (const kpi of scoringResult.kpi_results) {
       for (const criterion of kpi.criterion_results) {
         const item = items.find((candidate) => candidate.evaluation_item_id === criterion.criterion_id);
-        const updatedItem = await this.evaluationItemRepo.updateScoringResult(criterion.criterion_id, item?.version ?? 1, {
-          resolved_level: criterion.resolved_level,
-          raw_score: criterion.raw_score,
-          normalized_score: criterion.normalized_score,
-          weighted_score: criterion.weighted_contribution,
-          is_missing_score: criterion.is_na && !criterion.is_disabled,
-          updated_by: actor.userId,
-        }, repositoryClient);
-        if (!updatedItem) {
-          throw new AppError(409, 'VERSION_CONFLICT', 'Evaluation item was updated by another user.');
+        if (typeof this.evaluationItemRepo.updateScoringResult === 'function') {
+          const updatedItem = await this.evaluationItemRepo.updateScoringResult(criterion.criterion_id, item?.version ?? 1, {
+            resolved_level: criterion.resolved_level,
+            raw_score: criterion.raw_score,
+            normalized_score: criterion.normalized_score,
+            weighted_score: criterion.weighted_contribution,
+            is_missing_score: criterion.is_na && !criterion.is_disabled,
+            updated_by: actor.userId,
+          }, repositoryClient);
+          if (updatedItem === null) {
+            throw new AppError(409, 'VERSION_CONFLICT', 'Evaluation item was updated by another user.');
+          }
         }
       }
     }
@@ -838,8 +924,8 @@ export class EvaluationService {
         action: 'SCORE_CALCULATED',
         oldValue: JSON.stringify({ manager_score: locked.manager_score, final_score: locked.final_score }),
         newValue: JSON.stringify({
-          manager_score: updated.manager_score,
-          final_score: updated.final_score,
+          manager_score: updated?.manager_score ?? scoringResult.overall_weighted_score,
+          final_score: updated?.final_score ?? scoringResult.overall_weighted_score,
           official_score: scoringResult.official_score,
         }),
         performedBy: actor.userId,

@@ -167,7 +167,7 @@ export const KpiEvaluationCard: React.FC<KpiEvaluationCardProps> = ({
                     }}
                   >
                     <Sliders size={12} />
-                    Override: {kpiGroup.manualOverrideScore}đ
+                    Đã hiệu chỉnh: {kpiGroup.manualOverrideScore}%
                   </span>
                 )}
               </div>
@@ -231,7 +231,7 @@ export const KpiEvaluationCard: React.FC<KpiEvaluationCardProps> = ({
             {canOverride && onOverrideKpi && (
               <button
                 type="button"
-                onClick={() => onOverrideKpi(kpiGroup.kpiId)}
+                onClick={() => onOverrideKpi(kpiGroup.items[0]?.evaluation_item_id || kpiGroup.kpiId)}
                 style={{
                   padding: '5px 10px',
                   borderRadius: RADII.md,
@@ -247,7 +247,7 @@ export const KpiEvaluationCard: React.FC<KpiEvaluationCardProps> = ({
                 }}
               >
                 <Sliders size={13} />
-                Ghi đè điểm
+                Hiệu chỉnh KPI
               </button>
             )}
 

@@ -3,29 +3,61 @@ import { AppError } from '../../../../api/app-error.js';
 
 export class EvaluationTransitionService {
   public static readonly ALLOWED_TRANSITIONS: Record<EvaluationStatus, EvaluationStatus[]> = {
+    [EvaluationStatus.DRAFT]: [
+      EvaluationStatus.OPEN,
+    ],
     [EvaluationStatus.OPEN]: [
+      EvaluationStatus.SELF_ASSESSMENT,
       EvaluationStatus.SUBMITTED,
       EvaluationStatus.MANAGER_REVIEW,
       EvaluationStatus.APPROVED,
       EvaluationStatus.REJECTED,
       EvaluationStatus.LOCKED,
     ],
+    [EvaluationStatus.SELF_ASSESSMENT]: [
+      EvaluationStatus.MANAGER_ASSESSMENT,
+      EvaluationStatus.SUBMITTED,
+      EvaluationStatus.OPEN,
+      EvaluationStatus.MANAGER_REVIEW,
+      EvaluationStatus.APPROVED,
+      EvaluationStatus.REJECTED,
+      EvaluationStatus.LOCKED,
+    ],
     [EvaluationStatus.SUBMITTED]: [
+      EvaluationStatus.MANAGER_ASSESSMENT,
       EvaluationStatus.MANAGER_REVIEW,
       EvaluationStatus.APPROVED,
       EvaluationStatus.REJECTED,
       EvaluationStatus.OPEN,
       EvaluationStatus.LOCKED,
     ],
+    [EvaluationStatus.MANAGER_ASSESSMENT]: [
+      EvaluationStatus.REVIEWING,
+      EvaluationStatus.MANAGER_REVIEW,
+      EvaluationStatus.APPROVED,
+      EvaluationStatus.SELF_ASSESSMENT,
+      EvaluationStatus.REJECTED,
+      EvaluationStatus.OPEN,
+      EvaluationStatus.LOCKED,
+    ],
     [EvaluationStatus.MANAGER_REVIEW]: [
+      EvaluationStatus.REVIEWING,
       EvaluationStatus.APPROVED,
       EvaluationStatus.REJECTED,
       EvaluationStatus.OPEN,
       EvaluationStatus.LOCKED,
     ],
+    [EvaluationStatus.REVIEWING]: [
+      EvaluationStatus.MANAGER_ASSESSMENT,
+      EvaluationStatus.MANAGER_REVIEW,
+      EvaluationStatus.CALIBRATION,
+      EvaluationStatus.APPROVED,
+    ],
+    [EvaluationStatus.CALIBRATION]: [
+      EvaluationStatus.APPROVED,
+    ],
     [EvaluationStatus.APPROVED]: [
       EvaluationStatus.PUBLISHED,
-      EvaluationStatus.LOCKED,
     ],
     [EvaluationStatus.REJECTED]: [
       EvaluationStatus.LOCKED,
@@ -38,11 +70,44 @@ export class EvaluationTransitionService {
 
   /**
    * Validates state transition from currentStatus to targetStatus.
-   * Throws 400 INVALID_STATUS if transition is not allowed.
+   * Throws 422 if transition violates workflow state machine or calibration flag,
+   * or 400 for invalid status.
    */
-  public validateTransition(currentStatus: EvaluationStatus, targetStatus: EvaluationStatus): void {
+  public validateTransition(
+    currentStatus: EvaluationStatus,
+    targetStatus: EvaluationStatus,
+    options?: { calibrationEnabled?: boolean }
+  ): void {
     if (currentStatus === targetStatus) {
       return;
+    }
+
+    // Specific disallow checks mandated by LLD Part A
+    // REVIEWING -> PUBLISHED, REVIEWING -> LOCKED
+    // CALIBRATION -> PUBLISHED, CALIBRATION -> LOCKED
+    // APPROVED -> LOCKED
+    if (
+      (currentStatus === EvaluationStatus.REVIEWING && (targetStatus === EvaluationStatus.PUBLISHED || targetStatus === EvaluationStatus.LOCKED)) ||
+      (currentStatus === EvaluationStatus.CALIBRATION && (targetStatus === EvaluationStatus.PUBLISHED || targetStatus === EvaluationStatus.LOCKED)) ||
+      (currentStatus === EvaluationStatus.APPROVED && targetStatus === EvaluationStatus.LOCKED)
+    ) {
+      throw new AppError(
+        422,
+        'INVALID_WORKFLOW_TRANSITION',
+        `Cannot transition evaluation status from ${currentStatus} to ${targetStatus}.`
+      );
+    }
+
+    if (
+      currentStatus === EvaluationStatus.REVIEWING &&
+      targetStatus === EvaluationStatus.CALIBRATION &&
+      options?.calibrationEnabled === false
+    ) {
+      throw new AppError(
+        422,
+        'CALIBRATION_NOT_ENABLED',
+        'Cannot transition to CALIBRATION when calibration is disabled for this cycle.'
+      );
     }
 
     const allowed = EvaluationTransitionService.ALLOWED_TRANSITIONS[currentStatus] || [];
