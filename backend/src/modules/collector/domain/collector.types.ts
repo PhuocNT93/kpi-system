@@ -164,7 +164,7 @@ export interface BlueprintTeamAttendanceSummary {
 
 export interface CollectorMonthlySnapshot {
   id: string;
-  source_type: 'ATTENDANCE' | 'TASKS' | 'VACATION' | 'TEAM_ATTENDANCE';
+  source_type: 'ATTENDANCE' | 'TASKS' | 'VACATION' | 'TEAM_ATTENDANCE' | 'JIRA_TASKS';
   year_month: string;
   target_member: string;
   team_id?: string | null;
@@ -175,3 +175,47 @@ export interface CollectorMonthlySnapshot {
   created_at: Date;
   updated_at: Date;
 }
+
+export interface JiraTaskRecord {
+  id: string;
+  key: string;
+  title: string;
+  projectKey: string;
+  projectName: string;
+  issueType: string;
+  priority: string;
+  status: string;
+  statusCategory: string;
+  isCompleted: boolean;
+  isOnTime: boolean;
+  registeredDate?: string | null;
+  dueDate?: string | null;
+  resolutionDate?: string | null;
+  assignee?: string;
+  reporter?: string;
+  timeSpentHours: number;
+  estimatedHours: number;
+  jiraUrl: string;
+}
+
+export interface JiraTaskSummary {
+  projectName: string;
+  totalTasks: number;
+  completedTasks: number;
+  inProgressTasks: number;
+  onTimeTasks: number;
+  delayedTasks: number;
+  onTimeRate: number;
+  totalHours: number;
+  score10: number;
+  grade: 'S' | 'A' | 'B' | 'C' | 'D';
+  suggestedLevel: number;
+  tasks: JiraTaskRecord[];
+  delayedTaskList: JiraTaskRecord[];
+  username: string;
+  displayName?: string;
+  fromDate?: string | null;
+  toDate?: string | null;
+  filterRole?: string;
+}
+

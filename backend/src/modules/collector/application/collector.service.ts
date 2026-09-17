@@ -11,8 +11,10 @@ import {
   BlueprintTeamMemberAttendance,
   BlueprintOrgTeam,
   CollectorMonthlySnapshot,
+  JiraTaskSummary,
 } from '../domain/collector.types.js';
 import { BlueprintCollector, BlueprintCredentials } from '../plugins/blueprint.collector.js';
+import { JiraCollector, JiraCredentials } from '../plugins/jira.collector.js';
 
 export interface BlueprintSavedConfig {
   id?: string;
@@ -2449,6 +2451,328 @@ export class CollectorService {
        WHERE evaluation_id = $2`,
       [totalScore, evaluationId]
     );
+  }
+
+  // ──────────────────────────── Jira PIM Collector ────────────────────────────
+
+  getJiraCredentials(override?: Partial<JiraCredentials>): JiraCredentials {
+    return {
+      baseUrl: override?.baseUrl || process.env.JIRA_BASE_URL || 'https://pim.cyberlogitec.com/jira',
+      username: override?.username || process.env.JIRA_USERNAME || 'ky.luong',
+      password: override?.password || process.env.JIRA_PASSWORD || 'P210831!',
+    };
+  }
+
+  async getJiraProjects(credentials?: JiraCredentials): Promise<Array<{ key: string; name: string }>> {
+    const creds = this.getJiraCredentials(credentials);
+    const collector = JiraCollector.getInstance(creds);
+    return collector.getProjects();
+  }
+
+  getJiraMembers(): Array<{
+    id: string;
+    jiraUsername: string;
+    name: string;
+    employeeCode: string;
+    role: string;
+    email?: string;
+    part: string;
+  }> {
+    return [
+      // ALLEGRO NX Part (12 members)
+      { id: '163188', jiraUsername: 'ky.luong', name: 'Lương Công Kỳ (163188)', employeeCode: '163188', role: 'Senior Developer / Manager', email: 'ky.luong@cyberlogitec.com', part: 'ALLEGRO NX' },
+      { id: '173232', jiraUsername: '173232', name: 'Nguyễn Quang Đức (173232)', employeeCode: '173232', role: 'Developer / PIC', email: 'duc.nguyen@cyberlogitec.com', part: 'ALLEGRO NX' },
+      { id: '183322', jiraUsername: 'hieu.dao', name: 'Đào Trung Hiếu (183322)', employeeCode: '183322', role: 'Người đăng kí / Requester', email: 'hieu.dao@cyberlogitec.com', part: 'ALLEGRO NX' },
+      { id: '213813', jiraUsername: '213813', name: 'Lê Trọng Ân (213813)', employeeCode: '213813', role: 'Developer', email: 'an.lt@cyberlogitec.com', part: 'ALLEGRO NX' },
+      { id: '213866', jiraUsername: '213866', name: 'Hà Việt Tùng (213866)', employeeCode: '213866', role: 'Developer / PIC', email: 'tung.ha@cyberlogitec.com', part: 'ALLEGRO NX' },
+      { id: '213844', jiraUsername: '213844', name: 'Lê Minh Hy (213844)', employeeCode: '213844', role: 'Developer / PIC', email: 'hy.le@cyberlogitec.com', part: 'ALLEGRO NX' },
+      { id: '227031', jiraUsername: '227031', name: 'Trần Quang Diệm (227031)', employeeCode: '227031', role: 'Người đăng kí / Requester', email: 'diem.tran@cyberlogitec.com', part: 'ALLEGRO NX' },
+      { id: '237157', jiraUsername: '237157', name: 'Nguyễn Bá Ngọc (237157)', employeeCode: '237157', role: 'Developer / PIC', email: 'ngoc.nb@cyberlogitec.com', part: 'ALLEGRO NX' },
+      { id: '237196', jiraUsername: '237196', name: 'Võ Chí Thiện (237196)', employeeCode: '237196', role: 'Người đăng kí / Requester', email: 'thien.vo@cyberlogitec.com', part: 'ALLEGRO NX' },
+      { id: '247203', jiraUsername: '247203', name: 'Phan Huy Nhân (247203)', employeeCode: '247203', role: 'Developer / PIC', email: 'nhan.ph@cyberlogitec.com', part: 'ALLEGRO NX' },
+      { id: '247097', jiraUsername: '247097', name: 'Nguyễn Thành Phước (247097)', employeeCode: '247097', role: 'Developer / PIC', email: 'phuoc.nt@cyberlogitec.com', part: 'ALLEGRO NX' },
+      { id: '203701', jiraUsername: '203701', name: 'Phạm Mai Nhật (203701)', employeeCode: '203701', role: 'Developer / PIC', email: 'nhat.pham@cyberlogitec.com', part: 'ALLEGRO NX' },
+
+      // Maritime Solutions Part (8 members)
+      { id: '203755', jiraUsername: '203755', name: 'Thái Thanh Xuân (203755)', employeeCode: '203755', role: 'Developer / PIC', email: 'xuan.thai@cyberlogitec.com', part: 'Maritime Solutions' },
+      { id: '247204', jiraUsername: '247204', name: 'Nguyễn Sỹ Hoàng Lâm (247204)', employeeCode: '247204', role: 'Developer / PIC', email: 'lam.nsh@cyberlogitec.com', part: 'Maritime Solutions' },
+      { id: '247222', jiraUsername: '247222', name: 'Phạm Hữu Thắng (247222)', employeeCode: '247222', role: 'Developer / PIC', email: 'thang.ph@cyberlogitec.com', part: 'Maritime Solutions' },
+      { id: '247423', jiraUsername: '247423', name: 'Chung Quang Phương (247423)', employeeCode: '247423', role: 'Developer / PIC', email: 'phuong.cq@cyberlogitec.com', part: 'Maritime Solutions' },
+      { id: '267036', jiraUsername: '267036', name: 'Đặng Phước Khoa (267036)', employeeCode: '267036', role: 'Developer / PIC', email: 'khoa.dang@cyberlogitec.com', part: 'Maritime Solutions' },
+      { id: '213835', jiraUsername: '213835', name: 'Đoàn Anh Minh (213835)', employeeCode: '213835', role: 'Developer / PIC', email: 'minh.doan@cyberlogitec.com', part: 'Maritime Solutions' },
+      { id: '193613', jiraUsername: '193613', name: 'Nguyễn Quang Trung (193613)', employeeCode: '193613', role: 'Developer / PIC', email: 'trung.nguyenquang@cyberlogitec.com', part: 'Maritime Solutions' },
+      { id: '257130', jiraUsername: '257130', name: 'Nguyễn Minh Quang (257130)', employeeCode: '257130', role: 'Developer / PIC', email: 'quang.ng@cyberlogitec.com', part: 'Maritime Solutions' },
+    ];
+  }
+
+  async previewJiraTasks(options: {
+    targetUsername: string;
+    displayName?: string;
+    fromDate?: string;
+    toDate?: string;
+    projectFilter?: string;
+    filterRole?: 'assignee' | 'reporter' | 'worklog' | 'both' | 'all';
+    credentials?: JiraCredentials;
+  }): Promise<JiraTaskSummary> {
+    const creds = this.getJiraCredentials(options.credentials);
+    const collector = JiraCollector.getInstance(creds);
+    return collector.previewTasks({
+      targetUsername: options.targetUsername,
+      displayName: options.displayName,
+      fromDate: options.fromDate,
+      toDate: options.toDate,
+      projectFilter: options.projectFilter,
+      filterRole: options.filterRole,
+    });
+  }
+
+  public async applyJiraTasksToCycle(
+    cycleId: string,
+    targetCriterionCode: string,
+    tasksSummary: JiraTaskSummary,
+    explicitEmployeeId?: string,
+    targetMember?: string
+  ): Promise<{ updated: number; score10: number; grade: string; weightedScore: number; comment: string }> {
+    let employeeId = explicitEmployeeId;
+
+    if (!employeeId) {
+      const searchKey = targetMember || tasksSummary.username;
+      const empRes = await this.pool.query(
+        `SELECT e.employee_id
+         FROM employee e
+         LEFT JOIN app_user u ON u.employee_id = e.employee_id
+         WHERE e.email ILIKE $1
+            OR e.employee_code ILIKE $1
+            OR u.email ILIKE $1
+            OR e.full_name ILIKE $1
+         LIMIT 1`,
+        [`%${searchKey}%`]
+      );
+      if (empRes.rows.length > 0) {
+        employeeId = empRes.rows[0].employee_id;
+      } else {
+        const fallbackRes = await this.pool.query(
+          `SELECT employee_id FROM evaluation WHERE evaluation_cycle_id = $1 LIMIT 1`,
+          [cycleId]
+        );
+        if (fallbackRes.rows.length > 0) {
+          employeeId = fallbackRes.rows[0].employee_id;
+        }
+      }
+    }
+
+    if (!employeeId) {
+      return { updated: 0, score10: 0, grade: 'N/A', weightedScore: 0, comment: 'Employee not found' };
+    }
+
+    const evalRes = await this.pool.query(
+      `SELECT evaluation_id FROM evaluation WHERE evaluation_cycle_id = $1 AND employee_id = $2`,
+      [cycleId, employeeId]
+    );
+
+    if (evalRes.rows.length === 0) {
+      return { updated: 0, score10: 0, grade: 'N/A', weightedScore: 0, comment: 'Evaluation not found' };
+    }
+    const evaluationId = evalRes.rows[0].evaluation_id;
+
+    // Find evaluation item for ON_TIME_COMPLETION or KPI #1
+    let itemRes = await this.pool.query(
+      `SELECT evaluation_item_id, weight_snapshot
+       FROM evaluation_item
+       WHERE evaluation_id = $1 AND (criterion_code_snapshot ILIKE $2 OR kpi_code_snapshot ILIKE $2)
+       LIMIT 1`,
+      [evaluationId, `%${targetCriterionCode}%`]
+    );
+
+    if (itemRes.rows.length === 0) {
+      itemRes = await this.pool.query(
+        `SELECT evaluation_item_id, weight_snapshot
+         FROM evaluation_item
+         WHERE evaluation_id = $1 AND (criterion_code_snapshot ILIKE '%ON_TIME%' OR kpi_code_snapshot ILIKE '%ON_TIME%')
+         LIMIT 1`,
+        [evaluationId]
+      );
+    }
+
+    if (itemRes.rows.length === 0) {
+      return { updated: 0, score10: 0, grade: 'N/A', weightedScore: 0, comment: 'Criterion item not found' };
+    }
+
+    const item = itemRes.rows[0];
+    const weight = Number(item.weight_snapshot) || 0.10;
+    const rate = Number(tasksSummary.onTimeRate) || 0;
+    const score10 = tasksSummary.score10;
+    const grade = tasksSummary.grade;
+    const weightedScore = Math.round(score10 * weight * 100) / 100;
+    const suggestedLevel = tasksSummary.suggestedLevel;
+
+    let assessmentText = '';
+    if (rate >= 95) {
+      assessmentText = `Tiến độ task xuất sắc đạt ${rate}% (${tasksSummary.onTimeTasks}/${tasksSummary.totalTasks} task đúng hạn, ${tasksSummary.totalHours}h log). Hoàn thành vượt trội chỉ tiêu KPI cốt lõi.`;
+    } else if (rate >= 90) {
+      assessmentText = `Tiến độ task đạt ${rate}% (${tasksSummary.onTimeTasks}/${tasksSummary.totalTasks} task đúng hạn, trễ ${tasksSummary.delayedTasks} task, ${tasksSummary.totalHours}h log). Đạt chuẩn KPI cốt lõi.`;
+    } else if (rate >= 80) {
+      assessmentText = `Tiến độ task đạt ${rate}%, ghi nhận ${tasksSummary.delayedTasks} task trễ hạn (${tasksSummary.totalHours}h log). Cần tập trung cải thiện tiến độ.`;
+    } else {
+      assessmentText = `Tiến độ task đạt ${rate}%, ghi nhận ${tasksSummary.delayedTasks}/${tasksSummary.totalTasks} task trễ hạn (${tasksSummary.totalHours}h log). Cần chấn chỉnh và đẩy nhanh tiến độ.`;
+    }
+
+    const systemNote = `[Jira PIM UI_PIM_001] ${assessmentText} (Đúng hạn: ${rate}%, Hạng ${grade}, Điểm: ${score10}/10)`;
+
+    await this.pool.query(
+      `UPDATE evaluation_item
+       SET raw_score = $1,
+           normalized_score = $1,
+           weighted_score = $2,
+           system_note = $3,
+           system_suggested_level = $4,
+           system_suggested_score = $1,
+           system_source = 'Jira PIM UI_PIM_001',
+           comment = CASE 
+             WHEN comment IS NULL OR comment = '' OR comment LIKE '[Đánh giá tự động%' 
+             THEN '' 
+             ELSE comment 
+           END,
+           updated_at = NOW(),
+           version = version + 1
+       WHERE evaluation_item_id = $5`,
+      [score10, weightedScore, systemNote, suggestedLevel, item.evaluation_item_id]
+    );
+
+    // Insert measurements
+    await this.pool.query(
+      `INSERT INTO measurement (
+         measurement_id, evaluation_item_id, measurement_key, measurement_value,
+         measurement_unit, source_label, recorded_at
+       ) VALUES (
+         gen_random_uuid(), $1, 'jira_on_time_rate', $2, '%', 'Jira PIM UI_PIM_001', NOW()
+       )`,
+      [item.evaluation_item_id, rate]
+    );
+
+    await this.pool.query(
+      `INSERT INTO measurement (
+         measurement_id, evaluation_item_id, measurement_key, measurement_value,
+         measurement_unit, source_label, recorded_at
+       ) VALUES (
+         gen_random_uuid(), $1, 'jira_total_hours', $2, 'giờ', 'Jira PIM UI_PIM_001', NOW()
+       )`,
+      [item.evaluation_item_id, tasksSummary.totalHours]
+    );
+
+    // Recalculate evaluation totals
+    await this.recalculateEvaluationTotal(evaluationId);
+
+    return { updated: 1, score10, grade, weightedScore, comment: systemNote };
+  }
+
+  async syncJiraTasks(options: {
+    targetUsername: string;
+    displayName?: string;
+    fromDate?: string;
+    toDate?: string;
+    projectFilter?: string;
+    filterRole?: 'assignee' | 'reporter' | 'worklog' | 'both' | 'all';
+    cycleId?: string;
+    employeeId?: string;
+    credentials?: JiraCredentials;
+  }): Promise<{
+    success: boolean;
+    score10: number;
+    grade: string;
+    weightedScore: number;
+    comment: string;
+    tasksSummary: JiraTaskSummary;
+  }> {
+    const creds = this.getJiraCredentials(options.credentials);
+    const summary = await this.previewJiraTasks({
+      targetUsername: options.targetUsername,
+      displayName: options.displayName,
+      fromDate: options.fromDate,
+      toDate: options.toDate,
+      projectFilter: options.projectFilter,
+      filterRole: options.filterRole,
+      credentials: creds,
+    });
+
+    let cycleId = options.cycleId;
+    if (!cycleId) {
+      const cycleRes = await this.pool.query(
+        `SELECT ev.evaluation_cycle_id
+         FROM evaluation ev
+         JOIN employee e ON ev.employee_id = e.employee_id
+         WHERE e.email ILIKE $1 OR e.employee_code ILIKE $1 OR e.full_name ILIKE $1
+         ORDER BY ev.created_at DESC LIMIT 1`,
+        [`%${options.targetUsername}%`]
+      );
+      if (cycleRes.rows.length > 0) {
+        cycleId = cycleRes.rows[0].evaluation_cycle_id;
+      } else {
+        const fallback = await this.pool.query(
+          `SELECT evaluation_cycle_id FROM evaluation ORDER BY created_at DESC LIMIT 1`
+        );
+        if (fallback.rows.length > 0) cycleId = fallback.rows[0].evaluation_cycle_id;
+      }
+    }
+
+    if (!cycleId) {
+      throw new Error('Không tìm thấy kỳ đánh giá khả dụng để đồng bộ điểm');
+    }
+
+    const res = await this.applyJiraTasksToCycle(
+      cycleId,
+      'ON_TIME_COMPLETION',
+      summary,
+      options.employeeId,
+      options.targetUsername
+    );
+
+    // Insert execution log
+    try {
+      const jobRes = await this.pool.query(
+        `SELECT id FROM collector_job WHERE target_criterion_code = 'ON_TIME_COMPLETION' LIMIT 1`
+      );
+      const jobId = jobRes.rows[0]?.id || null;
+      await this.pool.query(
+        `INSERT INTO collector_run_log (job_id, started_at, finished_at, status, records_count, summary)
+         VALUES ($1, NOW(), NOW(), 'SUCCESS', $2, $3)`,
+        [
+          jobId,
+          summary.totalTasks || 0,
+          JSON.stringify({
+            source: 'Manual Sync - Jira PIM (UI_PIM_001)',
+            targetUsername: options.targetUsername,
+            projectFilter: options.projectFilter || 'ALL',
+            filterRole: options.filterRole || 'assignee',
+            fromDate: options.fromDate || null,
+            toDate: options.toDate || null,
+            totalTasks: summary.totalTasks,
+            onTimeRate: summary.onTimeRate,
+            totalHours: summary.totalHours,
+            score10: res.score10,
+            grade: res.grade,
+            updatedItems: res.updated,
+          }),
+        ]
+      );
+      if (jobId) {
+        await this.pool.query(
+          `UPDATE collector_job SET last_run_at = NOW(), last_status = 'SUCCESS' WHERE id = $1`,
+          [jobId]
+        );
+      }
+    } catch {
+      // Non-critical log error
+    }
+
+    return {
+      success: res.updated > 0,
+      score10: res.score10,
+      grade: res.grade,
+      weightedScore: res.weightedScore,
+      comment: res.comment,
+      tasksSummary: summary,
+    };
   }
 
   // ──────────────────────────── Logs ────────────────────────────

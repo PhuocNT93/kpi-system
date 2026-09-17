@@ -261,6 +261,78 @@ export class CollectorController {
     }
   };
 
+  // ──────────────────────────── Jira PIM Collector ────────────────────────────
+
+  getJiraMembers = async (_req: Request, res: Response): Promise<void> => {
+    try {
+      const members = this.collectorService.getJiraMembers();
+      sendSuccess(res, 200, 'Danh sách thành viên Jira PIM tải thành công', members);
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
+    }
+  };
+
+  getJiraProjects = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { username, password, baseUrl } = req.query;
+      const creds = username && password
+        ? { username: String(username), password: String(password), baseUrl: baseUrl ? String(baseUrl) : undefined }
+        : undefined;
+      const projects = await this.collectorService.getJiraProjects(creds);
+      sendSuccess(res, 200, 'Danh sách dự án Jira tải thành công', projects);
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
+    }
+  };
+
+  previewJiraTasks = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { targetUsername, displayName, fromDate, toDate, projectFilter, filterRole, username, password, baseUrl } = req.body;
+      if (!targetUsername) {
+        sendFailure(res, 400, 'Username thành viên cần xem là bắt buộc', 'BAD_REQUEST');
+        return;
+      }
+      const creds = username && password ? { username, password, baseUrl } : undefined;
+      const summary = await this.collectorService.previewJiraTasks({
+        targetUsername,
+        displayName,
+        fromDate,
+        toDate,
+        projectFilter,
+        filterRole,
+        credentials: creds,
+      });
+      sendSuccess(res, 200, 'Jira tasks retrieved successfully', summary);
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
+    }
+  };
+
+  syncJiraTasks = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { targetUsername, displayName, fromDate, toDate, projectFilter, filterRole, cycleId, employeeId, username, password, baseUrl } = req.body;
+      if (!targetUsername) {
+        sendFailure(res, 400, 'Username thành viên là bắt buộc', 'BAD_REQUEST');
+        return;
+      }
+      const creds = username && password ? { username, password, baseUrl } : undefined;
+      const result = await this.collectorService.syncJiraTasks({
+        targetUsername,
+        displayName,
+        fromDate,
+        toDate,
+        projectFilter,
+        filterRole,
+        cycleId,
+        employeeId,
+        credentials: creds,
+      });
+      sendSuccess(res, 200, 'Đã đồng bộ kết quả Jira vào KPI #1 thành công', result);
+    } catch (err: unknown) {
+      sendFailure(res, 500, (err as Error).message, 'INTERNAL_ERROR');
+    }
+  };
+
   // ──────────────────────────── Jobs ────────────────────────────
 
   listJobs = async (_req: Request, res: Response): Promise<void> => {

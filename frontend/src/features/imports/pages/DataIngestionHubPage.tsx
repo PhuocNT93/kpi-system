@@ -4,6 +4,7 @@ import { useAuth } from '@/shared/auth/auth-context';
 import { RADII, TYPOGRAPHY, SHADOWS } from '@/shared/theme';
 import {
   Activity,
+  CheckCircle2,
   FileSpreadsheet,
   Code2,
   History,
@@ -12,11 +13,12 @@ import {
 } from 'lucide-react';
 
 import { CollectorPage } from '@/features/collector/pages/CollectorPage';
+import { JiraCollectorPage } from '@/features/collector/pages/JiraCollectorPage';
 import { ImportUploadPage } from '@/features/imports/pages/ImportUploadPage';
 import { EvaluationDataImportPage } from '@/features/imports/pages/EvaluationDataImportPage';
 import { ImportHistoryPage } from '@/features/imports/pages/ImportHistoryPage';
 
-export type IngestionTabId = 'blueprint' | 'csv' | 'api' | 'history';
+export type IngestionTabId = 'blueprint' | 'jira' | 'csv' | 'api' | 'history';
 
 interface IngestionTabConfig {
   id: IngestionTabId;
@@ -33,16 +35,26 @@ const INGESTION_TABS: IngestionTabConfig[] = [
   {
     id: 'blueprint',
     label: '1. Thu thập Blueprint',
-    badge: 'Real-time API',
+    badge: 'SSO Portal',
     badgeColor: '#2563eb',
     badgeBg: '#eff6ff',
-    description: 'Đối soát Chuyên cần (TAT_029) & Tiến độ Task (PIM_001) trực tiếp theo Team/Nhân sự',
+    description: 'Đối soát Chuyên cần (TAT_029, TAT_028) & Nghỉ phép (TAT_011) theo Team/Nhân sự',
     icon: <Activity size={18} />,
     allowedRoles: ['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER'],
   },
   {
+    id: 'jira',
+    label: '2. Thu thập Jira (PIM)',
+    badge: 'Jira Server API',
+    badgeColor: '#0052cc',
+    badgeBg: '#deebff',
+    description: 'Module 2: Quản lý Task, Giờ làm việc (Worklog) & Tỷ lệ đúng hạn trực tiếp từ Jira Server (UI_PIM_001)',
+    icon: <CheckCircle2 size={18} />,
+    allowedRoles: ['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER'],
+  },
+  {
     id: 'csv',
-    label: '2. Nhập file CSV Hàng loạt',
+    label: '3. Nhập file CSV Hàng loạt',
     badge: 'Batch File',
     badgeColor: '#059669',
     badgeBg: '#ecfdf5',
@@ -52,7 +64,7 @@ const INGESTION_TABS: IngestionTabConfig[] = [
   },
   {
     id: 'api',
-    label: '3. Tích hợp API & Bằng chứng',
+    label: '4. Tích hợp API & Bằng chứng',
     badge: 'Jira / Git JSON',
     badgeColor: '#7c3aed',
     badgeBg: '#f5f3ff',
@@ -62,7 +74,7 @@ const INGESTION_TABS: IngestionTabConfig[] = [
   },
   {
     id: 'history',
-    label: '4. Lịch sử Nhập liệu',
+    label: '5. Lịch sử Nhập liệu',
     badge: 'Audit Trail',
     badgeColor: '#d97706',
     badgeBg: '#fffbeb',
@@ -259,6 +271,12 @@ export const DataIngestionHubPage: React.FC = () => {
         {activeTab === 'blueprint' && (
           <div>
             <CollectorPage />
+          </div>
+        )}
+
+        {activeTab === 'jira' && (
+          <div>
+            <JiraCollectorPage />
           </div>
         )}
 

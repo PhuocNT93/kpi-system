@@ -57,6 +57,12 @@ export function createCollectorRouter(
   router.post('/blueprint/config', ...blueprintGuards, controller.saveBlueprintConfig);
   router.get('/blueprint/members', ...blueprintGuards, controller.getBlueprintMembers);
 
+  // Jira PIM Collector
+  router.get('/jira/members', ...blueprintGuards, controller.getJiraMembers);
+  router.get('/jira/projects', ...blueprintGuards, controller.getJiraProjects);
+  router.post('/jira/preview-tasks', ...blueprintGuards, controller.previewJiraTasks);
+  router.post('/jira/sync-tasks', ...blueprintGuards, controller.syncJiraTasks);
+
   // Jobs
   router.get('/jobs', controller.listJobs);
   router.post('/jobs', controller.createJob);
