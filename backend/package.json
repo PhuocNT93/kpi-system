@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:perf": "vitest run test/performance-benchmarks.test.ts",
+    "test:e2e": "vitest run test/e2e-full-lifecycle.test.ts",
     "test:migrations": "vitest run src/shared/database/migrations.test.ts",
     "seed": "tsx src/modules/iam/infrastructure/seed.ts && node src/modules/configuration/infrastructure/seed/seed-real-members.mjs",
     "seed:iam": "tsx src/modules/iam/infrastructure/seed.ts",
