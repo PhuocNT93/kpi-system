@@ -22,18 +22,29 @@ export class GmailApiSenderService implements IEmailSender {
   private readonly userEmail: string;
   private readonly fromName: string;
 
+  private static cleanString(value: string | undefined): string {
+    if (!value) return '';
+    return value.replace(/^["']|["']$/g, '').replace(/[\r\n\t]+/g, '').trim();
+  }
+
   constructor(config?: GmailApiConfig) {
-    this.clientId = config?.clientId || process.env.GOOGLE_CLIENT_ID || process.env.GMAIL_CLIENT_ID || '';
-    this.clientSecret =
-      config?.clientSecret || process.env.GMAIL_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET || '';
-    this.refreshToken = config?.refreshToken || process.env.GMAIL_REFRESH_TOKEN || '';
-    this.userEmail =
+    this.clientId = GmailApiSenderService.cleanString(
+      config?.clientId || process.env.GOOGLE_CLIENT_ID || process.env.GMAIL_CLIENT_ID
+    );
+    this.clientSecret = GmailApiSenderService.cleanString(
+      config?.clientSecret || process.env.GMAIL_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET
+    );
+    this.refreshToken = GmailApiSenderService.cleanString(
+      config?.refreshToken || process.env.GMAIL_REFRESH_TOKEN
+    );
+    this.userEmail = GmailApiSenderService.cleanString(
       config?.userEmail ||
-      process.env.GMAIL_USER ||
-      process.env.SMTP_USER ||
-      process.env.SMTP_FROM_ADDRESS ||
-      '';
-    this.fromName = config?.fromName || process.env.SMTP_FROM_NAME || 'Performance Evaluation System';
+        process.env.GMAIL_USER ||
+        process.env.SMTP_USER ||
+        process.env.SMTP_FROM_ADDRESS
+    );
+    this.fromName =
+      (config?.fromName || process.env.SMTP_FROM_NAME || 'Performance Evaluation System').trim();
   }
 
   private getClient() {
@@ -117,7 +128,8 @@ export class GmailApiSenderService implements IEmailSender {
 
       const { token } = await oauth2Client.getAccessToken();
       return Boolean(token);
-    } catch {
+    } catch (err) {
+      console.error('[GmailApiSenderService] verifyConnection failed:', err);
       return false;
     }
   }
