@@ -27,12 +27,20 @@ export const LevelSelector: React.FC<LevelSelectorProps> = ({
   onSelectLevel,
   disabled = false,
 }) => {
+  const displayLevels = [...levels].reverse();
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      {levels.map((lvl) => {
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'row',
+        gap: '8px',
+        width: '100%',
+      }}
+    >
+      {displayLevels.map((lvl) => {
         const levelNum = lvl.level ?? lvl.level_no ?? 0;
         const levelLabel = lvl.label_vn || lvl.label_en || lvl.name || `Level ${levelNum}`;
-        const scoreVal = lvl.score ?? lvl.score_value;
         const isSelected = selectedLevel === levelNum;
 
         return (
@@ -44,19 +52,23 @@ export const LevelSelector: React.FC<LevelSelectorProps> = ({
               }
             }}
             style={{
-              padding: '12px 16px',
+              flex: 1,
+              minWidth: 0,
+              padding: '10px 12px',
               borderRadius: RADII.lg,
               border: `1.5px solid ${isSelected ? COLORS.primary.DEFAULT : COLORS.neutral[200]}`,
               backgroundColor: isSelected ? COLORS.primary[50] : disabled ? COLORS.neutral[50] : COLORS.neutral.white,
               cursor: disabled ? 'not-allowed' : 'pointer',
               display: 'flex',
-              alignItems: 'flex-start',
-              gap: '12px',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
               transition: 'all 0.15s ease',
               boxShadow: isSelected ? '0 1px 4px rgba(79, 70, 229, 0.1)' : 'none',
+              textAlign: 'center',
             }}
           >
-            <div style={{ marginTop: '2px', flexShrink: 0 }}>
+            <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
               {isSelected ? (
                 <CheckCircle2 size={18} color={COLORS.primary.DEFAULT} />
               ) : (
@@ -72,45 +84,32 @@ export const LevelSelector: React.FC<LevelSelectorProps> = ({
               )}
             </div>
 
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span
-                  style={{
-                    fontWeight: isSelected ? 600 : 500,
-                    fontSize: TYPOGRAPHY.fontSize.sm,
-                    color: isSelected ? COLORS.primary[900] : COLORS.neutral.textPrimary,
-                  }}
-                >
-                  Mức {levelNum}: {levelLabel}
-                </span>
-                {scoreVal !== undefined && (
-                  <span
-                    style={{
-                      fontSize: TYPOGRAPHY.fontSize.xs,
-                      fontWeight: 600,
-                      color: isSelected ? COLORS.primary[700] : COLORS.neutral.textSecondary,
-                      backgroundColor: isSelected ? COLORS.primary[100] : COLORS.neutral[100],
-                      padding: '2px 8px',
-                      borderRadius: RADII.md,
-                    }}
-                  >
-                    Điểm: {scoreVal}
-                  </span>
-                )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  fontWeight: isSelected ? 600 : 500,
+                  fontSize: TYPOGRAPHY.fontSize.sm,
+                  color: isSelected ? COLORS.primary[900] : COLORS.neutral.textPrimary,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                Mức {levelNum}
               </div>
-
-              {lvl.description && (
-                <div
-                  style={{
-                    fontSize: TYPOGRAPHY.fontSize.xs,
-                    color: COLORS.neutral.textSecondary,
-                    marginTop: '4px',
-                    lineHeight: 1.4,
-                  }}
-                >
-                  {lvl.description}
-                </div>
-              )}
+              <div
+                style={{
+                  fontSize: TYPOGRAPHY.fontSize.xs,
+                  color: COLORS.neutral.textSecondary,
+                  whiteSpace: 'pre-line',
+                  wordBreak: 'break-word',
+                  overflow: 'hidden',
+                  textOverflow: 'clip',
+                  lineHeight: 1.35,
+                }}
+              >
+                {levelLabel}
+              </div>
             </div>
           </div>
         );

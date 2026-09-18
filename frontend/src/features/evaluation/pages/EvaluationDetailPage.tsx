@@ -4,7 +4,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { evaluationApi } from '../api/evaluation-api';
 import { EvaluationStatus } from '../domain/evaluation-models';
 import { EvaluationHeader } from '../components/EvaluationHeader';
-import { EvaluationSummaryPanel } from '../components/EvaluationSummaryPanel';
+import { EvaluationOverviewPanel } from '../components/EvaluationOverviewPanel';
+import { EvaluationScoreSummaryPanel } from '../components/EvaluationScoreSummaryPanel';
+import { EvaluationComparisonEditorPanel } from '../components/EvaluationComparisonEditorPanel';
 import { KpiEvaluationCard } from '../components/KpiEvaluationCard';
 import { SubmitConfirmModal } from '../components/SubmitConfirmModal';
 import { COLORS } from '@/lib/theme';
@@ -77,6 +79,8 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
   const [targetOverrideKpiId, setTargetOverrideKpiId] = useState<string | undefined>(undefined);
   const [reviewActionType, setReviewActionType] = useState<ReviewActionType | null>(null);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [previousEvaluationText, setPreviousEvaluationText] = useState('');
+  const [currentEvaluationText, setCurrentEvaluationText] = useState('');
 
   const showToast = useCallback((type: 'success' | 'error' | 'info', text: string) => {
     setToastMessage({ type, text });
@@ -232,17 +236,6 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
     },
     onError: (err: Error) => {
       showToast('error', err.message || 'Lỗi khi gửi yêu cầu chỉnh sửa.');
-    },
-  });
-
-  const recalculateMutation = useMutation({
-    mutationFn: () => evaluationApi.recalculateEvaluation(id!),
-    onSuccess: () => {
-      showToast('success', 'Đã tính lại điểm đánh giá thành công.');
-      queryClient.invalidateQueries({ queryKey: ['evaluation-detail', id] });
-    },
-    onError: (err: Error) => {
-      showToast('error', err.message || 'Không thể tính lại điểm đánh giá.');
     },
   });
 
@@ -443,18 +436,35 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
     return Array.from(groupsMap.values());
   }, [detail?.items, detail?.scoring_breakdown]);
 
-  const totalSystemScore = useMemo(() => {
-    if (!detail?.items) return null;
-    const systemItems = detail.items.filter(
-      (i) => i.system_suggested_score !== undefined && i.system_suggested_score !== null
-    );
-    if (systemItems.length === 0) return null;
-    const score = systemItems.reduce((sum, i) => {
-      const w = Number(i.weight_snapshot) <= 1 ? Number(i.weight_snapshot) : Number(i.weight_snapshot) / 100;
-      return sum + (Number(i.system_suggested_score) * w);
-    }, 0);
-    return Math.round(score * 100) / 100;
-  }, [detail?.items]);
+  const cycleProgress = useMemo(() => {
+    const anchorDate = detail?.approved_at ?? detail?.published_at ?? detail?.submitted_at;
+    if (!anchorDate) {
+      return { percentage: 0, label: 'N/A', dateLabel: 'Chưa có mốc thời gian' };
+    }
+
+    const parsed = new Date(anchorDate);
+    if (Number.isNaN(parsed.getTime())) {
+      return { percentage: 0, label: 'N/A', dateLabel: 'Chưa có mốc thời gian' };
+    }
+
+    const daysAgo = Math.max(0, Math.floor((Date.now() - parsed.getTime()) / (1000 * 60 * 60 * 24)));
+    const percentage = Math.max(0, Math.min(100, daysAgo * 4));
+
+    return {
+      percentage,
+      label: `${Math.round(percentage)}%`,
+      dateLabel: parsed.toLocaleDateString('vi-VN'),
+    };
+  }, [detail?.approved_at, detail?.published_at, detail?.submitted_at]);
+
+  useEffect(() => {
+    if (!detail) {
+      return;
+    }
+
+    setPreviousEvaluationText((current) => current || `Previous evaluation snapshot\n- Final score: ${detail.final_score ?? 'N/A'}\n- Self score: ${detail.self_score ?? 'N/A'}\n- Manager score: ${detail.manager_score ?? 'N/A'}\n- Approved at: ${detail.approved_at ?? 'N/A'}`);
+    setCurrentEvaluationText((current) => current || `This evaluation notes\n- Status: ${detail.status}\n- Final score: ${detail.final_score ?? 'N/A'}\n- Key items: ${detail.items.length}`);
+  }, [detail]);
 
   const handleApplyAllSystemSuggestions = () => {
     if (!detail?.items) return;
@@ -521,7 +531,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
   // Loading skeleton
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', padding: '24px', maxWidth: '1100px', margin: '0 auto', width: '100%' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', padding: '24px', margin: '0 auto', width: '100%' }}>
         <div style={{ height: '120px', backgroundColor: COLORS.neutral.white, borderRadius: RADII.xl, border: `1px solid ${COLORS.neutral[200]}` }} />
         <div style={{ height: '140px', backgroundColor: COLORS.neutral.white, borderRadius: RADII.xl, border: `1px solid ${COLORS.neutral[200]}` }} />
         <div style={{ height: '260px', backgroundColor: COLORS.neutral.white, borderRadius: RADII.xl, border: `1px solid ${COLORS.neutral[200]}` }} />
@@ -601,7 +611,6 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
         flexDirection: 'column',
         gap: '24px',
         padding: '24px',
-        maxWidth: '1100px',
         margin: '0 auto',
         width: '100%',
         boxSizing: 'border-box',
@@ -679,39 +688,32 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
         submittingLabel={isManagerMode ? 'Đang duyệt...' : 'Đang gửi...'}
       />
 
-      {/* Summary Score Panel */}
-      <EvaluationSummaryPanel
-        status={detail.status}
-        selfScore={detail.self_score}
-        managerScore={detail.manager_score}
-        finalScore={detail.final_score}
-        systemScore={totalSystemScore}
+      <EvaluationOverviewPanel
+        score={detail.final_score ?? detail.manager_score ?? detail.self_score ?? 0}
+        cycleProgress={cycleProgress}
       />
 
-      {isManagerMode && isEditable && !detail.is_locked && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button
-            type="button"
-            onClick={() => recalculateMutation.mutate()}
-            disabled={recalculateMutation.isPending}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 14px',
-              borderRadius: RADII.lg,
-              backgroundColor: COLORS.primary[600],
-              color: COLORS.neutral.white,
-              border: 'none',
-              cursor: recalculateMutation.isPending ? 'wait' : 'pointer',
-              opacity: recalculateMutation.isPending ? 0.7 : 1,
-            }}
-          >
-            <RefreshCw size={15} />
-            {recalculateMutation.isPending ? 'Đang tính điểm...' : 'Tính lại điểm'}
-          </button>
-        </div>
-      )}
+      <EvaluationScoreSummaryPanel
+        score={detail.final_score ?? detail.manager_score ?? detail.self_score ?? 0}
+        grouped={criterionGroups.map((group) => ({
+          key: group.criterionName,
+          accent: COLORS.primary.DEFAULT,
+          criteriaCount: group.kpis.length,
+          average: group.kpis.length > 0
+            ? group.kpis.reduce((sum, kpi) => sum + (kpi.scoringResult?.normalized_score ?? 0), 0) / group.kpis.length
+            : null,
+          weight: group.criterionWeight,
+        }))}
+      />
+
+      <EvaluationComparisonEditorPanel
+        previousValue={previousEvaluationText}
+        currentValue={currentEvaluationText}
+        onPreviousChange={setPreviousEvaluationText}
+        onCurrentChange={setCurrentEvaluationText}
+        onCopyPreviousToCurrent={() => setCurrentEvaluationText(previousEvaluationText)}
+        onClearCurrent={() => setCurrentEvaluationText('')}
+      />
 
       {detail.scoring_breakdown && (
         <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} aria-label="Scoring breakdown">

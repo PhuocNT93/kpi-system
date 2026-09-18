@@ -19,6 +19,7 @@ export class PostgresEvaluationRepository implements IEvaluationRepository {
       manager_score: row.manager_score ? Number(row.manager_score) : undefined,
       final_score: row.final_score ? Number(row.final_score) : undefined,
       scoring_breakdown: typeof row.scoring_breakdown === 'string' ? JSON.parse(row.scoring_breakdown) : row.scoring_breakdown,
+      development_blocks: typeof row.development_blocks === 'string' ? JSON.parse(row.development_blocks) : row.development_blocks,
       submitted_at: row.submitted_at ? new Date(row.submitted_at as string) : undefined,
       approved_at: row.approved_at ? new Date(row.approved_at as string) : undefined,
       published_at: row.published_at ? new Date(row.published_at as string) : undefined,
@@ -152,10 +153,26 @@ export class PostgresEvaluationRepository implements IEvaluationRepository {
     const values: unknown[] = [];
     let idx = 1;
 
+    const normalizeValue = (value: unknown): unknown => {
+      if (value === null || value === undefined) {
+        return value;
+      }
+
+      if (value instanceof Date) {
+        return value;
+      }
+
+      if (Array.isArray(value) || (typeof value === 'object' && value.constructor === Object)) {
+        return JSON.stringify(value);
+      }
+
+      return value;
+    };
+
     for (const [key, value] of Object.entries(evaluation)) {
       if (value !== undefined) {
         fields.push(`${key} = $${idx++}`);
-        values.push(value);
+        values.push(normalizeValue(value));
       }
     }
 

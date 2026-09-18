@@ -1,168 +1,6 @@
-import { COLORS } from "@/shared/theme";
-import { getCriterionName } from "./evaluation-scoring";
+import { COLORS } from '@/lib/theme';
 
-export enum EvaluationStatus {
-  OPEN = 'OPEN',
-  SUBMITTED = 'SUBMITTED',
-  MANAGER_REVIEW = 'MANAGER_REVIEW',
-  APPROVED = 'APPROVED',
-  REJECTED = 'REJECTED',
-  PUBLISHED = 'PUBLISHED',
-  LOCKED = 'LOCKED',
-}
-
-export interface EvaluationCycle {
-  name: string;
-  start_date: string;
-  end_date: string;
-  status: string;
-}
-
-export interface MyEvaluation {
-  evaluation: {
-    evaluation_id: string;
-    evaluation_cycle_id: string;
-    employee_id: string;
-    status: EvaluationStatus;
-    self_score?: number;
-    manager_score?: number;
-    final_score?: number;
-    submitted_at?: string;
-    approved_at?: string;
-    is_locked: boolean;
-  };
-  cycle: EvaluationCycle;
-  employee?: EmployeeSummary;
-}
-
-export interface EvaluationItem {
-  evaluation_item_id: string;
-  evaluation_id: string;
-  template_criterion_id: string;
-  criterion_code_snapshot: string;
-  criterion_name_snapshot: Record<string, string> | string | undefined;
-  weight_snapshot: number;
-  kpi_id_snapshot?: string;
-  kpi_code_snapshot?: string;
-  kpi_name_snapshot?: string;
-  kpi_weight_snapshot?: number;
-  scoring_rule_snapshot: unknown;
-  level_definition_snapshot: unknown;
-  resolved_level?: number;
-  raw_score?: number;
-  normalized_score?: number;
-  weighted_score?: number;
-  is_missing_score: boolean;
-  manual_override_score?: number | null;
-  override_reason?: string | null;
-  comment?: string;
-  system_note?: string | null;
-  system_suggested_level?: number | null;
-  system_suggested_score?: number | null;
-  system_source?: string | null;
-  measurement_value?: number;
-  measurement_key?: string;
-  measurement_unit?: string;
-}
-
-export interface ScoringCriterionResult {
-  criterion_id: string;
-  resolved_level: number | null;
-  raw_score: number | null;
-  max_score: number | null;
-  normalized_score: number | null;
-  effective_weight: number;
-  weighted_contribution: number | null;
-  is_na: boolean;
-  is_disabled: boolean;
-}
-
-export interface ScoringKpiResult {
-  kpi_id: string;
-  kpi_name: string;
-  criterion_results: ScoringCriterionResult[];
-  applicable_weight: number;
-  numerator: number;
-  denominator: number;
-  normalized_score: number | null;
-  effective_weight: number;
-  weighted_contribution: number | null;
-  is_na: boolean;
-}
-
-export interface EvaluationScoringBreakdown {
-  kpi_results: ScoringKpiResult[];
-  applicable_kpi_weight: number;
-  numerator: number;
-  denominator: number;
-  overall_weighted_score: number;
-  official_score: number;
-}
-
-export interface EmployeeSummary {
-  employee_id: string;
-  full_name: string;
-  employee_code: string;
-  email: string;
-  team_name?: string;
-  role_name?: string;
-  join_date?: string;
-  created_at?: string;
-  next_review_due_date?: string;
-}
-
-export interface TeamEvaluation {
-  evaluation: {
-    evaluation_id: string;
-    evaluation_cycle_id: string;
-    employee_id: string;
-    team_id_snapshot?: string;
-    role_id_snapshot?: string;
-    job_level_snapshot?: string;
-    manager_id_snapshot?: string;
-    status: EvaluationStatus;
-    self_score?: number;
-    manager_score?: number;
-    final_score?: number;
-    submitted_at?: string;
-    approved_at?: string;
-    is_locked: boolean;
-    created_at?: string;
-  };
-  employee: EmployeeSummary;
-  cycle: EvaluationCycle;
-}
-
-export interface EvaluationDetail {
-  evaluation_id: string;
-  evaluation_cycle_id: string;
-  employee_id: string;
-  status: EvaluationStatus;
-  self_score?: number;
-  manager_score?: number;
-  final_score?: number;
-  official_score?: number | null;
-  scoring_breakdown?: EvaluationScoringBreakdown;
-  development_blocks?: Array<{
-    title: string;
-    desc?: string;
-    accent?: string;
-    value: string;
-  }>;
-  is_locked?: boolean;
-  submitted_at?: string;
-  approved_at?: string;
-  published_at?: string;
-  locked_at?: string;
-  is_manager_reviewer?: boolean;
-  items: EvaluationItem[];
-}
-
-export function getLocalizedText(val: Record<string, string> | string | undefined, locale: string = 'en'): string {
-  if (!val) return '';
-  if (typeof val === 'string') return val;
-  return val[locale] || val['en'] || Object.values(val)[0] || '';
-}
+import type { EvaluationDetail, EvaluationItem } from './evaluation-models';
 
 export const criterionCategoryConfig = [
   {
@@ -189,11 +27,8 @@ export type CriterionCategory = (typeof criterionCategoryConfig)[number]['key'];
 
 export interface ScoringCriterionKpi {
   label: string;
-  rawScore: number;
-  rawScoreValue: string;
   score: number;
   scoreValue: string;
-  weightPercent: number;
   previous: number;
   weight: string;
   weightValue: string;
@@ -283,13 +118,15 @@ export function getCriterionCategory(item: Pick<EvaluationItem, 'criterion_code_
   return 'Performance';
 }
 
-function parsePercentValue(value: string): number {
-  const numericValue = Number.parseFloat(value.replace('%', ''));
-  return Number.isNaN(numericValue) ? 0 : numericValue;
+export function getCriterionName(snapshot: Record<string, string> | string | undefined, fallback?: string | null): string {
+  if (!snapshot) return fallback || 'Criterion';
+  if (typeof snapshot === 'string') return snapshot || fallback || 'Criterion';
+  return snapshot.en || Object.values(snapshot)[0] || fallback || 'Criterion';
 }
 
 export function buildEvaluationScoringSummary(evaluationDetail?: EvaluationDetail | null): EvaluationScoringSummary {
   const items = evaluationDetail?.items ?? [];
+
   const criterionMap = new Map<string, ScoringCriterionSummary>();
 
   items.forEach((item) => {
@@ -316,11 +153,8 @@ export function buildEvaluationScoringSummary(evaluationDetail?: EvaluationDetai
 
     criterionEntry.kpis.push({
       label: kpiLabel,
-      rawScore: item.resolved_level ?? 0,
-      rawScoreValue: percentToTenPointScore(item.resolved_level ?? 0),
-      score: (item.resolved_level ?? 0) * normalizeStoredPercentValue(item.kpi_weight_snapshot) / 100,
-      scoreValue: percentToTenPointScore(item.resolved_level ?? 0),
-      weightPercent: normalizeStoredPercentValue(item.kpi_weight_snapshot),
+      score: item.resolved_level ?? 0,
+      scoreValue: percentToTenPointScore(item.resolved_level),
       previous: item.raw_score ?? 0,
       weight: 'of KPI',
       weightValue: formatStoredPercent(item.kpi_weight_snapshot),
@@ -331,10 +165,10 @@ export function buildEvaluationScoringSummary(evaluationDetail?: EvaluationDetai
     criterionEntry.weightValue = formatStoredPercent(totalCriterionWeight);
 
     const childScores = criterionEntry.kpis.map((kpi) => kpi.score);
-    criterionEntry.rawScore = childScores.length > 0 ? childScores.reduce((sum, value) => sum + value, 0) : 0;
-    criterionEntry.weightedScore = criterionEntry.rawScore * (totalCriterionWeight / 100) / 20;
-    criterionEntry.rawScoreValue = `${(criterionEntry.rawScore * (totalCriterionWeight / 100)).toFixed(2)}%`;
-    criterionEntry.weightedScoreValue = criterionEntry.weightedScore.toFixed(2);
+    criterionEntry.rawScore = childScores.length > 0 ? childScores.reduce((sum, value) => sum + value, 0) / childScores.length : 0;
+    criterionEntry.weightedScore = criterionEntry.rawScore * (totalCriterionWeight / 100) / 10;
+    criterionEntry.rawScoreValue = `${(criterionEntry.rawScore * (totalCriterionWeight / 100)).toFixed(1)}%`;
+    criterionEntry.weightedScoreValue = criterionEntry.weightedScore.toFixed(1);
     criterionEntry.score = criterionEntry.weightedScore;
     criterionEntry.scoreValue = criterionEntry.weightedScoreValue;
     criterionMap.set(criterionKey, criterionEntry);
@@ -342,9 +176,13 @@ export function buildEvaluationScoringSummary(evaluationDetail?: EvaluationDetai
 
   const criteria = Array.from(criterionMap.values());
   const grouped = criterionCategoryConfig.map((config) => {
-    const groupCriteria = criteria.filter((criterion) => criterion.category === config.key).map((criterion) => criterion.weightedScore);
-    let average = groupCriteria.length > 0 ? groupCriteria.reduce((sum, value) => sum + value, 0) / groupCriteria.length : 0;
-    average = average * (config.weight / 100);
+    const groupCriteria = criteria
+      .filter((criterion) => criterion.category === config.key)
+      .map((criterion) => criterion.weightedScore);
+
+    const average = groupCriteria.length > 0
+      ? groupCriteria.reduce((sum, value) => sum + value, 0) / groupCriteria.length
+      : null;
 
     return {
       ...config,
@@ -354,7 +192,7 @@ export function buildEvaluationScoringSummary(evaluationDetail?: EvaluationDetai
   });
 
   const totalScore = grouped.reduce((sum, group) => sum + (group.average ?? 0), 0);
-  const totalRawScoreValue = criteria.reduce((sum, criterion) => sum + parsePercentValue(criterion.rawScoreValue), 0);
+  const totalRawScoreValue = criteria.reduce((sum, criterion) => sum + (criterion.score * 10), 0);
 
   return { criteria, grouped, totalScore, totalRawScoreValue };
 }

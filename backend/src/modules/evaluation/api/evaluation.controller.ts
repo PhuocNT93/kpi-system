@@ -57,6 +57,18 @@ export class EvaluationController {
     }
   };
 
+  saveDevelopmentBlocks = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const actor = this.getActor(req);
+      const id = req.params.id as string;
+      const { developmentBlocks } = req.body;
+      await this.evaluationService.saveDevelopmentBlocks(id, actor, Array.isArray(developmentBlocks) ? developmentBlocks : []);
+      sendSuccess(res, 200, 'Development blocks saved successfully.', null);
+    } catch (err) {
+      next(err);
+    }
+  };
+
   saveItemDraft = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const actor = this.getActor(req);

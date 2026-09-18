@@ -58,11 +58,11 @@ const parseCriterionName = (raw: unknown): string => {
 };
 
 const DEFAULT_COMPANY_LEVELS: LevelItem[] = [
-  { level: 5, level_no: 5, label_vn: 'Xuất sắc (100% chỉ tiêu - Vượt kỳ vọng)', score: 10, description: 'Hoàn thành 100% chỉ tiêu với chất lượng và tiến độ vượt trội.' },
-  { level: 4, level_no: 4, label_vn: 'Đạt chuẩn tốt (>= 90% chỉ tiêu)', score: 8, description: 'Hoàn thành tốt các chỉ tiêu theo đúng cam kết.' },
-  { level: 3, level_no: 3, label_vn: 'Cần cải thiện (80% - 89% chỉ tiêu)', score: 6, description: 'Đạt một phần chỉ tiêu, cần nỗ lực cải thiện hơn.' },
-  { level: 2, level_no: 2, label_vn: 'Chưa đạt yêu cầu (70% - 79% chỉ tiêu)', score: 5, description: 'Chưa đạt mức tiêu chuẩn quy định.' },
-  { level: 1, level_no: 1, label_vn: 'Không hoàn thành (< 70% chỉ tiêu)', score: 3, description: 'Chỉ tiêu không đạt, vi phạm tiến độ hoặc kỷ luật.' },
+  { level: 5, level_no: 5, label_vn: 'Xuất sắc (100%)', score: 10, description: 'Hoàn thành 100% chỉ tiêu với chất lượng và tiến độ vượt trội.' },
+  { level: 4, level_no: 4, label_vn: 'Đạt chuẩn tốt\n(>= 90%)', score: 8, description: 'Hoàn thành tốt các chỉ tiêu theo đúng cam kết.' },
+  { level: 3, level_no: 3, label_vn: 'Cần cải thiện\n(80% - 89%)', score: 6, description: 'Đạt một phần chỉ tiêu, cần nỗ lực cải thiện hơn.' },
+  { level: 2, level_no: 2, label_vn: 'Chưa đạt yêu cầu\n(70% - 79%)', score: 5, description: 'Chưa đạt mức tiêu chuẩn quy định.' },
+  { level: 1, level_no: 1, label_vn: 'Không hoàn thành\n(< 70%)', score: 3, description: 'Chỉ tiêu không đạt, vi phạm tiến độ hoặc kỷ luật.' },
 ];
 
 export const CriterionCard: React.FC<CriterionCardProps> = ({
@@ -110,11 +110,11 @@ export const CriterionCard: React.FC<CriterionCardProps> = ({
     if (snap.length > 0) return snap;
     if (isCoreKpi) {
       return [
-        { level: 5, level_no: 5, label_vn: 'Xuất sắc (100% chỉ tiêu - Vượt kỳ vọng)', score: 10, description: 'Hoàn thành 100% chỉ tiêu với chất lượng và tiến độ vượt trội.' },
-        { level: 4, level_no: 4, label_vn: 'Đạt chuẩn KPI Cốt lõi ★ (>= 90% chỉ tiêu)', score: 9, description: 'Hoàn thành tốt các chỉ tiêu cam kết của KPI cốt lõi rất quan trọng.' },
-        { level: 3, level_no: 3, label_vn: 'Cần cải thiện (80% - 89% chỉ tiêu)', score: 6, description: 'Đạt một phần chỉ tiêu, cần nỗ lực cải thiện hơn.' },
-        { level: 2, level_no: 2, label_vn: 'Chưa đạt yêu cầu (70% - 79% chỉ tiêu)', score: 5, description: 'Chưa đạt mức tiêu chuẩn quy định.' },
-        { level: 1, level_no: 1, label_vn: 'Không hoàn thành (< 70% chỉ tiêu)', score: 3, description: 'Chỉ tiêu không đạt, vi phạm tiến độ hoặc kỷ luật.' },
+        { level: 5, level_no: 5, label_vn: 'Xuất sắc\n(100%)', score: 10, description: 'Hoàn thành 100% chỉ tiêu với chất lượng và tiến độ vượt trội.' },
+        { level: 4, level_no: 4, label_vn: 'Đạt KPI ★\n(>= 90%)', score: 9, description: 'Hoàn thành tốt các chỉ tiêu cam kết của KPI cốt lõi rất quan trọng.' },
+        { level: 3, level_no: 3, label_vn: 'Cần cải thiện\n(80% - 89%)', score: 6, description: 'Đạt một phần chỉ tiêu, cần nỗ lực cải thiện hơn.' },
+        { level: 2, level_no: 2, label_vn: 'Chưa đạt yêu cầu\n(70% - 79%)', score: 5, description: 'Chưa đạt mức tiêu chuẩn quy định.' },
+        { level: 1, level_no: 1, label_vn: 'Không hoàn thành\n(< 70%)', score: 3, description: 'Chỉ tiêu không đạt, vi phạm tiến độ hoặc kỷ luật.' },
       ];
     }
     return DEFAULT_COMPANY_LEVELS;
