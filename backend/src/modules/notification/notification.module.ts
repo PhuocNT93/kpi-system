@@ -32,7 +32,7 @@ export function createNotificationModule(
 ): NotificationModule {
   const notificationRepo = new PostgresNotificationRepository(pool);
   const templateRenderer = new TemplateRendererService(i18nService);
-  // customSmtpSender is accepted for test injection; otherwise use factory to pick smtp/resend
+  // customSmtpSender is accepted for test injection; otherwise use factory to pick smtp/gmail
   const emailSender: IEmailSender = customSmtpSender ?? createEmailSender();
   const outboxWorker = new OutboxWorkerService(
     notificationRepo,
