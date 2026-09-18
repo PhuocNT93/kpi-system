@@ -28,6 +28,7 @@ export interface Evaluation {
   final_score?: number;
   official_score?: number | null;
   scoring_breakdown?: Record<string, unknown>;
+  development_blocks?: Array<Record<string, unknown>>;
   submitted_at?: Date;
   approved_at?: Date;
   published_at?: Date;

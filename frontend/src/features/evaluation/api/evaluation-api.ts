@@ -20,6 +20,13 @@ export const evaluationApi = {
     return putApi(`${EVALUATIONS_BASE}/${id}/items`, { items });
   },
 
+  saveDevelopmentBlocks: async (
+    id: string,
+    developmentBlocks: Array<{ title: string; desc?: string; accent?: string; value: string }>
+  ): Promise<void> => {
+    return putApi(`${EVALUATIONS_BASE}/${id}/development-blocks`, { developmentBlocks });
+  },
+
   saveItemDraft: async (id: string, itemId: string, item: { resolved_level?: number; comment?: string }): Promise<void> => {
     return putApi(`${EVALUATIONS_BASE}/${id}/items/${itemId}`, item);
   },
