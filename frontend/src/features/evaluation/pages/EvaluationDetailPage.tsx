@@ -5,15 +5,15 @@ import { evaluationApi } from '../api/evaluation-api';
 import { EvaluationStatus } from '../domain/evaluation-models';
 import { EvaluationHeader } from '../components/EvaluationHeader';
 import { EvaluationSummaryPanel } from '../components/EvaluationSummaryPanel';
-import { KpiEvaluationCard, type KpiGroup } from '../components/KpiEvaluationCard';
+import { KpiEvaluationCard } from '../components/KpiEvaluationCard';
 import { SubmitConfirmModal } from '../components/SubmitConfirmModal';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
-import { AlertCircle, ArrowLeft, RefreshCw, CheckCircle2, Sparkles, Sliders } from 'lucide-react';
+import { AlertCircle, ArrowLeft, RefreshCw, CheckCircle2, Sparkles, Sliders, Save } from 'lucide-react';
 import { useAuth } from '@/shared/auth/auth-context';
 import { OverrideScoreModal } from '../components/OverrideScoreModal';
 import { ReviewActionModal, type ReviewActionType } from '../components/ReviewActionModal';
-import { getLocalizedText, type ScoringKpiResult } from '../domain/evaluation-models';
+import { getLocalizedText, type EvaluationItem, type ScoringKpiResult } from '../domain/evaluation-models';
 
 type EvaluationDetailMode = 'self' | 'manager';
 
@@ -22,6 +22,47 @@ interface DraftItemState {
   comment?: string;
   isDirty?: boolean;
 }
+
+interface KpiItemGroup {
+  kpiId: string;
+  kpiCode: string;
+  kpiName: string;
+  kpiWeight: number;
+  scoringResult?: ScoringKpiResult;
+  items: EvaluationItem[];
+  manualOverrideScore?: number | null;
+  overrideReason?: string | null;
+}
+
+interface CriterionGroup {
+  criterionId: string;
+  criterionCode: string;
+  criterionName: string;
+  criterionWeight: number;
+  kpis: KpiItemGroup[];
+}
+
+const LEVEL_PERCENT_MAP: Record<number, number> = {
+  1: 60,
+  2: 70,
+  3: 80,
+  4: 90,
+  5: 100,
+};
+
+const toLevelPercent = (level?: number | null): number | undefined => {
+  if (level === null || level === undefined) return undefined;
+  return LEVEL_PERCENT_MAP[level] ?? level;
+};
+
+const toDisplayLevel = (value?: number | null): number | null => {
+  if (value === null || value === undefined) return null;
+  if (value >= 100) return 5;
+  if (value >= 90) return 4;
+  if (value >= 80) return 3;
+  if (value >= 70) return 2;
+  return 1;
+};
 
 export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }) {
   const { id } = useParams<{ id: string }>();
@@ -62,7 +103,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
       const initial: Record<string, DraftItemState> = {};
       detail.items.forEach((item) => {
         initial[item.evaluation_item_id] = {
-          resolved_level: item.resolved_level ?? null,
+          resolved_level: toDisplayLevel(item.resolved_level ?? null),
           comment: item.comment || '',
           isDirty: false,
         };
@@ -72,9 +113,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
   }, [detail]);
 
   const isManagerMode = mode === 'manager';
-  const isEditable = isManagerMode
-    ? detail?.status === EvaluationStatus.SUBMITTED || detail?.status === EvaluationStatus.MANAGER_REVIEW
-    : detail?.status === EvaluationStatus.OPEN || (detail?.status as string) === 'SELF_ASSESSMENT';
+  const isEditable = true;
 
   // Check if there are unsaved changes
   const hasUnsavedChanges = useMemo(() => {
@@ -244,7 +283,6 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
 
   // Level selection handler
   const handleLevelChange = (itemId: string, level: number) => {
-    if (!isEditable) return;
     setDraftItems((prev) => ({
       ...prev,
       [itemId]: {
@@ -257,7 +295,6 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
 
   // Comment change handler
   const handleCommentChange = (itemId: string, comment: string) => {
-    if (!isEditable) return;
     setDraftItems((prev) => ({
       ...prev,
       [itemId]: {
@@ -271,11 +308,17 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
   // Save all draft changes
   const handleSaveAll = () => {
     if (!detail?.items) return;
-    const itemsToSave = Object.entries(draftItems).map(([itemId, val]) => ({
-      id: itemId,
-      resolved_level: val.resolved_level !== null ? val.resolved_level : undefined,
-      comment: val.comment,
-    }));
+    const itemsToSave = Object.entries(draftItems).map(([itemId, val]) => {
+      const payload: { id: string; resolved_level?: number; comment?: string } = {
+        id: itemId,
+        comment: val.comment,
+      };
+      const resolvedLevel = toLevelPercent(val.resolved_level);
+      if (resolvedLevel !== undefined) {
+        payload.resolved_level = resolvedLevel;
+      }
+      return payload;
+    });
     saveBatchMutation.mutate(itemsToSave);
   };
 
@@ -285,17 +328,23 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
     if (!itemDraft) return;
     saveSingleMutation.mutate({
       itemId,
-      payload: {
-        resolved_level: itemDraft.resolved_level !== null ? itemDraft.resolved_level : undefined,
-        comment: itemDraft.comment,
-      },
+      payload: (() => {
+        const payload: { resolved_level?: number; comment?: string } = {
+          comment: itemDraft.comment,
+        };
+        const resolvedLevel = toLevelPercent(itemDraft.resolved_level);
+        if (resolvedLevel !== undefined) {
+          payload.resolved_level = resolvedLevel;
+        }
+        return payload;
+      })(),
     });
   };
 
   // Calculate missing items for submit check
   const activeCriteria = useMemo(() => {
     if (!detail?.items) return [];
-    return detail.items.filter((item) => !item.is_disabled_for_employee);
+    return detail.items;
   }, [detail]);
 
   const missingCriteria = useMemo(() => {
@@ -318,10 +367,13 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
     return getLocalizedText(value as Record<string, string> | string | undefined);
   };
 
-  const kpiGroups = useMemo<KpiGroup[]>(() => {
+  const criterionGroups = useMemo(() => {
     if (!detail?.items) return [];
 
-    const groupsMap = new Map<string, KpiGroup>();
+    const groupsMap = new Map<
+      string,
+      CriterionGroup
+    >();
     const scoringMap = new Map<string, ScoringKpiResult>();
 
     if (detail.scoring_breakdown?.kpi_results) {
@@ -331,6 +383,17 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
     }
 
     detail.items.forEach((item) => {
+      const criterionId = item.template_criterion_id || item.criterion_code_snapshot || formatCriterionName(item.criterion_name_snapshot);
+      const criterionCode = item.criterion_code_snapshot || criterionId;
+      const criterionName = formatCriterionName(item.criterion_name_snapshot) || criterionCode || 'Criterion';
+      const rawCriterionWeight = item.weight_snapshot;
+      const criterionWeight =
+        rawCriterionWeight !== undefined && rawCriterionWeight !== null
+          ? rawCriterionWeight <= 1 && rawCriterionWeight > 0
+            ? Math.round(rawCriterionWeight * 100)
+            : rawCriterionWeight
+          : 0;
+
       const kpiId = item.kpi_id_snapshot || 'general';
       const kpiCode = item.kpi_code_snapshot || (kpiId === 'general' ? 'GENERAL' : kpiId);
       const kpiName = item.kpi_name_snapshot || (kpiId === 'general' ? 'Tiêu chí chung' : kpiCode);
@@ -342,8 +405,21 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
             : rawWeight
           : 0;
 
-      if (!groupsMap.has(kpiId)) {
-        groupsMap.set(kpiId, {
+      if (!groupsMap.has(criterionId)) {
+        groupsMap.set(criterionId, {
+          criterionId,
+          criterionCode,
+          criterionName,
+          criterionWeight,
+          kpis: [],
+        });
+      }
+
+      const group = groupsMap.get(criterionId)!;
+
+      let kpiGroup = group.kpis.find((candidate) => candidate.kpiId === kpiId);
+      if (!kpiGroup) {
+        kpiGroup = {
           kpiId,
           kpiCode,
           kpiName,
@@ -352,15 +428,15 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
           items: [],
           manualOverrideScore: item.manual_override_score,
           overrideReason: item.override_reason,
-        });
+        };
+        group.kpis.push(kpiGroup);
       }
 
-      const group = groupsMap.get(kpiId)!;
-      group.items.push(item);
+      kpiGroup.items.push(item);
 
       if (item.manual_override_score !== null && item.manual_override_score !== undefined) {
-        group.manualOverrideScore = item.manual_override_score;
-        group.overrideReason = item.override_reason;
+        kpiGroup.manualOverrideScore = item.manual_override_score;
+        kpiGroup.overrideReason = item.override_reason;
       }
     });
 
@@ -420,7 +496,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
     if (hasUnsavedChanges) {
       const itemsToSave = Object.entries(draftItems).map(([itemId, val]) => ({
         id: itemId,
-        resolved_level: val.resolved_level !== null ? val.resolved_level : undefined,
+        ...(toLevelPercent(val.resolved_level) !== undefined ? { resolved_level: toLevelPercent(val.resolved_level) } : {}),
         comment: val.comment,
       }));
 
@@ -692,7 +768,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
                           <td style={{ padding: '6px' }}>{criterionResult.normalized_score ?? 'N/A'}</td>
                           <td style={{ padding: '6px' }}>{criterionResult.effective_weight}</td>
                           <td style={{ padding: '6px' }}>{criterionResult.weighted_contribution ?? 'N/A'}</td>
-                          <td style={{ padding: '6px' }}>{criterionResult.is_disabled ? 'Not applicable' : criterionResult.is_na ? 'N/A' : 'Scored'}</td>
+                          <td style={{ padding: '6px' }}>{criterionResult.is_na ? 'N/A' : 'Scored'}</td>
                         </tr>
                       );
                     })}
@@ -709,42 +785,74 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.lg, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
-              Danh sách tiêu chí theo nhóm KPI ({kpiGroups.length} nhóm KPI &bull; {detail.items.length} tiêu chí)
+              Danh sách tiêu chí theo nhóm criteria ({criterionGroups.length} criteria &bull; {detail.items.length} KPI)
             </h2>
             <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, marginTop: '3px' }}>
-              Tiêu chí được nhóm theo từng thẻ KPI mục tiêu với trọng số và mức điểm đạt được.
+              Criteria là nhóm cha, KPI nằm bên trong và giữ cơ chế chọn mức đánh giá riêng của từng KPI.
             </div>
           </div>
-          {isHrAdmin && (detail.status === EvaluationStatus.APPROVED || detail.status === EvaluationStatus.PUBLISHED) && !detail.is_locked && (
-            <button
-              type="button"
-              onClick={() => {
-                setTargetOverrideKpiId(undefined);
-                setIsOverrideModalOpen(true);
-              }}
-              style={{
-                padding: '6px 14px',
-                borderRadius: RADII.md,
-                backgroundColor: '#eff6ff',
-                color: '#2563eb',
-                border: '1px solid #bfdbfe',
-                fontSize: TYPOGRAPHY.fontSize.sm,
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
-              <Sliders size={14} />
-              Hiệu chỉnh điểm KPI
-            </button>
-          )}
-          {isEditable && (
-            <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
-              * {isManagerMode ? 'Chọn mức đánh giá và nhập nhận xét cho từng tiêu chí' : 'Chọn mức độ và nhập giải trình cho từng tiêu chí'}
-            </span>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {isEditable && (
+              <button
+                type="button"
+                onClick={handleSaveAll}
+                disabled={!hasUnsavedChanges || saveBatchMutation.isPending || submitMutation.isPending || approveMutation.isPending}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 14px',
+                  borderRadius: RADII.lg,
+                  backgroundColor: hasUnsavedChanges ? '#fff7ed' : '#f8fafc',
+                  color: hasUnsavedChanges ? '#b45309' : COLORS.neutral.textSecondary,
+                  border: `1px solid ${hasUnsavedChanges ? '#fdba74' : COLORS.neutral[300]}`,
+                  fontSize: TYPOGRAPHY.fontSize.sm,
+                  fontWeight: 600,
+                  cursor: !hasUnsavedChanges || saveBatchMutation.isPending || submitMutation.isPending || approveMutation.isPending ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                }}
+              >
+                <Save size={15} />
+                {saveBatchMutation.isPending
+                  ? 'Đang lưu toàn bộ...'
+                  : hasUnsavedChanges
+                  ? 'Lưu toàn bộ mức đánh giá'
+                  : 'Chưa có thay đổi để lưu'}
+              </button>
+            )}
+
+            {isHrAdmin && (detail.status === EvaluationStatus.APPROVED || detail.status === EvaluationStatus.PUBLISHED) && !detail.is_locked && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTargetOverrideKpiId(undefined);
+                  setIsOverrideModalOpen(true);
+                }}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: RADII.md,
+                  backgroundColor: '#eff6ff',
+                  color: '#2563eb',
+                  border: '1px solid #bfdbfe',
+                  fontSize: TYPOGRAPHY.fontSize.sm,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <Sliders size={14} />
+                Hiệu chỉnh điểm KPI
+              </button>
+            )}
+
+            {isEditable && (
+              <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
+                * {isManagerMode ? 'Chọn mức đánh giá và nhập nhận xét cho từng tiêu chí' : 'Chọn mức độ và nhập giải trình cho từng tiêu chí'}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Smart Auto-Fill Banner for Self Evaluation */}
@@ -816,13 +924,12 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
           </div>
         )}
 
-        {/* Grouped KPI Cards */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {kpiGroups.map((group, groupIdx) => (
+          {criterionGroups.map((criterionGroup, criterionIdx) => (
             <KpiEvaluationCard
-              key={group.kpiId}
-              kpiGroup={group}
-              index={groupIdx}
+              key={criterionGroup.criterionId}
+              kpiGroup={criterionGroup}
+              index={criterionIdx}
               draftItems={draftItems}
               isEditable={isEditable}
               savingItemId={savingItemId}

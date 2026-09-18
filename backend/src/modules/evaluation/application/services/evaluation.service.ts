@@ -891,21 +891,41 @@ export class EvaluationService {
       }
       throw err;
     }
+
+    const updateBatch: Array<{ id: string; expectedVersion: number; patch: Partial<EvaluationItem> }> = [];
     for (const kpi of scoringResult.kpi_results) {
       for (const criterion of kpi.criterion_results) {
         const item = items.find((candidate) => candidate.evaluation_item_id === criterion.criterion_id);
-        if (typeof this.evaluationItemRepo.updateScoringResult === 'function') {
-          const updatedItem = await this.evaluationItemRepo.updateScoringResult(criterion.criterion_id, item?.version ?? 1, {
+        updateBatch.push({
+          id: criterion.criterion_id,
+          expectedVersion: item?.version ?? 1,
+          patch: {
             resolved_level: criterion.resolved_level,
             raw_score: criterion.raw_score,
             normalized_score: criterion.normalized_score,
             weighted_score: criterion.weighted_contribution,
             is_missing_score: criterion.is_na && !criterion.is_disabled,
             updated_by: actor.userId,
-          }, repositoryClient);
-          if (updatedItem === null) {
-            throw new AppError(409, 'VERSION_CONFLICT', 'Evaluation item was updated by another user.');
-          }
+          },
+        });
+      }
+    }
+
+    if (typeof this.evaluationItemRepo.updateScoringResultsBatch === 'function') {
+      const updatedItems = await this.evaluationItemRepo.updateScoringResultsBatch(updateBatch, repositoryClient);
+      if (updatedItems.length !== updateBatch.length) {
+        throw new AppError(409, 'VERSION_CONFLICT', 'Evaluation item was updated by another user.');
+      }
+    } else if (typeof this.evaluationItemRepo.updateScoringResult === 'function') {
+      for (const update of updateBatch) {
+        const updatedItem = await this.evaluationItemRepo.updateScoringResult(
+          update.id,
+          update.expectedVersion,
+          update.patch,
+          repositoryClient
+        );
+        if (updatedItem === null) {
+          throw new AppError(409, 'VERSION_CONFLICT', 'Evaluation item was updated by another user.');
         }
       }
     }

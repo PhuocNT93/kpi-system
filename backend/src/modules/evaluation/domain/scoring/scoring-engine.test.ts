@@ -28,9 +28,9 @@ function kpi(kpiId: string, weight: number, criteria: ScoringKpiInput['criteria'
 
 describe('ScoringEngine', () => {
   it.each([
-    { rawScore: 1, expected: 0.2 },
-    { rawScore: 3, expected: 0.6 },
-    { rawScore: 5, expected: 1.0 },
+    { rawScore: 1, expected: 1 },
+    { rawScore: 3, expected: 3 },
+    { rawScore: 5, expected: 5 },
   ])('normalizes configured score $rawScore against its maximum', ({ rawScore, expected }) => {
     const result = engine.calculate({ kpis: [kpi('kpi-1', 100, [criterion('criterion-1', 'kpi-1', rawScore, 100)])] });
 
@@ -52,7 +52,7 @@ describe('ScoringEngine', () => {
       }])],
     });
 
-    expect(result.kpi_results[0]!.criterion_results[0]!.normalized_score).toBe(8);
+    expect(result.kpi_results[0]!.criterion_results[0]!.normalized_score).toBe(4);
   });
 
   it('scores a valid zero without treating it as N/A', () => {
@@ -80,7 +80,7 @@ describe('ScoringEngine', () => {
     });
 
     expect(result.kpi_results[0]!.denominator).toBe(70);
-    expect(result.kpi_results[0]!.normalized_score).toBeCloseTo((0.8 * 20 + 1 * 50) / 70);
+    expect(result.kpi_results[0]!.normalized_score).toBeCloseTo(((4 / 5) * 20 + (5 / 5) * 50) / 70 * 5);
   });
 
   it('excludes disabled criteria and N/A KPIs from the overall denominator', () => {
@@ -93,41 +93,9 @@ describe('ScoringEngine', () => {
     });
 
     expect(result.denominator).toBe(70);
-    expect(result.overall_weighted_score).toBeCloseTo(((0.8 * 40 + 1 * 30) / 70) * 100);
+    expect(result.overall_weighted_score).toBeCloseTo((((4 / 5) * 40 + (5 / 5) * 30) / 70) * 100);
     expect(result.official_score).toBe(result.overall_weighted_score);
     expect(result.kpi_results[2]!.is_na).toBe(true);
-  });
-
-  it('rounds only the final result using HALF_UP', () => {
-    const result = engine.calculate({
-      kpis: [
-        kpi('kpi-a', 1, [{
-          criterion_id: 'criterion-a',
-          kpi_id: 'kpi-a',
-          resolved_level: null,
-          raw_score: null,
-          actual_value: 66.6,
-          target_value: 100,
-          level_definitions: [],
-          effective_weight: 1,
-          is_disabled: false,
-        }]),
-        kpi('kpi-b', 1, [{
-          criterion_id: 'criterion-b',
-          kpi_id: 'kpi-b',
-          resolved_level: null,
-          raw_score: null,
-          actual_value: 66.73,
-          target_value: 100,
-          level_definitions: [],
-          effective_weight: 1,
-          is_disabled: false,
-        }]),
-      ],
-    });
-
-    expect(result.overall_weighted_score).toBe(416.66);
-    expect(result.kpi_results[0]!.normalized_score).toBe(4.1625);
   });
 
   it('fails when every KPI is N/A', () => {

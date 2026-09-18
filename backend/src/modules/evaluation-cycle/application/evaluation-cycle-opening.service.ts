@@ -390,7 +390,6 @@ export class EvaluationCycleOpeningService {
       for (const tc of criteriaWithApplicability as Record<string, unknown>[]) {
         const currentId = tc.template_criterion_id as string;
         const currentCriterionVersionId = tc.criterion_version_id as string;
-        const currentTemplateKpiId = tc.template_kpi_id as string;
         const legacyCriterionVersionId = legacyCriterionVersionIdByCurrentId.get(currentCriterionVersionId);
         if (!legacyCriterionVersionId) {
           throw new AppError(
@@ -405,9 +404,8 @@ export class EvaluationCycleOpeningService {
            FROM template_criterion
            WHERE evaluation_template_version_id = $1
              AND criterion_version_id = $2
-             AND template_kpi_id = $3
            LIMIT 1`,
-          [legacyTemplateVersionId, legacyCriterionVersionId, currentTemplateKpiId]
+          [legacyTemplateVersionId, legacyCriterionVersionId]
         );
 
         if (legacyRes.rows.length > 0) {
@@ -418,18 +416,16 @@ export class EvaluationCycleOpeningService {
         const legacyInsertRes = await dbClient.query(
           `INSERT INTO template_criterion (
              evaluation_template_version_id,
-             template_kpi_id,
              criterion_version_id,
              effective_weight,
              applicable_role_ids,
              applicable_team_ids,
              is_disabled,
              display_order
-           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7)
            RETURNING template_criterion_id`,
           [
             legacyTemplateVersionId,
-            currentTemplateKpiId,
             legacyCriterionVersionId,
             tc.effective_weight,
             (tc.applicable_role_ids as string[])?.length ? tc.applicable_role_ids : null,
