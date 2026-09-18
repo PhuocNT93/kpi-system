@@ -310,8 +310,17 @@ export class CalibrationService {
           audit.record({
             entityType: 'EVALUATION',
             entityId: evalId,
-            action: 'PUBLISH',
+            action: 'APPROVE',
             oldValue: JSON.stringify({ status: 'CALIBRATION' }),
+            newValue: JSON.stringify({ status: 'APPROVED' }),
+            reason: 'Phê duyệt phiếu đánh giá sau khi chốt phiên hiệu chuẩn điểm',
+            performedBy: actor.userId,
+          });
+          audit.record({
+            entityType: 'EVALUATION',
+            entityId: evalId,
+            action: 'PUBLISH',
+            oldValue: JSON.stringify({ status: 'APPROVED' }),
             newValue: JSON.stringify({ status: 'PUBLISHED' }),
             reason: 'Tự động xuất bản sau khi chốt phiên hiệu chuẩn điểm',
             performedBy: actor.userId,

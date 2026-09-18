@@ -82,6 +82,26 @@ export const KpiEvaluationCard: React.FC<KpiEvaluationCardProps> = ({
                     Trọng số: {kpiGroup.criterionWeight}%
                   </span>
                 )}
+
+                {kpiGroup.kpis.some((k) => k.manualOverrideScore !== null && k.manualOverrideScore !== undefined) && (
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: TYPOGRAPHY.fontSize.xs,
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: RADII.sm,
+                      backgroundColor: '#fef3c7',
+                      color: '#92400e',
+                      border: '1px solid #fde68a',
+                    }}
+                  >
+                    <Sliders size={12} />
+                    Đã hiệu chỉnh
+                  </span>
+                )}
               </div>
 
               <h3 style={{ margin: '4px 0 0', fontSize: TYPOGRAPHY.fontSize.base, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
@@ -104,9 +124,29 @@ export const KpiEvaluationCard: React.FC<KpiEvaluationCardProps> = ({
             )}
 
             {canOverride && onOverrideKpi && (
-              <button type="button" onClick={() => onOverrideKpi(kpiGroup.criterionId)} style={{ padding: '5px 10px', borderRadius: RADII.md, backgroundColor: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const targetKpi = kpiGroup.kpis.find((k) => k.manualOverrideScore !== null && k.manualOverrideScore !== undefined) || kpiGroup.kpis[0];
+                  const itemId = targetKpi?.items[0]?.evaluation_item_id || targetKpi?.kpiId || kpiGroup.criterionId;
+                  onOverrideKpi(itemId);
+                }}
+                style={{
+                  padding: '5px 10px',
+                  borderRadius: RADII.md,
+                  backgroundColor: '#eff6ff',
+                  color: '#2563eb',
+                  border: '1px solid #bfdbfe',
+                  fontSize: TYPOGRAPHY.fontSize.xs,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
                 <Sliders size={13} />
-                Ghi đè điểm
+                Hiệu chỉnh KPI
               </button>
             )}
 

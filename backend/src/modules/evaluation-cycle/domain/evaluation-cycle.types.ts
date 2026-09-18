@@ -34,6 +34,7 @@ export interface EvaluationCycle {
   applicableEmployeeIds: string[];
   approvedBy: string | null;
   lockedAt: string | null;
+  calibrationEnabled?: boolean;
   createdAt: string;
   updatedAt: string;
   createdBy: string | null;

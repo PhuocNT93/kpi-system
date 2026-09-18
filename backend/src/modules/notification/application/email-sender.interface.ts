@@ -1,6 +1,6 @@
 /**
  * Common interface for email sending backends.
- * Both SmtpSenderService and ResendSenderService implement this interface
+ * Both SmtpSenderService and GmailApiSenderService implement this interface
  * so the OutboxWorkerService and NotificationService are decoupled from the
  * transport mechanism.
  */

@@ -9,7 +9,7 @@ import { KpiEvaluationCard } from '../components/KpiEvaluationCard';
 import { SubmitConfirmModal } from '../components/SubmitConfirmModal';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
-import { AlertCircle, ArrowLeft, RefreshCw, CheckCircle2, Sparkles, Save } from 'lucide-react';
+import { AlertCircle, ArrowLeft, RefreshCw, CheckCircle2, Sparkles, Sliders, Save } from 'lucide-react';
 import { useAuth } from '@/shared/auth/auth-context';
 import { OverrideScoreModal } from '../components/OverrideScoreModal';
 import { ReviewActionModal, type ReviewActionType } from '../components/ReviewActionModal';
@@ -74,6 +74,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
   const [draftItems, setDraftItems] = useState<Record<string, DraftItemState>>({});
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
+  const [targetOverrideKpiId, setTargetOverrideKpiId] = useState<string | undefined>(undefined);
   const [reviewActionType, setReviewActionType] = useState<ReviewActionType | null>(null);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
@@ -823,9 +824,12 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
             {isHrAdmin && (detail.status === EvaluationStatus.APPROVED || detail.status === EvaluationStatus.PUBLISHED) && !detail.is_locked && (
               <button
                 type="button"
-                onClick={() => setIsOverrideModalOpen(true)}
+                onClick={() => {
+                  setTargetOverrideKpiId(undefined);
+                  setIsOverrideModalOpen(true);
+                }}
                 style={{
-                  padding: '6px 12px',
+                  padding: '8px 14px',
                   borderRadius: RADII.md,
                   backgroundColor: '#eff6ff',
                   color: '#2563eb',
@@ -833,9 +837,13 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
                   fontSize: TYPOGRAPHY.fontSize.sm,
                   fontWeight: 600,
                   cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
                 }}
               >
-                Override Score
+                <Sliders size={14} />
+                Hiệu chỉnh điểm KPI
               </button>
             )}
 
@@ -930,7 +938,10 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
               onLevelChange={handleLevelChange}
               onCommentChange={handleCommentChange}
               onSaveSingle={handleSaveSingle}
-              onOverrideKpi={() => setIsOverrideModalOpen(true)}
+              onOverrideKpi={(kpiItemId) => {
+                setTargetOverrideKpiId(kpiItemId);
+                setIsOverrideModalOpen(true);
+              }}
             />
           ))}
         </div>
@@ -950,9 +961,13 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
         <OverrideScoreModal
           isOpen={isOverrideModalOpen}
           kpiList={activeCriteria}
+          initialSelectedKpiId={targetOverrideKpiId}
           isSubmitting={overrideMutation.isPending}
           onSubmit={handleOverrideSubmit}
-          onClose={() => setIsOverrideModalOpen(false)}
+          onClose={() => {
+            setIsOverrideModalOpen(false);
+            setTargetOverrideKpiId(undefined);
+          }}
         />
       )}
 

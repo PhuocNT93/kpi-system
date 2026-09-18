@@ -14,10 +14,12 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: EMAIL_PROVIDER
-        value: resend
-      - key: RESEND_API_KEY
+        value: gmail
+      - key: GMAIL_CLIENT_SECRET
         sync: false
-      - key: RESEND_FROM_ADDRESS
+      - key: GMAIL_REFRESH_TOKEN
+        sync: false
+      - key: GMAIL_USER
         sync: false
       - key: JWT_SECRET
         sync: false

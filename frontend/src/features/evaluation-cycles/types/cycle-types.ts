@@ -59,6 +59,7 @@ export interface EvaluationCycleDTO {
   period: PeriodDTO;
   scope: ScopeSelectionDTO;
   calibration: CalibrationConfigDTO;
+  calibrationEnabled?: boolean;
   selfAssessment: SelfAssessmentConfigDTO;
   gracePeriodDays: number;
   evaluationSummary: EvaluationSummaryDTO;

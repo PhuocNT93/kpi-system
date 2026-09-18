@@ -62,8 +62,12 @@ export class EvaluationController {
       const actor = this.getActor(req);
       const id = req.params.id as string;
       const itemId = req.params.itemId as string;
-      const { resolved_level, comment } = req.body;
-      await this.evaluationService.saveItemDraft(id, itemId, actor, { resolved_level, comment });
+      const { resolved_level, comment, version } = req.body;
+      await this.evaluationService.saveItemDraft(id, itemId, actor, {
+        resolved_level,
+        comment,
+        version: version !== undefined && version !== null ? Number(version) : undefined,
+      });
       sendSuccess(res, 200, 'Item draft saved successfully.', null);
     } catch (err) {
       next(err);

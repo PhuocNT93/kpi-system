@@ -259,7 +259,7 @@ export function MyEvaluationPage() {
     const totalScore = grouped.reduce((sum, group) => sum + (group.average ?? 0), 0);
 
     return { grouped, totalScore, totalRawScoreValue };
-  }, [criteria]);
+  }, [criteria, criterionCategoryConfig]);
 
   const currentRank = useMemo(() => {
     if (scoreFormula.totalScore > 4.5) {

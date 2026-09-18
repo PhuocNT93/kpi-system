@@ -16,7 +16,9 @@ import {
   Users,
   RefreshCw,
   AlertTriangle,
+  AlertCircle,
   Calendar,
+  Sliders,
 } from 'lucide-react';
 import { collectorApi } from '@/features/collector/api/collector-api';
 import type { BlueprintTasksSummary, BlueprintMemberItem } from '@/features/collector/api/collector-api';
@@ -284,6 +286,57 @@ export const CriterionCard: React.FC<CriterionCardProps> = ({
               <span style={{ fontSize: TYPOGRAPHY.fontSize.base, fontWeight: 600, color: COLORS.neutral.textPrimary }}>
                 {kpiName}
               </span>
+              <span
+                style={{
+                  fontSize: TYPOGRAPHY.fontSize.xs,
+                  fontWeight: 600,
+                  color: COLORS.neutral[500],
+                  backgroundColor: COLORS.neutral[200],
+                  padding: '2px 6px',
+                  borderRadius: RADII.sm,
+                }}
+              >
+                {item.criterion_code_snapshot}
+              </span>
+
+              {item.manual_override_score !== null && item.manual_override_score !== undefined && (
+                <span
+                  style={{
+                    fontSize: TYPOGRAPHY.fontSize.xs,
+                    fontWeight: 700,
+                    color: '#92400e',
+                    backgroundColor: '#fef3c7',
+                    border: '1px solid #fde68a',
+                    padding: '2px 8px',
+                    borderRadius: RADII.md,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                  title={item.override_reason ? `Lý do: ${item.override_reason}` : undefined}
+                >
+                  <Sliders size={12} />
+                  Đã hiệu chỉnh: {item.manual_override_score}%
+                </span>
+              )}
+
+              {isDisabled && (
+                <span
+                  style={{
+                    fontSize: TYPOGRAPHY.fontSize.xs,
+                    fontWeight: 600,
+                    color: '#b45309',
+                    backgroundColor: '#fef3c7',
+                    padding: '2px 8px',
+                    borderRadius: RADII.md,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <AlertCircle size={12} /> Không áp dụng cho bạn
+                </span>
+              )}
 
               {isDirty && (
                 <span
