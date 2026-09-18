@@ -11,4 +11,5 @@ export const MASTER_ENTITY_TYPES = [
   { value: 'CRITERION', label: 'Criterion (Tiêu chí đánh giá)', defaultFields: ['name', 'description'] },
   { value: 'CRITERION_LEVEL', label: 'Criterion Level (Mức độ tiêu chí)', defaultFields: ['label'] },
   { value: 'EVALUATION_TEMPLATE', label: 'Evaluation Template (Mẫu đánh giá)', defaultFields: ['name', 'description'] },
+  { value: 'AUDIT_UI', label: 'Audit Log UI Strings (Giao diện Nhật ký kiểm toán)', defaultFields: ['page_title', 'page_subtitle', 'modal_title'] },
 ];

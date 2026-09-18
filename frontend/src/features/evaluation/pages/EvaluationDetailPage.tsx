@@ -758,7 +758,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
                     </tr>
                   </thead>
                   <tbody>
-                    {kpiResult.criterion_results.map((criterionResult) => {
+                    {(kpiResult.criterion_results || []).map((criterionResult) => {
                       const item = detail.items.find((candidate) => candidate.evaluation_item_id === criterionResult.criterion_id);
                       return (
                         <tr key={criterionResult.criterion_id}>

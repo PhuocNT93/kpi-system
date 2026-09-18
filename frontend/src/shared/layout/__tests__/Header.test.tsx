@@ -46,4 +46,21 @@ describe('Header Component', () => {
     expect(document.documentElement.classList.contains('dark')).toBe(true);
     expect(screen.getByRole('button', { name: /switch to light mode/i })).toBeInTheDocument();
   });
+
+  it('renders language dropdown and updates locale on change', () => {
+    render(
+      <ThemeProvider defaultTheme="light">
+        <Header title="KPI Overview" />
+      </ThemeProvider>
+    );
+
+    const langSelect = screen.getByTestId('language-switcher') as HTMLSelectElement;
+    expect(langSelect).toBeInTheDocument();
+    expect(langSelect.value).toBe('en');
+
+    fireEvent.change(langSelect, { target: { value: 'vi' } });
+
+    expect(langSelect.value).toBe('vi');
+    expect(localStorage.getItem('kpi_locale')).toBe('vi');
+  });
 });

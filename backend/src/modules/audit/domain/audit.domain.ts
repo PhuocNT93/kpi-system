@@ -40,6 +40,8 @@ export const AuditEntityTypeSchema = z.enum([
   'KPI_RELATIONSHIP',
   'TEMPLATE_KPI',
   'EVALUATION_KPI',
+  'CRITERION',
+  'CRITERION_VERSION',
   'CALIBRATION_SESSION',
   'CALIBRATION_ADJUSTMENT'
 ]);
@@ -54,7 +56,7 @@ export interface AuditRecordParams {
   oldValue?: string | null;
   newValue?: string | null;
   reason?: string | null;
-  performedBy: string | null;
+  performedBy?: string | null;
   source?: string;
 }
 
@@ -66,7 +68,7 @@ export const AuditRecordParamsSchema = z.object({
   oldValue: z.string().nullable().optional(),
   newValue: z.string().nullable().optional(),
   reason: z.string().nullable().optional(),
-  performedBy: z.string().uuid().nullable(),
+  performedBy: z.string().uuid().nullable().optional(),
   source: z.string().default('API')
 });
 
@@ -83,7 +85,11 @@ export const BUSINESS_AUDIT_ENTITY_TYPES = [
   'KPI_VERSION',
   'KPI_RELATIONSHIP',
   'TEMPLATE_KPI',
-  'EVALUATION_KPI'
+  'EVALUATION_KPI',
+  'CRITERION',
+  'CRITERION_VERSION',
+  'CALIBRATION_SESSION',
+  'CALIBRATION_ADJUSTMENT'
 ] as const;
 
 export type BusinessAuditEntityType = (typeof BUSINESS_AUDIT_ENTITY_TYPES)[number];

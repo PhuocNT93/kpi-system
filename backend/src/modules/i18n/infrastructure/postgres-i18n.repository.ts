@@ -52,6 +52,39 @@ export class PostgresI18nRepository implements I18nRepository {
     }));
   }
 
+  async findUiTranslations(entityType?: string): Promise<TranslationRecord[]> {
+    let query: string;
+    let params: unknown[] = [];
+
+    if (entityType && entityType.trim().length > 0) {
+      query = `SELECT translation_id, entity_type, entity_id, field_name, locale, value, created_at, updated_at, created_by, updated_by
+       FROM i18n_translation
+       WHERE entity_type = $1
+       ORDER BY entity_type, field_name`;
+      params = [entityType.trim()];
+    } else {
+      query = `SELECT translation_id, entity_type, entity_id, field_name, locale, value, created_at, updated_at, created_by, updated_by
+       FROM i18n_translation
+       WHERE entity_type LIKE '%_UI'
+       ORDER BY entity_type, field_name`;
+    }
+
+    const res = await this.pool.query(query, params);
+
+    return res.rows.map((row) => ({
+      translationId: row.translation_id,
+      entityType: row.entity_type,
+      entityId: row.entity_id,
+      fieldName: row.field_name,
+      locale: row.locale,
+      value: row.value,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      createdBy: row.created_by,
+      updatedBy: row.updated_by,
+    }));
+  }
+
   async upsertTranslations(
     entityType: string,
     entityId: string,

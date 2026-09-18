@@ -32,6 +32,7 @@ export function createI18nRouter(
   };
 
   router.get('/i18n/locales', controller.getLocales);
+  router.get('/i18n/ui-translations', controller.getUiTranslations);
   router.get('/i18n/:entity_type/:entity_id', jwtMiddleware, requireAuth, controller.getEntityTranslations);
   router.put('/i18n/:entity_type/:entity_id', jwtMiddleware, requireAdmin, controller.putEntityTranslations);
   router.patch('/users/me/locale', jwtMiddleware, requireAuth, controller.updateUserLocale);

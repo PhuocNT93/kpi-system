@@ -58,6 +58,7 @@ export interface AppOptions {
   reportsController?: ReportsController;
   calibrationController?: import('./modules/calibration/api/calibration.controller.js').CalibrationController;
   customSmtpSender?: import('./modules/notification/application/email-sender.interface.js').IEmailSender;
+  auditController?: import('./modules/audit/api/audit.controller.js').AuditController;
 }
 
 export function createApp(options: AppOptions = {}) {
@@ -108,7 +109,7 @@ export function createApp(options: AppOptions = {}) {
   const organizationModule = pool ? createOrganizationModule(pool) : undefined;
   const organizationController = organizationModule?.organizationController;
 
-  const configurationModule = pool ? createConfigurationModule(pool) : undefined;
+  const configurationModule = pool ? createConfigurationModule(pool, auditModule?.auditService) : undefined;
   const configurationController = configurationModule?.configurationController;
 
   const kpiModule = pool ? createKpiModule(pool) : undefined;
@@ -181,7 +182,7 @@ export function createApp(options: AppOptions = {}) {
         configurationController,
         kpiRelationshipController,
         kpiController,
-        auditController: auditModule?.auditController,
+        auditController: options.auditController ?? auditModule?.auditController,
         evaluationCycleController,
         evaluationController,
         i18nController: i18nModule?.controller,

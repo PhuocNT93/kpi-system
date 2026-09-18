@@ -31,7 +31,8 @@ export class TemplateService {
     private templateCriterionRepo: ITemplateCriterionRepository,
     private criterionVersionRepo: ICriterionVersionRepository,
     private auditRepo: IConfigurationAuditRepository,
-    private pool: Pool
+    private pool: Pool,
+    private centralAuditService?: import('../../../audit/application/audit.service.js').AuditService
   ) {}
 
   // ── Templates ───────────────────────────────────────────────────────────────
@@ -85,6 +86,16 @@ export class TemplateService {
         },
         client
       );
+
+      if (this.centralAuditService) {
+        await this.centralAuditService.record(client, {
+          entityType: 'EVALUATION_TEMPLATE',
+          entityId: template.id,
+          action: 'CREATE',
+          performedBy: actorId || null,
+          source: 'API',
+        });
+      }
 
       await client.query('COMMIT');
       return { template, initialVersion };
@@ -612,6 +623,16 @@ export class TemplateService {
         },
         client
       );
+
+      if (this.centralAuditService) {
+        await this.centralAuditService.record(client, {
+          entityType: 'EVALUATION_TEMPLATE',
+          entityId: version.template_id,
+          action: 'PUBLISH',
+          performedBy: actorId || null,
+          source: 'API',
+        });
+      }
 
       await client.query('COMMIT');
       return published;

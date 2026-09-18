@@ -31,6 +31,23 @@ export class I18nService {
     return map;
   }
 
+  async getUiTranslationsMap(entityType?: string): Promise<TranslationsMap> {
+    const records = await this.repository.findUiTranslations(entityType);
+    const map: TranslationsMap = {};
+
+    for (const rec of records) {
+      if (!map[rec.locale]) {
+        map[rec.locale] = {};
+      }
+      const localeMap = map[rec.locale];
+      if (localeMap) {
+        localeMap[rec.fieldName] = rec.value;
+      }
+    }
+
+    return map;
+  }
+
   async resolveEntityTranslations(
     entityType: string,
     entityIds: string[],

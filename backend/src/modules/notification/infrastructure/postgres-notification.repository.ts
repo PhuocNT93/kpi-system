@@ -44,8 +44,32 @@ interface UserPreferenceRow {
   updated_at: Date | string;
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export class PostgresNotificationRepository implements INotificationRepository {
   constructor(private readonly pool: Pool) {}
+
+  private async resolveUserAccountId(
+    userAccountId: string,
+    executor: Pool | TransactionClient
+  ): Promise<string | null> {
+    if (!userAccountId) return null;
+    if (UUID_REGEX.test(userAccountId)) {
+      return userAccountId;
+    }
+    try {
+      const res = await executor.query(
+        `SELECT id FROM app_user WHERE employee_id::text = $1 OR email = $1 LIMIT 1`,
+        [userAccountId]
+      );
+      if (res.rows.length > 0) {
+        return res.rows[0].id;
+      }
+    } catch {
+      // fallback
+    }
+    return null;
+  }
 
   private mapLogRow(row: NotificationLogRow): NotificationLog {
     return {
@@ -58,7 +82,7 @@ export class PostgresNotificationRepository implements INotificationRepository {
       localeUsed: row.locale_used,
       subjectRendered: row.subject_rendered,
       status: row.status as NotificationStatus,
-      retryCount: Number(row.retry_count),
+      retryCount: row.retry_count,
       errorMessage: row.error_message,
       createdAt: new Date(row.created_at),
       sentAt: row.sent_at ? new Date(row.sent_at) : null,
@@ -83,6 +107,10 @@ export class PostgresNotificationRepository implements INotificationRepository {
     client?: TransactionClient
   ): Promise<NotificationLog> {
     const executor = client ?? this.pool;
+    const recipientAccountId =
+      (await this.resolveUserAccountId(params.recipientUserAccountId, executor)) ??
+      params.recipientUserAccountId;
+
     const query = `
       INSERT INTO notification_log (
         notification_type,
@@ -103,7 +131,7 @@ export class PostgresNotificationRepository implements INotificationRepository {
       params.notificationType,
       params.relatedEntityType ?? null,
       params.relatedEntityId ?? null,
-      params.recipientUserAccountId,
+      recipientAccountId,
       params.recipientEmail,
       localeUsed,
       subjectRendered,
@@ -160,13 +188,16 @@ export class PostgresNotificationRepository implements INotificationRepository {
     client?: TransactionClient
   ): Promise<UserNotificationPreference[]> {
     const executor = client ?? this.pool;
+    const resolvedId = await this.resolveUserAccountId(userAccountId, executor);
+    if (!resolvedId) return [];
+
     const query = `
       SELECT user_account_id, notification_type, enabled, created_at, updated_at
       FROM user_notification_preference
       WHERE user_account_id = $1
     `;
 
-    const result = await executor.query(query, [userAccountId]);
+    const result = await executor.query(query, [resolvedId]);
     return result.rows.map((r) => {
       const row = r as unknown as UserPreferenceRow;
       return {
@@ -186,6 +217,9 @@ export class PostgresNotificationRepository implements INotificationRepository {
     client?: TransactionClient
   ): Promise<void> {
     const executor = client ?? this.pool;
+    const resolvedId = await this.resolveUserAccountId(userAccountId, executor);
+    if (!resolvedId) return;
+
     const query = `
       INSERT INTO user_notification_preference (
         user_account_id,
@@ -201,7 +235,7 @@ export class PostgresNotificationRepository implements INotificationRepository {
         updated_at = CURRENT_TIMESTAMP
     `;
 
-    await executor.query(query, [userAccountId, notificationType, enabled]);
+    await executor.query(query, [resolvedId, notificationType, enabled]);
   }
 
   async findTemplateByCode(
@@ -372,6 +406,9 @@ export class PostgresNotificationRepository implements INotificationRepository {
     client?: TransactionClient
   ): Promise<{ email: string; locale: string; name: string } | null> {
     const executor = client ?? this.pool;
+    const resolvedId = await this.resolveUserAccountId(userAccountId, executor);
+    if (!resolvedId) return null;
+
     const query = `
       SELECT email, locale, name
       FROM app_user
@@ -379,7 +416,7 @@ export class PostgresNotificationRepository implements INotificationRepository {
       LIMIT 1
     `;
 
-    const result = await executor.query(query, [userAccountId]);
+    const result = await executor.query(query, [resolvedId]);
     if (result.rows.length === 0) return null;
     const row = result.rows[0] as { email: string; locale: string | null; name: string };
     return {
@@ -441,20 +478,29 @@ export class PostgresNotificationRepository implements INotificationRepository {
     client?: TransactionClient
   ): Promise<{ items: NotificationLog[]; unreadCount: number }> {
     const executor = client ?? this.pool;
+    const resolvedId = await this.resolveUserAccountId(userAccountId, executor);
+    if (!resolvedId) {
+      return { items: [], unreadCount: 0 };
+    }
 
-    const unreadRes = await executor.query(
-      `SELECT COUNT(*)::int AS unread FROM notification_log WHERE recipient_user_account_id = $1 AND read_at IS NULL`,
-      [userAccountId]
-    );
-    const unreadCount = Number(unreadRes.rows[0]?.unread ?? 0);
+    try {
+      const unreadRes = await executor.query(
+        `SELECT COUNT(*)::int AS unread FROM notification_log WHERE recipient_user_account_id = $1 AND read_at IS NULL`,
+        [resolvedId]
+      );
+      const unreadCount = Number(unreadRes.rows[0]?.unread ?? 0);
 
-    const itemsRes = await executor.query(
-      `SELECT * FROM notification_log WHERE recipient_user_account_id = $1 ORDER BY created_at DESC LIMIT $2`,
-      [userAccountId, limit]
-    );
-    const items = itemsRes.rows.map((r) => this.mapLogRow(r as unknown as NotificationLogRow));
+      const itemsRes = await executor.query(
+        `SELECT * FROM notification_log WHERE recipient_user_account_id = $1 ORDER BY created_at DESC LIMIT $2`,
+        [resolvedId, limit]
+      );
+      const items = itemsRes.rows.map((r) => this.mapLogRow(r as unknown as NotificationLogRow));
 
-    return { items, unreadCount };
+      return { items, unreadCount };
+    } catch (err) {
+      console.error('[PostgresNotificationRepository] findUserNotifications query error:', err);
+      return { items: [], unreadCount: 0 };
+    }
   }
 
   async setNotificationRead(
@@ -464,12 +510,15 @@ export class PostgresNotificationRepository implements INotificationRepository {
     client?: TransactionClient
   ): Promise<void> {
     const executor = client ?? this.pool;
+    const resolvedId = await this.resolveUserAccountId(userAccountId, executor);
+    if (!resolvedId) return;
+
     const readAtValue = read ? new Date() : null;
     await executor.query(
       `UPDATE notification_log
        SET read_at = $1
        WHERE notification_log_id = $2 AND recipient_user_account_id = $3`,
-      [readAtValue, notificationLogId, userAccountId]
+      [readAtValue, notificationLogId, resolvedId]
     );
   }
 
@@ -478,11 +527,14 @@ export class PostgresNotificationRepository implements INotificationRepository {
     client?: TransactionClient
   ): Promise<number> {
     const executor = client ?? this.pool;
+    const resolvedId = await this.resolveUserAccountId(userAccountId, executor);
+    if (!resolvedId) return 0;
+
     const res = await executor.query(
       `UPDATE notification_log
        SET read_at = CURRENT_TIMESTAMP
        WHERE recipient_user_account_id = $1 AND read_at IS NULL`,
-      [userAccountId]
+      [resolvedId]
     );
     return res.rowCount ?? 0;
   }

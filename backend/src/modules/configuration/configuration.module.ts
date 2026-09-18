@@ -25,6 +25,8 @@ import { ConfigurationAuditService } from './application/services/configuration-
 
 import { ConfigurationController } from './api/configuration.controller.js';
 
+import { AuditService } from '../audit/application/audit.service.js';
+
 export interface ConfigurationModule {
   criterionRepo: PostgresCriterionRepository;
   versionRepo: PostgresCriterionVersionRepository;
@@ -53,7 +55,7 @@ export interface ConfigurationModule {
   configurationController: ConfigurationController;
 }
 
-export function createConfigurationModule(pool: Pool): ConfigurationModule {
+export function createConfigurationModule(pool: Pool, centralAuditService?: AuditService): ConfigurationModule {
   const criterionRepo = new PostgresCriterionRepository(pool);
   const versionRepo = new PostgresCriterionVersionRepository(pool);
   const levelRepo = new PostgresEvaluationLevelRepository(pool);
@@ -66,10 +68,10 @@ export function createConfigurationModule(pool: Pool): ConfigurationModule {
   const workflowRepo = new PostgresWorkflowRepository(pool);
   const auditRepo = new PostgresConfigurationAuditRepository(pool);
 
-  const criterionService = new CriterionService(criterionRepo, versionRepo, scoringRuleRepo, auditRepo, pool);
+  const criterionService = new CriterionService(criterionRepo, versionRepo, scoringRuleRepo, auditRepo, pool, centralAuditService);
   const levelService = new EvaluationLevelService(levelRepo, auditRepo);
   const scoringRuleService = new ScoringRuleService(scoringRuleRepo, auditRepo);
-  const templateService = new TemplateService(templateRepo, templateVersionRepo, templateKpiRepo, templateCriterionRepo, versionRepo, auditRepo, pool);
+  const templateService = new TemplateService(templateRepo, templateVersionRepo, templateKpiRepo, templateCriterionRepo, versionRepo, auditRepo, pool, centralAuditService);
   const overrideService = new OverrideService(overrideRepo, templateVersionRepo, versionRepo, auditRepo);
   const effectiveResolver = new EffectiveConfigurationResolver(
     templateRepo,
