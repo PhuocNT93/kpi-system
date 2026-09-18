@@ -12,6 +12,16 @@ export class I18nController {
     sendSuccess(res, 200, 'Available locales retrieved successfully', { locales });
   };
 
+  getUiTranslations = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const entityType = typeof req.query.entity_type === 'string' ? req.query.entity_type : undefined;
+      const translations = await this.service.getUiTranslationsMap(entityType);
+      sendSuccess(res, 200, 'UI translations retrieved successfully', { translations });
+    } catch (err) {
+      next(err);
+    }
+  };
+
   getEntityTranslations = async (req: Request<{ entity_type: string; entity_id: string }>, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { entity_type, entity_id } = req.params;

@@ -372,9 +372,9 @@ export const TestNotificationModal: React.FC = () => {
 
                   {result.error && (
                     <div style={{ fontSize: '12px', color: '#DC2626', wordBreak: 'break-word', marginTop: '4px' }}>
-                      <strong>Chi tiết lỗi SMTP:</strong> {result.error}
+                      <strong>Chi tiết lỗi:</strong> {result.error}
                       <div style={{ marginTop: '6px', fontSize: '11px', color: isDark ? '#94A3B8' : '#64748B' }}>
-                        💡 Mẹo kiểm tra: Đảm bảo đã khai báo đúng <code>SMTP_USER</code> và <code>SMTP_PASSWORD</code> (mật khẩu ứng dụng App Password) trong <code>.env</code>.
+                        💡 Mẹo kiểm tra: Đảm bảo đã khai báo đúng thông tin email provider (SMTP hoặc Gmail API OAuth2) trong cấu hình môi trường.
                       </div>
                     </div>
                   )}

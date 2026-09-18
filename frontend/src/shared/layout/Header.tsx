@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { TYPOGRAPHY, RADII } from '@/shared/theme';
 import { useTheme } from '@/shared/theme';
-import { Sun, Moon } from 'lucide-react';
+import { Sun, Moon, Languages } from 'lucide-react';
 import { NotificationBell } from '@/features/notifications';
+import { getUiLocale, LOCALE_STORAGE_KEY, LOCALE_CHANGE_EVENT } from '@/shared/i18n/ui-i18n';
+import { patchApi } from '@/shared/api/api-client';
 
 export interface HeaderProps {
   title?: string;
@@ -10,6 +12,7 @@ export interface HeaderProps {
   actions?: React.ReactNode;
   showThemeToggle?: boolean;
   showNotificationBell?: boolean;
+  showLanguageSelector?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -18,9 +21,27 @@ export const Header: React.FC<HeaderProps> = ({
   actions,
   showThemeToggle = true,
   showNotificationBell = true,
+  showLanguageSelector = true,
 }) => {
   const { isDark, toggleTheme } = useTheme();
   const [toggleHovered, setToggleHovered] = useState(false);
+  const [currentLocale, setCurrentLocale] = useState<string>(() => getUiLocale());
+
+  const handleLocaleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newLocale = e.target.value;
+    setCurrentLocale(newLocale);
+    try {
+      localStorage.setItem(LOCALE_STORAGE_KEY, newLocale);
+      localStorage.setItem('preferred_locale', newLocale);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent(LOCALE_CHANGE_EVENT, { detail: newLocale }));
+        window.dispatchEvent(new Event('storage'));
+      }
+      patchApi('/api/users/me/locale', { locale: newLocale }).catch(() => {});
+    } catch {
+      // ignore
+    }
+  };
 
   return (
     <header
@@ -72,9 +93,52 @@ export const Header: React.FC<HeaderProps> = ({
         )}
       </div>
 
-      {/* Right-hand Controls: Dark Mode Switch, Notification Bell & Page Actions */}
+      {/* Right-hand Controls: Language Switcher, Dark Mode Switch, Notification Bell & Page Actions */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
         {showNotificationBell && <NotificationBell />}
+
+        {showLanguageSelector && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              height: '38px',
+              padding: '0 8px',
+              borderRadius: RADII.lg,
+              border: `1px solid ${isDark ? '#374151' : '#CBD5E1'}`,
+              backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
+              color: isDark ? '#F9FAFB' : '#0F172A',
+              transition: 'all 0.18s ease-in-out',
+            }}
+          >
+            <Languages size={16} style={{ color: isDark ? '#9CA3AF' : '#64748B', flexShrink: 0 }} />
+            <select
+              value={currentLocale}
+              onChange={handleLocaleChange}
+              aria-label="Select Language"
+              data-testid="language-switcher"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: isDark ? '#F9FAFB' : '#0F172A',
+                fontSize: TYPOGRAPHY.fontSize.xs,
+                fontWeight: TYPOGRAPHY.fontWeight.medium,
+                cursor: 'pointer',
+                outline: 'none',
+                paddingRight: '2px',
+              }}
+            >
+              <option value="en" style={{ background: isDark ? '#1F2937' : '#FFFFFF', color: isDark ? '#F9FAFB' : '#0F172A' }}>
+                English (EN)
+              </option>
+              <option value="vi" style={{ background: isDark ? '#1F2937' : '#FFFFFF', color: isDark ? '#F9FAFB' : '#0F172A' }}>
+                Tiếng Việt (VI)
+              </option>
+            </select>
+          </div>
+        )}
+
         {showThemeToggle && (
           <button
             type="button"

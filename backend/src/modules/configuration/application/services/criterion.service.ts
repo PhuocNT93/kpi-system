@@ -23,7 +23,8 @@ export class CriterionService {
     private versionRepo: ICriterionVersionRepository,
     private scoringRuleRepo: IScoringRuleRepository,
     private auditRepo: IConfigurationAuditRepository,
-    private pool: Pool
+    private pool: Pool,
+    private centralAuditService?: import('../../../audit/application/audit.service.js').AuditService
   ) {}
 
   async createCriterion(
@@ -74,6 +75,16 @@ export class CriterionService {
         },
         client
       );
+
+      if (this.centralAuditService) {
+        await this.centralAuditService.record(client, {
+          entityType: 'CRITERION',
+          entityId: criterion.id,
+          action: 'CREATE',
+          performedBy: actorId || null,
+          source: 'API',
+        });
+      }
 
       await client.query('COMMIT');
       return { criterion, initialVersion };

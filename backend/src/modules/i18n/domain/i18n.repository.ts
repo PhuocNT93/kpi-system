@@ -4,6 +4,7 @@ import { TranslationRecord } from './i18n.types.js';
 export interface I18nRepository {
   findTranslations(entityType: string, entityId: string): Promise<TranslationRecord[]>;
   findTranslationsForEntities(entityType: string, entityIds: string[]): Promise<TranslationRecord[]>;
+  findUiTranslations(entityType?: string): Promise<TranslationRecord[]>;
   upsertTranslations(
     entityType: string,
     entityId: string,

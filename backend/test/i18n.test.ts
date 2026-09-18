@@ -20,6 +20,7 @@ describe('I18n Module', () => {
     repository = {
       findTranslations: vi.fn(),
       findTranslationsForEntities: vi.fn(),
+      findUiTranslations: vi.fn(),
       upsertTranslations: vi.fn(),
       deleteTranslationsForEntity: vi.fn(),
       updateUserLocale: vi.fn(),
@@ -238,6 +239,51 @@ describe('I18n Module', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.locale).toBe('vi');
+    });
+
+    it('GET /api/i18n/ui-translations returns UI translations with optional entity_type filter', async () => {
+      const mockRows = [
+        {
+          translation_id: 't-1',
+          entity_type: 'AUDIT_UI',
+          entity_id: 'a0000000-0000-0000-0000-000000000001',
+          field_name: 'page_title',
+          locale: 'en',
+          value: 'System Audit Logs',
+          created_at: new Date(),
+          updated_at: new Date(),
+          created_by: null,
+          updated_by: null,
+        },
+      ];
+      const query = vi.fn().mockResolvedValue({ rows: mockRows });
+      const app = createApp({ dbPool: { query } as unknown as Pool, jwtConfig: { secret: 'test-secret-key-must-be-long-enough-for-hs256' } });
+      const token = tokenService.generateAccessToken({
+        userId: 'user-1',
+        role: 'EMPLOYEE',
+      });
+
+      // Request with entity_type query param
+      const resWithFilter = await request(app)
+        .get('/api/i18n/ui-translations?entity_type=AUDIT_UI')
+        .set('Authorization', `Bearer ${token}`);
+      expect(resWithFilter.status).toBe(200);
+      expect(resWithFilter.body.success).toBe(true);
+      expect(resWithFilter.body.data.translations.en.page_title).toBe('System Audit Logs');
+      expect(query).toHaveBeenCalledWith(
+        expect.stringContaining('WHERE entity_type = $1'),
+        ['AUDIT_UI']
+      );
+
+      // Request without filter
+      const resWithoutFilter = await request(app)
+        .get('/api/i18n/ui-translations')
+        .set('Authorization', `Bearer ${token}`);
+      expect(resWithoutFilter.status).toBe(200);
+      expect(query).toHaveBeenCalledWith(
+        expect.stringContaining("WHERE entity_type LIKE '%_UI'"),
+        []
+      );
     });
   });
 });

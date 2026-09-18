@@ -5,6 +5,7 @@ import type { AuthUser, UserRole } from './auth-models';
 import { LoadingSpinner } from '../components/ui';
 import { AuthContext } from './auth-context';
 import type { AuthContextValue } from './auth-context';
+import { fetchAndStoreUiTranslations, UI_TRANSLATIONS_STORAGE_KEY } from '../i18n/ui-i18n';
 
 export { ApiClientError } from '../api/api-client';
 
@@ -63,8 +64,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
-    // Initializing is complete after first mount check
+    // Initializing is complete after first mount check; hydrate translations from DB only if user is logged in
     setIsInitializing(false);
+    const storedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
+    if (storedToken) {
+      fetchAndStoreUiTranslations().catch(() => {});
+    }
   }, []);
 
   const applyLoginResult = useCallback((result: Awaited<ReturnType<typeof authApi.login>>) => {
@@ -85,6 +90,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     setUser(authUser);
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authUser));
+
+    // Reload UI translations from table i18n_translation down to localStorage on login
+    fetchAndStoreUiTranslations().catch(() => {});
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
@@ -100,6 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     localStorage.removeItem(AUTH_STORAGE_KEY);
     localStorage.removeItem(TOKEN_STORAGE_KEY);
+    localStorage.removeItem(UI_TRANSLATIONS_STORAGE_KEY);
   }, []);
 
   const value = useMemo<AuthContextValue>(
