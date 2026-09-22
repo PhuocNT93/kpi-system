@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { ReportsQueryService } from '../application/reports-query.service.js';
 import { sendSuccess, sendFailure } from '../../../api/http-response.js';
 import { getActorFromContext } from '../../../shared/auth/actor-context.js';
-import { getReportQuerySchema, getEmployeeKpiSummaryQuerySchema } from './reports.dto.js';
+import { getReportQuerySchema, getEmployeeKpiSummaryQuerySchema, getDashboardQuerySchema } from './reports.dto.js';
 import { z } from 'zod';
 
 export class ReportsController {
@@ -170,4 +170,23 @@ export class ReportsController {
       next(err);
     }
   };
+
+  public getDashboard = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const actor = req.actor || getActorFromContext(req);
+      if (!actor) {
+        sendFailure(res, 401, 'Authentication required.', 'UNAUTHENTICATED');
+        return;
+      }
+
+      const parsedQuery = getDashboardQuerySchema.parse(req.query);
+      const cycleId = parsedQuery.cycleId || parsedQuery.evaluation_cycle_id || parsedQuery.evaluationCycleId;
+
+      const dashboardData = await this.queryService.getRoleBasedDashboard(actor, cycleId);
+      sendSuccess(res, 200, 'Dashboard loaded successfully.', dashboardData);
+    } catch (err) {
+      next(err);
+    }
+  };
 }
+

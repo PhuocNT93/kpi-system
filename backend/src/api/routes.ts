@@ -128,7 +128,9 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
   // ── Reports Module Routes ────────────────────────────────────────────────
   if (options.reportsController) {
     router.use('/reports', options.jwtMiddleware, createReportsRouter(options.reportsController, options.authorizationService));
+    router.get('/dashboard', options.jwtMiddleware, options.reportsController.getDashboard);
   }
+
 
   // ── Calibration Module Routes ───────────────────────────────────────────
   if (options.calibrationController) {

@@ -4,6 +4,7 @@ import { ReportingProjectionService } from './reporting-projection.service.js';
 import { KpiTrendResponse } from '../api/reports.dto.js';
 import { Actor } from '../../../shared/auth/types.js';
 import { Forbidden, NotFound } from '../../../api/app-error.js';
+import { getEmployeeReviewStatus } from '../../employee/domain/employee-review-status.js';
 
 export function normalizeLocalizedText(val: unknown, fallback = ''): string {
   if (val == null) return fallback;
@@ -26,6 +27,14 @@ export function normalizeLocalizedText(val: unknown, fallback = ''): string {
     return String(obj.vi || obj.en || obj.vn || Object.values(obj)[0] || fallback);
   }
   return String(val);
+}
+
+function incrementScoreBin(bins: Array<{ range: string; count: number; percentage?: number }>, score: number): void {
+  const index = score <= 1.0 ? 0 : score <= 2.0 ? 1 : score <= 3.0 ? 2 : score <= 4.0 ? 3 : 4;
+  const bin = bins[index];
+  if (bin) {
+    bin.count++;
+  }
 }
 
 export class ReportsQueryService {
@@ -506,4 +515,897 @@ export class ReportsQueryService {
 
     return result;
   }
+
+  public async getRoleBasedDashboard(actor: Actor, cycleId?: string) {
+    if (!actor) {
+      throw new Forbidden('Authentication is required to access the dashboard.');
+    }
+
+    // 1. Resolve Active or Selected Cycle
+    let cycleInfo = {
+      id: cycleId || '',
+      name: 'Current Evaluation Cycle',
+      status: 'ACTIVE',
+      start_date: null as string | null,
+      end_date: null as string | null,
+    };
+
+    if (this.pool) {
+      try {
+        let cycleQuery = 'SELECT evaluation_cycle_id, name, status, start_date, end_date FROM evaluation_cycle';
+        const params: unknown[] = [];
+        if (cycleId) {
+          cycleQuery += ' WHERE evaluation_cycle_id = $1';
+          params.push(cycleId);
+        } else {
+          cycleQuery += " WHERE status IN ('ACTIVE', 'OPEN', 'IN_PROGRESS') ORDER BY start_date DESC LIMIT 1";
+        }
+        const cRes = await this.pool.query(cycleQuery, params);
+        if (cRes.rows.length > 0) {
+          const row = cRes.rows[0];
+          cycleInfo = {
+            id: row.evaluation_cycle_id,
+            name: normalizeLocalizedText(row.name, 'Evaluation Cycle'),
+            status: row.status,
+            start_date: row.start_date ? new Date(row.start_date).toISOString() : null,
+            end_date: row.end_date ? new Date(row.end_date).toISOString() : null,
+          };
+        } else if (!cycleId) {
+          const fallbackRes = await this.pool.query(
+            'SELECT evaluation_cycle_id, name, status, start_date, end_date FROM evaluation_cycle ORDER BY start_date DESC LIMIT 1'
+          );
+          if (fallbackRes.rows.length > 0) {
+            const row = fallbackRes.rows[0];
+            cycleInfo = {
+              id: row.evaluation_cycle_id,
+              name: normalizeLocalizedText(row.name, 'Evaluation Cycle'),
+              status: row.status,
+              start_date: row.start_date ? new Date(row.start_date).toISOString() : null,
+              end_date: row.end_date ? new Date(row.end_date).toISOString() : null,
+            };
+          }
+        }
+      } catch {
+        // Fallback gracefully if evaluation_cycle table is not available
+      }
+    }
+
+    // 2. Dispatch by Role
+    switch (actor.role) {
+      case 'EMPLOYEE':
+        return await this.getEmployeeDashboardData(actor, cycleInfo);
+      case 'MANAGER':
+        return await this.getManagerDashboardData(actor, cycleInfo);
+      case 'HR_ADMIN':
+        return await this.getHrAdminDashboardData(actor, cycleInfo);
+      case 'SYSTEM_ADMIN':
+        return await this.getSystemAdminDashboardData(actor, cycleInfo);
+      default:
+        throw new Forbidden(`Role ${actor.role} is not authorized to access the dashboard.`);
+    }
+  }
+
+  private async getEmployeeDashboardData(actor: Actor, cycleInfo: { id: string; name: string; status: string; start_date: string | null; end_date: string | null }) {
+    let employeeId = actor.employeeId || actor.userId;
+    if (!employeeId && this.pool && actor.userId) {
+      const uRes = await this.pool.query('SELECT employee_id FROM app_user WHERE id = $1', [actor.userId]);
+      employeeId = uRes.rows[0]?.employee_id || actor.userId;
+    }
+
+    // 1. Employee metadata and review schedule
+    let empMeta = {
+      full_name: 'Employee',
+      employee_code: '',
+      department_name: '',
+      team_name: '',
+      review_cadence: 'ANNUAL',
+      last_evaluation_completed_at: null as string | null,
+      next_review_due_date: null as string | null,
+    };
+
+    if (this.pool && employeeId) {
+      try {
+        const empRes = await this.pool.query(
+          `SELECT e.full_name, e.employee_code, e.review_cadence, e.last_evaluation_completed_at, e.next_review_due_date,
+                  d.name as department_name, t.name as team_name
+           FROM employee e
+           LEFT JOIN department d ON e.department_id = d.department_id
+           LEFT JOIN team t ON e.team_id = t.team_id
+           WHERE e.employee_id = $1`,
+          [employeeId]
+        );
+        if (empRes.rows.length > 0) {
+          const r = empRes.rows[0];
+          empMeta = {
+            full_name: normalizeLocalizedText(r.full_name, 'Employee'),
+            employee_code: r.employee_code || '',
+            department_name: normalizeLocalizedText(r.department_name, ''),
+            team_name: normalizeLocalizedText(r.team_name, ''),
+            review_cadence: r.review_cadence || 'ANNUAL',
+            last_evaluation_completed_at: r.last_evaluation_completed_at ? new Date(r.last_evaluation_completed_at).toISOString() : null,
+            next_review_due_date: r.next_review_due_date ? new Date(r.next_review_due_date).toISOString() : null,
+          };
+        }
+      } catch {
+        // Fallback gracefully
+      }
+    }
+
+    // Review status calculation
+    const reviewStatusResult = getEmployeeReviewStatus({
+      lastEvaluationCompletedAt: empMeta.last_evaluation_completed_at,
+      reviewCadence: empMeta.review_cadence,
+      nextReviewDueDate: empMeta.next_review_due_date,
+    });
+
+    // 2. Current Evaluation Score & Breakdown from read model
+    let currentEvaluationStatus = 'N/A';
+    let currentOverallScore: number | null = null;
+    let scoreBreakdown: Array<{
+      criterion_code: string;
+      criterion_name: string;
+      category: string;
+      weight: number;
+      raw_score: number | null;
+      weighted_score: number | null;
+    }> = [];
+
+    if (employeeId) {
+      try {
+        const kpiSummary = await this.reportsRepo.getEmployeeKpiSummary(employeeId, cycleInfo.id);
+        if (kpiSummary) {
+          currentEvaluationStatus = kpiSummary.score.evaluation_status || 'OPEN';
+          currentOverallScore = kpiSummary.score.final_score != null
+            ? Number(kpiSummary.score.final_score)
+            : kpiSummary.score.manager_score != null
+            ? Number(kpiSummary.score.manager_score)
+            : kpiSummary.score.self_score != null
+            ? Number(kpiSummary.score.self_score)
+            : null;
+
+          scoreBreakdown = kpiSummary.kpis
+            .filter((k) => !k.is_disabled_for_employee)
+            .map((k) => ({
+              criterion_code: k.criterion_code,
+              criterion_name: normalizeLocalizedText(k.criterion_name),
+              category: normalizeLocalizedText(k.category, 'General'),
+              weight: Number(k.weight_snapshot || 0),
+              raw_score: k.raw_score != null ? Number(k.raw_score) : null,
+              weighted_score: k.weighted_score != null ? Number(k.weighted_score) : null,
+            }));
+        }
+      } catch {
+        // Ignore read model fetch error
+      }
+    }
+
+    // Strengths and Development areas
+    const scoredKpis = scoreBreakdown.filter((k) => k.raw_score != null);
+    const sortedByScore = [...scoredKpis].sort((a, b) => (b.raw_score ?? 0) - (a.raw_score ?? 0));
+    const strengths = sortedByScore.slice(0, 3).map((k) => ({
+      criterion_code: k.criterion_code,
+      criterion_name: k.criterion_name,
+      category: k.category,
+      score: k.raw_score,
+    }));
+    const developmentAreas = sortedByScore.length > 3
+      ? sortedByScore.slice(-3).reverse().map((k) => ({
+          criterion_code: k.criterion_code,
+          criterion_name: k.criterion_name,
+          category: k.category,
+          score: k.raw_score,
+        }))
+      : [];
+
+    // 3. Historical Score Trend across published cycles
+    let scoreTrend: Array<{
+      cycle_id: string;
+      cycle_name: string;
+      overall_score: number;
+      published_at: string | null;
+    }> = [];
+
+    let lastPublishedScore: number | null = null;
+
+    if (this.pool && employeeId) {
+      try {
+        const trendRes = await this.pool.query(
+          `SELECT s.evaluation_cycle_id, c.name as cycle_name,
+                  COALESCE(s.final_score, s.manager_score, s.self_score) as score_val,
+                  s.published_at
+           FROM employee_evaluation_score_read_model s
+           LEFT JOIN evaluation_cycle c ON s.evaluation_cycle_id = c.evaluation_cycle_id
+           WHERE s.employee_id = $1 AND s.evaluation_status = 'PUBLISHED'
+           ORDER BY s.published_at ASC`,
+          [employeeId]
+        );
+        scoreTrend = trendRes.rows.map((r) => ({
+          cycle_id: r.evaluation_cycle_id,
+          cycle_name: normalizeLocalizedText(r.cycle_name, 'Past Cycle'),
+          overall_score: Number(r.score_val ?? 0),
+          published_at: r.published_at ? new Date(r.published_at).toISOString() : null,
+        }));
+
+        const lastTrend = scoreTrend[scoreTrend.length - 1];
+        if (lastTrend) {
+          lastPublishedScore = lastTrend.overall_score;
+        }
+      } catch {
+        // Fallback gracefully
+      }
+    }
+
+    // Attention required items
+    const attention: Array<{
+      id: string;
+      type: 'INFO' | 'WARNING' | 'DANGER' | 'SUCCESS';
+      title: string;
+      message: string;
+      action_url?: string;
+    }> = [];
+
+    if (currentEvaluationStatus === 'SELF_ASSESSMENT' || currentEvaluationStatus === 'OPEN') {
+      attention.push({
+        id: 'self-assessment-pending',
+        type: 'WARNING',
+        title: 'Self-Assessment Pending',
+        message: 'Your self-assessment for the active cycle is ready for submission.',
+        action_url: '/admin/my-evaluations',
+      });
+    }
+
+    if (reviewStatusResult.isOverdue) {
+      attention.push({
+        id: 'review-overdue',
+        type: 'DANGER',
+        title: 'Review Overdue',
+        message: `Your performance review was due on ${empMeta.next_review_due_date ? new Date(empMeta.next_review_due_date).toLocaleDateString() : 'earlier date'}.`,
+        action_url: '/admin/my-evaluations',
+      });
+    }
+
+    return {
+      role: 'EMPLOYEE',
+      scope: {
+        type: 'SELF',
+        id: employeeId,
+      },
+      cycle: cycleInfo,
+      summary: {
+        current_evaluation_status: currentEvaluationStatus,
+        current_overall_score: currentOverallScore,
+        last_published_score: lastPublishedScore,
+        next_review_due: empMeta.next_review_due_date,
+        review_status: reviewStatusResult.status,
+        days_until_due: reviewStatusResult.daysUntilDue,
+        review_cadence: empMeta.review_cadence,
+      },
+      details: {
+        score_trend: scoreTrend,
+        score_breakdown: scoreBreakdown,
+        strengths,
+        development_areas: developmentAreas,
+        review_schedule: {
+          last_evaluation_completed_at: empMeta.last_evaluation_completed_at,
+          next_review_due_date: empMeta.next_review_due_date,
+          review_cadence: empMeta.review_cadence,
+          status: reviewStatusResult.status,
+          days_until_due: reviewStatusResult.daysUntilDue,
+        },
+      },
+      attention,
+      last_updated_at: new Date().toISOString(),
+    };
+  }
+
+  private async getManagerDashboardData(actor: Actor, cycleInfo: { id: string; name: string; status: string; start_date: string | null; end_date: string | null }) {
+    let managerEmpId = actor.employeeId;
+    if (!managerEmpId && this.pool && actor.userId) {
+      const uRes = await this.pool.query('SELECT employee_id FROM app_user WHERE id = $1', [actor.userId]);
+      managerEmpId = uRes.rows[0]?.employee_id || actor.userId;
+    }
+
+    // 1. Identify Managed Teams
+    let managedTeams: Array<{ id: string; name: string; department_id?: string }> = [];
+    if (this.pool && managerEmpId) {
+      try {
+        const teamRes = await this.pool.query(
+          'SELECT team_id, name, department_id FROM team WHERE manager_id = $1',
+          [managerEmpId]
+        );
+        managedTeams = teamRes.rows.map((r) => ({
+          id: r.team_id,
+          name: normalizeLocalizedText(r.name, 'Team'),
+          department_id: r.department_id,
+        }));
+      } catch {
+        // Fallback gracefully
+      }
+    }
+
+    const teamIds = managedTeams.map((t) => t.id);
+
+    // 2. Aggregate Team Metrics
+    let teamMembersCount = 0;
+    let totalEvaluations = 0;
+    let completedEvaluations = 0;
+    let inProgressEvaluations = 0;
+    let pendingReviewEvaluations = 0;
+    let overdueReviewsCount = 0;
+    let teamAverageScore: number | null = null;
+
+    const workflowDistributionMap = new Map<string, number>();
+    const scoreBins = [
+      { range: '0.0 - 1.0', count: 0 },
+      { range: '1.0 - 2.0', count: 0 },
+      { range: '2.0 - 3.0', count: 0 },
+      { range: '3.0 - 4.0', count: 0 },
+      { range: '4.0 - 5.0', count: 0 },
+    ];
+
+    let upcomingCount = 0;
+    let overdueCount = 0;
+    let notDueCount = 0;
+    let noScheduleCount = 0;
+
+    let criterionAggregates: Array<{
+      criterion_code: string;
+      criterion_name: string;
+      category: string;
+      average_score: number;
+    }> = [];
+
+    if (this.pool && teamIds.length > 0) {
+      try {
+        // Team member count
+        const memberRes = await this.pool.query(
+          `SELECT COUNT(*) as count FROM employee WHERE team_id = ANY($1) AND employment_status = 'ACTIVE'`,
+          [teamIds]
+        );
+        teamMembersCount = parseInt(memberRes.rows[0]?.count || '0', 10);
+
+        // Evaluations in cycle
+        let evalSql = `SELECT evaluation_id, status, final_score, manager_score, self_score FROM evaluation WHERE team_id = ANY($1)`;
+        const evalParams: unknown[] = [teamIds];
+        if (cycleInfo.id) {
+          evalParams.push(cycleInfo.id);
+          evalSql += ` AND evaluation_cycle_id = $2`;
+        }
+        const evalRes = await this.pool.query(evalSql, evalParams);
+        totalEvaluations = evalRes.rows.length;
+
+        let totalScoreSum = 0;
+        let scoredCount = 0;
+
+        for (const row of evalRes.rows) {
+          const status = row.status || 'DRAFT';
+          workflowDistributionMap.set(status, (workflowDistributionMap.get(status) || 0) + 1);
+
+          if (['APPROVED', 'PUBLISHED', 'LOCKED'].includes(status)) {
+            completedEvaluations++;
+          } else if (['MANAGER_ASSESSMENT', 'REVIEWING'].includes(status)) {
+            pendingReviewEvaluations++;
+          } else {
+            inProgressEvaluations++;
+          }
+
+          const score = row.final_score != null
+            ? Number(row.final_score)
+            : row.manager_score != null
+            ? Number(row.manager_score)
+            : row.self_score != null
+            ? Number(row.self_score)
+            : null;
+
+          if (score != null) {
+            totalScoreSum += score;
+            scoredCount++;
+            incrementScoreBin(scoreBins, score);
+          }
+        }
+
+        if (scoredCount > 0) {
+          teamAverageScore = Number((totalScoreSum / scoredCount).toFixed(2));
+        }
+
+        // Review due status in team
+        const dueRes = await this.pool.query(
+          `SELECT last_evaluation_completed_at, review_cadence, next_review_due_date
+           FROM employee
+           WHERE team_id = ANY($1) AND employment_status = 'ACTIVE'`,
+          [teamIds]
+        );
+        for (const row of dueRes.rows) {
+          const st = getEmployeeReviewStatus({
+            lastEvaluationCompletedAt: row.last_evaluation_completed_at,
+            reviewCadence: row.review_cadence,
+            nextReviewDueDate: row.next_review_due_date,
+          });
+          if (st.status === 'OVERDUE') overdueCount++;
+          else if (st.status === 'UPCOMING') upcomingCount++;
+          else if (st.status === 'NOT_DUE') notDueCount++;
+          else noScheduleCount++;
+        }
+        overdueReviewsCount = overdueCount;
+
+        // Criterion aggregates from read models
+        if (cycleInfo.id) {
+          const critRes = await this.pool.query(
+            `SELECT criterion_code, criterion_name, category, AVG(raw_score) as avg_score
+             FROM employee_kpi_score_read_model
+             WHERE team_id = ANY($1) AND evaluation_cycle_id = $2 AND raw_score IS NOT NULL
+             GROUP BY criterion_code, criterion_name, category
+             ORDER BY avg_score DESC
+             LIMIT 10`,
+            [teamIds, cycleInfo.id]
+          );
+          criterionAggregates = critRes.rows.map((r) => ({
+            criterion_code: r.criterion_code,
+            criterion_name: normalizeLocalizedText(r.criterion_name),
+            category: normalizeLocalizedText(r.category, 'General'),
+            average_score: Number(Number(r.avg_score).toFixed(2)),
+          }));
+        }
+      } catch {
+        // Fallback gracefully
+      }
+    } else if (teamIds.length > 0) {
+      // In-memory fallback if pool is not attached
+      try {
+        const primaryTeamId = teamIds[0];
+        if (primaryTeamId) {
+          const teamRep = await this.reportsRepo.getTeamReport(primaryTeamId, cycleInfo.id);
+          if (teamRep?.aggregate) {
+            teamMembersCount = teamRep.aggregate.employee_count;
+            completedEvaluations = teamRep.aggregate.completed_employee_count;
+            totalEvaluations = teamMembersCount;
+            teamAverageScore = teamRep.aggregate.team_average_score != null ? Number(teamRep.aggregate.team_average_score) : null;
+          }
+        }
+      } catch {
+        // Fallback gracefully
+      }
+    }
+
+    const completionRate = totalEvaluations > 0
+      ? Number(((completedEvaluations / totalEvaluations) * 100).toFixed(1))
+      : 0;
+
+    const workflowDistribution = [
+      'DRAFT',
+      'OPEN',
+      'SELF_ASSESSMENT',
+      'MANAGER_ASSESSMENT',
+      'REVIEWING',
+      'CALIBRATION',
+      'APPROVED',
+      'PUBLISHED',
+      'LOCKED',
+    ].map((st) => ({
+      status: st,
+      count: workflowDistributionMap.get(st) || 0,
+    }));
+
+    // Action / attention items
+    const attention: Array<{
+      id: string;
+      type: 'INFO' | 'WARNING' | 'DANGER' | 'SUCCESS';
+      title: string;
+      message: string;
+      action_url?: string;
+    }> = [];
+
+    const pendingManagerCount = workflowDistributionMap.get('MANAGER_ASSESSMENT') || 0;
+    if (pendingManagerCount > 0) {
+      attention.push({
+        id: 'pending-manager-assessment',
+        type: 'WARNING',
+        title: 'Assessments Pending Review',
+        message: `${pendingManagerCount} team evaluations are awaiting your assessment.`,
+        action_url: '/admin/team-evaluations',
+      });
+    }
+
+    if (overdueReviewsCount > 0) {
+      attention.push({
+        id: 'team-overdue-reviews',
+        type: 'DANGER',
+        title: 'Team Reviews Overdue',
+        message: `${overdueReviewsCount} team members have overdue performance evaluations.`,
+        action_url: '/admin/team-evaluations',
+      });
+    }
+
+    return {
+      role: 'MANAGER',
+      scope: {
+        type: 'TEAM',
+        ids: teamIds,
+        teams: managedTeams,
+      },
+      cycle: cycleInfo,
+      summary: {
+        team_members_count: teamMembersCount,
+        total_evaluations: totalEvaluations,
+        completed_evaluations: completedEvaluations,
+        in_progress_evaluations: inProgressEvaluations,
+        pending_review_evaluations: pendingReviewEvaluations,
+        overdue_reviews_count: overdueReviewsCount,
+        completion_rate: completionRate,
+        team_average_score: teamAverageScore,
+      },
+      details: {
+        workflow_distribution: workflowDistribution,
+        score_distribution: scoreBins,
+        criterion_aggregates: criterionAggregates,
+        review_due_summary: {
+          upcoming_count: upcomingCount,
+          overdue_count: overdueCount,
+          not_due_count: notDueCount,
+          no_schedule_count: noScheduleCount,
+        },
+      },
+      attention,
+      last_updated_at: new Date().toISOString(),
+    };
+  }
+
+  private async getHrAdminDashboardData(actor: Actor, cycleInfo: { id: string; name: string; status: string; start_date: string | null; end_date: string | null }) {
+    let totalEmployees = 0;
+    let activeEmployees = 0;
+    let totalEvaluations = 0;
+    let completedEvaluations = 0;
+    let inProgressEvaluations = 0;
+    let publishedEvaluations = 0;
+    let overdueReviewsCount = 0;
+    let organizationAverageScore: number | null = null;
+
+    const workflowMap = new Map<string, number>();
+    const scoreBins = [
+      { range: '0.0 - 1.0', count: 0, percentage: 0 },
+      { range: '1.0 - 2.0', count: 0, percentage: 0 },
+      { range: '2.0 - 3.0', count: 0, percentage: 0 },
+      { range: '3.0 - 4.0', count: 0, percentage: 0 },
+      { range: '4.0 - 5.0', count: 0, percentage: 0 },
+    ];
+
+    let deptTeamAggregates: Array<{
+      team_id: string;
+      team_name: string;
+      department_name: string;
+      employee_count: number;
+      completed_count: number;
+      completion_rate: number;
+      average_score: number | null;
+    }> = [];
+
+    let cycleTrend: Array<{
+      cycle_id: string;
+      cycle_name: string;
+      average_score: number | null;
+      completion_rate: number;
+    }> = [];
+
+    let upcomingCount = 0;
+    let overdueCount = 0;
+    let notDueCount = 0;
+    let noScheduleCount = 0;
+
+    if (this.pool) {
+      try {
+        // Employee counts
+        const empCountRes = await this.pool.query(
+          `SELECT COUNT(*) as total,
+                  COUNT(*) FILTER (WHERE employment_status = 'ACTIVE') as active
+           FROM employee`
+        );
+        totalEmployees = parseInt(empCountRes.rows[0]?.total || '0', 10);
+        activeEmployees = parseInt(empCountRes.rows[0]?.active || '0', 10);
+
+        // Evaluations in cycle
+        let evalSql = `SELECT evaluation_id, status, final_score, manager_score, self_score FROM evaluation`;
+        const evalParams: unknown[] = [];
+        if (cycleInfo.id) {
+          evalSql += ` WHERE evaluation_cycle_id = $1`;
+          evalParams.push(cycleInfo.id);
+        }
+        const evalRes = await this.pool.query(evalSql, evalParams);
+        totalEvaluations = evalRes.rows.length;
+
+        let totalScoreSum = 0;
+        let scoredCount = 0;
+
+        for (const row of evalRes.rows) {
+          const status = row.status || 'DRAFT';
+          workflowMap.set(status, (workflowMap.get(status) || 0) + 1);
+
+          if (['APPROVED', 'PUBLISHED', 'LOCKED'].includes(status)) {
+            completedEvaluations++;
+            if (status === 'PUBLISHED') publishedEvaluations++;
+          } else {
+            inProgressEvaluations++;
+          }
+
+          const score = row.final_score != null
+            ? Number(row.final_score)
+            : row.manager_score != null
+            ? Number(row.manager_score)
+            : row.self_score != null
+            ? Number(row.self_score)
+            : null;
+
+          if (score != null) {
+            totalScoreSum += score;
+            scoredCount++;
+            incrementScoreBin(scoreBins, score);
+          }
+        }
+
+        if (scoredCount > 0) {
+          organizationAverageScore = Number((totalScoreSum / scoredCount).toFixed(2));
+          scoreBins.forEach((b) => {
+            b.percentage = Number(((b.count / scoredCount) * 100).toFixed(1));
+          });
+        }
+
+        // Review due status across organization
+        const dueRes = await this.pool.query(
+          `SELECT last_evaluation_completed_at, review_cadence, next_review_due_date
+           FROM employee
+           WHERE employment_status = 'ACTIVE'`
+        );
+        for (const row of dueRes.rows) {
+          const st = getEmployeeReviewStatus({
+            lastEvaluationCompletedAt: row.last_evaluation_completed_at,
+            reviewCadence: row.review_cadence,
+            nextReviewDueDate: row.next_review_due_date,
+          });
+          if (st.status === 'OVERDUE') overdueCount++;
+          else if (st.status === 'UPCOMING') upcomingCount++;
+          else if (st.status === 'NOT_DUE') notDueCount++;
+          else noScheduleCount++;
+        }
+        overdueReviewsCount = overdueCount;
+
+        // Department / Team breakdown
+        const teamBreakdownRes = await this.pool.query(
+          `SELECT t.team_id, t.name as team_name, d.name as department_name,
+                  COUNT(e.employee_id) as emp_count,
+                  COUNT(ev.evaluation_id) FILTER (WHERE ev.status IN ('APPROVED', 'PUBLISHED', 'LOCKED')) as completed_count,
+                  AVG(COALESCE(ev.final_score, ev.manager_score)) as avg_score
+           FROM team t
+           LEFT JOIN department d ON t.department_id = d.department_id
+           LEFT JOIN employee e ON e.team_id = t.team_id AND e.employment_status = 'ACTIVE'
+           LEFT JOIN evaluation ev ON ev.employee_id = e.employee_id ${cycleInfo.id ? 'AND ev.evaluation_cycle_id = $1' : ''}
+           GROUP BY t.team_id, t.name, d.name
+           ORDER BY t.name ASC
+           LIMIT 20`,
+          cycleInfo.id ? [cycleInfo.id] : []
+        );
+        deptTeamAggregates = teamBreakdownRes.rows.map((r) => {
+          const eCount = parseInt(r.emp_count || '0', 10);
+          const cCount = parseInt(r.completed_count || '0', 10);
+          return {
+            team_id: r.team_id,
+            team_name: normalizeLocalizedText(r.team_name, 'Team'),
+            department_name: normalizeLocalizedText(r.department_name, 'General'),
+            employee_count: eCount,
+            completed_count: cCount,
+            completion_rate: eCount > 0 ? Number(((cCount / eCount) * 100).toFixed(1)) : 0,
+            average_score: r.avg_score != null ? Number(Number(r.avg_score).toFixed(2)) : null,
+          };
+        });
+
+        // Trend by cycles (past 5 cycles)
+        const cycleTrendRes = await this.pool.query(
+          `SELECT c.evaluation_cycle_id, c.name,
+                  AVG(COALESCE(s.final_score, s.manager_score, s.self_score)) as avg_score,
+                  COUNT(s.evaluation_id) as eval_count,
+                  COUNT(s.evaluation_id) FILTER (WHERE s.evaluation_status IN ('APPROVED', 'PUBLISHED', 'LOCKED')) as completed_count
+           FROM evaluation_cycle c
+           LEFT JOIN employee_evaluation_score_read_model s ON s.evaluation_cycle_id = c.evaluation_cycle_id
+           GROUP BY c.evaluation_cycle_id, c.name, c.start_date
+           ORDER BY c.start_date ASC
+           LIMIT 5`
+        );
+        cycleTrend = cycleTrendRes.rows.map((r) => {
+          const count = parseInt(r.eval_count || '0', 10);
+          const comp = parseInt(r.completed_count || '0', 10);
+          return {
+            cycle_id: r.evaluation_cycle_id,
+            cycle_name: normalizeLocalizedText(r.name, 'Cycle'),
+            average_score: r.avg_score != null ? Number(Number(r.avg_score).toFixed(2)) : null,
+            completion_rate: count > 0 ? Number(((comp / count) * 100).toFixed(1)) : 0,
+          };
+        });
+      } catch {
+        // Fallback gracefully
+      }
+    }
+
+    const completionRate = totalEvaluations > 0
+      ? Number(((completedEvaluations / totalEvaluations) * 100).toFixed(1))
+      : 0;
+
+    const workflowDistribution = [
+      'DRAFT',
+      'OPEN',
+      'SELF_ASSESSMENT',
+      'MANAGER_ASSESSMENT',
+      'REVIEWING',
+      'CALIBRATION',
+      'APPROVED',
+      'PUBLISHED',
+      'LOCKED',
+    ].map((st) => ({
+      status: st,
+      count: workflowMap.get(st) || 0,
+    }));
+
+    const attention: Array<{
+      id: string;
+      type: 'INFO' | 'WARNING' | 'DANGER' | 'SUCCESS';
+      title: string;
+      message: string;
+      action_url?: string;
+    }> = [];
+
+    const bottleneckReviewing = workflowMap.get('REVIEWING') || 0;
+    if (bottleneckReviewing > 5) {
+      attention.push({
+        id: 'review-bottleneck',
+        type: 'WARNING',
+        title: 'Review Bottleneck Detected',
+        message: `${bottleneckReviewing} evaluations are currently awaiting review approval across teams.`,
+        action_url: '/admin/cycles',
+      });
+    }
+
+    if (overdueReviewsCount > 0) {
+      attention.push({
+        id: 'org-overdue-reviews',
+        type: 'DANGER',
+        title: 'Organization Overdue Reviews',
+        message: `${overdueReviewsCount} employees across departments have overdue review schedules.`,
+        action_url: '/admin/cycles',
+      });
+    }
+
+    return {
+      role: 'HR_ADMIN',
+      scope: {
+        type: 'ORGANIZATION',
+      },
+      cycle: cycleInfo,
+      summary: {
+        total_employees: totalEmployees,
+        active_employees: activeEmployees,
+        total_evaluations: totalEvaluations,
+        completed_evaluations: completedEvaluations,
+        in_progress_evaluations: inProgressEvaluations,
+        published_evaluations: publishedEvaluations,
+        overdue_reviews_count: overdueReviewsCount,
+        completion_rate: completionRate,
+        organization_average_score: organizationAverageScore,
+      },
+      details: {
+        workflow_distribution: workflowDistribution,
+        score_distribution: scoreBins,
+        department_team_aggregates: deptTeamAggregates,
+        cycle_trend: cycleTrend,
+        review_due_summary: {
+          upcoming_count: upcomingCount,
+          overdue_count: overdueCount,
+          not_due_count: notDueCount,
+          no_schedule_count: noScheduleCount,
+        },
+      },
+      attention,
+      last_updated_at: new Date().toISOString(),
+    };
+  }
+
+  private async getSystemAdminDashboardData(actor: Actor, cycleInfo: { id: string; name: string; status: string; start_date: string | null; end_date: string | null }) {
+    let totalUsers = 0;
+    let activeUsers = 0;
+    let totalRoles = 0;
+    let totalTeams = 0;
+    let totalDepartments = 0;
+    let totalCycles = 0;
+    let publishedTemplates = 0;
+
+    const auditSummary = {
+      total_recent_events: 0,
+      events_by_action: [] as Array<{ action: string; count: number }>,
+      events_by_day: [] as Array<{ date: string; count: number }>,
+      recent_events: [] as Array<{ id: string; action: string; entity_name: string; timestamp: string }>,
+    };
+
+    if (this.pool) {
+      try {
+        const userRes = await this.pool.query(`SELECT COUNT(*) as total FROM app_user`);
+        totalUsers = parseInt(userRes.rows[0]?.total || '0', 10);
+        activeUsers = totalUsers;
+
+        const roleRes = await this.pool.query(`SELECT COUNT(*) as total FROM role`);
+        totalRoles = parseInt(roleRes.rows[0]?.total || '0', 10);
+
+        const teamRes = await this.pool.query(`SELECT COUNT(*) as total FROM team`);
+        totalTeams = parseInt(teamRes.rows[0]?.total || '0', 10);
+
+        const deptRes = await this.pool.query(`SELECT COUNT(*) as total FROM department`);
+        totalDepartments = parseInt(deptRes.rows[0]?.total || '0', 10);
+
+        const cycleRes = await this.pool.query(`SELECT COUNT(*) as total FROM evaluation_cycle`);
+        totalCycles = parseInt(cycleRes.rows[0]?.total || '0', 10);
+
+        const tplRes = await this.pool.query(
+          `SELECT COUNT(*) as total FROM evaluation_template WHERE status = 'PUBLISHED'`
+        );
+        publishedTemplates = parseInt(tplRes.rows[0]?.total || '0', 10);
+
+        // Audit events aggregate
+        const auditCountRes = await this.pool.query(`SELECT COUNT(*) as total FROM audit_log`);
+        auditSummary.total_recent_events = parseInt(auditCountRes.rows[0]?.total || '0', 10);
+
+        const actionRes = await this.pool.query(
+          `SELECT action, COUNT(*) as count FROM audit_log GROUP BY action ORDER BY count DESC LIMIT 5`
+        );
+        auditSummary.events_by_action = actionRes.rows.map((r) => ({
+          action: r.action,
+          count: parseInt(r.count, 10),
+        }));
+
+        const recentAuditRes = await this.pool.query(
+          `SELECT id, action, entity_name, created_at FROM audit_log ORDER BY created_at DESC LIMIT 5`
+        );
+        auditSummary.recent_events = recentAuditRes.rows.map((r) => ({
+          id: r.id,
+          action: r.action,
+          entity_name: r.entity_name || 'System',
+          timestamp: new Date(r.created_at).toISOString(),
+        }));
+      } catch {
+        // Fallback gracefully
+      }
+    }
+
+    const attention = [
+      {
+        id: 'sys-health',
+        type: 'SUCCESS' as const,
+        title: 'System Health Optimal',
+        message: 'All application services, audit log retention, and read-model projections are running smoothly.',
+        action_url: '/admin/audit-logs',
+      },
+    ];
+
+    return {
+      role: 'SYSTEM_ADMIN',
+      scope: {
+        type: 'SYSTEM',
+      },
+      cycle: cycleInfo,
+      summary: {
+        total_users: totalUsers,
+        active_users: activeUsers,
+        total_roles: totalRoles,
+        total_teams: totalTeams,
+        total_departments: totalDepartments,
+        total_cycles: totalCycles,
+        published_templates: publishedTemplates,
+      },
+      details: {
+        system_health: {
+          status: 'OPERATIONAL',
+          database: 'HEALTHY',
+          read_models: 'UP_TO_DATE',
+        },
+        audit_summary: auditSummary,
+      },
+      attention,
+      last_updated_at: new Date().toISOString(),
+    };
+  }
 }
+

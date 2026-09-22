@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { COLORS } from '@/lib/theme';
 import { useTheme } from '@/shared/theme';
 import { Sidebar } from './Sidebar';
@@ -33,6 +33,32 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   onGenerateReport
 }) => {
   const { isDark } = useTheme();
+  const [isMobile, setIsMobile] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 768;
+    }
+    return false;
+  });
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (!mobile) {
+        setMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleSelectMenuItem = (id: string) => {
+    if (isMobile) {
+      setMobileMenuOpen(false);
+    }
+    onSelectMenuItem?.(id);
+  };
 
   return (
     <div
@@ -44,17 +70,39 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         backgroundColor: isDark ? '#0B0F19' : COLORS.neutral.surfaceSubtle,
         color: isDark ? '#F9FAFB' : COLORS.neutral.textPrimary,
         transition: 'background-color 0.2s ease',
+        position: 'relative',
       }}
     >
-      {/* Left Sidebar with Expand/Collapse capability */}
-      <Sidebar
-        activeItemId={activeMenuItem}
-        collapsed={sidebarCollapsed}
-        defaultCollapsed={defaultSidebarCollapsed}
-        onToggleCollapse={onToggleSidebarCollapse}
-        onSelectItem={onSelectMenuItem}
-        onGenerateReport={onGenerateReport}
-      />
+      {/* Mobile Backdrop & Drawer */}
+      {isMobile && mobileMenuOpen && (
+        <>
+          <div
+            className="layout-sidebar-backdrop"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-hidden="true"
+            data-testid="sidebar-backdrop"
+          />
+          <Sidebar
+            activeItemId={activeMenuItem}
+            isMobileDrawer={true}
+            onCloseMobileDrawer={() => setMobileMenuOpen(false)}
+            onSelectItem={handleSelectMenuItem}
+            onGenerateReport={onGenerateReport}
+          />
+        </>
+      )}
+
+      {/* Desktop / Tablet Left Sidebar */}
+      {!isMobile && (
+        <Sidebar
+          activeItemId={activeMenuItem}
+          collapsed={sidebarCollapsed}
+          defaultCollapsed={defaultSidebarCollapsed}
+          onToggleCollapse={onToggleSidebarCollapse}
+          onSelectItem={handleSelectMenuItem}
+          onGenerateReport={onGenerateReport}
+        />
+      )}
 
       {/* Main Content Area Container */}
       <div
@@ -66,6 +114,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           overflow: 'hidden',
           backgroundColor: isDark ? '#0B0F19' : COLORS.neutral.surfaceSubtle,
           transition: 'background-color 0.2s ease',
+          minWidth: 0,
         }}
       >
         {/* Top Header */}
@@ -73,18 +122,12 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           title={pageTitle}
           subtitle={pageSubtitle}
           actions={headerActions}
+          onToggleMobileMenu={() => setMobileMenuOpen((prev) => !prev)}
+          isMobileMenuOpen={mobileMenuOpen}
         />
 
-        {/* Scrollable Main Body Content Slot */}
-        <main
-          style={{
-            flex: 1,
-            padding: '0 32px 24px 32px',
-            overflowY: 'auto',
-            display: 'flex',
-            flexDirection: 'column'
-          }}
-        >
+        {/* Scrollable Main Body Content Slot with Responsive Padding */}
+        <main className="app-layout-main">
           {children}
         </main>
 

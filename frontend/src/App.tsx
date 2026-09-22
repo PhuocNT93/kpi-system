@@ -42,7 +42,11 @@ import { TeamReportPage } from './features/reports/pages/TeamReportPage';
 import { CalibrationPage } from './features/calibration/pages/CalibrationPage';
 import { KpiSummaryDashboardPage } from './features/reports/employee-kpi-summary/pages/KpiSummaryDashboardPage';
 import { UnifiedPerformanceReportsPage } from './features/reports/pages/UnifiedPerformanceReportsPage';
+import { DashboardPage } from './features/dashboard/pages/DashboardPage';
 import {
+
+
+
   NotificationPreferencesPage,
   NotificationTemplatesPage,
   NotificationLogPage,
@@ -55,6 +59,7 @@ import { useAuth } from './shared/auth/auth-context';
 import { LogOut } from 'lucide-react';
 
 const ADMIN_PAGE_TITLES: Record<string, string> = {
+  dashboard: 'Dashboard',
   iam: 'IAM Management',
   'audit-logs': 'Audit Logs',
   organization: 'Organization',
@@ -91,17 +96,19 @@ function ProtectedLayout() {
 
   // Extract active menu from URL
   const pathParts = location.pathname.split('/');
-  const activeMenu = pathParts.includes('reports') || pathParts.includes('kpi-summary') || pathParts.includes('my-report') || pathParts.includes('team-report') || pathParts.includes('org-report')
+  const activeMenu = pathParts.includes('dashboard')
+    ? 'dashboard'
+    : pathParts.includes('reports') || pathParts.includes('kpi-summary') || pathParts.includes('my-report') || pathParts.includes('team-report') || pathParts.includes('org-report')
     ? 'reports'
     : pathParts.includes('ingestion') || pathParts.includes('collectors') || pathParts.includes('imports') || pathParts.includes('evaluation-data-imports')
     ? 'ingestion'
-    : pathParts.length > 2 ? pathParts[2] : 'iam';
+    : pathParts.length > 2 ? pathParts[2] : 'dashboard';
   const pageTitle = ADMIN_PAGE_TITLES[activeMenu] ?? 'System Layout';
 
   const headerActions = (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
       {user && (
-        <div style={{ textAlign: 'right' }}>
+        <div style={{ textAlign: 'right' }} className="hide-on-mobile">
           <div
             style={{
               fontSize: '0.875rem',
@@ -126,11 +133,13 @@ function ProtectedLayout() {
       <button
         type="button"
         onClick={logout}
+        title="Log out"
+        aria-label="Log out"
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: '8px',
-          padding: '8px 16px',
+          padding: '8px 12px',
           background: isDark ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
           border: `1px solid ${isDark ? '#374151' : COLORS.neutral[300]}`,
           borderRadius: RADII.md,
@@ -142,7 +151,7 @@ function ProtectedLayout() {
         }}
       >
         <LogOut size={16} />
-        Log out
+        <span className="hide-on-mobile">Log out</span>
       </button>
     </div>
   );
@@ -151,7 +160,8 @@ function ProtectedLayout() {
     <AppLayout
       activeMenuItem={activeMenu}
       onSelectMenuItem={(id) => {
-        if (id === 'ingestion') navigate('/admin/ingestion');
+        if (id === 'dashboard') navigate('/admin/dashboard');
+        else if (id === 'ingestion') navigate('/admin/ingestion');
         else if (id === 'reports') navigate('/admin/reports');
         else if (id === 'imports') navigate('/admin/ingestion?tab=csv');
         else if (id === 'collectors') navigate('/admin/ingestion?tab=blueprint');
@@ -170,12 +180,11 @@ function ProtectedLayout() {
 }
 
 function SmartHomeRedirect() {
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (user?.role === 'EMPLOYEE') return <Navigate to="/admin/my-evaluations" replace />;
-  if (user?.role === 'MANAGER') return <Navigate to="/admin/team-evaluations" replace />;
-  return <Navigate to="/admin/iam" replace />;
+  return <Navigate to="/admin/dashboard" replace />;
 }
+
 
 export default function App() {
   return (
@@ -192,7 +201,13 @@ export default function App() {
               </ProtectedRoute>
             }>
               <Route path="/admin" element={<SmartHomeRedirect />} />
+              <Route path="/admin/dashboard" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
+                  <DashboardPage />
+                </ProtectedRoute>
+              } />
               <Route path="/admin/iam" element={
+
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
                   <IamPage />
                 </ProtectedRoute>
@@ -386,7 +401,9 @@ export default function App() {
             </Route>
 
             <Route path="/" element={<SmartHomeRedirect />} />
+            <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="*" element={<Navigate to="/login" replace />} />
+
           </Routes>
         </BrowserRouter>
         </AuthProvider>
