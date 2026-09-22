@@ -1,6 +1,6 @@
 # LLD — Employee Performance Evaluation Management System
 
-> **Trạng thái tài liệu:** v1.7 — Email Notification qua SMTP, đã chốt policy notification (bắt buộc RESULT_PUBLISHED, retention 1 năm). Xem changelog cuối tài liệu.
+> **Trạng thái tài liệu:** v1.8 — bổ sung Automated Data Crawling (script-based connector cho BLUEPRINT/JIRA/GOOGLE_SHEET). Xem changelog cuối tài liệu.
 > **18 tiêu chí hiện tại (Performance / Capability / Contribution) chỉ được coi là *seed data / sample configuration*.** Toàn bộ hệ thống được thiết kế theo hướng **Configurable, Rule-driven Evaluation Framework** — không hard-code criterion, weight, level, hay tool phụ thuộc vào application code.
 
 ---
@@ -26,15 +26,18 @@ Kiến trúc đề xuất: **Modular Monolith**, tách rõ các bounded context 
 - RBAC rõ ràng theo 4 nhóm role: Employee, Team Lead/Manager, HR/Admin, System Admin.
 - **Đa ngôn ngữ (EN/VI)** — dữ liệu master (Criterion, Level, Department, Team, Role, Job Level, Review Cadence...) và UI hiển thị được cả tiếng Anh lẫn tiếng Việt, mặc định EN (✅ mới, xem mục 21.1).
 - **Email Notification (SMTP)** — thông báo tự động qua email cho các thay đổi/kết quả quan trọng trong kỳ đánh giá (mở cycle, submit, publish kết quả, review due reminder...) (✅ mới, xem mục 21.2).
+- **Automated Data Crawling** — quản lý script JavaScript (sandboxed), đăng ký job chạy tuần tự theo từng Criterion để tự động lấy dữ liệu từ BLUEPRINT/JIRA/GOOGLE_SHEET, luôn qua bước con người xác nhận giải thích trước khi áp dụng điểm (✅ mới, xem mục 15.1).
 
 ### Non-goals (giai đoạn MVP)
 - Không xây dựng full BPMN workflow engine (dùng state machine cấu hình đơn giản).
-- Không tích hợp tự động với Jira/Git/QA tool ở MVP (evidence là URL/text/manual).
+- ~~Không tích hợp tự động với Jira/Git/QA tool ở MVP~~ **✅ Đã đổi phạm vi:** tích hợp tự động với JIRA/GOOGLE_SHEET/BLUEPRINT **có** trong MVP qua tính năng Automated Data Crawling (mục 15.1) — nhưng **luôn dừng ở bước "candidate data", bắt buộc con người review + giải thích trước khi áp dụng điểm** (không tự động ghi thẳng vào điểm chính thức). Git integration vẫn ngoài phạm vi MVP (chưa có connector).
 - Không làm multi-tenant (multi-organization) ở MVP — giả định 1 organization.
 - Không làm real-time collaborative editing.
 - Không làm ranking/stack-ranking tự động (chỉ hỗ trợ xem distribution aggregate theo team/org — **không** xem xếp hạng cá nhân dưới bất kỳ hình thức nào, kể cả ẩn danh; ✅ đã chốt, xem mục 19).
 - **Không tự động dịch nội dung do người dùng nhập** (comment, evidence, full_name...) — đa ngôn ngữ chỉ áp dụng cho dữ liệu master/UI (mục 21.1), không dịch máy nội dung tự do.
 - Không đa ngôn ngữ cho report export PDF/Excel ở MVP (Phase 2).
+- **Không cho phép HR/Manager tự viết/sửa JavaScript** — chỉ System Admin được quyền này (mục 15.1.6); HR/Admin chỉ được đăng ký job dùng script đã có sẵn.
+- **Không tự động Apply dữ liệu crawl vào điểm chính thức** — luôn cần con người xác nhận giải thích trước (mục 15.1.5).
 
 ### Scope
 In-scope: employee management, evaluation cycle/template/criteria configuration, manual entry, CSV import, scoring engine, workflow, calibration (cơ bản), reporting, audit, RBAC.
@@ -80,8 +83,9 @@ Insight quan trọng rút ra từ dữ liệu mẫu để đưa vào rule engine
 - **Review Cadence & Scheduling** *(mới)* — chu kỳ đánh giá riêng theo từng nhân viên (2 tháng/6 tháng/1 năm...), Review Due Dashboard, tạo evaluation riêng bán tự động (xem mục 14.1)
 - **Đa ngôn ngữ EN/VI** *(mới)* — master data + UI đa ngôn ngữ qua bảng `i18n_translation` (xem mục 21.1)
 - **Email Notification (SMTP)** *(mới, chuyển từ Phase 2 lên MVP theo yêu cầu)* — thông báo tự động cho các sự kiện chính trong kỳ đánh giá (mở cycle, submit, publish, review due reminder...), template configurable, gửi bất đồng bộ qua queue (xem mục 21.2)
+- **Automated Data Crawling** *(mới, chuyển 1 phần từ Phase 2 lên MVP theo yêu cầu)* — quản lý JavaScript sandboxed (System Admin only), đăng ký job tuần tự theo Criterion để crawl BLUEPRINT/JIRA/GOOGLE_SHEET, luôn qua review + giải thích của con người trước khi Apply (xem mục 15.1)
 - Immutable historical evaluation (snapshot)
-- Audit log (mọi thay đổi weight/score/level/cadence)
+- Audit log (mọi thay đổi weight/score/level/cadence/crawl script)
 - RBAC (4 role nhóm)
 - Basic dashboard: employee score, team average, completion rate
 
@@ -92,7 +96,8 @@ Insight quan trọng rút ra từ dữ liệu mẫu để đưa vào rule engine
 - Score normalization giữa các team
 - **Notification nâng cao** — digest email tổng hợp hàng tuần, push notification mobile/app, SMS, rich HTML branding tùy chỉnh theo tổ chức (MVP chỉ gửi plain/simple HTML email theo sự kiện, xem mục 21.2)
 - **Auto-tạo evaluation hoàn toàn tự động khi đến due date** (MVP vẫn cần HR/Manager bấm xác nhận, xem mục 14.1)
-- Jira/Git integration (tự động lấy measurement)
+- **Crawl nâng cao** — tự động Apply không cần review thủ công (nếu sau này tổ chức tin tưởng đủ dữ liệu nguồn), thêm nguồn mới ngoài 3 loại ban đầu, UI kéo-thả xây script thay vì code tay (xem mục 15.1)
+- Git integration (chưa có connector ở MVP)
 - Goal tracking, performance trend, promotion recommendation
 
 **Lý do không làm ở MVP:** các integration (Jira/Git) đòi hỏi mapping riêng cho từng team/tool — vi phạm nguyên tắc "tool không hard-code"; nên để MVP ổn định với manual + CSV trước, sau đó xây **Evidence Provider Plugin interface** ở Phase 2.
@@ -165,13 +170,15 @@ flowchart TB
         AUDIT[Audit Log]
         REPORT[Reporting]
         NOTIF[Notification - mới]
+        CRAWL[Data Crawler - mới, sandboxed]
     end
 
     DB[(Primary DB - PostgreSQL)]
     FILE[(File Storage - CSV / Evidence)]
     CACHE[(Cache - Redis)]
-    QUEUE[(Job Queue - async import/report/notification)]
+    QUEUE[(Job Queue - async import/report/notification/crawl)]
     SMTP[(SMTP Server - Google Workspace relay)]
+    EXTSRC[(External: BLUEPRINT / JIRA / GOOGLE_SHEET)]
 
     WebApp --> GW
     GW --> IAM
@@ -182,6 +189,7 @@ flowchart TB
     GW --> CAL
     GW --> REPORT
     GW --> NOTIF
+    GW --> CRAWL
 
     EVAL --> RULE
     IMPORT --> RULE
@@ -196,6 +204,9 @@ flowchart TB
     WF --> NOTIF
     NOTIF --> QUEUE
     QUEUE --> SMTP
+    CRAWL --> QUEUE
+    CRAWL -.sandboxed, whitelist domain.-> EXTSRC
+    CRAWL --> AUDIT
 
     IAM --> DB
     ORG --> DB
@@ -222,6 +233,7 @@ flowchart TB
 | Calibration | So sánh, ghi adjustment, không tự động sửa score gốc mà tạo `final_score` riêng | — |
 | Audit | Ghi log bất biến cho mọi thay đổi có ý nghĩa nghiệp vụ | Không cho update/delete |
 | **Notification** *(mới)* | Nhận sự kiện từ Evaluation/Workflow/Import, ghi `notification_log` (outbox), render template theo locale, enqueue gửi SMTP bất đồng bộ | **Không** quyết định business logic (không tự ý thay đổi state); **không** chặn/rollback transaction chính nếu gửi email thất bại |
+| **Data Crawler** *(mới)* | Chạy `crawl_script` trong sandbox theo `crawl_job_definition`, ghi `evaluation_data_import`/`_row`, sinh `auto_generated_comment` | **Không** tự động Apply vào `evaluation_criterion` — luôn cần con người xác nhận `reviewer_comment` trước (mục 15.1.5); **không** cấp quyền filesystem/env cho script |
 
 ---
 
@@ -246,6 +258,11 @@ erDiagram
     I18N_TRANSLATION }o--|| ROLE : "polymorphic — name"
     I18N_TRANSLATION }o--|| JOB_LEVEL : "polymorphic — name"
     I18N_TRANSLATION }o--|| REVIEW_CADENCE : "polymorphic — name"
+    CRITERION ||--o{ CRAWL_JOB_DEFINITION : "đăng ký job crawl theo criterion (mục 15.1)"
+    CRAWL_SCRIPT ||--o{ CRAWL_JOB_DEFINITION : "script đã publish"
+    CONNECTOR_CREDENTIAL ||--o{ CRAWL_JOB_DEFINITION : "credential nguồn ngoài"
+    CRAWL_JOB_DEFINITION ||--o{ EVALUATION_DATA_IMPORT : "mỗi lần chạy tạo 1 batch"
+    EVALUATION_DATA_IMPORT ||--o{ EVALUATION_DATA_IMPORT_ROW : contains
 
     EVALUATION_CYCLE ||--o{ EVALUATION_TEMPLATE_VERSION : uses
     EVALUATION_TEMPLATE ||--o{ EVALUATION_TEMPLATE_VERSION : "versioned by"
@@ -898,7 +915,191 @@ sequenceDiagram
 
 ---
 
-## 16. API Design
+## 15.1 Automated Data Crawling (Script-based Connectors) — ✅ tính năng mới
+
+> **Yêu cầu:** quản lý các script JavaScript, đăng ký **job chạy tuần tự theo từng Criterion/KPI** để tự động crawl dữ liệu từ `BLUEPRINT` / `JIRA` / `GOOGLE_SHEET` vào bảng `evaluation_data_import`.
+>
+> ⚠️ **Đây là tính năng rủi ro bảo mật cao nhất trong toàn bộ hệ thống** — quản lý JavaScript nghĩa là **thực thi code tùy ý (arbitrary code execution)**. Toàn bộ thiết kế dưới đây xoay quanh việc giảm thiểu rủi ro này (sandbox, whitelist mạng, giới hạn permission), không phải chỉ làm cho chạy được.
+
+### 15.1.1 Đối chiếu với bảng `evaluation_data_import` đã có
+
+Bảng `evaluation_data_import` (đã tồn tại, theo schema bạn cung cấp) đóng vai trò **batch header** cho 1 lần crawl — tương tự `import_job` (mục 10.6) nhưng dành riêng cho nguồn tự động thay vì CSV upload thủ công. Để hỗ trợ tính năng "theo từng KPI", cần **bổ sung** (không đổi cột đã có):
+
+```sql
+ALTER TABLE evaluation_data_import
+  ADD COLUMN crawl_job_definition_id UUID NOT NULL REFERENCES crawl_job_definition(crawl_job_definition_id),
+  ADD COLUMN evaluation_cycle_id UUID NOT NULL REFERENCES evaluation_cycle(evaluation_cycle_id);
+```
+
+> **Quyết định:** giữ `evaluation_data_import` là bảng **riêng** cho nguồn tự động (`source_system IN ('BLUEPRINT','JIRA','GOOGLE_SHEET')`), **không** hợp nhất với `import_job` (nguồn CSV thủ công) ở lần cập nhật này — tránh refactor ngoài phạm vi yêu cầu. Đánh dấu **Open Question** (mục 30) nếu muốn hợp nhất 2 bảng này trong tương lai (`source_system` có thể mở rộng thêm `'CSV_UPLOAD'` để dùng chung 1 bảng).
+
+Cần thêm 1 bảng con lưu chi tiết từng dòng dữ liệu crawl được (tương tự `import_row`, mục 10.6) — `raw_payload` trên bảng cha giữ nguyên bản dữ liệu thô 100% (phục vụ audit/debug "hệ thống đã lấy được gì"), còn bảng con lưu trạng thái xử lý **từng dòng**:
+
+**evaluation_data_import_row** *(mới)*
+| Column | Type | Null | Note |
+|---|---|---|---|
+| evaluation_data_import_row_id | uuid | N | PK |
+| import_id | uuid | N | FK → evaluation_data_import |
+| row_no | int | N | vị trí trong `raw_payload` |
+| parsed_employee_code | varchar | Y | resolve được từ payload hay không |
+| parsed_criterion_code | varchar | Y | |
+| parsed_measurement_value | numeric | Y | |
+| parsed_measurement_unit | varchar | Y | |
+| auto_generated_comment | text | Y | **xem mục 15.1.5** — comment do script tự sinh, chưa phải giải thích cuối cùng |
+| reviewer_comment | text | Y | comment do con người bổ sung/xác nhận trước khi Apply — **bắt buộc trước khi APPLIED** |
+| status | varchar(20) | N | ENUM `PARSED` / `INVALID` / `CONFLICT` / `PENDING_REVIEW` / `APPLIED` / `SKIPPED` |
+| error_message | text | Y | |
+| reviewed_by | uuid | Y | FK employee — ai xác nhận comment |
+| reviewed_at | timestamptz | Y | |
+
+Index: `(import_id, status)`.
+
+### 15.1.2 Quản lý JavaScript — versioning (tái sử dụng pattern Criterion/Template)
+
+**crawl_script** — dùng lại **nguyên xi** pattern "Draft → Published immutable" đã áp dụng cho `criterion_version`/`evaluation_template_version` (mục 10.2, mục 11) — không phát minh cơ chế version mới.
+
+| Column | Type | Null | Note |
+|---|---|---|---|
+| crawl_script_id | uuid | N | PK |
+| code | varchar(100) | N | UNIQUE, định danh script (vd `JIRA_ONTIME_FETCHER`) |
+| version_no | int | N | |
+| source_code | text | N | Nội dung JavaScript |
+| checksum | varchar(64) | N | SHA-256 của `source_code` — phát hiện sửa ngầm ngoài quy trình |
+| status | varchar(20) | N | ENUM `DRAFT` / `PUBLISHED` / `DEPRECATED` — **PUBLISHED bất biến**, sửa phải tạo version mới |
+| created_by, published_by, published_at | | | |
+
+**crawl_job_definition** — "đăng ký job" theo đúng yêu cầu, buộc 1 job = 1 criterion + 1 source + 1 script:
+
+| Column | Type | Null | Note |
+|---|---|---|---|
+| crawl_job_definition_id | uuid | N | PK |
+| criterion_id | uuid | N | FK → criterion — **job luôn gắn với đúng 1 Criterion/KPI** |
+| source_system | varchar(20) | N | ENUM `BLUEPRINT` / `JIRA` / `GOOGLE_SHEET` |
+| crawl_script_id | uuid | N | FK → crawl_script (chỉ được trỏ tới version `PUBLISHED`) |
+| connector_credential_id | uuid | N | FK → connector_credential (mục 15.1.6) — **không** lưu token/secret trực tiếp ở đây |
+| source_config | jsonb | N | tham số không nhạy cảm (vd JQL query cho Jira, Sheet ID + range cho Google Sheet, endpoint path cho Blueprint) |
+| sequence_order | int | N | **thứ tự chạy tuần tự** trong 1 lần scheduler trigger — job có `sequence_order` nhỏ hơn chạy trước |
+| schedule_cron | varchar(50) | Y | cron expression (vd `0 2 * * *` = 2h sáng mỗi ngày); null = chỉ chạy thủ công |
+| active | boolean | N | |
+| created_by, created_at, updated_at | | | |
+
+Unique: `(criterion_id, source_system)` — mỗi Criterion chỉ có tối đa 1 job đăng ký cho mỗi loại nguồn (tránh 2 job cùng ghi đè dữ liệu cho cùng 1 criterion từ cùng 1 nguồn).
+
+### 15.1.3 Thực thi tuần tự — Sequential Execution Queue
+
+**Quyết định:** dùng **cùng hạ tầng Job Queue đã có** (BullMQ — mục 27), nhưng tạo 1 **queue riêng `crawl-jobs` với `concurrency=1`** (chỉ 1 worker xử lý tại 1 thời điểm) — đây chính là cơ chế đảm bảo "chạy tuần tự", không cần tự viết scheduler riêng.
+
+```
+Scheduler (cron trigger theo schedule_cron của từng crawl_job_definition)
+  → enqueue vào queue "crawl-jobs" theo đúng sequence_order
+  → Worker (concurrency=1) lấy job kế tiếp, thực thi trong sandbox (mục 15.1.6)
+  → Ghi kết quả vào evaluation_data_import + evaluation_data_import_row
+  → Job tiếp theo trong queue chỉ bắt đầu sau khi job hiện tại kết thúc (thành công/timeout/lỗi)
+```
+
+**Why tuần tự (Decision → Why → Alternative → Trade-off):**
+**Why:** (1) tránh gọi đồng thời nhiều API bên ngoài (Jira/Google Sheets) gây vượt rate-limit của chính các dịch vụ đó; (2) đơn giản hóa mô hình concurrency cho execution sandbox (không cần pool nhiều sandbox instance cùng lúc); (3) nếu 2 job cùng lúc ghi vào `evaluation_data_import` cho cùng 1 employee ở 2 criterion khác nhau, tuần tự tránh race condition không cần thiết ở MVP.
+**Alternative:** chạy song song có giới hạn (vd concurrency=3).
+**Trade-off:** nếu có nhiều job đăng ký (vd 20 criterion × 3 nguồn = 60 job), tổng thời gian chạy hết 1 vòng sẽ dài hơn chạy song song — chấp nhận được vì đây là job nền ban đêm (theo cron), không ảnh hưởng trải nghiệm người dùng thời gian thực.
+
+### 15.1.4 Data flow & Status lifecycle
+
+```mermaid
+sequenceDiagram
+    participant Scheduler
+    participant Queue as Queue "crawl-jobs" (concurrency=1)
+    participant Sandbox as Script Sandbox (isolated-vm)
+    participant Source as BLUEPRINT/JIRA/GOOGLE_SHEET
+    participant DB
+
+    Scheduler->>DB: đọc crawl_job_definition active, đến hạn theo schedule_cron
+    Scheduler->>Queue: enqueue theo thứ tự sequence_order
+    loop mỗi job trong queue (tuần tự)
+        Queue->>DB: tạo evaluation_data_import (status=DRAFT, source_system, crawl_job_definition_id)
+        Queue->>Sandbox: thực thi crawl_script.source_code (timeout N giây, network whitelist theo source_system)
+        Sandbox->>Source: gọi API (credential lấy qua connector_credential, KHÔNG lộ raw secret cho script)
+        Source-->>Sandbox: raw data
+        Sandbox-->>Queue: trả về mảng record đã chuẩn hóa (employee_code, criterion_code, measurement_value, measurement_unit)
+        Queue->>DB: lưu raw_payload (nguyên văn), status=VALIDATING
+        Queue->>DB: parse từng record → insert evaluation_data_import_row (PARSED/INVALID/CONFLICT)
+        Queue->>DB: sinh auto_generated_comment cho mỗi row (mục 15.1.5)
+        Queue->>DB: evaluation_data_import.status=PENDING_REVIEW, cập nhật record_count/success_count/error_count/conflict_count
+    end
+    Note over DB: Job kế tiếp trong queue chỉ bắt đầu sau khi job này ghi xong PENDING_REVIEW/FAILED
+```
+
+Sau đó luồng **review & apply do con người thực hiện** (không tự động), xem mục 15.1.5.
+
+### 15.1.5 Giải quyết mâu thuẫn với yêu cầu "dữ liệu giải thích" (Import Center, Rule E1)
+
+Yêu cầu trước đó (`Import_Center_Feature_Definition.md`, Rule E1) bắt buộc **mọi** điểm số phải có `comment` giải thích ≥20 ký tự do con người viết. Dữ liệu crawl tự động **không có sẵn** giải thích định tính này (Jira/Google Sheet chỉ trả về con số thô).
+
+**Quyết định giải quyết:**
+1. Script **được phép** tự sinh `auto_generated_comment` theo template (vd `"Tự động crawl từ Jira lúc {timestamp}: {value} {unit} — nguồn: {jql_query}"`) — đây **chưa** được coi là giải thích hợp lệ, chỉ là ghi chú nguồn gốc dữ liệu.
+2. `evaluation_data_import_row.status` dừng ở **`PENDING_REVIEW`** — **không** tự động chuyển thành điểm chính thức (`evaluation_criterion`).
+3. Manager/HR **bắt buộc** mở màn hình "Review Crawled Data" (mục 15.1.9), xem từng row, và **phải nhập `reviewer_comment`** (áp dụng đúng validate ≥20 ký tự như Rule E1) trước khi bấm "Apply" — lúc này mới ghi vào `evaluation_criterion` thật.
+4. Chỉ sau bước 3, `status` mới chuyển `APPLIED`.
+
+→ Kết quả: **tự động hóa việc lấy số liệu, nhưng KHÔNG tự động hóa việc giải thích** — giữ nguyên tinh thần Rule E1 (con số thô không tự giải thích được bối cảnh), chỉ giảm công sức nhập tay con số.
+
+### 15.1.6 Bảo mật — Sandbox & Credential Management (⚠️ bắt buộc, không tùy chọn)
+
+**a) Execution Sandbox**
+- Chạy `crawl_script.source_code` trong **isolated-vm** (Node.js) — không dùng `vm2` (đã có nhiều CVE sandbox escape đã biết công khai).
+- **Whitelist mạng theo `source_system`**: script chỉ được gọi HTTP tới domain đã whitelist tương ứng (vd `*.atlassian.net` cho JIRA, `sheets.googleapis.com` cho GOOGLE_SHEET, domain nội bộ cho BLUEPRINT) — enforce ở **execution harness** (proxy/wrapper `fetch`), không dựa vào script tự giác.
+- **Timeout cứng** (vd 30 giây/lần chạy) — kill process nếu vượt.
+- **Không** cấp quyền truy cập filesystem, `process.env`, hay bất kỳ module Node.js nào ngoài 1 hàm `fetch` đã bọc sẵn.
+- Mọi lần thực thi ghi log đầy đủ (input params, output summary, thời gian chạy) vào `evaluation_data_import` — phục vụ debug và audit.
+
+**b) Credential Management**
+- **connector_credential** — token/API key của Jira/Google Sheets/Blueprint **mã hóa at-rest** (hoặc dùng secrets manager ngoài — AWS Secrets Manager/GCP Secret Manager/Vault — chỉ lưu reference ID trong DB, không lưu secret thật).
+- Script **không bao giờ** nhận raw secret trực tiếp trong code — execution harness inject credential vào hàm `fetch` đã bọc sẵn (script gọi `fetchJira(jql)`, không tự cầm token).
+- Đổi credential không cần sửa script (tách biệt hoàn toàn).
+
+**c) RBAC nghiêm ngặt hơn Import Center thông thường**
+- **Chỉ System Admin** được tạo/sửa/publish `crawl_script` (không phải HR/Admin như các config khác) — vì đây là code execution, rủi ro cao hơn hẳn việc chỉnh weight/criterion.
+- HR/Admin **chỉ được** tạo `crawl_job_definition` (chọn script đã PUBLISHED có sẵn, gán vào criterion, cấu hình schedule) — **không tự viết code**.
+- Xem chi tiết bảng RBAC mục 17.
+
+### 15.1.7 API bổ sung (mục 16)
+
+| Method | Endpoint | Auth | Note |
+|---|---|---|---|
+| GET/POST | `/crawl-scripts` | **System Admin only** | quản lý script (source_code, version) |
+| POST | `/crawl-scripts/{id}/versions/{v}/publish` | **System Admin only** | publish version, chốt checksum, immutable |
+| GET/POST | `/crawl-job-definitions` | HR/Admin | đăng ký job (chọn script đã publish + criterion + source + schedule) |
+| PATCH | `/crawl-job-definitions/{id}` | HR/Admin | sửa schedule/sequence_order/active |
+| POST | `/crawl-job-definitions/{id}/trigger` | HR/Admin | chạy thủ công ngay (bỏ qua cron), vẫn vào queue tuần tự |
+| GET | `/data-imports?source_system=` | HR/Admin | xem danh sách `evaluation_data_import`, filter theo status/source/criterion |
+| GET | `/data-imports/{id}/rows` | HR/Admin, Manager (scope team liên quan) | xem chi tiết từng row để review |
+| PATCH | `/data-imports/{id}/rows/{rowId}` | HR/Admin, Manager | nhập `reviewer_comment`, resolve CONFLICT |
+| POST | `/data-imports/{id}/apply` | HR/Admin, Manager | apply các row đã `PENDING_REVIEW` có `reviewer_comment` → ghi vào `evaluation_criterion` |
+| GET/POST | `/connector-credentials` | **System Admin only** | quản lý credential (không trả raw secret qua API, chỉ trả metadata) |
+
+### 15.1.8 UI (bổ sung mục 20)
+
+| Screen | Purpose | Permission |
+|---|---|---|
+| **Crawl Script Management** *(mới)* | Viết/sửa/publish JavaScript, xem version history, checksum | **System Admin only** |
+| **Crawl Job Registration** *(mới)* | Đăng ký job: chọn Criterion, source_system, script (dropdown script đã publish), config, schedule, sequence_order | HR/Admin |
+| **Review Crawled Data** *(mới)* | Xem từng batch `evaluation_data_import`, duyệt từng row, nhập reviewer_comment, resolve conflict, bấm Apply | HR/Admin, Manager (team liên quan) |
+| **Connector Credentials** *(mới)* | Quản lý API token/key (nhập mới, xoay vòng, không hiển thị lại giá trị cũ) | **System Admin only** |
+
+### 15.1.9 Audit
+- Mọi thay đổi `crawl_script` (tạo/sửa/publish) ghi `audit_log` với **toàn bộ diff source_code** — đây là hạng mục cần audit chi tiết nhất hệ thống vì liên quan code execution.
+- Mọi lần thực thi job (`evaluation_data_import` được tạo) ghi `audit_log` action=`CRAWL_EXECUTED`.
+- Mọi lần Apply (row PENDING_REVIEW → APPLIED) ghi `audit_log` như 1 dạng `score_adjustment`/import thông thường (tái dùng cơ chế đã có, mục 18).
+
+### 15.1.10 Business rules bổ sung
+- **Rule 20:** `crawl_job_definition.crawl_script_id` chỉ được trỏ tới script ở trạng thái `PUBLISHED` — không cho gán script `DRAFT` vào job thật (tránh chạy code chưa review xong).
+- **Rule 21:** Row ở `evaluation_data_import_row` **không được** Apply nếu thiếu `reviewer_comment` (validate ≥20 ký tự, đồng nhất Rule E1 của Import Center) — kể cả khi `auto_generated_comment` đã có sẵn.
+- **Rule 22:** Nếu criterion_code parse được từ payload **khác** với `crawl_job_definition.criterion_id` đã đăng ký → đánh dấu `INVALID`, không cho Apply — chặn trường hợp script lỗi/bị sửa sai vô tình ghi nhầm dữ liệu sang criterion khác.
+- **Rule 23:** Timeout hoặc lỗi runtime trong sandbox → `evaluation_data_import.status=FAILED`, ghi `error_message`, **không** làm crash worker/queue — job tiếp theo trong hàng đợi vẫn chạy bình thường.
+- **Rule 24:** Xóa/deactivate 1 `connector_credential` đang được `crawl_job_definition` active sử dụng → cảnh báo trước, không cho xóa cứng (soft-delete + chặn job liên quan tự động `active=false`).
+
+---
+
+
 
 > Chuẩn chung: JWT Bearer auth, mọi response lỗi theo format thống nhất (mục 21.12), idempotency-key header cho POST tạo mới quan trọng (`/imports/csv`, `/evaluations`).
 
@@ -1014,6 +1215,10 @@ sequenceDiagram
 | Override cadence cá nhân 1 nhân viên | ❌ | ❌ | ✅ | ❌ |
 | Xem Review Due Dashboard | ❌ | ✅ (team mình) | ✅ (toàn org) | ❌ |
 | Tạo Individual Evaluation (từ dashboard) | ❌ | ✅ (team mình) | ✅ | ❌ |
+| **Viết/sửa/publish Crawl Script** *(mới)* | ❌ | ❌ | ❌ | ✅ **duy nhất** — rủi ro code execution cao (mục 15.1.6) |
+| **Đăng ký Crawl Job** (gán script có sẵn vào criterion) | ❌ | ❌ | ✅ | ❌ |
+| **Quản lý Connector Credential** *(mới)* | ❌ | ❌ | ❌ | ✅ **duy nhất** |
+| **Review & Apply dữ liệu crawl** *(mới)* | ❌ | ✅ (team mình) | ✅ | ❌ |
 | Xem report team | ❌ | ✅ (team mình) | ✅ | ✅ |
 | Xem report toàn org | ❌ | ❌ | ✅ | ✅ |
 | Xem audit log | ❌ | ❌ | ✅ (business scope) | ✅ (toàn bộ) |
@@ -1478,6 +1683,8 @@ Chuẩn hóa response lỗi:
 - **Permission test:** ma trận RBAC mục 17 — test âm (Employee gọi API Admin phải 403).
 - **Workflow test:** đảm bảo không thể skip state (vd submit thẳng LOCKED).
 - **Regression test:** snapshot evaluation cũ không đổi sau khi sửa criterion/template mới.
+- **Crawl Sandbox test** *(mới)*: script cố gắng truy cập filesystem/`process.env`/domain ngoài whitelist → phải bị chặn; script timeout → job FAILED, không crash worker, job kế tiếp trong queue vẫn chạy.
+- **Crawl data integrity test** *(mới)*: row có `criterion_code` không khớp `crawl_job_definition.criterion_id` → `INVALID`, không cho Apply (Rule 22); row thiếu `reviewer_comment` → chặn Apply (Rule 21).
 
 ---
 
@@ -1497,6 +1704,7 @@ flowchart LR
     end
     subgraph "Async"
         Worker[Background Worker - Import/Report/Notification jobs]
+        CrawlWorker["Crawl Worker - ISOLATED process<br/>(sandbox riêng, network whitelist)"]
         MQ[(Message Queue)]
     end
     subgraph "Data Tier"
@@ -1504,20 +1712,27 @@ flowchart LR
         PGR[(PostgreSQL - Read Replica, cho Reporting)]
         Redis[(Redis Cache)]
         S3[(Object Storage - CSV/Evidence files)]
+        Secrets[(Secrets Store - connector_credential)]
     end
+    ExtSrc[("BLUEPRINT / JIRA / GOOGLE_SHEET")]
 
     Browser --> LB --> App1
     LB --> App2
     App1 --> MQ --> Worker
+    MQ --> CrawlWorker
+    CrawlWorker -.whitelist domain only.-> ExtSrc
+    CrawlWorker --> Secrets
     App1 --> PG
     App2 --> PG
     Worker --> PG
+    CrawlWorker --> PG
     App1 --> Redis
     App1 --> S3
     App1 -.read report.-> PGR
 ```
 
 - Deploy: containerized (Docker), CI/CD pipeline chuẩn, DB migration tool (Flyway/Liquibase) chạy tự động, có rollback plan.
+- **Crawl Worker chạy trong process/container TÁCH BIỆT** khỏi App instance chính (mục 15.1.6) — nếu sandbox bị exploit hoặc script treo/leak memory, **không ảnh hưởng** tới App phục vụ người dùng. Container này có network policy riêng, chỉ mở outbound tới domain đã whitelist.
 - Environment: Dev → Staging → Production, seed data 18 KPI mẫu chỉ load ở Dev/Staging làm demo, **không hard-code vào migration production** (nạp qua Import/UI như dữ liệu thật).
 
 ---
@@ -1534,6 +1749,8 @@ flowchart LR
 | Auth | **Google OAuth2/OIDC** (`accounts.google.com`), domain-restricted (✅ đã chốt — xem mục 21) | Keycloak/Auth0 self-host | Công ty đã dùng Google Workspace cho email nội bộ nên tận dụng làm IdP trực tiếp, không cần thêm hạ tầng identity provider riêng; trade-off: phụ thuộc uptime của Google (chấp nhận được vì công ty vốn đã phụ thuộc Google Workspace cho email) |
 | Background job | BullMQ (Node) / Spring Batch (Java) + Redis/RabbitMQ | AWS SQS | Tùy hạ tầng sẵn có; BullMQ đơn giản nếu đã chọn Node; dùng chung queue này cho cả Import job (mục 15) và Notification job (mục 21.2) |
 | **Email/SMTP** | **Nodemailer** (Node.js) qua **Google Workspace SMTP relay** | SendGrid/AWS SES (third-party) | Tận dụng Google Workspace đã có sẵn cho SSO (mục 21) — không thêm nhà cung cấp/chi phí thứ 3; trade-off: giới hạn quota gửi/ngày của Workspace SMTP relay so với dịch vụ email transactional chuyên dụng (chấp nhận được ở quy mô ~1,000 employee, mục 22) |
+| **Script Sandbox** *(mới)* | **isolated-vm** (Node.js), chạy trong worker process riêng | vm2 (❌ không dùng — nhiều CVE sandbox escape đã công khai); container/Firecracker per-execution | isolated-vm dùng V8 isolate thật, cô lập mạnh hơn vm2; container-per-execution an toàn hơn nữa nhưng phức tạp/tốn tài nguyên hơn nhiều — chấp nhận isolated-vm ở MVP vì script chỉ do System Admin (nội bộ, đã vetted) viết, không phải public untrusted code — vẫn sandbox để phòng vệ theo chiều sâu (defense-in-depth) nếu tài khoản Admin bị compromise |
+| **Secrets Management** *(mới)* | Biến môi trường + mã hóa at-rest cho `connector_credential` | AWS Secrets Manager / GCP Secret Manager / HashiCorp Vault | Secrets manager chuyên dụng an toàn hơn (rotation tự động, access log chi tiết) nhưng thêm chi phí hạ tầng — có thể nâng cấp sau khi MVP ổn định, không bắt buộc ngay ở quy mô hiện tại |
 | Reporting | Materialized view trong Postgres + Metabase (cho HR tự khám phá data) | Dedicated BI (Looker) | Metabase đủ dùng ở quy mô MVP, chi phí thấp |
 | Logging | ELK stack hoặc Loki+Grafana | CloudWatch (nếu AWS) | Tùy hạ tầng |
 | Monitoring | Prometheus + Grafana | Datadog | Prometheus mã nguồn mở, không phụ thuộc vendor |
@@ -1559,6 +1776,9 @@ flowchart LR
 15. **[MỚI] Google Workspace SMTP relay có giới hạn quota gửi/ngày** — nếu tổ chức mở batch cycle cho toàn bộ ~1,000 employee cùng lúc (mục 21.2, sự kiện #1 Cycle Opened), có thể phát sinh spike gửi email lớn trong thời gian ngắn → cần throttle worker (gửi rải trong vài giờ thay vì đồng loạt) để tránh vượt quota hoặc bị Google tạm khóa relay.
 16. ~~Notification outbox (`notification_log`) tăng trưởng theo thời gian~~ **✅ Đã giải quyết** — chốt retention **1 năm**, purge bằng job định kỳ riêng (mục 21.2, Rule 19). Rủi ro còn lại chỉ là vận hành: cần giám sát job purge chạy đúng lịch, tránh bảng phình to âm thầm.
 17. **[MỚI] Email đến nhầm người** nếu `employee.email`/`user_account` bị cấu hình sai (vd 2 nhân viên trùng email do lỗi nhập liệu) — rủi ro rò rỉ thông tin đánh giá dù đã áp dụng Nguyên tắc 3 (không nhúng nội dung nhạy cảm), vẫn lộ **việc ai đó đang được đánh giá** — nhấn mạnh lại tầm quan trọng validate email unique ở Employee Bulk Import (mục Import Center).
+18. **[MỚI — RỦI RO CAO] Arbitrary code execution qua Crawl Script** — dù giới hạn System Admin viết script và chạy trong sandbox `isolated-vm`, đây vẫn là bề mặt tấn công lớn nhất hệ thống: (a) tài khoản System Admin bị compromise → có thể viết script khai thác lỗ hổng sandbox; (b) whitelist domain cấu hình sai/rộng quá có thể bị lợi dụng để exfiltrate dữ liệu nội bộ ra ngoài. **Khuyến nghị bắt buộc:** bật MFA cho mọi tài khoản System Admin (mục 21), review chéo (4-eyes) trước khi publish script mới, và định kỳ pentest riêng cho module này trước khi go-live.
+19. **[MỚI] External API rate-limit/quota** — Jira/Google Sheets có giới hạn request/phút riêng; nếu nhiều `crawl_job_definition` cùng trỏ 1 nguồn, dù đã chạy tuần tự (mục 15.1.3) vẫn có thể cộng dồn vượt hạn mức trong 1 khung giờ ngắn nếu cron trigger cùng lúc — cần theo dõi response `429 Too Many Requests` từ nguồn ngoài và có backoff riêng (khác với retry của Notification).
+20. **[MỚI] Schema nguồn ngoài thay đổi âm thầm** — Jira đổi field custom, Google Sheet đổi thứ tự cột, Blueprint đổi response shape → script cũ có thể chạy "thành công" nhưng crawl sai dữ liệu (không phải lỗi rõ ràng để bắt được). Giảm thiểu bằng validate schema output của script (mục 15.1.4, bước parse → INVALID nếu thiếu field bắt buộc) nhưng không loại trừ hoàn toàn trường hợp field vẫn tồn tại nhưng đổi ý nghĩa.
 
 ---
 
@@ -1581,6 +1801,9 @@ flowchart LR
 15. ~~Ngoài EN/VI, tổ chức có kế hoạch mở rộng thêm ngôn ngữ khác trong 1-2 năm tới không?~~ **✅ Đã chốt: Có** — đã đổi kiến trúc sang bảng `i18n_translation` generic (mục 21.1) để sẵn sàng mở rộng mà không cần `ALTER TABLE` mỗi lần thêm ngôn ngữ.
 16. ~~User có được phép tắt hoàn toàn tất cả notification (kể cả RESULT_PUBLISHED) không?~~ **✅ Đã chốt: Không** — giữ tối thiểu loại `RESULT_PUBLISHED` bắt buộc, chặn cứng ở tầng API (mục 21.2, Rule 17).
 17. ~~Thời gian retention cho `notification_log` là bao lâu?~~ **✅ Đã chốt: 1 năm**, purge hẳn bằng job riêng (mục 21.2, Rule 19).
+18. **[MỚI] Ai được phép viết/sửa Crawl Script — chỉ System Admin, hay có thể nới cho HR/Admin có kỹ thuật?** — ✅ đề xuất mặc định: **chỉ System Admin** (mục 15.1.6), do rủi ro code execution — cần lãnh đạo kỹ thuật xác nhận nếu muốn nới lỏng (không khuyến khích).
+19. **[MỚI] Dữ liệu crawl có bắt buộc luôn qua review thủ công (không auto-apply), hay có thể bật auto-apply cho nguồn đã tin tưởng sau 1 thời gian vận hành ổn định?** — ✅ đề xuất MVP: luôn bắt buộc review thủ công (mục 15.1.5); auto-apply để Phase 2, cần Product Owner xác nhận tiêu chí "đủ tin tưởng" là gì.
+20. **[MỚI] `evaluation_data_import` có nên hợp nhất với `import_job` (CSV thủ công) thành 1 bảng chung trong tương lai không?** — ảnh hưởng độ phức tạp Reporting/Import History (hiện tại 2 nguồn nằm 2 bảng riêng, mục 15.1.1).
 
 ---
 
@@ -1594,7 +1817,7 @@ flowchart LR
 | 4 | Weight ≠ 100% có được publish không? | Không, strict block | HR/Admin |
 | 5 | Evidence bắt buộc mức nào? | Cảnh báo, không chặn submit | HR |
 | 6 | Quy mô hệ thống (số employee) thực tế? | **✅ Đã chốt:** ~1,000 employees | Product Owner |
-| 7 | Có cần tích hợp Jira/Git ở MVP không? | Không, để Phase 2 | Product Owner |
+| 7 | ~~Có cần tích hợp Jira/Git ở MVP không?~~ | **✅ Đã đổi: Jira/Google Sheet/Blueprint CÓ ở MVP** (qua Automated Data Crawling, mục 15.1); Git vẫn chưa có connector | Product Owner |
 | 8 | Approval cuối cùng do ai? | Configurable theo `workflow_definition`, mặc định HR | HR |
 | 9 | Retention audit log bao lâu? | **✅ Đã chốt: 2 năm**, sau đó archive (cold storage, không xóa hẳn) | Compliance/HR |
 | 10 | Ranking có hiển thị không? | **✅ Đã chốt: Không**, cho bất kỳ role nào, kể cả ẩn danh | HR |
@@ -1606,6 +1829,9 @@ flowchart LR
 | 16 | Có kế hoạch mở rộng >2 ngôn ngữ trong tương lai gần không? | **✅ Đã chốt: Có** — kiến trúc đã đổi sang `i18n_translation` generic | Product Owner |
 | 17 | User có được tắt hoàn toàn mọi notification (kể cả RESULT_PUBLISHED)? | **✅ Đã chốt: Không** — giữ tối thiểu `RESULT_PUBLISHED` bắt buộc | HR |
 | 18 | Retention `notification_log` bao lâu? | **✅ Đã chốt: 1 năm**, purge hẳn (không cần cold storage) | Compliance/HR |
+| 19 | **[MỚI]** Ai được viết/sửa Crawl Script? | Đề xuất tạm: chỉ System Admin | Tech Lead |
+| 20 | **[MỚI]** Dữ liệu crawl có luôn cần review thủ công không, hay cho auto-apply sau này? | Đề xuất tạm: luôn review thủ công ở MVP | Product Owner |
+| 21 | **[MỚI]** Hợp nhất `evaluation_data_import` với `import_job` trong tương lai? | Đề xuất tạm: chưa hợp nhất, giữ 2 bảng riêng ở MVP | Tech Lead |
 
 ---
 
@@ -1728,4 +1954,21 @@ Security review, performance test (import lớn, concurrent), UAT với 18 KPI m
 
 ---
 
-*Hết tài liệu — v1.7.*
+## Changelog v1.7 → v1.8
+
+| # | Thay đổi | Vị trí |
+|---|---|---|
+| 14 | **[MỚI] Automated Data Crawling** — quản lý JavaScript (sandboxed, System Admin only), đăng ký job chạy tuần tự theo Criterion để crawl BLUEPRINT/JIRA/GOOGLE_SHEET vào `evaluation_data_import`, luôn qua review + giải thích thủ công trước khi Apply | Mục 2, 5 (Feature Breakdown + sửa Non-goals mâu thuẫn), 7-8 (Module Architecture — Data Crawler module mới), **15.1 (mới — thiết kế đầy đủ)**, 9 (ERD), 17 (RBAC — permission mới cho System Admin), 25 (Testing), 26 (Deployment — worker cô lập riêng), 27 (Tech Stack — isolated-vm, secrets management), 28 (Risk #18-20 — rủi ro cao), 29 (Decision #18-20), 30 (Open Question #7 sửa mâu thuẫn, #19-21 mới) |
+
+**Thiết kế cốt lõi của tính năng mới (tóm tắt):**
+- **Đối chiếu với bảng `evaluation_data_import` đã có sẵn** — giữ nguyên làm batch header, bổ sung `crawl_job_definition_id`/`evaluation_cycle_id`, thêm bảng con `evaluation_data_import_row` cho chi tiết từng dòng (tương tự pattern `import_job`/`import_row` đã có).
+- **Quản lý JavaScript tái dùng pattern versioning đã có** (Draft → Published immutable) — không phát minh cơ chế mới, nhất quán với Criterion/Template.
+- **Chạy tuần tự bằng Job Queue có sẵn**, chỉ thêm 1 queue riêng `concurrency=1` — không viết scheduler riêng.
+- **⚠️ Bảo mật là trọng tâm thiết kế:** sandbox `isolated-vm` (không dùng vm2), whitelist domain theo nguồn, timeout cứng, credential tách biệt khỏi script, và **chỉ System Admin** được viết/sửa/publish script — HR/Admin chỉ đăng ký job dùng script có sẵn. Worker chạy trong process/container tách biệt khỏi App chính.
+- **Giải quyết mâu thuẫn với yêu cầu "dữ liệu giải thích" (Rule E1, Import Center):** dữ liệu crawl tự động **không** tự động thành điểm chính thức — luôn dừng ở `PENDING_REVIEW`, bắt buộc con người nhập `reviewer_comment` (≥20 ký tự, đúng chuẩn Rule E1) trước khi Apply. Tự động hóa việc lấy số liệu, không tự động hóa việc giải thích.
+- **Sửa 2 mâu thuẫn phát hiện được** trong tài liệu cũ: Non-goals mục 2 từng nói "không tích hợp Jira ở MVP", Open Question #7 cũng nói tương tự — cả 2 đã cập nhật lại vì tính năng lần này đổi phạm vi.
+- **3 câu hỏi mở quan trọng cần Tech Lead/Product Owner chốt:** ai được viết script (đề xuất chỉ System Admin), có luôn cần review thủ công không (đề xuất luôn cần ở MVP), và có nên hợp nhất bảng import CSV thủ công với bảng crawl tự động trong tương lai không.
+
+---
+
+*Hết tài liệu — v1.8.*

@@ -162,6 +162,7 @@ function ProtectedLayout() {
       onSelectMenuItem={(id) => {
         if (id === 'dashboard') navigate('/admin/dashboard');
         else if (id === 'ingestion') navigate('/admin/ingestion');
+        else if (id === 'jira-eval') navigate('/admin/ingestion?tab=jira');
         else if (id === 'reports') navigate('/admin/reports');
         else if (id === 'imports') navigate('/admin/ingestion?tab=csv');
         else if (id === 'collectors') navigate('/admin/ingestion?tab=blueprint');
@@ -269,6 +270,9 @@ export default function App() {
                 </ProtectedRoute>
               } />
               <Route path="/admin/collectors" element={<Navigate to="/admin/ingestion?tab=blueprint" replace />} />
+              <Route path="/admin/jira-collector" element={<Navigate to="/admin/ingestion?tab=jira" replace />} />
+              <Route path="/admin/jira-eval" element={<Navigate to="/admin/ingestion?tab=jira" replace />} />
+              <Route path="/jira-collector" element={<Navigate to="/admin/ingestion?tab=jira" replace />} />
               <Route path="/admin/imports" element={<Navigate to="/admin/ingestion?tab=history" replace />} />
               <Route path="/admin/imports/upload" element={<Navigate to="/admin/ingestion?tab=csv" replace />} />
               <Route path="/admin/evaluation-data-imports" element={<Navigate to="/admin/ingestion?tab=api" replace />} />

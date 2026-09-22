@@ -45,6 +45,7 @@ export interface RegisterRoutesOptions {
   importController?: ImportController;
   evaluationDataImportController?: EvaluationDataImportController;
   collectorRouter?: Router;
+  jiraCrawlerRouter?: Router;
   reportsController?: ReportsController;
   calibrationController?: CalibrationController;
   notificationRouter?: Router;
@@ -52,6 +53,11 @@ export interface RegisterRoutesOptions {
 
 export function createApiRouter(options: RegisterRoutesOptions): Router {
   const router = Router();
+
+  // ── Jira Crawler & AI Scoring Routes ─────────────────────────────────────
+  if (options.jiraCrawlerRouter) {
+    router.use('/collector/jira', options.jiraCrawlerRouter);
+  }
 
   // ── Collector Module Routes ───────────────────────────────────────────────
   if (options.collectorRouter) {

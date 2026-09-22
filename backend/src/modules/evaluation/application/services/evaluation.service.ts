@@ -1092,21 +1092,48 @@ export class EvaluationService {
           continue;
         }
 
-        // 3. Update evaluation_item
+        // 3. Check for Blueprint score to apply (Blueprint + Jira) / 2 Blending
+        const bpMeasurement = await repositoryClient.query(
+          `SELECT measurement_value FROM measurement
+           WHERE evaluation_item_id = $1 AND (source_label ILIKE '%Blueprint%' OR source_label ILIKE '%UI_PIM%')
+           ORDER BY recorded_at DESC LIMIT 1`,
+          [evalRow.evaluation_item_id]
+        );
+
+        let finalValue = rec.value;
+        let finalRationale = rec.rationale;
+        let finalComment = rec.comment || null;
+
+        if (bpMeasurement.rows.length > 0) {
+          const bpVal = Number(bpMeasurement.rows[0].measurement_value);
+          if (!isNaN(bpVal)) {
+            const normBp = bpVal <= 10 ? bpVal * 10 : bpVal;
+            const normIncoming = rec.value <= 10 ? rec.value * 10 : rec.value;
+            finalValue = Math.round(((normBp + normIncoming) / 2) * 10) / 10;
+            finalRationale = `[🔀 Điểm kết hợp Blueprint + Jira]: Blueprint: ${normBp}% | Jira: ${normIncoming}% => Điểm tích hợp 50/50: ${finalValue}%. ${rec.rationale}`;
+            finalComment = `${rec.comment || ''} (Tích hợp tự động 50% Blueprint + 50% Jira)`.trim();
+          }
+        }
+
+        // Update evaluation_item
         await repositoryClient.query(
           `UPDATE evaluation_item
            SET comment = COALESCE($1, comment),
                rationale = $2,
                import_id = $3,
                source_snapshot = $4,
+               raw_score = $5,
+               system_source = CASE WHEN $6 THEN 'BLENDED (Blueprint + Jira)' ELSE system_source END,
                updated_at = CURRENT_TIMESTAMP,
-               updated_by = $5
-           WHERE evaluation_item_id = $6`,
+               updated_by = $7
+           WHERE evaluation_item_id = $8`,
           [
-            rec.comment || null,
-            rec.rationale,
+            finalComment,
+            finalRationale,
             rec.import_id,
             JSON.stringify(rec.source_snapshot),
+            finalValue,
+            bpMeasurement.rows.length > 0,
             actor.userId,
             evalRow.evaluation_item_id,
           ]
@@ -1120,8 +1147,10 @@ export class EvaluationService {
           [
             evalRow.evaluation_item_id,
             rec.kpi_code,
-            rec.value,
-            rec.source_snapshot?.source_name || rec.source_snapshot?.source_type || 'IMPORT',
+            finalValue,
+            bpMeasurement.rows.length > 0
+              ? 'BLENDED (Blueprint + Jira)'
+              : (rec.source_snapshot?.source_name || rec.source_snapshot?.source_type || 'IMPORT'),
             actor.userId,
           ]
         );
