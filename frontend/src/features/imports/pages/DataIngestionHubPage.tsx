@@ -1,22 +1,24 @@
-import React, { useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/shared/auth/auth-context';
 import { RADII, TYPOGRAPHY, SHADOWS } from '@/shared/theme';
 import {
-  Activity,
+  Sparkles,
   FileSpreadsheet,
+  Activity,
   Code2,
+  UploadCloud,
   History,
   ShieldAlert,
-  Sparkles,
 } from 'lucide-react';
 
 import { CollectorPage } from '@/features/collector/pages/CollectorPage';
+import { JiraCollectorPage } from '@/features/collector/pages/JiraCollectorPage';
+import { CollectorScriptEditorPage } from '@/features/collector/pages/CollectorScriptEditorPage';
 import { ImportUploadPage } from '@/features/imports/pages/ImportUploadPage';
-import { EvaluationDataImportPage } from '@/features/imports/pages/EvaluationDataImportPage';
 import { ImportHistoryPage } from '@/features/imports/pages/ImportHistoryPage';
 
-export type IngestionTabId = 'blueprint' | 'csv' | 'api' | 'history';
+export type IngestionTabId = 'collectors' | 'csv';
 
 interface IngestionTabConfig {
   id: IngestionTabId;
@@ -31,43 +33,23 @@ interface IngestionTabConfig {
 
 const INGESTION_TABS: IngestionTabConfig[] = [
   {
-    id: 'blueprint',
-    label: '1. Thu thập Blueprint',
-    badge: 'Real-time API',
+    id: 'collectors',
+    label: '1. Thu thập Tự động',
+    badge: 'Batch AI',
     badgeColor: '#2563eb',
     badgeBg: '#eff6ff',
-    description: 'Đối soát Chuyên cần (TAT_029) & Tiến độ Task (PIM_001) trực tiếp theo Team/Nhân sự',
-    icon: <Activity size={18} />,
+    description: 'Batch job Jira PIM + Gemini AI đánh giá từng task — Chạy tự động hàng ngày hoặc thủ công',
+    icon: <Sparkles size={18} />,
     allowedRoles: ['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER'],
   },
   {
     id: 'csv',
-    label: '2. Nhập file CSV Hàng loạt',
+    label: '2. Nhập file CSV / Excel',
     badge: 'Batch File',
     badgeColor: '#059669',
     badgeBg: '#ecfdf5',
-    description: 'Tải mẫu chuẩn, nạp file CSV/Excel chấm công, doanh số, sản lượng toàn công ty',
+    description: 'Tải mẫu chuẩn, nạp file CSV/Excel hàng loạt và tra cứu lịch sử các đợt nạp file',
     icon: <FileSpreadsheet size={18} />,
-    allowedRoles: ['SYSTEM_ADMIN', 'HR_ADMIN'],
-  },
-  {
-    id: 'api',
-    label: '3. Tích hợp API & Bằng chứng',
-    badge: 'Jira / Git JSON',
-    badgeColor: '#7c3aed',
-    badgeBg: '#f5f3ff',
-    description: 'Nhập payload có cấu trúc kèm URL bằng chứng (Evidence) & Giải quyết xung đột điểm',
-    icon: <Code2 size={18} />,
-    allowedRoles: ['SYSTEM_ADMIN', 'HR_ADMIN'],
-  },
-  {
-    id: 'history',
-    label: '4. Lịch sử Nhập liệu',
-    badge: 'Audit Trail',
-    badgeColor: '#d97706',
-    badgeBg: '#fffbeb',
-    description: 'Theo dõi tiến độ, chi tiết các đợt nạp dữ liệu và nhật ký xử lý lỗi',
-    icon: <History size={18} />,
     allowedRoles: ['SYSTEM_ADMIN', 'HR_ADMIN'],
   },
 ];
@@ -79,19 +61,38 @@ export const DataIngestionHubPage: React.FC = () => {
   const userRole = (user?.role || 'EMPLOYEE') as 'SYSTEM_ADMIN' | 'HR_ADMIN' | 'MANAGER' | 'EMPLOYEE';
   const isManagerOnly = userRole === 'MANAGER';
 
+  // Sub-tab states
+  const [collectorSubTab, setCollectorSubTab] = useState<'jira' | 'blueprint' | 'script'>('jira');
+  const [csvSubTab, setCsvSubTab] = useState<'upload' | 'history'>('upload');
+
   // Filter available tabs based on user's role
   const availableTabs = useMemo(() => {
     return INGESTION_TABS.filter((tab) => tab.allowedRoles.includes(userRole as 'SYSTEM_ADMIN' | 'HR_ADMIN' | 'MANAGER'));
   }, [userRole]);
 
-  // Read active tab from URL query param `?tab=...`, falling back to first accessible tab
-  const rawTab = (searchParams.get('tab') || '').toLowerCase() as IngestionTabId;
+  // Read active tab from URL query param `?tab=...` with backward compatibility
+  const rawParam = (searchParams.get('tab') || '').toLowerCase();
+
   const activeTab: IngestionTabId = useMemo(() => {
-    if (availableTabs.some((t) => t.id === rawTab)) {
-      return rawTab;
+    if (rawParam === 'jira' || rawParam === 'blueprint' || rawParam === 'script') {
+      return 'collectors';
     }
-    return availableTabs[0]?.id || 'blueprint';
-  }, [availableTabs, rawTab]);
+    if (rawParam === 'history') {
+      return 'csv';
+    }
+    if (availableTabs.some((t) => t.id === rawParam)) {
+      return rawParam as IngestionTabId;
+    }
+    return availableTabs[0]?.id || 'collectors';
+  }, [availableTabs, rawParam]);
+
+  // Handle URL deep-linking into sub-tabs
+  useEffect(() => {
+    if (rawParam === 'blueprint') setCollectorSubTab('blueprint');
+    else if (rawParam === 'script') setCollectorSubTab('script');
+    else if (rawParam === 'jira') setCollectorSubTab('jira');
+    else if (rawParam === 'history') setCsvSubTab('history');
+  }, [rawParam]);
 
   const handleTabChange = (tabId: IngestionTabId) => {
     setSearchParams({ tab: tabId });
@@ -158,7 +159,7 @@ export const DataIngestionHubPage: React.FC = () => {
                     color: '#64748b',
                   }}
                 >
-                  Hợp nhất mọi luồng dữ liệu thực tế (Actual Metrics) từ Blueprint SSO, file CSV và API kỹ thuật vào Chu kỳ đánh giá
+                  Batch AI tự động hàng ngày (Jira PIM + Gemini) và nhập file CSV/Excel
                 </p>
               </div>
             </div>
@@ -184,7 +185,7 @@ export const DataIngestionHubPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Tab Selection Bar */}
+        {/* 2 Main Tabs Selection Bar */}
         <div
           style={{
             display: 'flex',
@@ -205,7 +206,7 @@ export const DataIngestionHubPage: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  padding: '10px 18px',
+                  padding: '12px 22px',
                   borderRadius: `${RADII.lg} ${RADII.lg} 0 0`,
                   border: 'none',
                   borderBottom: isActive ? '3px solid #2563eb' : '3px solid transparent',
@@ -224,7 +225,7 @@ export const DataIngestionHubPage: React.FC = () => {
                   style={{
                     fontSize: '10px',
                     fontWeight: 700,
-                    padding: '2px 7px',
+                    padding: '2px 8px',
                     borderRadius: RADII.full,
                     backgroundColor: tab.badgeBg,
                     color: tab.badgeColor,
@@ -256,12 +257,98 @@ export const DataIngestionHubPage: React.FC = () => {
 
       {/* Tab Content Display Area */}
       <div>
-        {activeTab === 'blueprint' && (
-          <div>
-            <CollectorPage />
+        {/* TAB 1: THU THẬP TỰ ĐỘNG (Batch AI + Blueprint + Script Config) */}
+        {activeTab === 'collectors' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* Sub-navigation pills */}
+            <div
+              style={{
+                display: 'inline-flex',
+                gap: '8px',
+                padding: '6px',
+                backgroundColor: '#f1f5f9',
+                borderRadius: RADII.lg,
+                alignSelf: 'flex-start',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setCollectorSubTab('jira')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 18px',
+                  borderRadius: RADII.md,
+                  border: 'none',
+                  backgroundColor: collectorSubTab === 'jira' ? '#ffffff' : 'transparent',
+                  color: collectorSubTab === 'jira' ? '#2563eb' : '#64748b',
+                  fontWeight: collectorSubTab === 'jira' ? 700 : 500,
+                  fontSize: TYPOGRAPHY.fontSize.sm,
+                  cursor: 'pointer',
+                  boxShadow: collectorSubTab === 'jira' ? SHADOWS.sm : 'none',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <Sparkles size={16} />
+                <span>🤖 Batch Scoring AI</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCollectorSubTab('blueprint')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 18px',
+                  borderRadius: RADII.md,
+                  border: 'none',
+                  backgroundColor: collectorSubTab === 'blueprint' ? '#ffffff' : 'transparent',
+                  color: collectorSubTab === 'blueprint' ? '#2563eb' : '#64748b',
+                  fontWeight: collectorSubTab === 'blueprint' ? 700 : 500,
+                  fontSize: TYPOGRAPHY.fontSize.sm,
+                  cursor: 'pointer',
+                  boxShadow: collectorSubTab === 'blueprint' ? SHADOWS.sm : 'none',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <Activity size={16} />
+                <span>Blueprint CLV</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCollectorSubTab('script')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 18px',
+                  borderRadius: RADII.md,
+                  border: 'none',
+                  backgroundColor: collectorSubTab === 'script' ? '#ffffff' : 'transparent',
+                  color: collectorSubTab === 'script' ? '#0284c7' : '#64748b',
+                  fontWeight: collectorSubTab === 'script' ? 700 : 500,
+                  fontSize: TYPOGRAPHY.fontSize.sm,
+                  cursor: 'pointer',
+                  boxShadow: collectorSubTab === 'script' ? SHADOWS.sm : 'none',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <Code2 size={16} />
+                <span>⚙️ Cấu hình Script JQL</span>
+              </button>
+            </div>
+
+            {/* Sub-tab view */}
+            {collectorSubTab === 'jira' && <JiraCollectorPage />}
+            {collectorSubTab === 'blueprint' && <CollectorPage />}
+            {collectorSubTab === 'script' && <CollectorScriptEditorPage />}
           </div>
         )}
 
+        {/* TAB 2: NHẬP FILE CSV / EXCEL */}
         {activeTab === 'csv' && (
           <div>
             {userRole === 'MANAGER' ? (
@@ -283,40 +370,66 @@ export const DataIngestionHubPage: React.FC = () => {
                 </p>
               </div>
             ) : (
-              <ImportUploadPage />
-            )}
-          </div>
-        )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    gap: '8px',
+                    padding: '6px',
+                    backgroundColor: '#f1f5f9',
+                    borderRadius: RADII.lg,
+                    alignSelf: 'flex-start',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setCsvSubTab('upload')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 18px',
+                      borderRadius: RADII.md,
+                      border: 'none',
+                      backgroundColor: csvSubTab === 'upload' ? '#ffffff' : 'transparent',
+                      color: csvSubTab === 'upload' ? '#059669' : '#64748b',
+                      fontWeight: csvSubTab === 'upload' ? 700 : 500,
+                      fontSize: TYPOGRAPHY.fontSize.sm,
+                      cursor: 'pointer',
+                      boxShadow: csvSubTab === 'upload' ? SHADOWS.sm : 'none',
+                    }}
+                  >
+                    <UploadCloud size={16} />
+                    <span>Tải lên file CSV</span>
+                  </button>
 
-        {activeTab === 'api' && (
-          <div>
-            {userRole === 'MANAGER' ? (
-              <div
-                style={{
-                  padding: '32px',
-                  textAlign: 'center',
-                  backgroundColor: '#ffffff',
-                  borderRadius: RADII.xl,
-                  border: '1px solid #e2e8f0',
-                }}
-              >
-                <ShieldAlert size={36} color="#d97706" style={{ margin: '0 auto 12px auto' }} />
-                <h3 style={{ margin: 0, fontSize: '16px', color: '#1e293b' }}>
-                  Không có quyền truy cập kênh JSON / Evidence
-                </h3>
-                <p style={{ margin: '6px 0 0 0', fontSize: TYPOGRAPHY.fontSize.sm, color: '#64748b' }}>
-                  Tính năng tích hợp API và bằng chứng kỹ thuật dành cho HR Admin và System Admin.
-                </p>
+                  <button
+                    type="button"
+                    onClick={() => setCsvSubTab('history')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 18px',
+                      borderRadius: RADII.md,
+                      border: 'none',
+                      backgroundColor: csvSubTab === 'history' ? '#ffffff' : 'transparent',
+                      color: csvSubTab === 'history' ? '#059669' : '#64748b',
+                      fontWeight: csvSubTab === 'history' ? 700 : 500,
+                      fontSize: TYPOGRAPHY.fontSize.sm,
+                      cursor: 'pointer',
+                      boxShadow: csvSubTab === 'history' ? SHADOWS.sm : 'none',
+                    }}
+                  >
+                    <History size={16} />
+                    <span>Lịch sử các đợt nạp file</span>
+                  </button>
+                </div>
+
+                {csvSubTab === 'upload' && <ImportUploadPage />}
+                {csvSubTab === 'history' && <ImportHistoryPage />}
               </div>
-            ) : (
-              <EvaluationDataImportPage />
             )}
-          </div>
-        )}
-
-        {activeTab === 'history' && (
-          <div>
-            <ImportHistoryPage />
           </div>
         )}
       </div>
