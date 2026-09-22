@@ -30,6 +30,7 @@ import {
   Info,
   ChevronRight,
   Code2,
+  Sparkles,
 } from 'lucide-react';
 
 const SAMPLE_PAYLOAD: CreateImportPayload = {
@@ -98,6 +99,24 @@ export const EvaluationDataImportPage: React.FC = () => {
   const [jsonInput, setJsonInput] = useState<string>(JSON.stringify(SAMPLE_PAYLOAD, null, 2));
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [loadingRealPayload, setLoadingRealPayload] = useState(false);
+
+  const handleLoadRealJiraPayload = async () => {
+    try {
+      setLoadingRealPayload(true);
+      const res = await fetch('/api/collector/jira/payload-export');
+      if (res.ok) {
+        const json = await res.json();
+        setJsonInput(JSON.stringify(json, null, 2));
+      } else {
+        alert('Không tìm thấy file payload dữ liệu thực tế');
+      }
+    } catch (err) {
+      console.error('Failed to load real payload:', err);
+    } finally {
+      setLoadingRealPayload(false);
+    }
+  };
 
   // Conflict / Record Edit Modal
   const [editingRecord, setEditingRecord] = useState<EvaluationDataImportRecord | null>(null);
@@ -444,13 +463,24 @@ export const EvaluationDataImportPage: React.FC = () => {
                   Input Import Payload (JSON)
                 </h3>
               </div>
-              <Button
-                variant="outlined"
-                size="sm"
-                onClick={() => setJsonInput(JSON.stringify(SAMPLE_PAYLOAD, null, 2))}
-              >
-                Load Sample Payload
-              </Button>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleLoadRealJiraPayload}
+                  disabled={loadingRealPayload}
+                >
+                  <Sparkles size={14} style={{ marginRight: '6px' }} />
+                  {loadingRealPayload ? 'Đang nạp...' : '⚡ Nạp dữ liệu Jira PIM thực tế (19 nhân sự)'}
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="sm"
+                  onClick={() => setJsonInput(JSON.stringify(SAMPLE_PAYLOAD, null, 2))}
+                >
+                  Load Sample Payload
+                </Button>
+              </div>
             </div>
 
             {uploadError && (

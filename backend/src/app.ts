@@ -43,6 +43,7 @@ import { ReportsController } from './modules/reports/api/reports.controller.js';
 import { createEvaluationDataImportModule } from './modules/evaluation-data-import/evaluation-data-import.module.js';
 import { createCalibrationModule } from './modules/calibration/calibration.module.js';
 import { createNotificationModule } from './modules/notification/notification.module.js';
+import { createJiraCrawlerRouter } from './modules/jira-crawler/jira-crawler.routes.js';
 
 export interface AppOptions {
   userRepository?: UserRepository;
@@ -132,6 +133,8 @@ export function createApp(options: AppOptions = {}) {
   const calibrationModule = pool ? createCalibrationModule(pool, auditModule?.auditService, notificationModule?.notificationService) : undefined;
   const calibrationController = options.calibrationController ?? calibrationModule?.calibrationController;
 
+  const jiraCrawlerRouter = pool ? createJiraCrawlerRouter(pool, jwtMiddleware) : undefined;
+
   // ── Global Middlewares ────────────────────────────────────────────────────
   app.use(requestIdMiddleware);
   app.use(localeMiddleware);
@@ -189,6 +192,7 @@ export function createApp(options: AppOptions = {}) {
         importController,
         evaluationDataImportController,
         collectorRouter: collectorModule?.router,
+        jiraCrawlerRouter,
         reportsController,
         calibrationController,
         notificationRouter: notificationModule?.router,
