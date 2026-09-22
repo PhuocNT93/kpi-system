@@ -56,5 +56,12 @@ export function createReportsRouter(
     controller.getEmployeeKpiDetail
   );
 
+  // Unified Role-Based Dashboard (Scope enforced server-side in application service)
+  router.get(
+    '/dashboard',
+    controller.getDashboard
+  );
+
   return router;
 }
+

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { TYPOGRAPHY, RADII } from '@/shared/theme';
 import { useTheme } from '@/shared/theme';
-import { Sun, Moon, Languages } from 'lucide-react';
+import { Sun, Moon, Languages, Menu, X } from 'lucide-react';
 import { NotificationBell } from '@/features/notifications';
 import { getUiLocale, LOCALE_STORAGE_KEY, LOCALE_CHANGE_EVENT } from '@/shared/i18n/ui-i18n';
 import { patchApi } from '@/shared/api/api-client';
@@ -13,6 +13,8 @@ export interface HeaderProps {
   showThemeToggle?: boolean;
   showNotificationBell?: boolean;
   showLanguageSelector?: boolean;
+  onToggleMobileMenu?: () => void;
+  isMobileMenuOpen?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -22,6 +24,8 @@ export const Header: React.FC<HeaderProps> = ({
   showThemeToggle = true,
   showNotificationBell = true,
   showLanguageSelector = true,
+  onToggleMobileMenu,
+  isMobileMenuOpen = false,
 }) => {
   const { isDark, toggleTheme } = useTheme();
   const [toggleHovered, setToggleHovered] = useState(false);
@@ -45,56 +49,76 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header
+      className="app-header"
       style={{
-        height: '72px',
-        padding: '0 32px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        boxSizing: 'border-box',
         backgroundColor: isDark ? 'rgba(17, 24, 39, 0.95)' : 'rgba(255, 255, 255, 0.95)',
         backdropFilter: 'blur(8px)',
         WebkitBackdropFilter: 'blur(8px)',
         borderBottom: `1px solid ${isDark ? '#1F2937' : '#E2E8F0'}`,
         boxShadow: isDark ? '0 1px 3px 0 rgba(0, 0, 0, 0.4)' : '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
         transition: 'background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
-        zIndex: 5,
-        flexShrink: 0,
       }}
     >
-      {/* Title & Subtitle Section */}
-      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-        <h1
-          style={{
-            margin: 0,
-            fontFamily: TYPOGRAPHY.fontFamily.headline,
-            fontSize: TYPOGRAPHY.fontSize.xl,
-            fontWeight: TYPOGRAPHY.fontWeight.bold,
-            color: isDark ? '#F9FAFB' : '#0F172A',
-            letterSpacing: '-0.02em',
-            lineHeight: 1.2,
-            transition: 'color 0.2s ease',
-          }}
-        >
-          {title}
-        </h1>
-        {subtitle && (
-          <p
+      {/* Title, Mobile Hamburger & Subtitle Section */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {onToggleMobileMenu && (
+          <button
+            type="button"
+            onClick={onToggleMobileMenu}
+            className="hide-on-desktop"
+            aria-label={isMobileMenuOpen ? 'Close Navigation Menu' : 'Open Navigation Menu'}
             style={{
-              margin: '3px 0 0 0',
-              fontFamily: TYPOGRAPHY.fontFamily.body,
-              fontSize: TYPOGRAPHY.fontSize.xs,
-              color: isDark ? '#9CA3AF' : '#64748B',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '36px',
+              height: '36px',
+              borderRadius: RADII.md,
+              border: `1px solid ${isDark ? '#374151' : '#CBD5E1'}`,
+              backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
+              color: isDark ? '#F9FAFB' : '#0F172A',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <h1
+            style={{
+              margin: 0,
+              fontFamily: TYPOGRAPHY.fontFamily.headline,
+              fontSize: 'clamp(1.125rem, 3.2vw, 1.5rem)',
+              fontWeight: TYPOGRAPHY.fontWeight.bold,
+              color: isDark ? '#F9FAFB' : '#0F172A',
+              letterSpacing: '-0.02em',
+              lineHeight: 1.2,
               transition: 'color 0.2s ease',
             }}
           >
-            {subtitle}
-          </p>
-        )}
+            {title}
+          </h1>
+          {subtitle && (
+            <p
+              className="hide-on-mobile"
+              style={{
+                margin: '3px 0 0 0',
+                fontFamily: TYPOGRAPHY.fontFamily.body,
+                fontSize: TYPOGRAPHY.fontSize.xs,
+                color: isDark ? '#9CA3AF' : '#64748B',
+                transition: 'color 0.2s ease',
+              }}
+            >
+              {subtitle}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Right-hand Controls: Language Switcher, Dark Mode Switch, Notification Bell & Page Actions */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         {showNotificationBell && <NotificationBell />}
 
         {showLanguageSelector && (

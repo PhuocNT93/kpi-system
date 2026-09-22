@@ -15,6 +15,14 @@ export const getEmployeeKpiSummaryQuerySchema = z.object({
 
 export type GetEmployeeKpiSummaryQueryDto = z.infer<typeof getEmployeeKpiSummaryQuerySchema>;
 
+export const getDashboardQuerySchema = z.object({
+  cycleId: z.string().uuid().optional(),
+  evaluation_cycle_id: z.string().uuid().optional(),
+  evaluationCycleId: z.string().uuid().optional(),
+});
+
+export type GetDashboardQueryDto = z.infer<typeof getDashboardQuerySchema>;
+
 /**
  * KPI Trend response model representing a single KPI's performance across two cycles.
  * Status can be MATCHED, NEW, or REMOVED.
@@ -28,3 +36,4 @@ export interface KpiTrendResponse {
   current_score?: number;
   delta?: number;
 }
+

@@ -19,6 +19,7 @@ import {
   BookOpen,
   Award,
   Mail,
+  X,
 } from 'lucide-react';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY, SHADOWS } from '@/shared/theme';
@@ -45,6 +46,8 @@ export interface SidebarProps {
   onToggleCollapse?: (collapsed: boolean) => void;
   onSelectItem?: (id: string) => void;
   onGenerateReport?: () => void;
+  isMobileDrawer?: boolean;
+  onCloseMobileDrawer?: () => void;
 }
 
 const SIDEBAR_SECTIONS_STORAGE_KEY = 'kpi-sidebar-sections';
@@ -55,6 +58,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   defaultCollapsed = false,
   onToggleCollapse,
   onSelectItem,
+  isMobileDrawer = false,
+  onCloseMobileDrawer,
 }) => {
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [toggleHovered, setToggleHovered] = useState(false);
@@ -63,7 +68,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { isDark } = useTheme();
 
   const canViewConfig = user?.role === 'SYSTEM_ADMIN' || user?.role === 'HR_ADMIN';
-  const isCollapsed = collapsed !== undefined ? collapsed : isCollapsedUncontrolled;
+  const effectiveCollapsed = isMobileDrawer ? false : (collapsed !== undefined ? collapsed : isCollapsedUncontrolled);
+  const isCollapsed = effectiveCollapsed;
 
   // Track collapsed state per section key (true = folded/hidden)
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
@@ -261,70 +267,76 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside
       style={{
-        width: isCollapsed ? '72px' : '280px',
-        minWidth: isCollapsed ? '72px' : '280px',
+        width: isMobileDrawer ? '280px' : (isCollapsed ? '72px' : '280px'),
+        minWidth: isMobileDrawer ? '280px' : (isCollapsed ? '72px' : '280px'),
         height: '100%',
         backgroundColor: isDark ? '#111827' : COLORS.neutral.white,
         borderRight: `1px solid ${isDark ? '#1F2937' : COLORS.neutral.border}`,
         display: 'flex',
         flexDirection: 'column',
-        padding: isCollapsed ? '20px 10px' : '20px 14px',
+        padding: !isMobileDrawer && isCollapsed ? '20px 10px' : '20px 14px',
         boxSizing: 'border-box',
         transition:
           'width 0.22s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.22s cubic-bezier(0.4, 0, 0.2, 1), padding 0.22s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease, border-color 0.2s ease',
-        position: 'relative',
-        zIndex: 10,
+        position: isMobileDrawer ? 'fixed' : 'relative',
+        top: isMobileDrawer ? 0 : undefined,
+        bottom: isMobileDrawer ? 0 : undefined,
+        left: isMobileDrawer ? 0 : undefined,
+        zIndex: isMobileDrawer ? 50 : 10,
+        boxShadow: isMobileDrawer ? '4px 0 24px rgba(0, 0, 0, 0.35)' : undefined,
       }}
     >
-      {/* Floating Toggle Button directly on the border line */}
-      <button
-        onClick={handleToggle}
-        onMouseEnter={() => setToggleHovered(true)}
-        onMouseLeave={() => setToggleHovered(false)}
-        title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        style={{
-          position: 'absolute',
-          top: '24px',
-          right: '-12px',
-          width: '24px',
-          height: '24px',
-          borderRadius: RADII.full,
-          border: `1px solid ${
-            toggleHovered
+      {/* Floating Toggle Button directly on the border line (desktop only) */}
+      {!isMobileDrawer && (
+        <button
+          onClick={handleToggle}
+          onMouseEnter={() => setToggleHovered(true)}
+          onMouseLeave={() => setToggleHovered(false)}
+          title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          style={{
+            position: 'absolute',
+            top: '24px',
+            right: '-12px',
+            width: '24px',
+            height: '24px',
+            borderRadius: RADII.full,
+            border: `1px solid ${
+              toggleHovered
+                ? isDark
+                  ? '#6366F1'
+                  : COLORS.primary[300]
+                : isDark
+                ? '#374151'
+                : COLORS.neutral.border
+            }`,
+            backgroundColor: toggleHovered
               ? isDark
-                ? '#6366F1'
-                : COLORS.primary[300]
+                ? '#312E81'
+                : COLORS.primary[50]
               : isDark
-              ? '#374151'
-              : COLORS.neutral.border
-          }`,
-          backgroundColor: toggleHovered
-            ? isDark
-              ? '#312E81'
-              : COLORS.primary[50]
-            : isDark
-            ? '#1F2937'
-            : COLORS.neutral.white,
-          color: toggleHovered
-            ? isDark
-              ? '#A5B4FC'
-              : COLORS.primary.DEFAULT
-            : isDark
-            ? '#9CA3AF'
-            : COLORS.neutral.textSecondary,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          outline: 'none',
-          boxShadow: toggleHovered ? SHADOWS.md : SHADOWS.sm,
-          transition: 'all 0.15s ease-in-out',
-          zIndex: 20,
-        }}
-      >
-        {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-      </button>
+              ? '#1F2937'
+              : COLORS.neutral.white,
+            color: toggleHovered
+              ? isDark
+                ? '#A5B4FC'
+                : COLORS.primary.DEFAULT
+              : isDark
+              ? '#9CA3AF'
+              : COLORS.neutral.textSecondary,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            outline: 'none',
+            boxShadow: toggleHovered ? SHADOWS.md : SHADOWS.sm,
+            transition: 'all 0.15s ease-in-out',
+            zIndex: 20,
+          }}
+        >
+          {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+        </button>
+      )}
 
       {/* Top section: Brand Header & Divider */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', flexShrink: 0 }}>
@@ -333,12 +345,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
           style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: isCollapsed ? 'center' : 'flex-start',
+            justifyContent: isCollapsed ? 'center' : 'space-between',
             padding: isCollapsed ? '0' : '0 2px',
             minHeight: '38px',
           }}
         >
           <BrandLogo collapsed={isCollapsed} />
+          {isMobileDrawer && onCloseMobileDrawer && (
+            <button
+              type="button"
+              onClick={onCloseMobileDrawer}
+              aria-label="Close navigation drawer"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: isDark ? '#9CA3AF' : COLORS.neutral.textSecondary,
+                padding: '4px',
+                borderRadius: RADII.md,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <X size={18} />
+            </button>
+          )}
         </div>
 
         {/* Divider separating Logo and Menu */}
@@ -455,7 +487,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     return (
                       <button
                         key={item.id}
-                        onClick={() => onSelectItem?.(item.id)}
+                        onClick={() => {
+                          onSelectItem?.(item.id);
+                          if (isMobileDrawer) {
+                            onCloseMobileDrawer?.();
+                          }
+                        }}
                         onMouseEnter={() => setHoveredItem(item.id)}
                         onMouseLeave={() => setHoveredItem(null)}
                         title={isCollapsed ? item.label : undefined}
