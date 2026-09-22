@@ -5,11 +5,13 @@ export interface ManagedMember {
   name: string;
   email: string;
   team: 'ALLEGRO' | 'MARITIME';
+  role?: string;
   reviewCadence?: string;
   reviewCadenceMonths?: number;
   blueprintUsername?: string;
   lastReviewDate?: string | null;
   nextReviewDate?: string | null;
+  nextReviewDueDate?: string | null;
   recommendedDateFrom?: string;
   recommendedDateTo?: string;
   isDueForReview?: boolean;

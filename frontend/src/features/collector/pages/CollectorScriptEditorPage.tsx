@@ -1381,7 +1381,7 @@ export const CollectorScriptEditorPage: React.FC = () => {
                     {m.name}
                   </td>
                   <td style={{ padding: '10px 14px', color: '#64748b' }}>
-                    {m.team} · {m.role}
+                    {m.team}{m.role ? ` · ${m.role}` : ''}
                   </td>
                   <td style={{ padding: '10px 14px' }}>
                     {m.blueprintUsername ? (
@@ -1413,7 +1413,7 @@ export const CollectorScriptEditorPage: React.FC = () => {
                     </select>
                   </td>
                   <td style={{ padding: '10px 14px', textAlign: 'center', color: '#475569', fontSize: '12px' }}>
-                    {m.nextReviewDueDate ? new Date(m.nextReviewDueDate).toLocaleDateString('vi-VN') : '—'}
+                    {(m.nextReviewDueDate || m.nextReviewDate) ? new Date(m.nextReviewDueDate || m.nextReviewDate!).toLocaleDateString('vi-VN') : '—'}
                   </td>
                   <td style={{ padding: '10px 14px', textAlign: 'center' }}>
                     {m.isDueForReview ? (
