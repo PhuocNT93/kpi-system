@@ -1,7 +1,7 @@
 import type { MigrationBuilder } from 'node-pg-migrate';
 
 export async function up(pgm: MigrationBuilder): Promise<void> {
-  const orgUiId = 'o0000000-0000-0000-0000-000000000001';
+  const orgUiId = '00000000-0000-0000-0000-000000000001';
 
   const translations = [
     // Page Header & Tabs
@@ -102,7 +102,7 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
 }
 
 export async function down(pgm: MigrationBuilder): Promise<void> {
-  const orgUiId = 'o0000000-0000-0000-0000-000000000001';
+  const orgUiId = '00000000-0000-0000-0000-000000000001';
   pgm.sql(`
     DELETE FROM "i18n_translation"
     WHERE "entity_type" = 'ORGANIZATION_UI' AND "entity_id" = '${orgUiId}';
