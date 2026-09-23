@@ -12,6 +12,7 @@ import { useJobRoles } from '../hooks/useJobRoles';
 import { useJobLevels } from '../hooks/useJobLevels';
 import { AutoCodeButton } from '../../../shared/components/AutoCodeButton';
 import { generateCode } from '../../../shared/utils/code-generator';
+import { useTheme } from '../../../shared/theme';
 
 const reviewCadenceMonths: Record<string, number> = {
   MONTHLY: 1,
@@ -269,18 +270,26 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
     }
   });
 
+  const { isDark } = useTheme();
+
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="employee-form-dialog-title"
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-      }}
+      className="org-modal-overlay"
     >
-      <div style={{ background: '#fff', borderRadius: 8, padding: '1.5rem', maxWidth: 600, width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
-        <h2 id="employee-form-dialog-title" style={{ margin: '0 0 1rem' }}>
+      <div
+        className="org-modal-card"
+        style={{
+          background: isDark ? '#1e293b' : '#ffffff',
+          color: isDark ? '#f8fafc' : '#111827',
+          border: isDark ? '1px solid #334155' : '1px solid #e2e8f0',
+          boxShadow: isDark ? '0 20px 25px -5px rgba(0,0,0,0.5)' : '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+          maxWidth: 620,
+        }}
+      >
+        <h2 id="employee-form-dialog-title" style={{ margin: '0 0 1rem', fontSize: '1.25rem', fontWeight: 600, color: isDark ? '#f8fafc' : '#111827' }}>
           {isEditMode ? 'Edit Employee' : 'Add Employee'}
         </h2>
 

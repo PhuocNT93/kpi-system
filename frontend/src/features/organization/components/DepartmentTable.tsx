@@ -6,9 +6,13 @@ import { ErrorAlert, LoadingSpinner, EmptyState, StatusBadge, ConfirmDialog } fr
 import { Button } from '../../../shared/ui/Button/Button';
 import type { OrgDepartment } from '../domain/organization-models';
 import { BulkActionBar } from './BulkActionBar';
+import { useTheme } from '../../../shared/theme';
+import { useOrganizationTranslation } from '../hooks/useOrganizationTranslation';
 
 export function DepartmentTable() {
   const { user } = useAuth();
+  const { isDark } = useTheme();
+  const { t } = useOrganizationTranslation();
   const isAdmin = user?.role === 'HR_ADMIN' || user?.role === 'SYSTEM_ADMIN';
   
   const departmentsQuery = useDepartments();
@@ -74,6 +78,13 @@ export function DepartmentTable() {
   if (departmentsQuery.isPending) return <LoadingSpinner label="Loading departments..." />;
   if (departmentsQuery.isError) return <ErrorAlert error={departmentsQuery.error} onRetry={() => departmentsQuery.refetch()} />;
 
+  const thBg = isDark ? '#0f172a' : '#f9fafb';
+  const thColor = isDark ? '#94a3b8' : '#374151';
+  const trBorder = isDark ? '1px solid #334155' : '1px solid #f3f4f6';
+  const trHeaderBorder = isDark ? '2px solid #334155' : '2px solid #e5e7eb';
+  const textColor = isDark ? '#f8fafc' : '#111827';
+  const codeColor = isDark ? '#93c5fd' : '#2563eb';
+
   return (
     <div style={{ paddingBottom: '6rem' }}>
       {isAdmin && (
@@ -87,12 +98,12 @@ export function DepartmentTable() {
       {departments.length === 0 ? (
         <EmptyState message="No departments found." />
       ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ width: '100%', minWidth: '540px', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
-              <tr style={{ borderBottom: '2px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
+              <tr style={{ borderBottom: trHeaderBorder, backgroundColor: thBg }}>
                 {isAdmin && (
-                  <th style={{ padding: '0.75rem 1rem', width: '40px', textAlign: 'center' }}>
+                  <th style={{ padding: '0.75rem 1rem', width: '40px', textAlign: 'center', color: thColor }}>
                     <input
                       type="checkbox"
                       ref={headerCheckboxRef}
@@ -103,10 +114,10 @@ export function DepartmentTable() {
                     />
                   </th>
                 )}
-                <th style={{ padding: '0.75rem 1rem' }}>Code</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Name</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Status</th>
-                {isAdmin && <th style={{ padding: '0.75rem 1rem', width: '150px' }}>Actions</th>}
+                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_code', 'Code')}</th>
+                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_name', 'Name')}</th>
+                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_status', 'Status')}</th>
+                {isAdmin && <th style={{ padding: '0.75rem 1rem', width: '150px', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_actions', 'Actions')}</th>}
               </tr>
             </thead>
             <tbody>
@@ -116,8 +127,8 @@ export function DepartmentTable() {
                   <tr
                     key={dept.id}
                     style={{
-                      borderBottom: '1px solid #f3f4f6',
-                      backgroundColor: isSelected ? '#eff6ff' : undefined,
+                      borderBottom: trBorder,
+                      backgroundColor: isSelected ? (isDark ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff') : undefined,
                       transition: 'background-color 0.15s',
                     }}
                   >
@@ -132,8 +143,8 @@ export function DepartmentTable() {
                         />
                       </td>
                     )}
-                    <td style={{ padding: '0.75rem 1rem', fontWeight: 500 }}>{dept.code}</td>
-                    <td style={{ padding: '0.75rem 1rem' }}>{dept.name}</td>
+                    <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: codeColor }}>{dept.code}</td>
+                    <td style={{ padding: '0.75rem 1rem', color: textColor }}>{dept.name}</td>
                     <td style={{ padding: '0.75rem 1rem' }}>
                       <StatusBadge status={dept.isActive ? 'ACTIVE' : 'INACTIVE'} />
                     </td>
@@ -145,7 +156,7 @@ export function DepartmentTable() {
                           aria-label={`Edit department ${dept.name}`}
                           onClick={() => setEditingDepartment(dept)}
                         >
-                          Edit
+                          {t('btn_edit', 'Edit')}
                         </Button>
                       </td>
                     )}

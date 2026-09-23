@@ -9,6 +9,8 @@ import { Button } from '../../../shared/ui/Button/Button';
 import type { OrgTeam } from '../domain/organization-models';
 import { AutoCodeButton } from '../../../shared/components/AutoCodeButton';
 import { generateCode } from '../../../shared/utils/code-generator';
+import { useTheme } from '../../../shared/theme';
+import { useOrganizationTranslation } from '../hooks/useOrganizationTranslation';
 
 const createSchema = z.object({
   code: z.string().min(1, 'Team code is required').max(20, 'Code must be 20 characters or less'),
@@ -34,6 +36,8 @@ interface TeamFormModalProps {
 
 export function TeamFormModal({ isOpen, team, onClose }: TeamFormModalProps) {
   const isEditMode = team !== undefined;
+  const { isDark } = useTheme();
+  const { t } = useOrganizationTranslation();
   const departmentsQuery = useDepartments();
   const createMutation = useCreateTeam();
   const updateMutation = useUpdateTeam(team?.id ?? '');
@@ -96,30 +100,41 @@ export function TeamFormModal({ isOpen, team, onClose }: TeamFormModalProps) {
     }
   });
 
+  const modalBg = isDark ? '#1e293b' : '#ffffff';
+  const textColor = isDark ? '#f8fafc' : '#111827';
+  const labelColor = isDark ? '#e2e8f0' : '#374151';
+  const inputBg = isDark ? '#0f172a' : '#ffffff';
+  const inputBorder = isDark ? '#334155' : '#d1d5db';
+
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="team-form-dialog-title"
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-      }}
+      className="org-modal-overlay"
     >
-      <div style={{ background: '#fff', borderRadius: 8, padding: '1.5rem', maxWidth: 500, width: '90%' }}>
-        <h2 id="team-form-dialog-title" style={{ margin: '0 0 1rem' }}>
+      <div
+        className="org-modal-card"
+        style={{
+          background: modalBg,
+          color: textColor,
+          border: isDark ? '1px solid #334155' : '1px solid #e5e7eb',
+          boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)',
+        }}
+      >
+        <h2 id="team-form-dialog-title" style={{ margin: '0 0 1.25rem', fontSize: '1.25rem', fontWeight: 600, color: textColor }}>
           {isEditMode ? 'Edit Team' : 'Create Team'}
         </h2>
 
         {mutationError && <ErrorAlert error={mutationError} />}
 
-        <form onSubmit={onSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <form onSubmit={onSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           
           {!isEditMode && (
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-                <label htmlFor="team-code" style={{ fontWeight: 500 }}>
-                  Team Code *
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                <label htmlFor="team-code" style={{ fontWeight: 500, fontSize: '0.875rem', color: labelColor }}>
+                  {t('col_code', 'Team Code')} *
                 </label>
                 <AutoCodeButton
                   onClick={() => {
@@ -133,10 +148,14 @@ export function TeamFormModal({ isOpen, team, onClose }: TeamFormModalProps) {
                 type="text" 
                 aria-required="true" 
                 {...register('code' as keyof CreateFormValues)} 
-                style={{ display: 'block', width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }} 
+                style={{
+                  display: 'block', width: '100%', padding: '0.625rem 0.75rem',
+                  background: inputBg, color: textColor,
+                  border: `1px solid ${inputBorder}`, borderRadius: '6px', fontSize: '0.875rem',
+                }} 
               />
               {(errors as Record<string, { message?: string }>).code && (
-                <span role="alert" style={{ color: '#dc2626', fontSize: '0.875rem', marginTop: '0.25rem', display: 'block' }}>
+                <span role="alert" style={{ color: '#ef4444', fontSize: '0.8125rem', marginTop: '0.25rem', display: 'block' }}>
                   {(errors as Record<string, { message?: string }>).code?.message}
                 </span>
               )}
@@ -144,70 +163,84 @@ export function TeamFormModal({ isOpen, team, onClose }: TeamFormModalProps) {
           )}
 
           <div>
-            <label htmlFor="team-name" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
-              Team Name *
+            <label htmlFor="team-name" style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 500, fontSize: '0.875rem', color: labelColor }}>
+              {t('col_name', 'Team Name')} *
             </label>
             <input 
               id="team-name" 
               type="text" 
               aria-required="true" 
               {...register('name')} 
-              style={{ display: 'block', width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }} 
+              style={{
+                display: 'block', width: '100%', padding: '0.625rem 0.75rem',
+                background: inputBg, color: textColor,
+                border: `1px solid ${inputBorder}`, borderRadius: '6px', fontSize: '0.875rem',
+              }} 
             />
             {errors.name && (
-              <span role="alert" style={{ color: '#dc2626', fontSize: '0.875rem', marginTop: '0.25rem', display: 'block' }}>
+              <span role="alert" style={{ color: '#ef4444', fontSize: '0.8125rem', marginTop: '0.25rem', display: 'block' }}>
                 {errors.name.message}
               </span>
             )}
           </div>
 
           <div>
-            <label htmlFor="team-department" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
+            <label htmlFor="team-department" style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 500, fontSize: '0.875rem', color: labelColor }}>
               Department *
             </label>
             <select 
               id="team-department" 
               aria-required="true" 
               {...register('department_id')} 
-              style={{ display: 'block', width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
+              style={{
+                display: 'block', width: '100%', padding: '0.625rem 0.75rem',
+                background: inputBg, color: textColor,
+                border: `1px solid ${inputBorder}`, borderRadius: '6px', fontSize: '0.875rem',
+              }}
             >
               <option value="">Select a department…</option>
               {departmentsQuery.data
                 ?.filter(d => d.isActive || (!team?.isActive && d.id === team?.departmentId))
                 .map((dept) => (
-                  <option key={dept.id} value={dept.id}>
+                  <option key={dept.id} value={dept.id} style={{ background: inputBg, color: textColor }}>
                     {!dept.isActive ? `[Inactive] ${dept.name} (${dept.code})` : `${dept.name} (${dept.code})`}
                   </option>
               ))}
             </select>
             {errors.department_id && (
-              <span role="alert" style={{ color: '#dc2626', fontSize: '0.875rem', marginTop: '0.25rem', display: 'block' }}>
+              <span role="alert" style={{ color: '#ef4444', fontSize: '0.8125rem', marginTop: '0.25rem', display: 'block' }}>
                 {errors.department_id.message}
               </span>
             )}
           </div>
 
           <div>
-            <label htmlFor="team-description" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
-              Description
+            <label htmlFor="team-description" style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 500, fontSize: '0.875rem', color: labelColor }}>
+              {t('col_desc', 'Description')}
             </label>
             <textarea 
               id="team-description" 
               rows={3}
               {...register('description')} 
-              style={{ display: 'block', width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px', resize: 'vertical' }} 
+              style={{
+                display: 'block', width: '100%', padding: '0.625rem 0.75rem',
+                background: inputBg, color: textColor,
+                border: `1px solid ${inputBorder}`, borderRadius: '6px', fontSize: '0.875rem', resize: 'vertical',
+              }} 
             />
             {errors.description && (
-              <span role="alert" style={{ color: '#dc2626', fontSize: '0.875rem', marginTop: '0.25rem', display: 'block' }}>
+              <span role="alert" style={{ color: '#ef4444', fontSize: '0.8125rem', marginTop: '0.25rem', display: 'block' }}>
                 {errors.description.message}
               </span>
             )}
           </div>
 
           <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-            <Button variant="secondary" onClick={onClose} disabled={isPending}>Cancel</Button>
+            <Button variant="secondary" onClick={onClose} disabled={isPending}>
+              {t('btn_cancel', 'Cancel')}
+            </Button>
             <Button type="submit" disabled={isPending}>
-              {isPending ? 'Saving…' : isEditMode ? 'Save Changes' : 'Create Team'}
+              {isPending ? t('btn_saving', 'Saving…') : isEditMode ? t('btn_save', 'Save Changes') : 'Create Team'}
             </Button>
           </div>
         </form>

@@ -8,9 +8,13 @@ import { Button } from '../../../shared/ui/Button/Button';
 import type { OrgEmployee } from '../domain/organization-models';
 import { EmployeeFormModal } from './EmployeeFormModal';
 import { BulkActionBar } from './BulkActionBar';
+import { useTheme } from '../../../shared/theme';
+import { useOrganizationTranslation } from '../hooks/useOrganizationTranslation';
 
 export function EmployeeTable({ departmentId, teamId }: { departmentId?: string; teamId?: string }) {
   const { user } = useAuth();
+  const { isDark } = useTheme();
+  const { t } = useOrganizationTranslation();
   const isAdmin = user?.role === 'HR_ADMIN' || user?.role === 'SYSTEM_ADMIN';
   
   const filters: Record<string, string> = {};
@@ -102,6 +106,14 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
     return `${monthNames[parsedDate.getMonth()]} ${parsedDate.getFullYear()}`;
   };
 
+  const thBg = isDark ? '#0f172a' : '#f9fafb';
+  const thColor = isDark ? '#94a3b8' : '#374151';
+  const trBorder = isDark ? '1px solid #334155' : '1px solid #f3f4f6';
+  const trHeaderBorder = isDark ? '2px solid #334155' : '2px solid #e5e7eb';
+  const textColor = isDark ? '#f8fafc' : '#111827';
+  const subTextColor = isDark ? '#94a3b8' : '#4b5563';
+  const codeColor = isDark ? '#93c5fd' : '#2563eb';
+
   return (
     <div style={{ paddingBottom: '6rem' }}>
       {isAdmin && (
@@ -115,12 +127,12 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
       {employees.length === 0 ? (
         <EmptyState message="No employees found." />
       ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ width: '100%', minWidth: '850px', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
-              <tr style={{ borderBottom: '2px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
+              <tr style={{ borderBottom: trHeaderBorder, backgroundColor: thBg }}>
                 {isAdmin && (
-                  <th style={{ padding: '0.75rem 1rem', width: '40px', textAlign: 'center' }}>
+                  <th style={{ padding: '0.75rem 1rem', width: '40px', textAlign: 'center', color: thColor }}>
                     <input
                       type="checkbox"
                       ref={headerCheckboxRef}
@@ -131,16 +143,16 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
                     />
                   </th>
                 )}
-                <th style={{ padding: '0.75rem 1rem' }}>Code</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Name</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Role</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Level</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Email</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Review Cadence</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Last Review Date</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Next Review Date</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Status</th>
-                {isAdmin && <th style={{ padding: '0.75rem 1rem', width: '150px' }}>Actions</th>}
+                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_code', 'Code')}</th>
+                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_name', 'Name')}</th>
+                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>Role</th>
+                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>Level</th>
+                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>Email</th>
+                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>Review Cadence</th>
+                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>Last Review</th>
+                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>Next Review</th>
+                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_status', 'Status')}</th>
+                {isAdmin && <th style={{ padding: '0.75rem 1rem', width: '150px', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_actions', 'Actions')}</th>}
               </tr>
             </thead>
             <tbody>
@@ -150,8 +162,8 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
                   <tr
                     key={emp.id}
                     style={{
-                      borderBottom: '1px solid #f3f4f6',
-                      backgroundColor: isSelected ? '#eff6ff' : undefined,
+                      borderBottom: trBorder,
+                      backgroundColor: isSelected ? (isDark ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff') : undefined,
                       transition: 'background-color 0.15s',
                     }}
                   >
@@ -166,32 +178,44 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
                         />
                       </td>
                     )}
-                    <td style={{ padding: '0.75rem 1rem', fontWeight: 500 }}>{emp.employeeCode}</td>
-                    <td style={{ padding: '0.75rem 1rem' }}>{emp.fullName}</td>
+                    <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: codeColor }}>{emp.employeeCode}</td>
+                    <td style={{ padding: '0.75rem 1rem', color: textColor, fontWeight: 500 }}>{emp.fullName}</td>
                     <td style={{ padding: '0.75rem 1rem' }}>
-                      <span style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 500 }}>
+                      <span style={{
+                        backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff',
+                        color: isDark ? '#93c5fd' : '#1d4ed8',
+                        padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 500,
+                      }}>
                         {getRoleName(emp.roleId)}
                       </span>
                     </td>
                     <td style={{ padding: '0.75rem 1rem' }}>
-                      <span style={{ backgroundColor: '#f5f3ff', color: '#6d28d9', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 500 }}>
+                      <span style={{
+                        backgroundColor: isDark ? 'rgba(168, 85, 247, 0.2)' : '#f5f3ff',
+                        color: isDark ? '#d8b4fe' : '#6d28d9',
+                        padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 500,
+                      }}>
                         {getLevelName(emp.jobLevelId)}
                       </span>
                     </td>
-                    <td style={{ padding: '0.75rem 1rem' }}>{emp.email}</td>
+                    <td style={{ padding: '0.75rem 1rem', color: textColor }}>{emp.email}</td>
                     <td style={{ padding: '0.75rem 1rem' }}>
                       {emp.reviewCadence ? (
-                        <span style={{ backgroundColor: '#f0fdf4', color: '#15803d', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 500 }}>
+                        <span style={{
+                          backgroundColor: isDark ? 'rgba(34, 197, 94, 0.2)' : '#f0fdf4',
+                          color: isDark ? '#86efac' : '#15803d',
+                          padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 500,
+                        }}>
                           {formatCadence(emp.reviewCadence)}
                         </span>
                       ) : (
-                        <span style={{ color: '#9ca3af' }}>Not Set</span>
+                        <span style={{ color: subTextColor }}>-</span>
                       )}
                     </td>
-                    <td style={{ padding: '0.75rem 1rem', color: '#4b5563', fontSize: '0.875rem' }}>
+                    <td style={{ padding: '0.75rem 1rem', color: subTextColor, fontSize: '0.875rem' }}>
                       {formatMonthYear(emp.lastEvaluationCompletedAt)}
                     </td>
-                    <td style={{ padding: '0.75rem 1rem', color: '#ea580c', fontSize: '0.875rem', fontWeight: 500 }}>
+                    <td style={{ padding: '0.75rem 1rem', color: isDark ? '#fb923c' : '#ea580c', fontSize: '0.875rem', fontWeight: 500 }}>
                       {formatMonthYear(emp.nextReviewDueDate)}
                     </td>
                     <td style={{ padding: '0.75rem 1rem' }}>
@@ -205,7 +229,7 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
                           aria-label={`Edit employee ${emp.fullName}`}
                           onClick={() => setEditingEmployee(emp)}
                         >
-                          Edit
+                          {t('btn_edit', 'Edit')}
                         </Button>
                       </td>
                     )}

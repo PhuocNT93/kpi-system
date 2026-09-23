@@ -42,6 +42,18 @@ export interface OrgJobLevel {
   name: string;
   rank: number;
   isActive: boolean;
+  defaultReviewCadenceId?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface OrgReviewCadence {
+  id: string;
+  code: string;
+  name: string;
+  intervalMonths: number;
+  isSystemDefault: boolean;
+  isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

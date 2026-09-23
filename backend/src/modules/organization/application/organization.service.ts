@@ -174,6 +174,15 @@ export class OrganizationService {
     if (existing) {
       throw new Conflict(`Job Level with code ${data.code} already exists`, 'DUPLICATE_CODE');
     }
+    if (data.defaultReviewCadenceId) {
+      const cadenceCheck = await this.pool.query(
+        'SELECT 1 FROM review_cadence WHERE review_cadence_id = $1',
+        [data.defaultReviewCadenceId]
+      );
+      if (cadenceCheck.rows.length === 0) {
+        throw new NotFound(`Review Cadence with ID ${data.defaultReviewCadenceId}`);
+      }
+    }
     return this.jobLevelRepository.create({
       id: '', // DB generates UUID
       ...data
@@ -191,6 +200,19 @@ export class OrganizationService {
       if (parseInt(empCount.rows[0].count) > 0) {
         throw new BusinessRuleViolationError('Cannot deactivate job level while it has active employees', 'LEVEL_HAS_ACTIVE_EMPLOYEES');
       }
+    }
+
+    if (data.defaultReviewCadenceId !== undefined) {
+      if (data.defaultReviewCadenceId !== null) {
+        const cadenceCheck = await this.pool.query(
+          'SELECT 1 FROM review_cadence WHERE review_cadence_id = $1',
+          [data.defaultReviewCadenceId]
+        );
+        if (cadenceCheck.rows.length === 0) {
+          throw new NotFound(`Review Cadence with ID ${data.defaultReviewCadenceId}`);
+        }
+      }
+      existing.defaultReviewCadenceId = data.defaultReviewCadenceId;
     }
 
     existing.name = data.name;

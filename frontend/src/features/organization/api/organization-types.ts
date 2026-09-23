@@ -76,6 +76,7 @@ export interface WireJobLevel {
   name: string;
   rank: number;
   active: boolean;
+  default_review_cadence_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -84,11 +85,38 @@ export interface CreateJobLevelRequest {
   code: string;
   name: string;
   rank: number;
+  default_review_cadence_id?: string | null;
 }
 
 export interface UpdateJobLevelRequest {
   name?: string;
   rank?: number;
+  active?: boolean;
+  default_review_cadence_id?: string | null;
+}
+
+export interface WireReviewCadence {
+  id: string;
+  code: string;
+  name: string;
+  interval_months: number;
+  is_system_default: boolean;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateReviewCadenceRequest {
+  code: string;
+  name: string;
+  interval_months: number;
+  is_system_default?: boolean;
+}
+
+export interface UpdateReviewCadenceRequest {
+  name?: string;
+  interval_months?: number;
+  is_system_default?: boolean;
   active?: boolean;
 }
 

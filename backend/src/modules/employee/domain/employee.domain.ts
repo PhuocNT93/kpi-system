@@ -30,6 +30,7 @@ export interface Employee {
   terminationDate?: string | null; // YYYY-MM-DD
   version: number;
   reviewCadence?: string | null;
+  reviewCadenceOverrideId?: string | null;
   lastEvaluationCompletedAt?: string | null; // ISO DateTime
   nextReviewDueDate?: string | null; // ISO DateTime
   createdAt?: string;
