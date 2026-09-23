@@ -22,6 +22,7 @@ interface EmployeeRow extends Record<string, unknown> {
   created_by?: string | null;
   updated_by?: string | null;
   review_cadence?: string | null;
+  review_cadence_override_id?: string | null;
   last_evaluation_completed_at?: string | null;
   next_review_due_date?: string | null;
 }
@@ -53,7 +54,7 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
   async findById(employeeId: string): Promise<Employee | null> {
     if (!this.hasQuery()) return null;
     const res = await this.pool.query(
-      `SELECT employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, review_cadence, last_evaluation_completed_at, next_review_due_date, created_at, updated_at, created_by, updated_by
+      `SELECT employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, review_cadence, review_cadence_override_id, last_evaluation_completed_at, next_review_due_date, created_at, updated_at, created_by, updated_by
        FROM employee WHERE employee_id = $1`,
       [employeeId]
     );
@@ -64,7 +65,7 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
   async findByCode(employeeCode: string): Promise<Employee | null> {
     if (!this.hasQuery()) return null;
     const res = await this.pool.query(
-      `SELECT employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, review_cadence, last_evaluation_completed_at, next_review_due_date, created_at, updated_at, created_by, updated_by
+      `SELECT employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, review_cadence, review_cadence_override_id, last_evaluation_completed_at, next_review_due_date, created_at, updated_at, created_by, updated_by
        FROM employee WHERE employee_code = $1`,
       [employeeCode]
     );
@@ -75,7 +76,7 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
   async findByEmail(email: string): Promise<Employee | null> {
     if (!this.hasQuery()) return null;
     const res = await this.pool.query(
-      `SELECT employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, review_cadence, last_evaluation_completed_at, next_review_due_date, created_at, updated_at, created_by, updated_by
+      `SELECT employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, review_cadence, review_cadence_override_id, last_evaluation_completed_at, next_review_due_date, created_at, updated_at, created_by, updated_by
        FROM employee WHERE LOWER(email) = LOWER($1)`,
       [email]
     );
@@ -145,7 +146,7 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
     const offset = params.offset ?? 0;
 
     const dataRes = await this.pool.query(
-      `SELECT employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, review_cadence, last_evaluation_completed_at, next_review_due_date, created_at, updated_at, created_by, updated_by
+      `SELECT employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, review_cadence, review_cadence_override_id, last_evaluation_completed_at, next_review_due_date, created_at, updated_at, created_by, updated_by
        FROM employee ${whereClause} ORDER BY created_at DESC LIMIT $${idx++} OFFSET $${idx++}`,
       [...values, limit, offset]
     );
@@ -166,9 +167,9 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
       };
     }
     const res = await executor.query<EmployeeRow>(
-      `INSERT INTO employee (employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, review_cadence, last_evaluation_completed_at, next_review_due_date, created_by, updated_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-       RETURNING employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, review_cadence, last_evaluation_completed_at, next_review_due_date, created_at, updated_at, created_by, updated_by`,
+      `INSERT INTO employee (employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, review_cadence, review_cadence_override_id, last_evaluation_completed_at, next_review_due_date, created_by, updated_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+       RETURNING employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, review_cadence, review_cadence_override_id, last_evaluation_completed_at, next_review_due_date, created_at, updated_at, created_by, updated_by`,
       [
         employee.employeeCode,
         employee.fullName,
@@ -181,6 +182,7 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
         employee.employmentStatus,
         employee.joinDate,
         employee.reviewCadence ?? null,
+        employee.reviewCadenceOverrideId ?? null,
         employee.lastEvaluationCompletedAt ?? null,
         employee.nextReviewDueDate ?? null,
         employee.createdBy,
@@ -204,9 +206,9 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
     }
     const res = await executor.query<EmployeeRow>(
       `UPDATE employee
-       SET full_name = $1, email = $2, department_id = $3, team_id = $4, role_id = $5, job_level_id = $6, manager_id = $7, employment_status = $8, termination_date = $9, review_cadence = $10, last_evaluation_completed_at = $11, next_review_due_date = $12, updated_by = $13, version = version + 1
-       WHERE employee_id = $14 AND version = $15
-       RETURNING employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, review_cadence, last_evaluation_completed_at, next_review_due_date, created_at, updated_at, created_by, updated_by`,
+       SET full_name = $1, email = $2, department_id = $3, team_id = $4, role_id = $5, job_level_id = $6, manager_id = $7, employment_status = $8, termination_date = $9, review_cadence = $10, review_cadence_override_id = $11, last_evaluation_completed_at = $12, next_review_due_date = $13, updated_by = $14, version = version + 1
+       WHERE employee_id = $15 AND version = $16
+       RETURNING employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, review_cadence, review_cadence_override_id, last_evaluation_completed_at, next_review_due_date, created_at, updated_at, created_by, updated_by`,
       [
         employee.fullName,
         employee.email,
@@ -218,6 +220,7 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
         employee.employmentStatus,
         employee.terminationDate,
         employee.reviewCadence ?? null,
+        employee.reviewCadenceOverrideId ?? null,
         employee.lastEvaluationCompletedAt ?? null,
         employee.nextReviewDueDate ?? null,
         employee.updatedBy,
@@ -249,6 +252,7 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
       terminationDate: row.termination_date,
       version: typeof row.version === 'string' ? parseInt(row.version, 10) : Number(row.version),
       reviewCadence: row.review_cadence,
+      reviewCadenceOverrideId: row.review_cadence_override_id,
       nextReviewDueDate: row.next_review_due_date,
       lastEvaluationCompletedAt: row.last_evaluation_completed_at,
       createdAt: row.created_at,

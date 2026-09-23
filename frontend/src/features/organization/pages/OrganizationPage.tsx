@@ -1,41 +1,56 @@
 import { useState } from 'react';
 import { OrgStructureTab } from '../components/OrgStructureTab';
 import { JobArchitectureTab } from '../components/JobArchitectureTab';
+import { useTheme } from '../../../shared/theme';
+import { useOrganizationTranslation } from '../hooks/useOrganizationTranslation';
 
 type Tab = 'structure' | 'architecture';
 
 export function OrganizationPage() {
   const [activeTab, setActiveTab] = useState<Tab>('structure');
+  const { isDark } = useTheme();
+  const { t } = useOrganizationTranslation();
 
-  const tabStyle = (tab: Tab): React.CSSProperties => ({
-    padding: '8px 20px',
-    borderRadius: '6px 6px 0 0',
-    border: 'none',
-    cursor: 'pointer',
-    fontWeight: 600,
-    fontSize: '0.875rem',
-    backgroundColor: activeTab === tab ? '#fff' : 'transparent',
-    color: activeTab === tab ? '#4f46e5' : '#6b7280',
-    borderBottom: activeTab === tab ? '2px solid #4f46e5' : '2px solid transparent',
-  });
+  const tabStyle = (tab: Tab): React.CSSProperties => {
+    const isActive = activeTab === tab;
+    return {
+      padding: '10px 20px',
+      minHeight: '40px',
+      borderRadius: '6px 6px 0 0',
+      border: 'none',
+      cursor: 'pointer',
+      fontWeight: 600,
+      fontSize: '0.875rem',
+      backgroundColor: isActive ? (isDark ? '#1e293b' : '#fff') : 'transparent',
+      color: isActive ? (isDark ? '#a5b4fc' : '#4f46e5') : (isDark ? '#94a3b8' : '#6b7280'),
+      borderBottom: isActive ? `2px solid ${isDark ? '#818cf8' : '#4f46e5'}` : '2px solid transparent',
+      transition: 'all 0.15s ease',
+      whiteSpace: 'nowrap',
+    };
+  };
 
   return (
-    <main style={{ padding: '2rem', width: '100%' }}>
+    <main className="org-page-container">
       <div style={{ marginBottom: '1.5rem' }}>
-        <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, color: '#111827' }}>
-          Organization Management
+        <h1 style={{ margin: 0, fontSize: 'clamp(1.25rem, 3vw, 1.5rem)', fontWeight: 800, color: isDark ? '#f8fafc' : '#111827' }}>
+          {t('page_title', 'Organization Management')}
         </h1>
-        <p style={{ margin: '0.25rem 0 0', color: '#6b7280', fontSize: '0.875rem' }}>
-          Manage your organization structure and job architecture.
+        <p style={{ margin: '0.25rem 0 0', color: isDark ? '#94a3b8' : '#6b7280', fontSize: '0.875rem' }}>
+          {t('page_subtitle', 'Manage your organization structure and job architecture.')}
         </p>
       </div>
 
-      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid #e5e7eb', marginBottom: '1.5rem' }}>
+      <div
+        className="org-tabs-bar"
+        style={{
+          borderBottom: `1px solid ${isDark ? '#334155' : '#e5e7eb'}`,
+        }}
+      >
         <button style={tabStyle('structure')} onClick={() => setActiveTab('structure')}>
-          Org Structure
+          {t('tab_org_structure', 'Org Structure')}
         </button>
         <button style={tabStyle('architecture')} onClick={() => setActiveTab('architecture')}>
-          Job Architecture
+          {t('tab_job_architecture', 'Job Architecture')}
         </button>
       </div>
 

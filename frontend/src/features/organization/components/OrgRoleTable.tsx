@@ -6,9 +6,13 @@ import { ErrorAlert, LoadingSpinner, EmptyState, StatusBadge, ConfirmDialog } fr
 import { Button } from '../../../shared/ui/Button/Button';
 import type { OrgJobRole } from '../domain/organization-models';
 import { BulkActionBar } from './BulkActionBar';
+import { useTheme } from '../../../shared/theme';
+import { useOrganizationTranslation } from '../hooks/useOrganizationTranslation';
 
 export function OrgRoleTable() {
   const { user } = useAuth();
+  const { isDark } = useTheme();
+  const { t } = useOrganizationTranslation();
   const isAdmin = user?.role === 'HR_ADMIN' || user?.role === 'SYSTEM_ADMIN';
   
   const rolesQuery = useJobRoles();
@@ -74,23 +78,41 @@ export function OrgRoleTable() {
   if (rolesQuery.isPending) return <LoadingSpinner label="Loading roles..." />;
   if (rolesQuery.isError) return <ErrorAlert error={rolesQuery.error} onRetry={() => rolesQuery.refetch()} />;
 
+  const thStyle: React.CSSProperties = {
+    padding: '0.75rem 1rem',
+    fontSize: '0.8125rem',
+    fontWeight: 600,
+    color: isDark ? '#cbd5e1' : '#4b5563',
+  };
+
+  const tdStyle: React.CSSProperties = {
+    padding: '0.75rem 1rem',
+    fontSize: '0.875rem',
+    color: isDark ? '#f8fafc' : '#111827',
+  };
+
   return (
     <div style={{ paddingBottom: '6rem' }}>
       {isAdmin && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
           <Button id="create-role-btn" onClick={() => setIsCreateOpen(true)} size="sm">
-            + Create Role
+            {t('btn_create_role', '+ Create Role')}
           </Button>
         </div>
       )}
 
       {roles.length === 0 ? (
-        <EmptyState message="No roles found." />
+        <EmptyState message={t('empty_roles', 'No job roles found.')} />
       ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ width: '100%', minWidth: '540px', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
-              <tr style={{ borderBottom: '2px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
+              <tr
+                style={{
+                  borderBottom: `2px solid ${isDark ? '#334155' : '#e5e7eb'}`,
+                  backgroundColor: isDark ? '#0f172a' : '#f9fafb',
+                }}
+              >
                 {isAdmin && (
                   <th style={{ padding: '0.75rem 1rem', width: '40px', textAlign: 'center' }}>
                     <input
@@ -103,10 +125,10 @@ export function OrgRoleTable() {
                     />
                   </th>
                 )}
-                <th style={{ padding: '0.75rem 1rem' }}>Code</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Name</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Status</th>
-                {isAdmin && <th style={{ padding: '0.75rem 1rem', width: '150px' }}>Actions</th>}
+                <th style={thStyle}>{t('col_code', 'Code')}</th>
+                <th style={thStyle}>{t('col_name', 'Name')}</th>
+                <th style={thStyle}>{t('col_status', 'Status')}</th>
+                {isAdmin && <th style={{ ...thStyle, width: '150px' }}>{t('col_actions', 'Actions')}</th>}
               </tr>
             </thead>
             <tbody>
@@ -116,8 +138,8 @@ export function OrgRoleTable() {
                   <tr
                     key={role.id}
                     style={{
-                      borderBottom: '1px solid #f3f4f6',
-                      backgroundColor: isSelected ? '#eff6ff' : undefined,
+                      borderBottom: `1px solid ${isDark ? '#334155' : '#f3f4f6'}`,
+                      backgroundColor: isSelected ? (isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff') : undefined,
                       transition: 'background-color 0.15s',
                     }}
                   >
@@ -132,9 +154,9 @@ export function OrgRoleTable() {
                         />
                       </td>
                     )}
-                    <td style={{ padding: '0.75rem 1rem', fontWeight: 500 }}>{role.code}</td>
-                    <td style={{ padding: '0.75rem 1rem' }}>{role.name}</td>
-                    <td style={{ padding: '0.75rem 1rem' }}>
+                    <td style={{ ...tdStyle, fontWeight: 600, color: isDark ? '#93c5fd' : '#1d4ed8' }}>{role.code}</td>
+                    <td style={tdStyle}>{role.name}</td>
+                    <td style={tdStyle}>
                       <StatusBadge status={role.isActive ? 'ACTIVE' : 'INACTIVE'} />
                     </td>
                     {isAdmin && (
@@ -145,7 +167,7 @@ export function OrgRoleTable() {
                           aria-label={`Edit role ${role.name}`}
                           onClick={() => setEditingRole(role)}
                         >
-                          Edit
+                          {t('btn_edit', 'Edit')}
                         </Button>
                       </td>
                     )}

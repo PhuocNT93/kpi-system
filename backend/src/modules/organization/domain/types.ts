@@ -23,6 +23,7 @@ export interface JobLevel {
   name: string;
   rank: number;
   active: boolean;
+  defaultReviewCadenceId?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
 }

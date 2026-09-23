@@ -27,6 +27,7 @@ import { createReportsRouter } from '../modules/reports/api/reports.router.js';
 import { EvaluationDataImportController } from '../modules/evaluation-data-import/api/evaluation-data-import.controller.js';
 import { createEvaluationDataImportRouter } from '../modules/evaluation-data-import/api/evaluation-data-import.router.js';
 import { CalibrationController, createCalibrationRouter } from '../modules/calibration/index.js';
+import { ReviewCadenceController, createReviewCadenceRouter } from '../modules/review-cadence/index.js';
 
 export interface RegisterRoutesOptions {
   authController?: AuthController;
@@ -49,6 +50,7 @@ export interface RegisterRoutesOptions {
   reportsController?: ReportsController;
   calibrationController?: CalibrationController;
   notificationRouter?: Router;
+  reviewCadenceController?: ReviewCadenceController;
 }
 
 export function createApiRouter(options: RegisterRoutesOptions): Router {
@@ -179,6 +181,11 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
   // ── Notification Module Routes ─────────────────────────────────────────
   if (options.notificationRouter) {
     router.use('/', options.notificationRouter);
+  }
+
+  // ── Review Cadence Module Routes ──────────────────────────────────────────
+  if (options.reviewCadenceController) {
+    router.use('/review-cadences', createReviewCadenceRouter(options.reviewCadenceController, options.jwtMiddleware));
   }
 
   return router;

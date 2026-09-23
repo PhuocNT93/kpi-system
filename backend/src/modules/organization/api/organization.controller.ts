@@ -175,7 +175,7 @@ export class OrganizationController {
 
   createJobLevel = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { code, name, rank, active } = req.body;
+      const { code, name, rank, active, default_review_cadence_id, defaultReviewCadenceId } = req.body;
       if (!code || !name || rank === undefined) {
         throw new ValidationError('Request validation failed.', [
           ...(!code ? [{ field: 'code', code: 'REQUIRED', message: 'Code is required' }] : []),
@@ -183,11 +183,13 @@ export class OrganizationController {
           ...(rank === undefined ? [{ field: 'rank', code: 'REQUIRED', message: 'Rank is required' }] : [])
         ]);
       }
+      const cadenceId = default_review_cadence_id !== undefined ? default_review_cadence_id : defaultReviewCadenceId;
       const level = await this.organizationService.createJobLevel({
         code,
         name,
         rank: parseInt(rank, 10),
         active: active !== undefined ? active : true,
+        defaultReviewCadenceId: cadenceId ?? null,
       });
       sendSuccess(res, 201, 'Job Level created successfully', level);
     } catch (err) {
@@ -198,14 +200,20 @@ export class OrganizationController {
   updateJobLevel = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const id = req.params.id as string;
-      const { name, rank, active } = req.body;
+      const { name, rank, active, default_review_cadence_id, defaultReviewCadenceId } = req.body;
       if (!name || rank === undefined) {
         throw new ValidationError('Request validation failed.', [
           ...(!name ? [{ field: 'name', code: 'REQUIRED', message: 'Name is required' }] : []),
           ...(rank === undefined ? [{ field: 'rank', code: 'REQUIRED', message: 'Rank is required' }] : [])
         ]);
       }
-      const level = await this.organizationService.updateJobLevel(id, { name, rank: parseInt(rank, 10), active: active !== undefined ? active : true });
+      const cadenceId = default_review_cadence_id !== undefined ? default_review_cadence_id : defaultReviewCadenceId;
+      const level = await this.organizationService.updateJobLevel(id, {
+        name,
+        rank: parseInt(rank, 10),
+        active: active !== undefined ? active : true,
+        ...(cadenceId !== undefined ? { defaultReviewCadenceId: cadenceId } : {}),
+      });
       sendSuccess(res, 200, 'Job Level updated successfully', level);
     } catch (err) {
       next(err);

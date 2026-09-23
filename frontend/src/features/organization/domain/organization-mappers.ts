@@ -1,8 +1,8 @@
 // Wire → Domain mappers for the Organization feature
 // All snake_case → camelCase conversion happens here — never in components
 
-import type { WireTeam, WireTeamDetail, WireDepartment, WireJobRole, WireJobLevel, WireEmployee } from '../api/organization-types';
-import type { OrgTeam, OrgTeamDetail, OrgDepartment, OrgJobRole, OrgJobLevel, OrgEmployee } from './organization-models';
+import type { WireTeam, WireTeamDetail, WireDepartment, WireJobRole, WireJobLevel, WireReviewCadence, WireEmployee } from '../api/organization-types';
+import type { OrgTeam, OrgTeamDetail, OrgDepartment, OrgJobRole, OrgJobLevel, OrgReviewCadence, OrgEmployee } from './organization-models';
 
 export function mapWireTeamToDomain(wire: WireTeam): OrgTeam {
   return {
@@ -54,6 +54,20 @@ export function mapWireJobLevelToDomain(wire: WireJobLevel): OrgJobLevel {
     code: wire.code,
     name: wire.name,
     rank: wire.rank,
+    isActive: wire.active,
+    defaultReviewCadenceId: wire.default_review_cadence_id ?? null,
+    createdAt: new Date(wire.created_at),
+    updatedAt: new Date(wire.updated_at),
+  };
+}
+
+export function mapWireReviewCadenceToDomain(wire: WireReviewCadence): OrgReviewCadence {
+  return {
+    id: wire.id,
+    code: wire.code,
+    name: wire.name,
+    intervalMonths: wire.interval_months,
+    isSystemDefault: wire.is_system_default,
     isActive: wire.active,
     createdAt: new Date(wire.created_at),
     updatedAt: new Date(wire.updated_at),

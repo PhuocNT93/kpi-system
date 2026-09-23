@@ -144,7 +144,7 @@ export class PostgresJobLevelRepository implements JobLevelRepository {
 
   async findById(id: string): Promise<JobLevel | null> {
     const { rows } = await this.pool.query(
-      'SELECT job_level_id, code, name, rank, active, created_at, updated_at FROM job_level WHERE job_level_id = $1',
+      'SELECT job_level_id, code, name, rank, active, default_review_cadence_id, created_at, updated_at FROM job_level WHERE job_level_id = $1',
       [id]
     );
     if (rows.length === 0) return null;
@@ -153,7 +153,7 @@ export class PostgresJobLevelRepository implements JobLevelRepository {
 
   async findByCode(code: string): Promise<JobLevel | null> {
     const { rows } = await this.pool.query(
-      'SELECT job_level_id, code, name, rank, active, created_at, updated_at FROM job_level WHERE code = $1',
+      'SELECT job_level_id, code, name, rank, active, default_review_cadence_id, created_at, updated_at FROM job_level WHERE code = $1',
       [code]
     );
     if (rows.length === 0) return null;
@@ -161,7 +161,7 @@ export class PostgresJobLevelRepository implements JobLevelRepository {
   }
 
   async findAll(filters?: { active?: boolean }, skip = 0, limit = 100): Promise<[JobLevel[], number]> {
-    let query = 'SELECT job_level_id, code, name, rank, active, created_at, updated_at, count(*) OVER() as full_count FROM job_level';
+    let query = 'SELECT job_level_id, code, name, rank, active, default_review_cadence_id, created_at, updated_at, count(*) OVER() as full_count FROM job_level';
     const params: unknown[] = [];
     let paramIndex = 1;
 
@@ -180,16 +180,16 @@ export class PostgresJobLevelRepository implements JobLevelRepository {
 
   async create(level: JobLevel): Promise<JobLevel> {
     const { rows } = await this.pool.query(
-      'INSERT INTO job_level (code, name, rank, active) VALUES ($1, $2, $3, $4) RETURNING job_level_id, code, name, rank, active, created_at, updated_at',
-      [level.code, level.name, level.rank, level.active]
+      'INSERT INTO job_level (code, name, rank, active, default_review_cadence_id) VALUES ($1, $2, $3, $4, $5) RETURNING job_level_id, code, name, rank, active, default_review_cadence_id, created_at, updated_at',
+      [level.code, level.name, level.rank, level.active, level.defaultReviewCadenceId ?? null]
     );
     return this.mapRow(rows[0]);
   }
 
   async update(level: JobLevel): Promise<JobLevel> {
     const { rows } = await this.pool.query(
-      'UPDATE job_level SET name = $1, rank = $2, active = $3 WHERE job_level_id = $4 RETURNING job_level_id, code, name, rank, active, created_at, updated_at',
-      [level.name, level.rank, level.active, level.id]
+      'UPDATE job_level SET name = $1, rank = $2, active = $3, default_review_cadence_id = $4 WHERE job_level_id = $5 RETURNING job_level_id, code, name, rank, active, default_review_cadence_id, created_at, updated_at',
+      [level.name, level.rank, level.active, level.defaultReviewCadenceId ?? null, level.id]
     );
     return this.mapRow(rows[0]);
   }
@@ -202,6 +202,7 @@ export class PostgresJobLevelRepository implements JobLevelRepository {
       name: row.name,
       rank: row.rank,
       active: row.active,
+      defaultReviewCadenceId: row.default_review_cadence_id ?? null,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     };

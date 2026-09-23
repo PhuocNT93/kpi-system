@@ -7,9 +7,13 @@ import { ErrorAlert, LoadingSpinner, EmptyState, StatusBadge, ConfirmDialog } fr
 import { Button } from '../../../shared/ui/Button/Button';
 import type { OrgTeam } from '../domain/organization-models';
 import { BulkActionBar } from './BulkActionBar';
+import { useTheme } from '../../../shared/theme';
+import { useOrganizationTranslation } from '../hooks/useOrganizationTranslation';
 
 export function TeamTable({ departmentId }: { departmentId?: string }) {
   const { user } = useAuth();
+  const { isDark } = useTheme();
+  const { t } = useOrganizationTranslation();
   const isAdmin = user?.role === 'HR_ADMIN' || user?.role === 'SYSTEM_ADMIN';
   const filters: Record<string, string> = {};
   if (departmentId) filters.department_id = departmentId;
@@ -78,6 +82,13 @@ export function TeamTable({ departmentId }: { departmentId?: string }) {
   if (teamsQuery.isPending) return <LoadingSpinner label="Loading teams…" />;
   if (teamsQuery.isError) return <ErrorAlert error={teamsQuery.error} onRetry={() => teamsQuery.refetch()} />;
 
+  const thBg = isDark ? '#0f172a' : '#f9fafb';
+  const thColor = isDark ? '#94a3b8' : '#374151';
+  const trBorder = isDark ? '1px solid #334155' : '1px solid #f3f4f6';
+  const trHeaderBorder = isDark ? '2px solid #334155' : '2px solid #e5e7eb';
+  const textColor = isDark ? '#f8fafc' : '#111827';
+  const codeColor = isDark ? '#93c5fd' : '#2563eb';
+
   return (
     <div style={{ paddingBottom: '6rem' }}>
       {isAdmin && (
@@ -91,12 +102,12 @@ export function TeamTable({ departmentId }: { departmentId?: string }) {
       {teams.length === 0 ? (
         <EmptyState message="No teams found." />
       ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ width: '100%', minWidth: '580px', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
-              <tr style={{ borderBottom: '2px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
+              <tr style={{ borderBottom: trHeaderBorder, backgroundColor: thBg }}>
                 {isAdmin && (
-                  <th style={{ padding: '0.75rem 1rem', width: '40px', textAlign: 'center' }}>
+                  <th style={{ padding: '0.75rem 1rem', width: '40px', textAlign: 'center', color: thColor }}>
                     <input
                       type="checkbox"
                       ref={headerCheckboxRef}
@@ -107,10 +118,10 @@ export function TeamTable({ departmentId }: { departmentId?: string }) {
                     />
                   </th>
                 )}
-                <th style={{ padding: '0.75rem 1rem' }}>Code</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Name</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Status</th>
-                {isAdmin && <th style={{ padding: '0.75rem 1rem', width: '150px' }}>Actions</th>}
+                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_code', 'Code')}</th>
+                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_name', 'Name')}</th>
+                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_status', 'Status')}</th>
+                {isAdmin && <th style={{ padding: '0.75rem 1rem', width: '150px', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_actions', 'Actions')}</th>}
               </tr>
             </thead>
             <tbody>
@@ -120,8 +131,8 @@ export function TeamTable({ departmentId }: { departmentId?: string }) {
                   <tr
                     key={team.id}
                     style={{
-                      borderBottom: '1px solid #f3f4f6',
-                      backgroundColor: isSelected ? '#eff6ff' : undefined,
+                      borderBottom: trBorder,
+                      backgroundColor: isSelected ? (isDark ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff') : undefined,
                       transition: 'background-color 0.15s',
                     }}
                   >
@@ -136,8 +147,8 @@ export function TeamTable({ departmentId }: { departmentId?: string }) {
                         />
                       </td>
                     )}
-                    <td style={{ padding: '0.75rem 1rem', fontWeight: 500 }}>{team.code}</td>
-                    <td style={{ padding: '0.75rem 1rem' }}>{team.name}</td>
+                    <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: codeColor }}>{team.code}</td>
+                    <td style={{ padding: '0.75rem 1rem', color: textColor }}>{team.name}</td>
                     <td style={{ padding: '0.75rem 1rem' }}>
                       <StatusBadge status={team.isActive ? 'ACTIVE' : 'INACTIVE'} />
                     </td>
@@ -149,7 +160,7 @@ export function TeamTable({ departmentId }: { departmentId?: string }) {
                           aria-label={`Edit team ${team.name}`}
                           onClick={() => setEditingTeam(team)}
                         >
-                          Edit
+                          {t('btn_edit', 'Edit')}
                         </Button>
                         {team.isActive && (
                           <Button

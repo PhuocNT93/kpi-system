@@ -44,6 +44,7 @@ import { createEvaluationDataImportModule } from './modules/evaluation-data-impo
 import { createCalibrationModule } from './modules/calibration/calibration.module.js';
 import { createNotificationModule } from './modules/notification/notification.module.js';
 import { createJiraCrawlerRouter } from './modules/jira-crawler/jira-crawler.routes.js';
+import { createReviewCadenceModule } from './modules/review-cadence/review-cadence.module.js';
 
 export interface AppOptions {
   userRepository?: UserRepository;
@@ -134,6 +135,7 @@ export function createApp(options: AppOptions = {}) {
   const calibrationController = options.calibrationController ?? calibrationModule?.calibrationController;
 
   const jiraCrawlerRouter = pool ? createJiraCrawlerRouter(pool, jwtMiddleware) : undefined;
+  const reviewCadenceModule = pool && auditModule ? createReviewCadenceModule(pool, auditModule.auditService) : undefined;
 
   // ── Global Middlewares ────────────────────────────────────────────────────
   app.use(requestIdMiddleware);
@@ -196,6 +198,7 @@ export function createApp(options: AppOptions = {}) {
         reportsController,
         calibrationController,
         notificationRouter: notificationModule?.router,
+        reviewCadenceController: reviewCadenceModule?.reviewCadenceController,
       })
     );
   }
