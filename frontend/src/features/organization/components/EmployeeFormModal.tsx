@@ -111,6 +111,7 @@ interface EmployeeFormModalProps {
 
 export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initialTeamId, onClose }: EmployeeFormModalProps) {
   const isEditMode = employee !== undefined;
+  const { isDark } = useTheme();
   const createMutation = useCreateEmployee();
   const updateMutation = useUpdateEmployee();
   const isInitializingRef = useRef(false);
@@ -269,8 +270,6 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
       }
     }
   });
-
-  const { isDark } = useTheme();
 
   return (
     <div

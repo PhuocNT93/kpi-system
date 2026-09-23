@@ -1,9 +1,11 @@
-import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
+import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { ReviewCadenceService } from '../src/modules/review-cadence/application/review-cadence.service.js';
 import { ReviewCadenceRepository } from '../src/modules/review-cadence/domain/review-cadence.repository.js';
 import { ReviewCadence } from '../src/modules/review-cadence/domain/review-cadence.types.js';
 import { Actor } from '../src/shared/auth/types.js';
 import { Forbidden, NotFound, Conflict } from '../src/api/app-error.js';
+import type { AuditService } from '../src/modules/audit/application/audit.service.js';
+import type { Pool } from 'pg';
 
 // Mock withAuditedTransaction so tests don't require real DB connections
 vi.mock('../src/modules/audit/application/audit-transaction.js', () => ({
@@ -51,8 +53,8 @@ describe('ReviewCadenceService', () => {
 
     service = new ReviewCadenceService(
       cadenceRepo as unknown as ReviewCadenceRepository,
-      {} as any,
-      {} as any
+      {} as unknown as AuditService,
+      {} as unknown as Pool
     );
   });
 

@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { ReviewCadenceService } from '../application/review-cadence.service.js';
 import { sendSuccess, sendCollection, sendDeleted } from '../../../api/http-response.js';
 import { parsePaginationQuery } from '../../../api/pagination.js';
-import { ValidationError, BadRequest, Forbidden } from '../../../api/app-error.js';
+import { ValidationError, Forbidden } from '../../../api/app-error.js';
 import { getActorFromContext } from '../../../shared/auth/actor-context.js';
 
 export class ReviewCadenceController {

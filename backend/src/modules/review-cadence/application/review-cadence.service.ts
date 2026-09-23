@@ -79,7 +79,12 @@ export class ReviewCadenceService {
     }
 
     return withAuditedTransaction(this.pool, this.auditService, async (client, audit) => {
-      const cadence = await this.cadenceRepo.create({ id: '', ...data });
+      const cadence = await this.cadenceRepo.create({
+        id: '',
+        ...data,
+        isSystemDefault: data.isSystemDefault ?? false,
+        active: data.active ?? true,
+      });
 
       audit.record({
         entityType: 'REVIEW_CADENCE',

@@ -9,6 +9,9 @@ export interface ReviewCadence {
   updatedAt?: Date;
 }
 
-export type CreateReviewCadenceData = Omit<ReviewCadence, 'id' | 'createdAt' | 'updatedAt'>;
+export type CreateReviewCadenceData = Omit<ReviewCadence, 'id' | 'createdAt' | 'updatedAt' | 'isSystemDefault' | 'active'> & {
+  isSystemDefault?: boolean;
+  active?: boolean;
+};
 
 export type UpdateReviewCadenceData = Partial<Omit<ReviewCadence, 'id' | 'code' | 'createdAt' | 'updatedAt'>>;
