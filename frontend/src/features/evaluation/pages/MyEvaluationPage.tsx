@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useQuery } from '@tanstack/react-query';
 import { evaluationApi } from '../api/evaluation-api';
+import { employeeSearchApi } from '@/features/organization/api/employee-search.api';
 import { COLORS } from '@/lib/theme';
 import { RADII, SHADOWS, TYPOGRAPHY } from '@/shared/theme';
 import {
@@ -11,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/shared/auth/auth-context';
 import { type TeamEvaluation, buildEvaluationScoringSummary } from '../domain/evaluation-models';
+import type { EmployeeSearchResult } from '@/features/organization/api/employee-search.api';
 import { EvaluationOverviewPanel } from '../components/EvaluationOverviewPanel';
 import { EvaluationScoreSummaryPanel } from '../components/EvaluationScoreSummaryPanel';
 import { PersonalDevelopmentPlanPanel } from '../components/PersonalDevelopmentPlanPanel';
@@ -109,6 +111,25 @@ export function MyEvaluationPage() {
 
     return teamEvaluations.find((item) => item.evaluation.evaluation_id === activeEvaluationId) ?? null;
   }, [activeEvaluationId, isHrAdmin, teamEvaluations]);
+
+  const selectedEmployeeId = selectedTeamEvaluation?.employee?.employee_id ?? myEvaluations?.[0]?.employee?.employee_id;
+  const selectedManagerId = selectedTeamEvaluation?.evaluation.manager_id_snapshot ?? null;
+
+  const { data: employeeProfiles } = useQuery<EmployeeSearchResult>({
+    queryKey: ['employee-profiles', selectedEmployeeId],
+    queryFn: () => employeeSearchApi.search({ employeeId: selectedEmployeeId, size: 1 }),
+    enabled: Boolean(selectedEmployeeId),
+  });
+
+  const selectedEmployeeProfile = employeeProfiles?.employees?.[0];
+
+  const { data: managerProfiles } = useQuery<EmployeeSearchResult>({
+    queryKey: ['employee-manager-profile', selectedManagerId],
+    queryFn: () => employeeSearchApi.search({ employeeId: selectedManagerId ?? undefined, size: 1 }),
+    enabled: Boolean(selectedManagerId),
+  });
+
+  const selectedManagerProfile = managerProfiles?.employees?.[0];
 
   const { data: evaluationDetail } = useQuery({
     queryKey: ['evaluation-detail', activeEvaluationId],
@@ -219,15 +240,23 @@ export function MyEvaluationPage() {
   };
 
   const selectedEmployee = selectedTeamEvaluation?.employee ?? myEvaluations?.[0]?.employee;
+  const enrichedEmployee = {
+    ...selectedEmployee,
+    join_date: selectedEmployeeProfile?.joinDate ?? selectedEmployee?.join_date,
+    next_review_due_date: selectedEmployee?.next_review_due_date,
+    employee_code: selectedEmployeeProfile?.employeeCode ?? selectedEmployee?.employee_code,
+    full_name: selectedEmployeeProfile?.fullName ?? selectedEmployee?.full_name,
+    email: selectedEmployeeProfile?.email ?? selectedEmployee?.email,
+    created_at: selectedEmployee?.created_at,
+  };
   const selectedEvaluation = isHrAdmin ? selectedTeamEvaluation?.evaluation : myEvaluations?.[0]?.evaluation;
-
   const profileFacts = [
-    ['Joined', formatDisplayDate(selectedEmployee?.join_date ?? selectedEmployee?.created_at)],
+    ['Joined', formatDisplayDate(enrichedEmployee.join_date ?? enrichedEmployee.created_at)],
     ['Previous Review', formatDisplayDate(selectedEvaluation?.approved_at ?? selectedEvaluation?.submitted_at)],
-    ['Next Review', formatDisplayDate(selectedEmployee?.next_review_due_date ?? activeCycle?.end_date)],
-    ['Current Level', selectedEmployee?.role_name || 'N/A'],
-    ['Team', selectedEmployee?.team_name || 'N/A'],
-    ['Manager', selectedTeamEvaluation?.evaluation.manager_id_snapshot || selectedEvaluation?.employee_id || 'N/A'],
+    ['Next Review', formatDisplayDate(enrichedEmployee.next_review_due_date ?? activeCycle?.end_date)],
+    ['Current Level', selectedEmployeeProfile?.role.name || enrichedEmployee.role_name || 'N/A'],
+    ['Team', selectedEmployeeProfile?.team.name || enrichedEmployee.team_name || 'N/A'],
+    ['Manager', selectedManagerProfile?.fullName || selectedEmployeeProfile?.manager?.name || 'N/A'],
   ];
 
   const updateDevelopmentBlock = (index: number, value: string) => {
@@ -348,10 +377,7 @@ export function MyEvaluationPage() {
                 <div style={{ fontSize: TYPOGRAPHY.fontSize['3xl'], fontWeight: TYPOGRAPHY.fontWeight.extrabold, marginBottom: '6px' }}>
                   {selectedTeamEvaluation?.employee?.full_name || 'Alex Nguyen'}
                 </div>
-                <div style={metaLineStyle}>Employee ID: {selectedTeamEvaluation?.employee?.employee_code || 'EMP-10284'}</div>
-                <div style={metaLineStyle}>{selectedTeamEvaluation?.employee?.role_name || 'Senior Product Designer'}</div>
-                <div style={metaLineStyle}>{selectedTeamEvaluation?.employee?.team_name || 'Product Design Team'}</div>
-                <div style={metaLineStyle}>Manager: Sarah Tran</div>
+                <div style={metaLineStyle}>Employee ID: {selectedTeamEvaluation?.employee?.employee_code || ''}</div>
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>

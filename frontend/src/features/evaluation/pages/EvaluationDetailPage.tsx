@@ -2,11 +2,13 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { evaluationApi } from '../api/evaluation-api';
+import { useEvaluationCyclesQuery } from '../../evaluation-cycles/hooks/use-evaluation-cycles';
 import { EvaluationStatus } from '../domain/evaluation-models';
 import { EvaluationHeader } from '../components/EvaluationHeader';
 import { EvaluationOverviewPanel } from '../components/EvaluationOverviewPanel';
 import { EvaluationScoreSummaryPanel } from '../components/EvaluationScoreSummaryPanel';
 import { EvaluationComparisonEditorPanel } from '../components/EvaluationComparisonEditorPanel';
+import { PersonalDevelopmentPlanPanel } from '../components/PersonalDevelopmentPlanPanel';
 import { KpiEvaluationCard } from '../components/KpiEvaluationCard';
 import { SubmitConfirmModal } from '../components/SubmitConfirmModal';
 import { COLORS } from '@/lib/theme';
@@ -15,7 +17,7 @@ import { AlertCircle, ArrowLeft, RefreshCw, CheckCircle2, Sparkles, Sliders, Sav
 import { useAuth } from '@/shared/auth/auth-context';
 import { OverrideScoreModal } from '../components/OverrideScoreModal';
 import { ReviewActionModal, type ReviewActionType } from '../components/ReviewActionModal';
-import { getLocalizedText, type EvaluationItem, type ScoringKpiResult } from '../domain/evaluation-models';
+import { buildEvaluationScoringSummary, getLocalizedText, type EvaluationItem, type ScoringKpiResult } from '../domain/evaluation-models';
 
 type EvaluationDetailMode = 'self' | 'manager';
 
@@ -43,6 +45,13 @@ interface CriterionGroup {
   criterionWeight: number;
   kpis: KpiItemGroup[];
 }
+
+type DevelopmentBlock = {
+  title: string;
+  desc: string;
+  accent: string;
+  value: string;
+};
 
 const LEVEL_PERCENT_MAP: Record<number, number> = {
   1: 60,
@@ -81,6 +90,32 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [previousEvaluationText, setPreviousEvaluationText] = useState('');
   const [currentEvaluationText, setCurrentEvaluationText] = useState('');
+  const [developmentBlocks, setDevelopmentBlocks] = useState<DevelopmentBlock[]>([
+    {
+      title: 'Objective(s)',
+      desc: 'What do you want to achieve during the next review period?',
+      accent: COLORS.primary.DEFAULT,
+      value: 'Lead a cross-functional discovery initiative and improve product storytelling.',
+    },
+    {
+      title: 'Achievements',
+      desc: 'What have you accomplished during this review period?',
+      accent: COLORS.semantic.success.DEFAULT,
+      value: 'Delivered a redesign that increased activation, and mentored two junior designers.',
+    },
+    {
+      title: 'Need Improvement',
+      desc: 'What skills, behaviors or areas would you like to improve?',
+      accent: COLORS.semantic.warning.DEFAULT,
+      value: 'Sharpen prioritization for ambiguous roadmap requests and improve delegation.',
+    },
+    {
+      title: 'Suggestions / Requests',
+      desc: 'What support, resources, training or opportunities would help you grow?',
+      accent: COLORS.secondary.DEFAULT,
+      value: 'Access to strategy workshops, stakeholder shadowing, and a quarterly coaching session.',
+    },
+  ]);
 
   const showToast = useCallback((type: 'success' | 'error' | 'info', text: string) => {
     setToastMessage({ type, text });
@@ -100,6 +135,9 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
     queryFn: () => evaluationApi.getEvaluationDetail(id!),
     enabled: !!id,
   });
+
+  const { data: cyclesData } = useEvaluationCyclesQuery();
+  const cycles = Array.isArray(cyclesData) ? cyclesData : [];
 
   // Sync draft state with server detail
   useEffect(() => {
@@ -437,6 +475,28 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
   }, [detail?.items, detail?.scoring_breakdown]);
 
   const cycleProgress = useMemo(() => {
+    const resolvedCycle = detail?.cycle ?? cycles.find((cycle) => cycle.id === detail?.evaluation_cycle_id);
+    const startDate = resolvedCycle && 'period' in resolvedCycle ? resolvedCycle.period.startDate : resolvedCycle?.start_date;
+    const endDate = resolvedCycle && 'period' in resolvedCycle ? resolvedCycle.period.endDate : resolvedCycle?.end_date;
+
+    if (startDate && endDate) {
+      const startTime = new Date(startDate).getTime();
+      const endTime = new Date(endDate).getTime();
+      const nowTime = Date.now();
+
+      if (!Number.isNaN(startTime) && !Number.isNaN(endTime) && endTime > startTime) {
+        const percentage = Math.max(0, Math.min(100, ((nowTime - startTime) / (endTime - startTime)) * 100));
+        const startLabel = new Date(startDate).toLocaleDateString('vi-VN');
+        const endLabel = new Date(endDate).toLocaleDateString('vi-VN');
+
+        return {
+          percentage,
+          label: `${Math.round(percentage)}%`,
+          dateLabel: `${startLabel} - ${endLabel}`,
+        };
+      }
+    }
+
     const anchorDate = detail?.approved_at ?? detail?.published_at ?? detail?.submitted_at;
     if (!anchorDate) {
       return { percentage: 0, label: 'N/A', dateLabel: 'Chưa có mốc thời gian' };
@@ -455,7 +515,42 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
       label: `${Math.round(percentage)}%`,
       dateLabel: parsed.toLocaleDateString('vi-VN'),
     };
-  }, [detail?.approved_at, detail?.published_at, detail?.submitted_at]);
+  }, [cycles, detail?.approved_at, detail?.cycle, detail?.evaluation_cycle_id, detail?.published_at, detail?.submitted_at]);
+
+  const detailForScoring = useMemo(() => {
+    if (!detail?.items) {
+      return detail;
+    }
+
+    return {
+      ...detail,
+      items: detail.items.map((item) => {
+        const draft = draftItems[item.evaluation_item_id];
+        if (!draft) {
+          return item;
+        }
+
+        return {
+          ...item,
+          resolved_level: toLevelPercent(draft.resolved_level) ?? item.resolved_level,
+          comment: draft.comment,
+        };
+      }),
+    };
+  }, [detail, draftItems]);
+
+  const scoreFormula = useMemo(() => buildEvaluationScoringSummary(detailForScoring), [detailForScoring]);
+  const currentRank = useMemo(() => {
+    if (scoreFormula.totalScore > 4.5) {
+      return 'S';
+    }
+
+    if (scoreFormula.totalScore >= 3) {
+      return 'A';
+    }
+
+    return 'B';
+  }, [scoreFormula.totalScore]);
 
   useEffect(() => {
     if (!detail) {
@@ -465,6 +560,73 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
     setPreviousEvaluationText((current) => current || `Previous evaluation snapshot\n- Final score: ${detail.final_score ?? 'N/A'}\n- Self score: ${detail.self_score ?? 'N/A'}\n- Manager score: ${detail.manager_score ?? 'N/A'}\n- Approved at: ${detail.approved_at ?? 'N/A'}`);
     setCurrentEvaluationText((current) => current || `This evaluation notes\n- Status: ${detail.status}\n- Final score: ${detail.final_score ?? 'N/A'}\n- Key items: ${detail.items.length}`);
   }, [detail]);
+
+  useEffect(() => {
+    if (!detail?.development_blocks || detail.development_blocks.length === 0) {
+      return;
+    }
+
+    setDevelopmentBlocks(
+      detail.development_blocks.map((block, index) => ({
+        title: block.title,
+        desc: block.desc ?? '',
+        accent: block.accent ?? [COLORS.primary.DEFAULT, COLORS.semantic.success.DEFAULT, COLORS.semantic.warning.DEFAULT, COLORS.secondary.DEFAULT][index % 4],
+        value: String(block.value ?? '').slice(0, 2000),
+      })),
+    );
+  }, [detail]);
+
+  useEffect(() => {
+    if (!detail?.development_blocks || detail.development_blocks.length === 0) {
+      setDevelopmentBlocks([
+        {
+          title: 'Objective(s)',
+          desc: 'What do you want to achieve during the next review period?',
+          accent: COLORS.primary.DEFAULT,
+          value: 'Lead a cross-functional discovery initiative and improve product storytelling.',
+        },
+        {
+          title: 'Achievements',
+          desc: 'What have you accomplished during this review period?',
+          accent: COLORS.semantic.success.DEFAULT,
+          value: 'Delivered a redesign that increased activation, and mentored two junior designers.',
+        },
+        {
+          title: 'Need Improvement',
+          desc: 'What skills, behaviors or areas would you like to improve?',
+          accent: COLORS.semantic.warning.DEFAULT,
+          value: 'Sharpen prioritization for ambiguous roadmap requests and improve delegation.',
+        },
+        {
+          title: 'Suggestions / Requests',
+          desc: 'What support, resources, training or opportunities would help you grow?',
+          accent: COLORS.secondary.DEFAULT,
+          value: 'Access to strategy workshops, stakeholder shadowing, and a quarterly coaching session.',
+        },
+      ]);
+    }
+  }, [detail]);
+
+  const updateDevelopmentBlock = (index: number, value: string) => {
+    setDevelopmentBlocks((current) => current.map((block, blockIndex) => (blockIndex === index ? { ...block, value: value.slice(0, 2000) } : block)));
+  };
+
+  const saveDevelopmentBlocksMutation = useMutation({
+    mutationFn: async () => {
+      if (!id) {
+        throw new Error('Missing evaluation id');
+      }
+
+      await evaluationApi.saveDevelopmentBlocks(id, developmentBlocks);
+    },
+    onSuccess: () => {
+      showToast('success', 'Đã lưu kế hoạch phát triển cá nhân.');
+      queryClient.invalidateQueries({ queryKey: ['evaluation-detail', id] });
+    },
+    onError: (err: Error) => {
+      showToast('error', err.message || 'Không thể lưu kế hoạch phát triển cá nhân.');
+    },
+  });
 
   const handleApplyAllSystemSuggestions = () => {
     if (!detail?.items) return;
@@ -689,21 +851,107 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
       />
 
       <EvaluationOverviewPanel
-        score={detail.final_score ?? detail.manager_score ?? detail.self_score ?? 0}
+        score={scoreFormula.totalRawScoreValue}
         cycleProgress={cycleProgress}
       />
 
       <EvaluationScoreSummaryPanel
-        score={detail.final_score ?? detail.manager_score ?? detail.self_score ?? 0}
-        grouped={criterionGroups.map((group) => ({
-          key: group.criterionName,
-          accent: COLORS.primary.DEFAULT,
-          criteriaCount: group.kpis.length,
-          average: group.kpis.length > 0
-            ? group.kpis.reduce((sum, kpi) => sum + (kpi.scoringResult?.normalized_score ?? 0), 0) / group.kpis.length
-            : null,
-          weight: group.criterionWeight,
-        }))}
+        score={scoreFormula.totalScore}
+        grouped={scoreFormula.grouped}
+      />
+
+      <section>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '14px', alignItems: 'stretch' }}>
+            {[
+              {
+                rank: 'B',
+                label: 'Need Improvement',
+                range: '< 3',
+                tone: COLORS.semantic.warning.DEFAULT,
+                background: 'linear-gradient(135deg, rgba(245,158,11,0.18), rgba(239,68,68,0.10))',
+                border: 'rgba(239,68,68,0.35)',
+                description: 'Nhân viên mới cần thời gian catch up hoặc nhân viên cũ nhưng vẫn chưa đạt yêu cầu.',
+                badge: 'BÁO ĐỘNG',
+              },
+              {
+                rank: 'A',
+                label: 'Meet Expectation',
+                range: '3 - 4.4',
+                tone: COLORS.semantic.success.DEFAULT,
+                background: 'linear-gradient(135deg, rgba(34,197,94,0.14), rgba(16,185,129,0.08))',
+                border: 'rgba(34,197,94,0.30)',
+                description: 'Đại đa số nhân viên hoàn thành tốt công việc và đạt mức kỳ vọng.',
+                badge: 'AN TOÀN',
+              },
+              {
+                rank: 'S',
+                label: 'Exceed Expectation',
+                range: '> 4.5',
+                tone: COLORS.primary.DEFAULT,
+                background: 'linear-gradient(135deg, rgba(99,102,241,0.18), rgba(139,92,246,0.12))',
+                border: 'rgba(99,102,241,0.32)',
+                description: 'Chỉ những người thực sự xuất sắc và vượt kỳ vọng rõ rệt.',
+                badge: 'TỐT',
+              },
+            ].map((level) => {
+              const isActive = currentRank === level.rank;
+              return (
+              <div
+                key={level.rank}
+                style={{
+                  borderRadius: RADII['2xl'],
+                  padding: isActive ? '22px' : '15px',
+                  border: `1px solid ${level.border}`,
+                  background: level.background,
+                  boxShadow: isActive ? (level.rank === 'B' ? '0 22px 52px rgba(239,68,68,0.18)' : level.rank === 'A' ? '0 22px 52px rgba(34,197,94,0.16)' : '0 22px 52px rgba(99,102,241,0.18)') : '0 10px 24px rgba(15,23,42,0.06)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  opacity: isActive ? 1 : 0.55,
+                  transform: isActive ? 'translateY(-6px) scale(1.04)' : 'scale(0.94)',
+                  transition: 'transform 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease',
+                  minHeight: '100%',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'nowrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0, flex: 1 }}>
+                    <div style={{ width: isActive ? '60px' : '44px', height: isActive ? '60px' : '44px', borderRadius: '18px', display: 'grid', placeItems: 'center', background: `${level.tone}18`, color: level.tone, border: `1px solid ${level.border}`, opacity: isActive ? 1 : 0.72, flexShrink: 0 }}>
+                      <span style={{ fontSize: isActive ? TYPOGRAPHY.fontSize['3xl'] : TYPOGRAPHY.fontSize.xl, fontWeight: TYPOGRAPHY.fontWeight.extrabold, lineHeight: 1 }}>{level.rank}</span>
+                    </div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: isActive ? '4px 10px' : '3px 8px', borderRadius: RADII.full, background: `${level.tone}14`, color: level.tone, fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: TYPOGRAPHY.fontWeight.semibold, letterSpacing: '0.06em', textTransform: 'uppercase', opacity: isActive ? 1 : 0.68, whiteSpace: 'nowrap' }}>
+                        {level.badge}
+                      </div>
+                      <div style={{ marginTop: '8px', fontSize: isActive ? TYPOGRAPHY.fontSize['2xl'] : TYPOGRAPHY.fontSize.sm, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary, opacity: isActive ? 1 : 0.72, lineHeight: 1.15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{level.label}</div>
+                      <div style={{ marginTop: '4px', fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, opacity: isActive ? 1 : 0.6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Range rank: {level.range}</div>
+                    </div>
+                  </div>
+
+                  <div style={{ minWidth: '72px', textAlign: 'right', opacity: isActive ? 1 : 0.4, flexShrink: 0 }}>
+                    <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>Level</div>
+                    <div style={{ marginTop: '6px', fontSize: isActive ? TYPOGRAPHY.fontSize['3xl'] : TYPOGRAPHY.fontSize.xl, fontWeight: TYPOGRAPHY.fontWeight.extrabold, color: level.tone }}>{level.rank}</div>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: '14px', display: 'grid', gap: '10px', opacity: isActive ? 1 : 0.45 }}>
+                  <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textPrimary, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{level.description}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+                    <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>Mức ưu tiên</div>
+                    <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: TYPOGRAPHY.fontWeight.semibold, color: level.tone, whiteSpace: 'nowrap' }}>{level.rank === 'B' ? 'Cần xử lý ngay' : level.rank === 'A' ? 'Ổn định' : 'Nổi bật'}</div>
+                  </div>
+                </div>
+              </div>
+              );
+            })}
+          </div>
+      </section>
+
+      <PersonalDevelopmentPlanPanel
+        blocks={developmentBlocks}
+        isSaving={saveDevelopmentBlocksMutation.isPending}
+        isSaved={!saveDevelopmentBlocksMutation.isPending}
+        canSave={!!id}
+        onSave={() => saveDevelopmentBlocksMutation.mutate()}
+        onChangeBlock={updateDevelopmentBlock}
       />
 
       <EvaluationComparisonEditorPanel

@@ -137,6 +137,7 @@ export interface EvaluationDetail {
   evaluation_id: string;
   evaluation_cycle_id: string;
   employee_id: string;
+  cycle?: EvaluationCycle;
   status: EvaluationStatus;
   self_score?: number;
   manager_score?: number;

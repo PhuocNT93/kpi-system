@@ -16,7 +16,8 @@ import { ScopePreviewCard } from '../components/ScopePreviewCard';
 import { OpenCycleConfirmationModal } from '../components/OpenCycleConfirmationModal';
 import { OpeningProgressBanner } from '../components/OpeningProgressBanner';
 import { ReadOnlyBanner } from '../components/ReadOnlyBanner';
-import { evaluationCycleApi } from '../api/cycle-api';
+import { StatusBadge } from '@/features/evaluation/components/StatusBadge';
+import { fetchEmployeeKpiSummary } from '@/features/reports/employee-kpi-summary/api/kpi-summary.api';
 import { Button } from '@/shared/ui/Button/Button';
 import { LoadingSpinner, ErrorAlert } from '@/shared/components/ui';
 import { COLORS } from '@/lib/theme';
@@ -33,6 +34,7 @@ import {
   Sliders,
   Check,
   Share2,
+  ExternalLink,
 } from 'lucide-react';
 import type { EvaluationCycleDTO, ScopePreviewDTO, CycleStatus } from '../types/cycle-types';
 import { usePageToast } from '../hooks/use-page-toast';
@@ -108,8 +110,8 @@ export const EvaluationCycleDetailPage: React.FC = () => {
 
   const employeeQueries = useQueries({
     queries: applicableEmployeeIds.map((employeeId) => ({
-      queryKey: ['employee', employeeId],
-      queryFn: () => evaluationCycleApi.getEmployeeById(employeeId),
+      queryKey: ['employee-kpi-summary', cycle.id, employeeId],
+      queryFn: () => fetchEmployeeKpiSummary({ employeeId, evaluationCycleId: cycle.id }),
       enabled: Boolean(employeeId),
     })),
   });
@@ -119,8 +121,10 @@ export const EvaluationCycleDetailPage: React.FC = () => {
     const employee = query?.data;
     return {
       id: employeeId,
-      name: employee?.full_name ?? employee?.employee_code ?? employeeId,
-      email: employee?.email,
+      evaluationId: employee?.evaluation.evaluationId,
+      name: employee?.employee.fullName ?? employee?.employee.employeeCode ?? employeeId,
+      email: employee?.employee.email,
+      evaluationStatus: employee?.evaluation.status,
       isLoading: Boolean(query?.isLoading),
       isError: Boolean(query?.isError),
     };
@@ -446,6 +450,31 @@ export const EvaluationCycleDetailPage: React.FC = () => {
                   <div style={{ fontSize: '0.8125rem', color: COLORS.neutral.textSecondary }}>
                     {employee.email}
                   </div>
+                )}
+                <StatusBadge status={employee.evaluationStatus ?? 'OPEN'} size="sm" />
+                {employee.evaluationId && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/admin/my-evaluations/${employee.evaluationId}`)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      alignSelf: 'flex-start',
+                      marginTop: '2px',
+                      padding: '6px 10px',
+                      borderRadius: RADII.full,
+                      border: `1px solid ${COLORS.neutral[200]}`,
+                      backgroundColor: COLORS.neutral.white,
+                      color: COLORS.neutral.textPrimary,
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <ExternalLink size={13} />
+                    Open Evaluation
+                  </button>
                 )}
                 {employee.isError && (
                   <div style={{ fontSize: '0.8125rem', color: '#b91c1c' }}>
