@@ -72,6 +72,7 @@ export interface OrgEmployee {
   joinDate: string;
   terminationDate: string | null;
   reviewCadence: string | null;
+  reviewCadenceOverrideId?: string | null;
   lastEvaluationCompletedAt: string | null;
   nextReviewDueDate: string | null;
   version: number;

@@ -29,6 +29,8 @@ import {
   EvaluationCycleDetailPage,
   EvaluationCycleEditPage,
 } from './features/evaluation-cycles';
+import { ReviewDueDashboard } from './features/evaluation-cycles/pages/ReviewDueDashboard';
+import { ReviewCadencesPage } from './features/organization/pages/ReviewCadencesPage';
 import { AppLayout } from '@/shared/layout';
 import { KpiPage } from './features/kpi/pages/KpiPage';
 import { ImportDetailPage } from './features/imports/pages/ImportDetailPage';
@@ -76,6 +78,8 @@ const ADMIN_PAGE_TITLES: Record<string, string> = {
   'evaluation-data-imports': 'KPI Data Ingestion Hub',
   collectors: 'KPI Data Ingestion Hub',
   cycles: 'Evaluation Cycles',
+  'review-due': 'Review Due Dashboard',
+  'review-cadences': 'Review Cadence Management',
   calibration: 'Calibration Sessions & Adjustment',
   'my-evaluations': 'My Evaluations',
   'team-evaluations': 'Team Evaluations',
@@ -279,6 +283,17 @@ export default function App() {
               <Route path="/admin/cycles" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
                   <EvaluationCycleListPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/review-due" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER']}>
+                  <ReviewDueDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/cycles/review-due" element={<Navigate to="/admin/review-due" replace />} />
+              <Route path="/admin/review-cadences" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
+                  <ReviewCadencesPage />
                 </ProtectedRoute>
               } />
               <Route path="/admin/calibration" element={

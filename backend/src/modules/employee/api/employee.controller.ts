@@ -11,6 +11,7 @@ import { getActorFromContext } from '../../../shared/auth/actor-context.js';
 import { SimplePasswordHasher } from '../../auth/services/password-hasher.service.js';
 
 import { EvaluationService } from '../../evaluation/application/services/evaluation.service.js';
+import { EmployeeCadenceService } from '../application/employee-cadence.service.js';
 
 export class EmployeeController {
   constructor(
@@ -19,7 +20,8 @@ export class EmployeeController {
     private contextService?: EmployeeContextService,
     private pool?: Pool,
     private teamService?: TeamService,
-    private evaluationService?: EvaluationService
+    private evaluationService?: EvaluationService,
+    private employeeCadenceService?: EmployeeCadenceService
   ) {}
 
   private hasDb(): boolean {
@@ -301,11 +303,52 @@ export class EmployeeController {
       if (!emp) {
         throw new NotFound(`Employee with ID ${employeeId}`);
       }
-      sendSuccess(res, 200, 'Employee retrieved successfully', this.mapEmployeeToResponse(emp));
+      const responseData: Record<string, unknown> = this.mapEmployeeToResponse(emp);
+      if (this.employeeCadenceService) {
+        const cadenceInfo = await this.employeeCadenceService.getEmployeeCadenceInfo(employeeId);
+        responseData['effective_cadence'] = cadenceInfo.effectiveCadence ? {
+          id: cadenceInfo.effectiveCadence.id,
+          code: cadenceInfo.effectiveCadence.code,
+          name: cadenceInfo.effectiveCadence.name,
+          interval_months: cadenceInfo.effectiveCadence.intervalMonths,
+        } : null;
+      }
+      sendSuccess(res, 200, 'Employee retrieved successfully', responseData);
       return;
     }
 
     sendSuccess(res, 200, 'Employee retrieved successfully', { id: employeeId });
+  }
+
+  async updateReviewCadenceOverride(req: Request, res: Response): Promise<void> {
+    const actor = getActorFromContext(req);
+    if (!actor) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
+    const employeeId = req.params.employeeId as string;
+    const { review_cadence_override_id, reviewCadenceOverrideId, reason } = req.body || {};
+    const overrideId = review_cadence_override_id !== undefined ? review_cadence_override_id : reviewCadenceOverrideId;
+
+    if (!this.employeeCadenceService) {
+      throw new AppError(500, 'SERVICE_UNAVAILABLE', 'Employee cadence service is not configured');
+    }
+
+    const result = await this.employeeCadenceService.updateCadenceOverride(actor, employeeId, {
+      review_cadence_override_id: overrideId ?? null,
+      reason,
+    });
+
+    sendSuccess(res, 200, 'Employee review cadence override updated successfully.', result);
+  }
+
+  async getEmployeeReviewCadence(req: Request, res: Response): Promise<void> {
+    const employeeId = req.params.employeeId as string;
+    if (!this.employeeCadenceService) {
+      throw new AppError(500, 'SERVICE_UNAVAILABLE', 'Employee cadence service is not configured');
+    }
+    const result = await this.employeeCadenceService.getEmployeeCadenceInfo(employeeId);
+    sendSuccess(res, 200, 'Employee review cadence fetched successfully.', result);
   }
 
   async updateEmployee(req: Request, res: Response): Promise<void> {
@@ -1328,6 +1371,7 @@ export class EmployeeController {
       join_date: emp.joinDate,
       termination_date: emp.terminationDate,
       review_cadence: emp.reviewCadence,
+      review_cadence_override_id: emp.reviewCadenceOverrideId ?? null,
       last_evaluation_completed_at: emp.lastEvaluationCompletedAt,
       next_review_due_date: emp.nextReviewDueDate,
       version: emp.version,

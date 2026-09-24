@@ -128,6 +128,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           label: 'Team Reviews',
           icon: <UserCheck size={18} />,
         },
+        ...(user?.role === 'MANAGER' && !canViewConfig
+          ? [
+              {
+                id: 'review-due',
+                label: 'Team Review Due',
+                icon: <CalendarRange size={18} />,
+              },
+            ]
+          : []),
         {
           id: 'my-evaluations',
           label: 'My Evaluation',
@@ -164,6 +173,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {
                       id: 'cycles',
                       label: 'Evaluation Cycles',
+                      icon: <CalendarRange size={18} />,
+                    },
+                    {
+                      id: 'review-due',
+                      label: 'Review Due',
+                      icon: <CalendarRange size={18} />,
+                    },
+                    {
+                      id: 'review-cadences',
+                      label: 'Review Cadences',
                       icon: <CalendarRange size={18} />,
                     },
                     ...(user?.role === 'HR_ADMIN'
@@ -298,38 +317,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
             position: 'absolute',
             top: '24px',
             right: '-12px',
-            width: '24px',
-            height: '24px',
+            width: '26px',
+            height: '26px',
             borderRadius: RADII.full,
             border: `1px solid ${
               toggleHovered
                 ? isDark
-                  ? '#6366F1'
+                  ? '#818CF8'
                   : COLORS.primary[300]
                 : isDark
-                ? '#374151'
+                ? '#64748B'
                 : COLORS.neutral.border
             }`,
             backgroundColor: toggleHovered
               ? isDark
-                ? '#312E81'
+                ? '#4F46E5'
                 : COLORS.primary[50]
               : isDark
-              ? '#1F2937'
+              ? '#1E293B'
               : COLORS.neutral.white,
             color: toggleHovered
-              ? isDark
-                ? '#A5B4FC'
-                : COLORS.primary.DEFAULT
+              ? '#FFFFFF'
               : isDark
-              ? '#9CA3AF'
+              ? '#F8FAFC'
               : COLORS.neutral.textSecondary,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             cursor: 'pointer',
             outline: 'none',
-            boxShadow: toggleHovered ? SHADOWS.md : SHADOWS.sm,
+            boxShadow: isDark
+              ? '0 2px 8px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1)'
+              : (toggleHovered ? SHADOWS.md : SHADOWS.sm),
             transition: 'all 0.15s ease-in-out',
             zIndex: 20,
           }}

@@ -1,8 +1,14 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useCreateEmployee, useUpdateEmployee } from '../hooks/useEmployees';
+import {
+  useCreateEmployee,
+  useUpdateEmployee,
+  useEmployeeCadence,
+  useUpdateEmployeeCadenceOverride,
+} from '../hooks/useEmployees';
+import { useReviewCadences } from '../hooks/useReviewCadences';
 import { ErrorAlert } from '../../../shared/components/ui';
 import { Button } from '../../../shared/ui/Button/Button';
 import type { OrgEmployee } from '../domain/organization-models';
@@ -115,14 +121,24 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
   const createMutation = useCreateEmployee();
   const updateMutation = useUpdateEmployee();
   const isInitializingRef = useRef(false);
+
+  const { data: cadences } = useReviewCadences({ active: true });
+  const employeeCadenceQuery = useEmployeeCadence(employee?.id);
+  const updateCadenceOverrideMutation = useUpdateEmployeeCadenceOverride();
+  const [cadenceOverrideId, setCadenceOverrideId] = useState<string>(employee?.reviewCadenceOverrideId || '');
+  const [cadenceOverrideReason, setCadenceOverrideReason] = useState<string>('');
   
   const { data: departments } = useDepartments();
   const { data: teams } = useTeams();
   const { data: roles } = useJobRoles();
   const { data: levels } = useJobLevels();
 
-  const isPending = createMutation.isPending || updateMutation.isPending;
-  const mutationError = createMutation.error ?? updateMutation.error;
+  const isPending =
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    updateCadenceOverrideMutation.isPending;
+  const mutationError =
+    createMutation.error ?? updateMutation.error ?? updateCadenceOverrideMutation.error;
 
   const isDeptLocked = !isEditMode && !!initialDepartmentId;
   const isTeamLocked = !isEditMode && !!initialTeamId;
@@ -169,6 +185,9 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
 
   useEffect(() => {
     if (isOpen) {
+      setCadenceOverrideId(employee?.reviewCadenceOverrideId || '');
+      setCadenceOverrideReason('');
+      updateCadenceOverrideMutation.reset();
       isInitializingRef.current = true;
       reset(
         employee
@@ -243,8 +262,18 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
 
       if (isEditMode) {
         await updateMutation.mutateAsync({ id: employee.id, data: normalizedValues as UpdateFormValues });
+        if (cadenceOverrideId !== (employee.reviewCadenceOverrideId || '')) {
+          await updateCadenceOverrideMutation.mutateAsync({
+            employeeId: employee.id,
+            reviewCadenceOverrideId: cadenceOverrideId || null,
+            reason: cadenceOverrideReason || 'HR updated review cadence override via Employee Form',
+          });
+        }
       } else {
-        await createMutation.mutateAsync(normalizedValues as CreateFormValues);
+        await createMutation.mutateAsync({
+          ...(normalizedValues as CreateFormValues),
+          review_cadence_override_id: cadenceOverrideId || null,
+        });
       }
       onClose();
     } catch (err: unknown) {
@@ -393,21 +422,84 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
             </div>
 
             <div>
-              <label htmlFor="emp-cadence" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
-                Review Cadence
-              </label>
-              <select 
-                id="emp-cadence" 
-                {...register('review_cadence')} 
-                style={{ display: 'block', width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                <label htmlFor="emp-cadence-override" style={{ fontWeight: 500, fontSize: '0.875rem' }}>
+                  Review Cadence Override
+                </label>
+                {employeeCadenceQuery.data?.effectiveCadence && (
+                  <span
+                    style={{
+                      fontSize: '0.75rem',
+                      padding: '0.125rem 0.375rem',
+                      borderRadius: '4px',
+                      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#e0f2fe',
+                      color: isDark ? '#93c5fd' : '#0369a1',
+                      fontWeight: 500,
+                    }}
+                  >
+                    Hiệu lực: {employeeCadenceQuery.data.effectiveCadence.name} ({employeeCadenceQuery.data.effectiveCadence.interval_months}m)
+                  </span>
+                )}
+              </div>
+              <select
+                id="emp-cadence-override"
+                value={cadenceOverrideId}
+                onChange={(e) => setCadenceOverrideId(e.target.value)}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: `1px solid ${isDark ? '#475569' : '#d1d5db'}`,
+                  borderRadius: '4px',
+                  backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                  color: isDark ? '#f8fafc' : '#111827',
+                }}
               >
-                <option value="">-- No Cadence --</option>
-                <option value="MONTHLY">Monthly</option>
-                <option value="QUARTERLY">Quarterly</option>
-                <option value="BIANNUALLY">Biannually</option>
-                <option value="ANNUALLY">Annually</option>
+                <option value="">-- Kế thừa từ Job Level / Mặc định hệ thống --</option>
+                {cadences?.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.intervalMonths} tháng){c.isSystemDefault ? ' [Mặc định hệ thống]' : ''}
+                  </option>
+                ))}
               </select>
+              <span style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#6b7280', marginTop: '0.25rem', display: 'block' }}>
+                Thiết lập chu kỳ gán riêng cho nhân viên nếu khác chu kỳ chuẩn của Job Level.
+              </span>
             </div>
+
+            {isEditMode && cadenceOverrideId !== (employee?.reviewCadenceOverrideId || '') && (
+              <div style={{ gridColumn: 'span 2' }}>
+                <label
+                  htmlFor="emp-cadence-reason"
+                  style={{
+                    display: 'block',
+                    marginBottom: '0.25rem',
+                    fontWeight: 500,
+                    fontSize: '0.875rem',
+                    color: isDark ? '#fbbf24' : '#b45309',
+                  }}
+                >
+                  Lý do điều chỉnh Chu kỳ Đánh giá (Audit Reason) *
+                </label>
+                <input
+                  id="emp-cadence-reason"
+                  type="text"
+                  placeholder="Ví dụ: Đánh giá thử việc 2 tháng/lần, thay đổi theo phê duyệt HR..."
+                  value={cadenceOverrideReason}
+                  onChange={(e) => setCadenceOverrideReason(e.target.value)}
+                  required
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: `1px solid ${isDark ? '#f59e0b' : '#fcd34d'}`,
+                    borderRadius: '4px',
+                    backgroundColor: isDark ? 'rgba(245, 158, 11, 0.05)' : '#fffbeb',
+                    color: isDark ? '#f8fafc' : '#111827',
+                  }}
+                />
+              </div>
+            )}
 
             <div>
               <label htmlFor="emp-last-review-date" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>

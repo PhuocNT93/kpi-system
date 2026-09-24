@@ -89,6 +89,7 @@ export function mapWireEmployeeToDomain(wire: WireEmployee): OrgEmployee {
     joinDate: wire.join_date,
     terminationDate: wire.termination_date,
     reviewCadence: wire.review_cadence,
+    reviewCadenceOverrideId: wire.review_cadence_override_id ?? null,
     lastEvaluationCompletedAt: wire.last_evaluation_completed_at,
     nextReviewDueDate: wire.next_review_due_date,
     version: wire.version,

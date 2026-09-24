@@ -1,11 +1,12 @@
 import React from 'react';
 import { COLORS } from '@/lib/theme';
-import { RADII, TYPOGRAPHY } from '@/shared/theme';
+import { RADII, TYPOGRAPHY, useTheme } from '@/shared/theme';
 
 export interface BrandLogoProps {
   collapsed?: boolean;
   className?: string;
 }
+
 
 export const BrandIcon: React.FC<{ size?: number }> = ({ size = 34 }) => {
   return (
@@ -60,6 +61,8 @@ export const BrandIcon: React.FC<{ size?: number }> = ({ size = 34 }) => {
 };
 
 export const BrandLogo: React.FC<BrandLogoProps> = ({ collapsed = false, className }) => {
+  const { isDark } = useTheme();
+
   return (
     <div
       className={className}
@@ -84,7 +87,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ collapsed = false, classNa
               fontSize: '1.05rem',
               fontWeight: TYPOGRAPHY.fontWeight.bold,
               letterSpacing: '0.04em',
-              color: COLORS.neutral.textPrimary,
+              color: isDark ? '#F8FAFC' : COLORS.neutral.textPrimary,
               lineHeight: 1.15,
               whiteSpace: 'nowrap'
             }}
@@ -97,7 +100,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ collapsed = false, classNa
               fontSize: '0.65rem',
               fontWeight: TYPOGRAPHY.fontWeight.semibold,
               letterSpacing: '0.08em',
-              color: COLORS.neutral.textSecondary,
+              color: isDark ? '#94A3B8' : COLORS.neutral.textSecondary,
               lineHeight: 1.1,
               whiteSpace: 'nowrap',
               marginTop: '2px'

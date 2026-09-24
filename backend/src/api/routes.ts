@@ -27,7 +27,7 @@ import { createReportsRouter } from '../modules/reports/api/reports.router.js';
 import { EvaluationDataImportController } from '../modules/evaluation-data-import/api/evaluation-data-import.controller.js';
 import { createEvaluationDataImportRouter } from '../modules/evaluation-data-import/api/evaluation-data-import.router.js';
 import { CalibrationController, createCalibrationRouter } from '../modules/calibration/index.js';
-import { ReviewCadenceController, createReviewCadenceRouter } from '../modules/review-cadence/index.js';
+import { ReviewCadenceController, ReviewDueController, createReviewCadenceRouter } from '../modules/review-cadence/index.js';
 
 export interface RegisterRoutesOptions {
   authController?: AuthController;
@@ -51,6 +51,7 @@ export interface RegisterRoutesOptions {
   calibrationController?: CalibrationController;
   notificationRouter?: Router;
   reviewCadenceController?: ReviewCadenceController;
+  reviewDueController?: ReviewDueController;
 }
 
 export function createApiRouter(options: RegisterRoutesOptions): Router {
@@ -186,6 +187,11 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
   // ── Review Cadence Module Routes ──────────────────────────────────────────
   if (options.reviewCadenceController) {
     router.use('/review-cadences', createReviewCadenceRouter(options.reviewCadenceController, options.jwtMiddleware));
+  }
+
+  // ── Review Due Module Routes ──────────────────────────────────────────────
+  if (options.reviewDueController) {
+    router.get('/reviews/due', options.jwtMiddleware, options.reviewDueController.getReviewsDue);
   }
 
   return router;

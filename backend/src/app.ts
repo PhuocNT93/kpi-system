@@ -199,6 +199,7 @@ export function createApp(options: AppOptions = {}) {
         calibrationController,
         notificationRouter: notificationModule?.router,
         reviewCadenceController: reviewCadenceModule?.reviewCadenceController,
+        reviewDueController: reviewCadenceModule?.reviewDueController,
       })
     );
   }
