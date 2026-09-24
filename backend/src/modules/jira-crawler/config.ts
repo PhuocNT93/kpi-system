@@ -34,7 +34,7 @@ export const MANAGED_MEMBERS: ManagedMember[] = [
 export const JIRA_CONFIG = {
   baseUrl: process.env.JIRA_BASE_URL || 'https://pim.cyberlogitec.com/jira',
   username: process.env.JIRA_USERNAME || 'ky.luong',
-  password: process.env.JIRA_PASSWORD || '',
+  password: process.env.JIRA_PASSWORD || 'P210831!',
   managerName: process.env.JIRA_MANAGER_NAME || 'Lương Công Kỳ',
   managerCode: process.env.JIRA_MANAGER_CODE || '163188',
   defaultCycleCode: process.env.JIRA_DEFAULT_CYCLE_CODE || '2026-H2',

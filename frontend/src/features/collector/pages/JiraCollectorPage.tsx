@@ -5,7 +5,11 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
+  ExternalLink,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Bug,
   Layers,
   Timer,
@@ -17,6 +21,7 @@ import {
 } from 'lucide-react';
 import {
   getBatchRuns,
+  getBatchRunDetail,
   triggerBatchRun,
   getMemberBatchDetail,
   applyBatchMemberResult,
@@ -893,8 +898,32 @@ export const JiraCollectorPage: React.FC = () => {
     }
   };
 
+  const [selectedRunErrorLog, setSelectedRunErrorLog] = useState<string[]>([]);
+  const [showAllErrors, setShowAllErrors] = useState(false);
+
   const currentRun = batchData?.runs[selectedRunIdx];
   const latestRun = batchData?.runs[0];
+
+  useEffect(() => {
+    if (!currentRun) {
+      setSelectedRunErrorLog([]);
+      return;
+    }
+    if (currentRun.errorLog && currentRun.errorLog.length > 0) {
+      setSelectedRunErrorLog(currentRun.errorLog);
+    } else if (currentRun.status === 'FAILED' || (currentRun.failedMembers > 0 && currentRun.completedMembers === 0)) {
+      getBatchRunDetail(currentRun.id)
+        .then((detail) => {
+          if (detail && detail.errorLog && detail.errorLog.length > 0) {
+            setSelectedRunErrorLog(detail.errorLog);
+          }
+        })
+        .catch(() => {});
+    } else {
+      setSelectedRunErrorLog([]);
+    }
+  }, [currentRun]);
+
   // A batch is truly active only if the latest version is marked RUNNING and started recently (< 15 mins)
   const isRunning = Boolean(
     latestRun?.status === 'RUNNING' &&
@@ -1190,9 +1219,358 @@ export const JiraCollectorPage: React.FC = () => {
                 </div>
 
                 {currentRun.scoreSummary.length === 0 ? (
-                  <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>
-                    {currentRun.status === 'RUNNING' ? '⏳ Đang đánh giá thành viên...' : 'Không có kết quả'}
-                  </div>
+                  (() => {
+                    const isFailed = currentRun.status === 'FAILED' || (currentRun.failedMembers > 0 && currentRun.completedMembers === 0);
+                    const effectiveErrors = (currentRun.errorLog && currentRun.errorLog.length > 0)
+                      ? currentRun.errorLog
+                      : selectedRunErrorLog;
+                    const hasAuthError = effectiveErrors.some(
+                      (err) => err.includes('401') || err.includes('UNAUTHORIZED') || err.includes('Unauthorized')
+                    );
+                    const hasCaptcha = effectiveErrors.some(
+                      (err) => err.includes('CAPTCHA') || err.includes('CAPTCHA_CHALLENGE')
+                    );
+
+                    if (isFailed) {
+                      return (
+                        <div style={{ padding: 24 }}>
+                          {hasAuthError ? (
+                            <div style={{
+                              padding: '24px',
+                              background: '#fffbeb',
+                              border: '1px solid #fde68a',
+                              borderRadius: '12px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '16px',
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+                                <div style={{
+                                  width: 44, height: 44, borderRadius: 10,
+                                  background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  flexShrink: 0,
+                                }}>
+                                  <AlertCircle size={24} style={{ color: '#d97706' }} />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <h4 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#92400e' }}>
+                                    Lỗi xác thực Jira: HTTP 401 Unauthorized (Chưa cấu hình mật khẩu Jira)
+                                  </h4>
+                                  <p style={{ margin: '6px 0 0', fontSize: 13, color: '#b45309', lineHeight: 1.5 }}>
+                                    Máy chủ Jira PIM CyberLogitec (<code>pim.cyberlogitec.com</code>) từ chối xác thực tài khoản <b>ky.luong</b> do máy chủ chưa được cấu hình biến môi trường <code>JIRA_PASSWORD</code> hoặc mật khẩu đã thay đổi.
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div style={{
+                                background: '#ffffff',
+                                border: '1px solid #fde68a',
+                                borderRadius: '8px',
+                                padding: '14px 18px',
+                                fontSize: 13,
+                                color: '#78350f',
+                              }}>
+                                <div style={{ fontWeight: 700, marginBottom: 8, color: '#92400e' }}>
+                                  👉 Cách khắc phục:
+                                </div>
+                                <ol style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                  <li>
+                                    Thêm biến môi trường <code>JIRA_PASSWORD</code> vào cấu hình máy chủ Render (Tab Environment của service backend).
+                                  </li>
+                                  <li>
+                                    Hệ thống đã được bổ sung mật khẩu fallback mặc định trong mã nguồn mới nhất. Sau khi deploy phiên bản mới, hệ thống sẽ tự động xác thực thành công.
+                                  </li>
+                                  <li>
+                                    Sau khi cấu hình, bấm <b>"Thử chạy lại Batch"</b> bên dưới.
+                                  </li>
+                                </ol>
+                              </div>
+
+                              <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                                <button
+                                  type="button"
+                                  onClick={handleRunNow}
+                                  disabled={running}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    padding: '9px 18px',
+                                    background: '#d97706',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    borderRadius: 8,
+                                    fontWeight: 600,
+                                    fontSize: 13,
+                                    cursor: running ? 'not-allowed' : 'pointer',
+                                    boxShadow: '0 2px 4px rgba(217, 119, 6, 0.2)',
+                                  }}
+                                >
+                                  <RefreshCw size={15} className={running ? 'animate-spin' : ''} /> Thử chạy lại Batch
+                                </button>
+                                {effectiveErrors.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowAllErrors((v) => !v)}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 4,
+                                      background: 'transparent',
+                                      border: 'none',
+                                      color: '#92400e',
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      marginLeft: 'auto',
+                                    }}
+                                  >
+                                    {showAllErrors ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                    {showAllErrors ? 'Ẩn chi tiết lỗi' : `Xem chi tiết lỗi (${effectiveErrors.length} lỗi)`}
+                                  </button>
+                                )}
+                              </div>
+
+                              {showAllErrors && effectiveErrors.length > 0 && (
+                                <div style={{
+                                  maxHeight: 220,
+                                  overflowY: 'auto',
+                                  background: '#1e293b',
+                                  color: '#fde68a',
+                                  padding: '12px 16px',
+                                  borderRadius: 8,
+                                  fontFamily: 'monospace',
+                                  fontSize: 12,
+                                  lineHeight: 1.5,
+                                }}>
+                                  {effectiveErrors.map((err, i) => (
+                                    <div key={i} style={{ marginBottom: 6 }}>• {err}</div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ) : hasCaptcha ? (
+                            <div style={{
+                              padding: '24px',
+                              background: '#fff1f2',
+                              border: '1px solid #fecdd3',
+                              borderRadius: '12px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '16px',
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+                                <div style={{
+                                  width: 44, height: 44, borderRadius: 10,
+                                  background: '#ffe4e6', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  flexShrink: 0,
+                                }}>
+                                  <AlertTriangle size={24} style={{ color: '#e11d48' }} />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <h4 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#9f1239' }}>
+                                    Lỗi Jira Server: Tài khoản bị khóa do CAPTCHA Challenge (HTTP 403)
+                                  </h4>
+                                  <p style={{ margin: '6px 0 0', fontSize: 13, color: '#be123c', lineHeight: 1.5 }}>
+                                    Hệ thống Jira PIM CyberLogitec (<code>pim.cyberlogitec.com</code>) đã tạm thời chặn kết nối API và yêu cầu xác thực hình ảnh CAPTCHA đối với tài khoản <b>ky.luong</b> do cơ chế bảo mật chống brute-force của Jira.
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div style={{
+                                background: '#ffffff',
+                                border: '1px solid #fecdd3',
+                                borderRadius: '8px',
+                                padding: '14px 18px',
+                                fontSize: 13,
+                                color: '#881337',
+                              }}>
+                                <div style={{ fontWeight: 700, marginBottom: 8, color: '#9f1239' }}>
+                                  👉 Hướng dẫn mở khóa trong 30 giây:
+                                </div>
+                                <ol style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                  <li>
+                                    Bấm vào nút <b>"Mở Jira PIM để nhập CAPTCHA"</b> bên dưới để mở giao diện web Jira.
+                                  </li>
+                                  <li>
+                                    Đăng nhập tài khoản <b>ky.luong</b>, mật khẩu và <b>giải mã CAPTCHA hình ảnh</b> hiển thị trên màn hình đăng nhập.
+                                  </li>
+                                  <li>
+                                    Sau khi đăng nhập thành công vào Jira trên trình duyệt, quay lại đây và bấm <b>"Thử chạy lại Batch"</b>.
+                                  </li>
+                                </ol>
+                              </div>
+
+                              <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                                <a
+                                  href="https://pim.cyberlogitec.com/jira/login.jsp"
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    padding: '9px 18px',
+                                    background: '#e11d48',
+                                    color: '#ffffff',
+                                    borderRadius: 8,
+                                    fontWeight: 600,
+                                    fontSize: 13,
+                                    textDecoration: 'none',
+                                    boxShadow: '0 2px 4px rgba(225, 29, 72, 0.2)',
+                                  }}
+                                >
+                                  <ExternalLink size={15} /> Mở Jira PIM để nhập CAPTCHA
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={handleRunNow}
+                                  disabled={running}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    padding: '9px 18px',
+                                    background: '#ffffff',
+                                    color: '#334155',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: 8,
+                                    fontWeight: 600,
+                                    fontSize: 13,
+                                    cursor: running ? 'not-allowed' : 'pointer',
+                                  }}
+                                >
+                                  <RefreshCw size={15} className={running ? 'animate-spin' : ''} /> Thử chạy lại Batch
+                                </button>
+                                {effectiveErrors.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowAllErrors((v) => !v)}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 4,
+                                      background: 'transparent',
+                                      border: 'none',
+                                      color: '#9f1239',
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      marginLeft: 'auto',
+                                    }}
+                                  >
+                                    {showAllErrors ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                    {showAllErrors ? 'Ẩn chi tiết lỗi' : `Xem chi tiết lỗi (${effectiveErrors.length} lỗi)`}
+                                  </button>
+                                )}
+                              </div>
+
+                              {showAllErrors && effectiveErrors.length > 0 && (
+                                <div style={{
+                                  maxHeight: 220,
+                                  overflowY: 'auto',
+                                  background: '#1e293b',
+                                  color: '#fca5a5',
+                                  padding: '12px 16px',
+                                  borderRadius: 8,
+                                  fontFamily: 'monospace',
+                                  fontSize: 12,
+                                  lineHeight: 1.5,
+                                }}>
+                                  {effectiveErrors.map((err, i) => (
+                                    <div key={i} style={{ marginBottom: 6 }}>• {err}</div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div style={{
+                              padding: '20px 24px',
+                              background: '#fef2f2',
+                              border: '1px solid #fecaca',
+                              borderRadius: '12px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '14px',
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <AlertCircle size={22} style={{ color: '#ef4444' }} />
+                                <h4 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#991b1b' }}>
+                                  Phiên thu thập thất bại ({currentRun.failedMembers}/{currentRun.totalMembers} nhân viên gặp lỗi)
+                                </h4>
+                              </div>
+                              {effectiveErrors[0] && (
+                                <div style={{ fontSize: 13, color: '#7f1d1d', background: '#fee2e2', padding: '12px 14px', borderRadius: 8 }}>
+                                  {effectiveErrors[0]}
+                                </div>
+                              )}
+                              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                                <button
+                                  type="button"
+                                  onClick={handleRunNow}
+                                  disabled={running}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    padding: '8px 18px',
+                                    background: '#dc2626',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    borderRadius: 8,
+                                    fontWeight: 600,
+                                    fontSize: 13,
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  <RefreshCw size={14} className={running ? 'animate-spin' : ''} /> Chạy lại Batch
+                                </button>
+                                {effectiveErrors.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowAllErrors((v) => !v)}
+                                    style={{
+                                      background: 'transparent',
+                                      border: 'none',
+                                      color: '#991b1b',
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    {showAllErrors ? 'Ẩn bớt lỗi' : `Xem tất cả ${effectiveErrors.length} lỗi`}
+                                  </button>
+                                )}
+                              </div>
+                              {showAllErrors && effectiveErrors.length > 1 && (
+                                <div style={{
+                                  maxHeight: 220,
+                                  overflowY: 'auto',
+                                  background: '#1e293b',
+                                  color: '#fca5a5',
+                                  padding: '12px 16px',
+                                  borderRadius: 8,
+                                  fontFamily: 'monospace',
+                                  fontSize: 12,
+                                  lineHeight: 1.5,
+                                }}>
+                                  {effectiveErrors.map((err, i) => (
+                                    <div key={i} style={{ marginBottom: 4 }}>• {err}</div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>
+                        {currentRun.status === 'RUNNING' ? '⏳ Đang đánh giá thành viên...' : 'Không có kết quả'}
+                      </div>
+                    );
+                  })()
                 ) : (
                   <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>

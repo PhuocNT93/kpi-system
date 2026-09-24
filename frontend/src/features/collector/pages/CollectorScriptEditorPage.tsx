@@ -707,12 +707,13 @@ export const CollectorScriptEditorPage: React.FC = () => {
               1. Mẫu câu lệnh JQL (JQL Template)
             </h3>
 
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
               <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, alignSelf: 'center' }}>
                 Chèn biến:
               </span>
               <button
                 type="button"
+                title="Mã số nhân viên đang duyệt (VD: 173232, 257130)"
                 onClick={() => insertPlaceholder('{{employee_code}}')}
                 style={{
                   padding: '3px 8px',
@@ -729,6 +730,7 @@ export const CollectorScriptEditorPage: React.FC = () => {
               </button>
               <button
                 type="button"
+                title="Mã Custom Field của PIC trong Jira (mặc định cf[11902])"
                 onClick={() => insertPlaceholder('cf[{{pic_field}}]')}
                 style={{
                   padding: '3px 8px',
@@ -745,6 +747,7 @@ export const CollectorScriptEditorPage: React.FC = () => {
               </button>
               <button
                 type="button"
+                title="Bộ lọc khoảng ngày theo kỳ đánh giá (VD: AND (updated >= &quot;2026-03-24&quot; AND updated <= &quot;2026-09-24&quot;))"
                 onClick={() => insertPlaceholder('{{date_filter}}')}
                 style={{
                   padding: '3px 8px',
@@ -759,6 +762,9 @@ export const CollectorScriptEditorPage: React.FC = () => {
               >
                 + &#123;&#123;date_filter&#125;&#125;
               </button>
+              <span style={{ fontSize: '11px', color: COLORS.neutral[400], fontStyle: 'italic' }}>
+                (Rê chuột xem ý nghĩa biến)
+              </span>
             </div>
 
             <textarea
@@ -1103,13 +1109,24 @@ export const CollectorScriptEditorPage: React.FC = () => {
                 </label>
               </div>
 
-              <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '11px', color: COLORS.neutral[400], alignSelf: 'center' }}>Biến:</span>
-                {['{{memberName}}', '{{taskKey}}', '{{taskSummary}}', '{{taskDescription}}', '{{priority}}', '{{timeSpentHours}}'].map((tag) => (
+              <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: '11px', color: COLORS.neutral[400], alignSelf: 'center' }}>Biến chèn:</span>
+                {[
+                  { tag: '{{memberName}}', tip: 'Tên nhân sự (VD: Nguyễn Minh Quang)' },
+                  { tag: '{{taskKey}}', tip: 'Mã task Jira (VD: PIM-1234)' },
+                  { tag: '{{taskSummary}}', tip: 'Tiêu đề tóm tắt của task' },
+                  { tag: '{{taskDescription}}', tip: 'Nội dung mô tả chi tiết của task' },
+                  { tag: '{{priority}}', tip: 'Độ ưu tiên (Critical, High, Medium, Low)' },
+                  { tag: '{{issueType}}', tip: 'Loại task (Bug, Task, Subtask, Story)' },
+                  { tag: '{{status}}', tip: 'Trạng thái Jira (Done, In Progress, Closed)' },
+                  { tag: '{{timeSpentHours}}', tip: 'Số giờ thực tế đã log' },
+                  { tag: '{{originalEstimateHours}}', tip: 'Số giờ ước lượng ban đầu' },
+                ].map((item) => (
                   <button
-                    key={tag}
+                    key={item.tag}
                     type="button"
-                    onClick={() => insertPromptPlaceholder(tag)}
+                    title={item.tip}
+                    onClick={() => insertPromptPlaceholder(item.tag)}
                     style={{
                       padding: '2px 6px',
                       borderRadius: RADII.sm,
@@ -1121,7 +1138,7 @@ export const CollectorScriptEditorPage: React.FC = () => {
                       fontWeight: 600,
                     }}
                   >
-                    + {tag}
+                    + {item.tag}
                   </button>
                 ))}
               </div>
@@ -1142,9 +1159,9 @@ export const CollectorScriptEditorPage: React.FC = () => {
                   lineHeight: 1.4,
                 }}
               />
-              <span style={{ fontSize: '11px', color: COLORS.neutral[400], marginTop: '4px', display: 'block' }}>
-                AI sẽ trả về JSON gồm <code>complexityScore</code> (1-5), <code>contributionScore</code> (1-5), và lý giải chi tiết cho từng task.
-              </span>
+              <div style={{ fontSize: '11px', color: COLORS.neutral[500], marginTop: '6px', lineHeight: 1.5, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '8px 12px' }}>
+                💡 <b>Cơ chế hoạt động của biến:</b> Khi AI phân tích từng task, hệ thống sẽ tự động thay thế các biến <code>&#123;&#123;taskKey&#125;&#125;</code>, <code>&#123;&#123;taskSummary&#125;&#125;</code>, <code>&#123;&#123;timeSpentHours&#125;&#125;</code>,... bằng dữ liệu Jira thực tế của task đó trước khi gửi sang Gemini chấm điểm (1-5).
+              </div>
 
               {/* 3 Mẫu Prompt AI theo mức độ (Dễ, Vừa, Khó) */}
               <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
