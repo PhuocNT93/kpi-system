@@ -145,12 +145,67 @@ export class NotificationService {
   async getTemplates(): Promise<
     Array<
       NotificationTemplate & {
+        notificationType: NotificationType;
+        subject: string;
+        bodyHtml: string;
+        bodyText: string;
+        variables: string[];
+        description: string;
         translations?: Record<string, Record<string, string>>;
       }
     >
   > {
     const templates = await this.notificationRepo.listTemplates();
-    const result: Array<NotificationTemplate & { translations?: Record<string, Record<string, string>> }> = [];
+    const metadataMap: Record<string, { description: string; variables: string[] }> = {
+      CYCLE_OPENED: {
+        description: 'Thông báo khi kỳ đánh giá mới được mở cho nhân viên',
+        variables: ['cycle_name', 'start_date', 'end_date', 'deadline', 'link'],
+      },
+      SELF_SUBMITTED: {
+        description: 'Thông báo khi nhân viên hoàn thành tự đánh giá',
+        variables: ['employee_name', 'cycle_name', 'submitted_at', 'link'],
+      },
+      MANAGER_SUBMITTED: {
+        description: 'Thông báo khi Quản lý hoàn tất đánh giá nhân viên',
+        variables: ['employee_name', 'cycle_name', 'manager_name', 'submitted_at', 'link'],
+      },
+      CORRECTION_REQUESTED: {
+        description: 'Thông báo yêu cầu điều chỉnh lại phiếu đánh giá',
+        variables: ['employee_name', 'cycle_name', 'reason', 'link'],
+      },
+      RESULT_PUBLISHED: {
+        description: 'Thông báo kết quả đánh giá chính thức đã công bố (Bắt buộc)',
+        variables: ['employee_name', 'cycle_name', 'published_at', 'link'],
+      },
+      SCORE_ADJUSTED: {
+        description: 'Thông báo điều chỉnh điểm số sau phúc khảo/hiệu chuẩn',
+        variables: ['employee_name', 'cycle_name', 'reason', 'link'],
+      },
+      REVIEW_DUE_REMINDER: {
+        description: 'Thông báo nhắc nhở sắp đến hạn đánh giá định kỳ',
+        variables: ['employee_name', 'due_date', 'cycle_name', 'link'],
+      },
+      IMPORT_COMPLETED: {
+        description: 'Thông báo hoàn tất xử lý tệp nhập dữ liệu',
+        variables: ['filename', 'success_count', 'error_count', 'link'],
+      },
+      CYCLE_LOCKED: {
+        description: 'Thông báo kỳ đánh giá đã được khóa và lưu trữ',
+        variables: ['cycle_name', 'link'],
+      },
+    };
+
+    const result: Array<
+      NotificationTemplate & {
+        notificationType: NotificationType;
+        subject: string;
+        bodyHtml: string;
+        bodyText: string;
+        variables: string[];
+        description: string;
+        translations?: Record<string, Record<string, string>>;
+      }
+    > = [];
 
     for (const tmpl of templates) {
       let translations: Record<string, Record<string, string>> | undefined = undefined;
@@ -160,8 +215,23 @@ export class NotificationService {
           tmpl.notificationTemplateId
         );
       }
+      const meta = metadataMap[tmpl.code] || {
+        description: tmpl.code,
+        variables: ['link'],
+      };
+      const enSubject = translations?.['en']?.['subject'] || '';
+      const enBody = translations?.['en']?.['body_html'] || '';
+      const viSubject = translations?.['vi']?.['subject'] || enSubject;
+      const viBody = translations?.['vi']?.['body_html'] || enBody;
+
       result.push({
         ...tmpl,
+        notificationType: tmpl.code,
+        subject: enSubject || viSubject,
+        bodyHtml: enBody || viBody,
+        bodyText: '',
+        variables: meta.variables,
+        description: meta.description,
         translations,
       });
     }

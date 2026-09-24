@@ -8,10 +8,15 @@ import { KpiRelationshipTable } from '../components/KpiRelationshipTable';
 import { AddRelationshipModal } from '../components/AddRelationshipModal';
 import { LoadingSpinner, ErrorAlert } from '../../../shared/components/ui';
 import { Button } from '../../../shared/ui/Button/Button';
+import { useTheme } from '../../../shared/theme';
+import { useUiTranslation } from '../../../shared/i18n/ui-i18n';
 
 type Tab = 'library' | 'relationships';
 
 export function KpiPage() {
+  const { isDark } = useTheme();
+  const { t } = useUiTranslation();
+
   const [activeTab, setActiveTab] = useState<Tab>('library');
   const [searchTerm, setSearchTerm] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -35,37 +40,37 @@ export function KpiPage() {
     cursor: 'pointer',
     fontWeight: 600,
     fontSize: '0.875rem',
-    backgroundColor: activeTab === tab ? '#fff' : 'transparent',
-    color: activeTab === tab ? '#4f46e5' : '#6b7280',
-    borderBottom: activeTab === tab ? '2px solid #4f46e5' : '2px solid transparent',
+    backgroundColor: activeTab === tab ? (isDark ? '#1f2937' : '#fff') : 'transparent',
+    color: activeTab === tab ? (isDark ? '#818cf8' : '#4f46e5') : (isDark ? '#9ca3af' : '#6b7280'),
+    borderBottom: activeTab === tab ? `2px solid ${isDark ? '#818cf8' : '#4f46e5'}` : '2px solid transparent',
   });
 
   return (
-    <div style={{ padding: '2rem', width: '100%' }}>
+    <div style={{ padding: 'clamp(1rem, 2vw, 2rem)', width: '100%', boxSizing: 'border-box' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, color: '#111827' }}>
-            KPI Library
+          <h1 style={{ margin: 0, fontSize: 'clamp(1.25rem, 2.5vw, 1.5rem)', fontWeight: 800, color: isDark ? '#f8fafc' : '#111827' }}>
+            {t('kpi_library_title', 'KPI Library')}
           </h1>
-          <p style={{ margin: '0.25rem 0 0', color: '#6b7280', fontSize: '0.875rem' }}>
-            Manage KPIs and their dependency relationships.
+          <p style={{ margin: '0.25rem 0 0', color: isDark ? '#94a3b8' : '#6b7280', fontSize: '0.875rem' }}>
+            {t('kpi_library_desc', 'Manage KPIs and their dependency relationships.')}
           </p>
         </div>
         {activeTab === 'library' && (
           <Button onClick={() => setIsCreateOpen(true)}>
-            + Create KPI
+            {t('create_kpi', '+ Create KPI')}
           </Button>
         )}
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid #e5e7eb', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`, marginBottom: '1.5rem', overflowX: 'auto' }}>
         <button style={tabStyle('library')} onClick={() => setActiveTab('library')}>
-          KPI Library {kpisQuery.data ? `(${kpisQuery.data.total})` : ''}
+          {t('kpi_library_tab', 'KPI Library')} {kpisQuery.data ? `(${kpisQuery.data.total})` : ''}
         </button>
         <button style={tabStyle('relationships')} onClick={() => setActiveTab('relationships')}>
-          Dependency Map {relationships.length > 0 ? `(${relationships.length})` : ''}
+          {t('kpi_dependency_map_tab', 'Dependency Map')} {relationships.length > 0 ? `(${relationships.length})` : ''}
         </button>
       </div>
 
@@ -75,12 +80,18 @@ export function KpiPage() {
           <div style={{ marginBottom: '1rem' }}>
             <input
               type="text"
-              placeholder="Search by code or name..."
+              placeholder={t('search_kpi_placeholder', 'Search by code or name...')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{
-                width: '100%', maxWidth: 400, padding: '0.5rem 0.75rem',
-                borderRadius: 6, border: '1px solid #d1d5db', outline: 'none',
+                width: '100%',
+                maxWidth: 400,
+                padding: '0.5rem 0.75rem',
+                borderRadius: 6,
+                border: `1px solid ${isDark ? '#374151' : '#d1d5db'}`,
+                backgroundColor: isDark ? '#1f2937' : '#ffffff',
+                color: isDark ? '#f8fafc' : '#111827',
+                outline: 'none',
               }}
             />
           </div>

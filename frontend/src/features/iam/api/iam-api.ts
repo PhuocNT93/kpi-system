@@ -76,13 +76,18 @@ export const iamApi = {
   },
 
   assignPermission: async (roleId: string, body: AssignPermissionRequest): Promise<IamRole> => {
-    const data = await postApi<WireIamRole>(`/api/iam/roles/${roleId}/permissions`, body);
+    const payload = {
+      permissionCode: body.permission_code,
+      permission_code: body.permission_code,
+      scope: 'ORGANIZATION',
+    };
+    const data = await postApi<WireIamRole>(`/api/iam/roles/${roleId}/permissions`, payload);
     return mapWireRoleToDomain(data);
   },
 
   revokePermission: async (roleId: string, permissionCode: string): Promise<IamRole> => {
     const data = await deleteApi<WireIamRole>(
-      `/api/iam/roles/${roleId}/permissions/${permissionCode}`,
+      `/api/iam/roles/${roleId}/permissions/${encodeURIComponent(permissionCode)}`,
     );
     return mapWireRoleToDomain(data);
   },

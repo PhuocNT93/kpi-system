@@ -13,6 +13,7 @@ import { seedConfigurationModule } from '../../configuration/infrastructure/seed
 import { seedEvaluationCycleModule } from '../../evaluation-cycle/infrastructure/seed/evaluation-cycle.seed.js';
 import { seedTeamReviewsModule } from '../../evaluation/infrastructure/seed/team-reviews.seed.js';
 import { seedImportModule } from '../../import/infrastructure/seed/import.seed.js';
+import { seedNotificationTemplates } from '../../notification/infrastructure/seed/notification.seed.js';
 
 async function main() {
   console.log('Starting seed data process...');
@@ -28,6 +29,9 @@ async function main() {
     const passwordHasher = new SimplePasswordHasher();
 
     await seedIamData(roleRepo, permRepo, userRoleRepo, rolePermRepo, userRepo, passwordHasher);
+    await pool.query(
+      `DELETE FROM role_permission WHERE role_id NOT IN (SELECT role_id FROM role WHERE code IN ('EMPLOYEE', 'HR_ADMIN', 'MANAGER', 'SYSTEM_ADMIN'));`
+    );
     await pool.query(
       `UPDATE app_user SET name = 'Lương Công Kỳ' WHERE email = 'ky.luong@cyberlogitec.com'`
     );
@@ -47,6 +51,9 @@ async function main() {
 
     await seedImportModule(pool);
     console.log('Import Module seed data successfully populated.');
+
+    await seedNotificationTemplates(pool);
+    console.log('Notification Templates & I18n seed data successfully populated.');
   } catch (error) {
     console.error('Error seeding data:', error);
     process.exitCode = 1;

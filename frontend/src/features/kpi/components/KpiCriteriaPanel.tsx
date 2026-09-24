@@ -1,19 +1,23 @@
 import { useState } from 'react';
 import { 
   useKpiCriteriaQuery, 
-  useUpdateKpiCriterionWeightMutation,
+  useUpdateKpiCriterionWeightMutation, 
   useRemoveKpiCriterionMutation 
 } from '../api/use-kpi';
 import type { Kpi } from '../api/kpi-api';
 import { LoadingSpinner, ErrorAlert } from '../../../shared/components/ui';
 import { Button } from '../../../shared/ui/Button/Button';
 import { AddKpiCriterionModal } from './AddKpiCriterionModal';
+import { useTheme } from '../../../shared/theme';
+import { useUiTranslation } from '../../../shared/i18n/ui-i18n';
 
 interface Props {
   kpi: Kpi;
 }
 
 export function KpiCriteriaPanel({ kpi }: Props) {
+  const { isDark } = useTheme();
+  const { t } = useUiTranslation();
   const { data: criteria, isLoading, error } = useKpiCriteriaQuery(kpi.kpiId);
   const updateMutation = useUpdateKpiCriterionWeightMutation(kpi.kpiId);
   const removeMutation = useRemoveKpiCriterionMutation(kpi.kpiId);
@@ -39,36 +43,37 @@ export function KpiCriteriaPanel({ kpi }: Props) {
   };
 
   const handleRemove = async (mappingId: string) => {
-    if (confirm('Are you sure you want to remove this criterion from the KPI?')) {
+    if (confirm(t('confirm_remove_criterion', 'Are you sure you want to remove this criterion from the KPI?'))) {
       await removeMutation.mutateAsync(mappingId);
     }
   };
 
   return (
-    <div style={{ padding: '1.5rem', backgroundColor: '#f9fafb', borderTop: '1px solid #e5e7eb' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-        <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: '#374151' }}>
-          Mapped Criteria for <span style={{ color: '#4f46e5' }}>{kpi.code}</span>
+    <div style={{ padding: '1.5rem', backgroundColor: isDark ? '#111827' : '#f9fafb', borderTop: `1px solid ${isDark ? '#1f2937' : '#e5e7eb'}` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
+        <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: isDark ? '#f8fafc' : '#374151' }}>
+          {t('mapped_criteria_for', 'Mapped Criteria for')} <span style={{ color: isDark ? '#818cf8' : '#4f46e5' }}>{kpi.code}</span>
         </h3>
         <Button size="sm" onClick={() => setIsAddModalOpen(true)}>
-          + Add Criterion
+          {t('add_criterion', '+ Add Criterion')}
         </Button>
       </div>
 
       {(!criteria || criteria.length === 0) ? (
-        <div style={{ textAlign: 'center', padding: '2rem', backgroundColor: '#fff', borderRadius: 8, border: '1px dashed #d1d5db' }}>
-          <p style={{ color: '#6b7280', margin: 0 }}>No criteria mapped yet. Add criteria to define how this KPI is measured.</p>
+        <div style={{ textAlign: 'center', padding: '2rem', backgroundColor: isDark ? '#1e293b' : '#fff', borderRadius: 8, border: `1px dashed ${isDark ? '#334155' : '#d1d5db'}` }}>
+          <p style={{ color: isDark ? '#94a3b8' : '#6b7280', margin: 0 }}>{t('no_criteria_mapped', 'No criteria mapped yet. Add criteria to define how this KPI is measured.')}</p>
         </div>
       ) : (
-        <table style={{ width: '100%', backgroundColor: '#fff', borderRadius: 8, overflow: 'hidden', borderCollapse: 'collapse', border: '1px solid #e5e7eb' }}>
-          <thead style={{ backgroundColor: '#f3f4f6', borderBottom: '1px solid #e5e7eb' }}>
-            <tr>
-              <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.75rem', color: '#6b7280', textTransform: 'uppercase' }}>Code</th>
-              <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.75rem', color: '#6b7280', textTransform: 'uppercase' }}>Name</th>
-              <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.75rem', color: '#6b7280', textTransform: 'uppercase' }}>Weight (%)</th>
-              <th style={{ padding: '0.75rem 1rem', textAlign: 'right', fontSize: '0.75rem', color: '#6b7280', textTransform: 'uppercase' }}>Actions</th>
-            </tr>
-          </thead>
+        <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ width: '100%', minWidth: 550, backgroundColor: isDark ? '#1e293b' : '#fff', borderRadius: 8, overflow: 'hidden', borderCollapse: 'collapse', border: `1px solid ${isDark ? '#334155' : '#e5e7eb'}` }}>
+            <thead style={{ backgroundColor: isDark ? '#0f172a' : '#f3f4f6', borderBottom: `1px solid ${isDark ? '#334155' : '#e5e7eb'}` }}>
+              <tr>
+                <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#6b7280', textTransform: 'uppercase' }}>{t('kpi_col_code', 'Code')}</th>
+                <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#6b7280', textTransform: 'uppercase' }}>{t('kpi_col_name', 'Name')}</th>
+                <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#6b7280', textTransform: 'uppercase' }}>{t('kpi_col_weight', 'Weight (%)')}</th>
+                <th style={{ padding: '0.75rem 1rem', textAlign: 'right', fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#6b7280', textTransform: 'uppercase' }}>{t('kpi_col_actions', 'Actions')}</th>
+              </tr>
+            </thead>
           <tbody>
             {criteria.map((c) => (
               <tr key={c.kpiCriterionId} style={{ borderBottom: '1px solid #e5e7eb' }}>
@@ -104,6 +109,7 @@ export function KpiCriteriaPanel({ kpi }: Props) {
             ))}
           </tbody>
         </table>
+      </div>
       )}
 
       {isAddModalOpen && (

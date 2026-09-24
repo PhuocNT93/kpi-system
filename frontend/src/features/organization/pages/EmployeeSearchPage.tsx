@@ -17,9 +17,13 @@ import { useTeams } from '../hooks/useTeams';
 import { useJobRoles } from '../hooks/useJobRoles';
 import { useJobLevels } from '../hooks/useJobLevels';
 import { useEvaluationCyclesQuery } from '../../evaluation-cycles/hooks/use-evaluation-cycles';
+import { useTheme } from '@/shared/theme';
+import { useUiTranslation } from '@/shared/i18n/ui-i18n';
 
 export function EmployeeSearchPage() {
   const navigate = useNavigate();
+  const { isDark } = useTheme();
+  const { t } = useUiTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Local filter states initialized from URL search params
@@ -122,22 +126,24 @@ export function EmployeeSearchPage() {
   return (
     <div
       style={{
-        padding: '24px',
+        padding: 'clamp(1rem, 2vw, 24px)',
         maxWidth: '1440px',
         margin: '0 auto',
-        color: 'var(--text-primary)',
+        color: isDark ? '#f8fafc' : 'var(--text-primary)',
         minHeight: '100vh',
+        width: '100%',
+        boxSizing: 'border-box',
       }}
     >
       {/* Header */}
       <div style={{ marginBottom: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0 }}>
-              Employee Directory & Search
+            <h1 style={{ fontSize: 'clamp(1.25rem, 2.5vw, 1.75rem)', fontWeight: 700, margin: 0, color: isDark ? '#f8fafc' : '#0f172a' }}>
+              {t('employee_search_title', 'Employee Directory & Search')}
             </h1>
-            <p style={{ margin: '6px 0 0', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-              Search across employees with multi-criteria filters, Vietnamese diacritic & typo-tolerant fuzzy matching.
+            <p style={{ margin: '6px 0 0', color: isDark ? '#94a3b8' : 'var(--text-secondary)', fontSize: '0.9rem' }}>
+              {t('employee_search_desc', 'Search across employees with multi-criteria filters, Vietnamese diacritic & typo-tolerant fuzzy matching.')}
             </p>
           </div>
           <button
@@ -149,16 +155,16 @@ export function EmployeeSearchPage() {
               gap: '8px',
               padding: '8px 16px',
               borderRadius: '8px',
-              border: '1px solid var(--border-subtle)',
-              backgroundColor: 'var(--bg-surface)',
-              color: 'var(--text-primary)',
+              border: `1px solid ${isDark ? '#374151' : 'var(--border-subtle)'}`,
+              backgroundColor: isDark ? '#1f2937' : 'var(--bg-surface)',
+              color: isDark ? '#f8fafc' : 'var(--text-primary)',
               cursor: isFetching ? 'not-allowed' : 'pointer',
               fontSize: '0.875rem',
               fontWeight: 500,
             }}
           >
             <RefreshCw size={16} className={isFetching ? 'animate-spin' : ''} />
-            Refresh
+            {t('refresh', 'Refresh')}
           </button>
         </div>
       </div>
@@ -166,9 +172,9 @@ export function EmployeeSearchPage() {
       {/* Filter Card */}
       <div
         style={{
-          backgroundColor: 'var(--bg-surface)',
+          backgroundColor: isDark ? '#111827' : 'var(--bg-surface)',
           borderRadius: '12px',
-          border: '1px solid var(--border-subtle)',
+          border: `1px solid ${isDark ? '#1f2937' : 'var(--border-subtle)'}`,
           padding: '20px',
           marginBottom: '24px',
           boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
@@ -176,7 +182,7 @@ export function EmployeeSearchPage() {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
           <Filter size={18} style={{ color: '#4F46E5' }} />
-          <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>Search & Filter Criteria</span>
+          <span style={{ fontWeight: 600, fontSize: '0.95rem', color: isDark ? '#f8fafc' : '#0f172a' }}>{t('search_filter_criteria', 'Search & Filter Criteria')}</span>
           {hasActiveFilters && (
             <button
               onClick={handleResetFilters}
@@ -576,25 +582,25 @@ export function EmployeeSearchPage() {
 
         {/* Data Table */}
         {!isLoading && !isError && employees.length > 0 && (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
+          <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <table style={{ width: '100%', minWidth: '750px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
               <thead>
                 <tr
                   style={{
-                    backgroundColor: 'var(--bg-surface-subtle)',
-                    borderBottom: '1px solid var(--border-subtle)',
-                    color: 'var(--text-secondary)',
+                    backgroundColor: isDark ? '#1e293b' : 'var(--bg-surface-subtle)',
+                    borderBottom: `1px solid ${isDark ? '#334155' : 'var(--border-subtle)'}`,
+                    color: isDark ? '#94a3b8' : 'var(--text-secondary)',
                     fontSize: '0.75rem',
                     textTransform: 'uppercase',
                     letterSpacing: '0.05em',
                   }}
                 >
-                  <th style={{ padding: '12px 20px' }}>Employee</th>
-                  <th style={{ padding: '12px 16px' }}>Department & Team</th>
-                  <th style={{ padding: '12px 16px' }}>Role & Level</th>
-                  <th style={{ padding: '12px 16px' }}>Manager</th>
-                  <th style={{ padding: '12px 16px' }}>Status</th>
-                  <th style={{ padding: '12px 20px', textAlign: 'right' }}>Actions</th>
+                  <th style={{ padding: '12px 20px' }}>{t('employee', 'Employee')}</th>
+                  <th style={{ padding: '12px 16px' }}>{t('dept_and_team', 'Department & Team')}</th>
+                  <th style={{ padding: '12px 16px' }}>{t('role_and_level', 'Role & Level')}</th>
+                  <th style={{ padding: '12px 16px' }}>{t('manager', 'Manager')}</th>
+                  <th style={{ padding: '12px 16px' }}>{t('status', 'Status')}</th>
+                  <th style={{ padding: '12px 20px', textAlign: 'right' }}>{t('actions', 'Actions')}</th>
                 </tr>
               </thead>
               <tbody>

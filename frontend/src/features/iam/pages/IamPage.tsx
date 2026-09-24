@@ -2,30 +2,47 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { UserTable } from '../components/UserTable';
 import { RoleTable } from '../components/RoleTable';
 import { PermissionTable } from '../components/PermissionTable';
-
-const TAB_LINKS = [
-  { to: '/admin/iam/users', label: 'Users' },
-  { to: '/admin/iam/roles', label: 'Roles' },
-  { to: '/admin/iam/permissions', label: 'Permissions' },
-];
+import { useTheme } from '@/shared/theme';
+import { useUiTranslation } from '@/shared/i18n/ui-i18n';
 
 export function IamPage() {
+  const { isDark } = useTheme();
+  const { t } = useUiTranslation();
+
+  const tabLinks = [
+    { to: '/admin/iam/users', label: t('iam.tabs.users', 'Users') },
+    { to: '/admin/iam/roles', label: t('iam.tabs.roles', 'Roles') },
+    { to: '/admin/iam/permissions', label: t('iam.tabs.permissions', 'Permissions') },
+  ];
+
   return (
-    <main>
-      <h1 style={{ margin: '0 0 1.5rem' }}>Identity &amp; Access Management</h1>
+    <main style={{ width: '100%', boxSizing: 'border-box' }}>
+      <h1 style={{ margin: '0 0 1.5rem', color: isDark ? '#f8fafc' : '#0f172a' }}>
+        {t('iam.title', 'Identity & Access Management')}
+      </h1>
       <nav
         aria-label="IAM sections"
-        style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '2px solid #e5e7eb' }}
+        style={{
+          display: 'flex',
+          gap: '0.5rem',
+          marginBottom: '1.5rem',
+          borderBottom: `2px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch',
+        }}
       >
-        {TAB_LINKS.map((link) => (
+        {tabLinks.map((link) => (
           <NavLink
             key={link.to}
             to={link.to}
             style={({ isActive }) => ({
-              padding: '0.5rem 1rem', textDecoration: 'none',
-              borderBottom: isActive ? '2px solid #2563eb' : '2px solid transparent',
-              color: isActive ? '#2563eb' : '#374151',
-              fontWeight: isActive ? 600 : 400, marginBottom: -2,
+              padding: '0.5rem 1rem',
+              textDecoration: 'none',
+              borderBottom: isActive ? `2px solid ${isDark ? '#60a5fa' : '#2563eb'}` : '2px solid transparent',
+              color: isActive ? (isDark ? '#60a5fa' : '#2563eb') : (isDark ? '#94a3b8' : '#374151'),
+              fontWeight: isActive ? 600 : 400,
+              marginBottom: -2,
+              whiteSpace: 'nowrap',
             })}
           >
             {link.label}
@@ -39,8 +56,7 @@ export function IamPage() {
 
 export function UsersPage() {
   return (
-    <section aria-labelledby="users-section-heading">
-      <h2 id="users-section-heading" style={{ margin: '0 0 1rem', fontSize: '1.125rem' }}>Users</h2>
+    <section aria-label="Users management">
       <UserTable />
     </section>
   );
@@ -48,8 +64,7 @@ export function UsersPage() {
 
 export function RolesPage() {
   return (
-    <section aria-labelledby="roles-section-heading">
-      <h2 id="roles-section-heading" style={{ margin: '0 0 1rem', fontSize: '1.125rem' }}>Roles</h2>
+    <section aria-label="Roles management">
       <RoleTable />
     </section>
   );
@@ -57,8 +72,7 @@ export function RolesPage() {
 
 export function PermissionsPage() {
   return (
-    <section aria-labelledby="permissions-section-heading">
-      <h2 id="permissions-section-heading" style={{ margin: '0 0 1rem', fontSize: '1.125rem' }}>Permissions</h2>
+    <section aria-label="Permissions management">
       <PermissionTable />
     </section>
   );

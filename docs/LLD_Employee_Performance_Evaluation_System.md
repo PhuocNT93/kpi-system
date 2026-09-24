@@ -1,6 +1,6 @@
 # LLD — Employee Performance Evaluation Management System
 
-> **Trạng thái tài liệu:** v1.8 — bổ sung Automated Data Crawling (script-based connector cho BLUEPRINT/JIRA/GOOGLE_SHEET). Xem changelog cuối tài liệu.
+> **Trạng thái tài liệu:** v1.9 — hợp nhất `evaluation_data_import` làm bảng staging duy nhất cho cả CSV Import và Automated Data Crawling; chốt permission Crawl Script chỉ System Admin, không auto-apply. Xem changelog cuối tài liệu.
 > **18 tiêu chí hiện tại (Performance / Capability / Contribution) chỉ được coi là *seed data / sample configuration*.** Toàn bộ hệ thống được thiết kế theo hướng **Configurable, Rule-driven Evaluation Framework** — không hard-code criterion, weight, level, hay tool phụ thuộc vào application code.
 
 ---
@@ -96,7 +96,7 @@ Insight quan trọng rút ra từ dữ liệu mẫu để đưa vào rule engine
 - Score normalization giữa các team
 - **Notification nâng cao** — digest email tổng hợp hàng tuần, push notification mobile/app, SMS, rich HTML branding tùy chỉnh theo tổ chức (MVP chỉ gửi plain/simple HTML email theo sự kiện, xem mục 21.2)
 - **Auto-tạo evaluation hoàn toàn tự động khi đến due date** (MVP vẫn cần HR/Manager bấm xác nhận, xem mục 14.1)
-- **Crawl nâng cao** — tự động Apply không cần review thủ công (nếu sau này tổ chức tin tưởng đủ dữ liệu nguồn), thêm nguồn mới ngoài 3 loại ban đầu, UI kéo-thả xây script thay vì code tay (xem mục 15.1)
+- **Crawl nâng cao** — thêm nguồn mới ngoài 3 loại ban đầu, UI kéo-thả xây script thay vì code tay (xem mục 15.1). **Không** bao gồm auto-apply bỏ qua review — đã chốt vĩnh viễn giữ nguyên tắc review thủ công (mục 29 #19), không nằm trong roadmap kể cả Phase 2.
 - Git integration (chưa có connector ở MVP)
 - Goal tracking, performance trend, promotion recommendation
 
@@ -140,7 +140,7 @@ Permission matrix chi tiết ở mục 17.
 3. Template & Criteria Module — evaluation_template, criterion, criterion_version, rule config
 4. Evaluation Module          — evaluation_cycle, evaluation, evaluation_item, score, evidence
 5. Rule Engine Module         — pure calculation engine (stateless), input = measurement + rule config
-6. Import Module              — csv_template, import_job, import_row
+6. Import Module              — csv_template, evaluation_data_import, evaluation_data_import_row (hợp nhất CSV + Crawl, mục 15.1.1)
 7. Workflow Module            — state machine config, transition, approval
 8. Calibration Module         — comparison, adjustment, adjustment_reason
 9. Audit Module                — audit_log (write-once)
@@ -228,12 +228,12 @@ flowchart TB
 | Template & Criteria | CRUD criterion, version, override theo team/role, precedence resolution | Không tính score |
 | Rule Engine | Nhận measurement + rule config → trả level + raw score | Không biết criterion là gì (stateless, generic) |
 | Evaluation | Quản lý vòng đời evaluation/evaluation_item, gọi Rule Engine, snapshot | Không tự định nghĩa rule |
-| Import | Parse, validate, preview, ghi import_row, gọi Evaluation để tạo/cập nhật evaluation_item | Không tự ý thay đổi template |
+| Import | Parse, validate, preview, ghi evaluation_data_import_row, gọi Evaluation để tạo/cập nhật evaluation_item | Không tự ý thay đổi template |
 | Workflow | Quản lý state transition + permission theo state | Không tính điểm |
 | Calibration | So sánh, ghi adjustment, không tự động sửa score gốc mà tạo `final_score` riêng | — |
 | Audit | Ghi log bất biến cho mọi thay đổi có ý nghĩa nghiệp vụ | Không cho update/delete |
 | **Notification** *(mới)* | Nhận sự kiện từ Evaluation/Workflow/Import, ghi `notification_log` (outbox), render template theo locale, enqueue gửi SMTP bất đồng bộ | **Không** quyết định business logic (không tự ý thay đổi state); **không** chặn/rollback transaction chính nếu gửi email thất bại |
-| **Data Crawler** *(mới)* | Chạy `crawl_script` trong sandbox theo `crawl_job_definition`, ghi `evaluation_data_import`/`_row`, sinh `auto_generated_comment` | **Không** tự động Apply vào `evaluation_criterion` — luôn cần con người xác nhận `reviewer_comment` trước (mục 15.1.5); **không** cấp quyền filesystem/env cho script |
+| **Data Crawler** *(mới)* | Chạy `crawl_script` trong sandbox theo `crawl_job_definition`, ghi `evaluation_data_import`/`_row` (dùng chung bảng với CSV Import, mục 15.1.1), sinh `source_comment` | **Không** tự động Apply vào `evaluation_criterion` — luôn cần con người xác nhận `reviewer_comment` trước (mục 15.1.5); **không** cấp quyền filesystem/env cho script |
 
 ---
 
@@ -505,13 +505,7 @@ Unique: `(evaluation_cycle_id, employee_id)`.
 **csv_template_column**
 | csv_template_column_id uuid PK | csv_template_id FK | column_name varchar | data_type varchar(20) | required boolean | validation_rule jsonb | display_order int |
 
-**import_job**
-| import_job_id uuid PK | csv_template_id FK | evaluation_cycle_id FK | file_name varchar | file_hash varchar(64) — chống import trùng | status varchar(20) — UPLOADED/VALIDATING/PREVIEW/IMPORTING/COMPLETED/FAILED/PARTIALLY_COMPLETED | total_rows int | success_rows int | error_rows int | imported_by uuid | started_at timestamptz | finished_at timestamptz |
-
-Unique: `(evaluation_cycle_id, file_hash)` → chống import lại đúng file (giải quyết Q15).
-
-**import_row**
-| import_row_id uuid PK | import_job_id FK | row_no int | raw_data jsonb | status varchar(20) — VALID/INVALID/IMPORTED/SKIPPED | error_messages jsonb null | evaluation_item_id uuid null FK |
+> **✅ Đã hợp nhất (v1.9):** `import_job`/`import_row` **không còn tồn tại riêng** — mọi nguồn dữ liệu (CSV upload thủ công **và** crawl tự động BLUEPRINT/JIRA/GOOGLE_SHEET) giờ dùng chung 1 cặp bảng **`evaluation_data_import` / `evaluation_data_import_row`**, phân biệt bằng `source_system` (thêm giá trị `'CSV_UPLOAD'`). Schema đầy đủ xem mục 15.1.1 — đặt ở đó vì đó là nơi tính năng crawl được thiết kế đầy đủ nhất, nhưng bảng này phục vụ **cả 2 luồng**, không riêng crawl.
 
 ### 10.7 Audit
 
@@ -862,6 +856,8 @@ sequenceDiagram
 
 ## 15. CSV Import Design
 
+> **✅ Đã hợp nhất (v1.9):** bảng lưu trữ của luồng này giờ là **`evaluation_data_import`/`evaluation_data_import_row`** (định nghĩa đầy đủ ở mục 15.1.1, dùng chung với Automated Data Crawling), thay cho `import_job`/`import_row` ở bản trước. CSV upload dùng `source_system='CSV_UPLOAD'`, `crawl_job_definition_id=NULL` (vì không gắn với job đăng ký nào — người dùng chủ động upload).
+
 ### Đánh giá CSV template đề xuất trong prompt gốc
 Format gốc (`employee_id, employee_name, team, role, evaluation_cycle, criterion_code, measurement_value, measurement_unit, score, comment, evidence`) — đánh giá:
 - **Vấn đề:** mỗi dòng = 1 (employee × criterion), nghĩa là 1 employee với 18 criteria = 18 dòng lặp lại `employee_id/name/team/role/cycle` → dư thừa, dễ nhập sai lệch giữa các dòng của cùng 1 employee (vd đổi team ở dòng 5 nhưng quên đổi ở dòng 6).
@@ -872,10 +868,11 @@ employee_id,evaluation_cycle_code,criterion_code,measurement_value,measurement_u
 ```
 - `score_override`: optional — nếu HR muốn nhập thẳng score đã biết (bỏ qua Rule Engine), phải có `comment` giải thích lý do (validate ở bước import).
 - **Lý do giữ format long thay vì wide (1 dòng/employee, mỗi criterion 1 cột):** wide format dễ đọc bằng mắt nhưng cực khó validate & versioning (mỗi khi thêm criterion phải đổi schema CSV), vi phạm chính nguyên tắc "criteria không cố định" của toàn bộ hệ thống.
+- **Khác biệt với luồng crawl (mục 15.1.5):** CSV do con người trực tiếp điền `comment` tại thời điểm upload — Rule E1 (comment bắt buộc ≥20 ký tự) validate **ngay ở bước Validate**, nên **không cần** bước `PENDING_REVIEW` riêng như dữ liệu crawl. Nếu `comment` hợp lệ, hệ thống copy thẳng vào `reviewer_comment` (người upload chính là người xác nhận giải thích, không cần thêm 1 bước review riêng).
 
 ### CSV Template Versioning
 - `csv_template` + `csv_template_column` (mục 10.6) — version tăng dần, có `effective_from`.
-- Backward compatibility: import job ghi nhận `csv_template_id` được dùng; nếu HR upload file theo V1 (thiếu cột `evidence_url` — optional ở V1), hệ thống vẫn chấp nhận nếu cột đó `required=false` trong version đó. **Không cho phép** dùng V1 nếu cột bị đổi kiểu dữ liệu không tương thích ở V2 (semantic breaking change) — trường hợp này bắt buộc dùng V2.
+- Backward compatibility: `evaluation_data_import` ghi nhận `csv_template_id` được dùng; nếu HR upload file theo V1 (thiếu cột `evidence_url` — optional ở V1), hệ thống vẫn chấp nhận nếu cột đó `required=false` trong version đó. **Không cho phép** dùng V1 nếu cột bị đổi kiểu dữ liệu không tương thích ở V2 (semantic breaking change) — trường hợp này bắt buộc dùng V2.
 
 ### Sequence
 ```mermaid
@@ -890,16 +887,16 @@ sequenceDiagram
 
     Admin->>UI: Download CSV template (theo cycle đang chọn)
     Admin->>UI: Upload file đã điền
-    UI->>ImportAPI: POST /imports/csv (file, cycle_id)
-    ImportAPI->>DB: tạo import_job (status=UPLOADED), check file_hash duplicate
-    ImportAPI->>Validator: parse + validate từng dòng
-    Validator->>DB: ghi import_row (status VALID/INVALID + error_messages)
+    UI->>ImportAPI: POST /data-imports/csv (file, cycle_id)
+    ImportAPI->>DB: tạo evaluation_data_import (source_system=CSV_UPLOAD, status=DRAFT), check (evaluation_cycle_id, source_system, batch_reference=file_hash) duplicate
+    ImportAPI->>Validator: parse + validate từng dòng (bao gồm validate comment ≥20 ký tự — Rule E1)
+    Validator->>DB: ghi evaluation_data_import_row (status PARSED/INVALID + error_messages, reviewer_comment = comment copy thẳng từ CSV nếu hợp lệ)
     ImportAPI-->>UI: trả preview (total, valid, invalid, sample errors theo từng row)
     Admin->>UI: xem chi tiết lỗi, sửa file, upload lại (nếu cần) hoặc Confirm import phần hợp lệ
-    UI->>ImportAPI: POST /imports/{id}/confirm
+    UI->>ImportAPI: POST /data-imports/{id}/confirm
     ImportAPI->>Queue: enqueue job xử lý bất đồng bộ (nếu file lớn)
-    Queue->>RuleEngine: với mỗi valid row, tạo/cập nhật evaluation_item + tính score
-    Queue->>DB: cập nhật import_row.status=IMPORTED, import_job summary
+    Queue->>RuleEngine: với mỗi row hợp lệ đã có reviewer_comment, tạo/cập nhật evaluation_item + tính score
+    Queue->>DB: cập nhật evaluation_data_import_row.status=APPLIED, evaluation_data_import summary (success_count/error_count/conflict_count)
     Queue-->>UI: (qua polling/API) trả import summary + import history
 ```
 
@@ -910,7 +907,7 @@ sequenceDiagram
 - Tùy chọn All-or-nothing: cờ `strict_mode=true` khi confirm import — nếu có bất kỳ dòng invalid nào, không import gì cả (dùng cho các batch quan trọng như batch cuối trước khi lock cycle).
 
 ### Chống duplicate import
-- `import_job` unique theo `(evaluation_cycle_id, file_hash)` — file giống hệt bị từ chối với thông báo rõ.
+- `evaluation_data_import` unique theo `(evaluation_cycle_id, source_system, batch_reference)` — với CSV, `batch_reference` = file_hash; file giống hệt bị từ chối với thông báo rõ.
 - Ở mức row: nếu `(employee_id, criterion_code)` đã có `evaluation_item` với `status != DRAFT` (đã submit) → **row đó là UPDATE có điều kiện**, chỉ cho phép nếu evaluation đang ở state cho phép sửa (`DRAFT`/`IN_PROGRESS`/`MANAGER_ASSESSMENT`), ngược lại → `INVALID: "Evaluation đã submit, không thể import đè"`.
 
 ---
@@ -921,21 +918,36 @@ sequenceDiagram
 >
 > ⚠️ **Đây là tính năng rủi ro bảo mật cao nhất trong toàn bộ hệ thống** — quản lý JavaScript nghĩa là **thực thi code tùy ý (arbitrary code execution)**. Toàn bộ thiết kế dưới đây xoay quanh việc giảm thiểu rủi ro này (sandbox, whitelist mạng, giới hạn permission), không phải chỉ làm cho chạy được.
 
-### 15.1.1 Đối chiếu với bảng `evaluation_data_import` đã có
+### 15.1.1 Bảng hợp nhất `evaluation_data_import` — ✅ dùng chung cho CSV thủ công VÀ crawl tự động (v1.9)
 
-Bảng `evaluation_data_import` (đã tồn tại, theo schema bạn cung cấp) đóng vai trò **batch header** cho 1 lần crawl — tương tự `import_job` (mục 10.6) nhưng dành riêng cho nguồn tự động thay vì CSV upload thủ công. Để hỗ trợ tính năng "theo từng KPI", cần **bổ sung** (không đổi cột đã có):
+> **Quyết định (đã chốt):** `evaluation_data_import` là **bảng staging DUY NHẤT** cho mọi nguồn dữ liệu đưa vào evaluation — CSV upload thủ công (mục 15) **và** crawl tự động (mục này). `import_job`/`import_row` cũ (mục 10.6 bản trước) **đã bị loại bỏ hoàn toàn**, không còn song song 2 bảng.
+>
+> **Why hợp nhất:** 1 nguồn sự thật duy nhất cho "Import History" (Admin không phải tra 2 màn hình khác nhau tùy nguồn dữ liệu); tái dùng chung logic validate/partial-import/audit; dễ mở rộng thêm nguồn mới sau này (chỉ thêm giá trị `source_system`, không tạo bảng mới).
+> **Trade-off đã chấp nhận:** bảng này giờ phải cõng 2 luồng có semantics hơi khác nhau (CSV có comment sẵn từ con người; crawl cần thêm bước review) — giải quyết bằng cách tách rõ 2 cột `source_comment` (được cung cấp/tự sinh tại nguồn) và `reviewer_comment` (xác nhận cuối, bắt buộc trước Apply) áp dụng thống nhất cho cả 2 luồng, chỉ khác **ai/khi nào** điền `reviewer_comment` (xem 15.1.5).
 
 ```sql
 ALTER TABLE evaluation_data_import
-  ADD COLUMN crawl_job_definition_id UUID NOT NULL REFERENCES crawl_job_definition(crawl_job_definition_id),
-  ADD COLUMN evaluation_cycle_id UUID NOT NULL REFERENCES evaluation_cycle(evaluation_cycle_id);
+  ADD COLUMN evaluation_cycle_id UUID NOT NULL REFERENCES evaluation_cycle(evaluation_cycle_id),
+  ADD COLUMN crawl_job_definition_id UUID NULL REFERENCES crawl_job_definition(crawl_job_definition_id),
+  -- NULL khi source_system='CSV_UPLOAD' (không gắn job đăng ký nào); NOT NULL bắt buộc khi là 1 trong 3 nguồn crawl
+  ADD COLUMN csv_template_id UUID NULL REFERENCES csv_template(csv_template_id),
+  -- chỉ set khi source_system='CSV_UPLOAD'
+  ADD CONSTRAINT chk_source_reference CHECK (
+    (source_system = 'CSV_UPLOAD' AND csv_template_id IS NOT NULL AND crawl_job_definition_id IS NULL)
+    OR (source_system IN ('BLUEPRINT','JIRA','GOOGLE_SHEET') AND crawl_job_definition_id IS NOT NULL AND csv_template_id IS NULL)
+  );
+
+-- source_system giờ có 4 giá trị: 'CSV_UPLOAD' | 'BLUEPRINT' | 'JIRA' | 'GOOGLE_SHEET'
+-- batch_reference (cột đã có) dùng lại làm khóa chống trùng:
+--   = file_hash khi CSV_UPLOAD, = execution timestamp/uuid khi crawl tự động
+ALTER TABLE evaluation_data_import
+  ADD CONSTRAINT uq_import_dedup UNIQUE (evaluation_cycle_id, source_system, batch_reference);
+
+-- status mở rộng đủ cho cả 2 luồng
+-- ENUM: DRAFT / VALIDATING / PREVIEW / PENDING_REVIEW / IMPORTING / APPLIED / PARTIALLY_APPLIED / FAILED
 ```
 
-> **Quyết định:** giữ `evaluation_data_import` là bảng **riêng** cho nguồn tự động (`source_system IN ('BLUEPRINT','JIRA','GOOGLE_SHEET')`), **không** hợp nhất với `import_job` (nguồn CSV thủ công) ở lần cập nhật này — tránh refactor ngoài phạm vi yêu cầu. Đánh dấu **Open Question** (mục 30) nếu muốn hợp nhất 2 bảng này trong tương lai (`source_system` có thể mở rộng thêm `'CSV_UPLOAD'` để dùng chung 1 bảng).
-
-Cần thêm 1 bảng con lưu chi tiết từng dòng dữ liệu crawl được (tương tự `import_row`, mục 10.6) — `raw_payload` trên bảng cha giữ nguyên bản dữ liệu thô 100% (phục vụ audit/debug "hệ thống đã lấy được gì"), còn bảng con lưu trạng thái xử lý **từng dòng**:
-
-**evaluation_data_import_row** *(mới)*
+**evaluation_data_import_row** *(mới — thay thế `import_row` cũ, dùng chung cho cả 2 luồng)*
 | Column | Type | Null | Note |
 |---|---|---|---|
 | evaluation_data_import_row_id | uuid | N | PK |
@@ -945,14 +957,23 @@ Cần thêm 1 bảng con lưu chi tiết từng dòng dữ liệu crawl được
 | parsed_criterion_code | varchar | Y | |
 | parsed_measurement_value | numeric | Y | |
 | parsed_measurement_unit | varchar | Y | |
-| auto_generated_comment | text | Y | **xem mục 15.1.5** — comment do script tự sinh, chưa phải giải thích cuối cùng |
-| reviewer_comment | text | Y | comment do con người bổ sung/xác nhận trước khi Apply — **bắt buộc trước khi APPLIED** |
+| **source_comment** | text | Y | **Đổi tên từ `auto_generated_comment`** — với CSV: chính là `comment` con người gõ trong file; với crawl: ghi chú script tự sinh (mục 15.1.5) |
+| reviewer_comment | text | Y | comment xác nhận cuối — **bắt buộc ≥20 ký tự trước khi APPLIED** (Rule E1). Với CSV hợp lệ: hệ thống **copy thẳng** từ `source_comment` lúc Validate (người upload = người xác nhận, không cần thêm thao tác). Với crawl: để trống tới khi Manager/HR tự nhập ở bước Review. |
 | status | varchar(20) | N | ENUM `PARSED` / `INVALID` / `CONFLICT` / `PENDING_REVIEW` / `APPLIED` / `SKIPPED` |
 | error_message | text | Y | |
-| reviewed_by | uuid | Y | FK employee — ai xác nhận comment |
+| reviewed_by | uuid | Y | FK employee — ai xác nhận `reviewer_comment` (với CSV = chính `created_by` của batch, tự động điền) |
 | reviewed_at | timestamptz | Y | |
 
 Index: `(import_id, status)`.
+
+**Phân biệt hành vi theo `source_system`** (cùng 1 schema, khác luồng xử lý ở tầng Service):
+
+| | CSV_UPLOAD | BLUEPRINT / JIRA / GOOGLE_SHEET |
+|---|---|---|
+| Ai tạo batch | HR/Admin chủ động upload | Scheduler (cron) hoặc HR/Admin trigger thủ công |
+| `reviewer_comment` điền lúc nào | Ngay lúc Validate (copy từ `source_comment` nếu ≥20 ký tự) | Bắt buộc con người nhập riêng ở bước Review (mục 15.1.5) |
+| Có dừng ở `PENDING_REVIEW` không | Không (nếu comment hợp lệ, đi thẳng validate→confirm→apply) | **Luôn luôn có** (Rule 21) |
+| `batch_reference` là gì | `file_hash` (SHA-256 nội dung file) | execution identifier (timestamp/uuid của lần chạy job) |
 
 ### 15.1.2 Quản lý JavaScript — versioning (tái sử dụng pattern Criterion/Template)
 
@@ -1022,7 +1043,7 @@ sequenceDiagram
         Sandbox-->>Queue: trả về mảng record đã chuẩn hóa (employee_code, criterion_code, measurement_value, measurement_unit)
         Queue->>DB: lưu raw_payload (nguyên văn), status=VALIDATING
         Queue->>DB: parse từng record → insert evaluation_data_import_row (PARSED/INVALID/CONFLICT)
-        Queue->>DB: sinh auto_generated_comment cho mỗi row (mục 15.1.5)
+        Queue->>DB: sinh source_comment cho mỗi row (mục 15.1.5)
         Queue->>DB: evaluation_data_import.status=PENDING_REVIEW, cập nhật record_count/success_count/error_count/conflict_count
     end
     Note over DB: Job kế tiếp trong queue chỉ bắt đầu sau khi job này ghi xong PENDING_REVIEW/FAILED
@@ -1035,7 +1056,7 @@ Sau đó luồng **review & apply do con người thực hiện** (không tự �
 Yêu cầu trước đó (`Import_Center_Feature_Definition.md`, Rule E1) bắt buộc **mọi** điểm số phải có `comment` giải thích ≥20 ký tự do con người viết. Dữ liệu crawl tự động **không có sẵn** giải thích định tính này (Jira/Google Sheet chỉ trả về con số thô).
 
 **Quyết định giải quyết:**
-1. Script **được phép** tự sinh `auto_generated_comment` theo template (vd `"Tự động crawl từ Jira lúc {timestamp}: {value} {unit} — nguồn: {jql_query}"`) — đây **chưa** được coi là giải thích hợp lệ, chỉ là ghi chú nguồn gốc dữ liệu.
+1. Script **được phép** tự sinh `source_comment` theo template (vd `"Tự động crawl từ Jira lúc {timestamp}: {value} {unit} — nguồn: {jql_query}"`) — đây **chưa** được coi là giải thích hợp lệ, chỉ là ghi chú nguồn gốc dữ liệu.
 2. `evaluation_data_import_row.status` dừng ở **`PENDING_REVIEW`** — **không** tự động chuyển thành điểm chính thức (`evaluation_criterion`).
 3. Manager/HR **bắt buộc** mở màn hình "Review Crawled Data" (mục 15.1.9), xem từng row, và **phải nhập `reviewer_comment`** (áp dụng đúng validate ≥20 ký tự như Rule E1) trước khi bấm "Apply" — lúc này mới ghi vào `evaluation_criterion` thật.
 4. Chỉ sau bước 3, `status` mới chuyển `APPLIED`.
@@ -1092,7 +1113,7 @@ Yêu cầu trước đó (`Import_Center_Feature_Definition.md`, Rule E1) bắt 
 
 ### 15.1.10 Business rules bổ sung
 - **Rule 20:** `crawl_job_definition.crawl_script_id` chỉ được trỏ tới script ở trạng thái `PUBLISHED` — không cho gán script `DRAFT` vào job thật (tránh chạy code chưa review xong).
-- **Rule 21:** Row ở `evaluation_data_import_row` **không được** Apply nếu thiếu `reviewer_comment` (validate ≥20 ký tự, đồng nhất Rule E1 của Import Center) — kể cả khi `auto_generated_comment` đã có sẵn.
+- **Rule 21:** Row ở `evaluation_data_import_row` **không được** Apply nếu thiếu `reviewer_comment` (validate ≥20 ký tự, đồng nhất Rule E1 của Import Center) — kể cả khi `source_comment` đã có sẵn. **Ngoại lệ duy nhất:** CSV_UPLOAD với `source_comment` đã đạt chuẩn Rule E1 được tự động copy sang `reviewer_comment` lúc Validate (mục 15.1.1) — đây không phải bỏ qua rule, mà là người upload đã đóng vai trò reviewer ngay từ đầu.
 - **Rule 22:** Nếu criterion_code parse được từ payload **khác** với `crawl_job_definition.criterion_id` đã đăng ký → đánh dấu `INVALID`, không cho Apply — chặn trường hợp script lỗi/bị sửa sai vô tình ghi nhầm dữ liệu sang criterion khác.
 - **Rule 23:** Timeout hoặc lỗi runtime trong sandbox → `evaluation_data_import.status=FAILED`, ghi `error_message`, **không** làm crash worker/queue — job tiếp theo trong hàng đợi vẫn chạy bình thường.
 - **Rule 24:** Xóa/deactivate 1 `connector_credential` đang được `crawl_job_definition` active sử dụng → cảnh báo trước, không cho xóa cứng (soft-delete + chặn job liên quan tự động `active=false`).
@@ -1101,7 +1122,7 @@ Yêu cầu trước đó (`Import_Center_Feature_Definition.md`, Rule E1) bắt 
 
 
 
-> Chuẩn chung: JWT Bearer auth, mọi response lỗi theo format thống nhất (mục 21.12), idempotency-key header cho POST tạo mới quan trọng (`/imports/csv`, `/evaluations`).
+> Chuẩn chung: JWT Bearer auth, mọi response lỗi theo format thống nhất (mục 21.12), idempotency-key header cho POST tạo mới quan trọng (`/data-imports/csv`, `/evaluations`).
 
 ### Employee & Organization
 | Method | Endpoint | Auth | Note |
@@ -1161,15 +1182,15 @@ Yêu cầu trước đó (`Import_Center_Feature_Definition.md`, Rule E1) bắt 
 | GET | `/reviews/due` | HR/Admin, Manager (scope team) | dashboard due/overdue/upcoming |
 | POST | `/evaluation-cycles/individual` | HR/Admin, Manager (team mình) | tạo evaluation riêng cho 1+ employee đang due |
 
-### CSV Import
-| Method | Endpoint | Auth |
-|---|---|---|
-| GET | `/csv-templates/{cycleId}/download` | HR/Admin |
-| POST | `/imports/csv` | HR/Admin | multipart upload, trả `import_job.id` |
-| GET | `/imports/{id}/preview` | HR/Admin | danh sách row + lỗi |
-| POST | `/imports/{id}/confirm` | HR/Admin | body: `{ strict_mode: boolean }` |
-| GET | `/imports/{id}` | HR/Admin | status/summary |
-| GET | `/imports` | HR/Admin | import history, filter theo cycle |
+### Data Import (✅ hợp nhất v1.9 — dùng chung cho CSV thủ công và Crawl tự động, xem mục 15.1.1)
+| Method | Endpoint | Auth | Note |
+|---|---|---|---|
+| GET | `/csv-templates/{cycleId}/download` | HR/Admin | |
+| POST | `/data-imports/csv` | HR/Admin | multipart upload, tạo `evaluation_data_import` (source_system=CSV_UPLOAD), trả `import_id` |
+| GET | `/data-imports/{id}/preview` | HR/Admin | danh sách row + lỗi |
+| POST | `/data-imports/{id}/confirm` | HR/Admin | body: `{ strict_mode: boolean }` |
+| GET | `/data-imports/{id}` | HR/Admin | status/summary |
+| GET | `/data-imports` | HR/Admin | import history **hợp nhất**, filter theo `source_system` (CSV_UPLOAD/BLUEPRINT/JIRA/GOOGLE_SHEET) và cycle |
 
 ### Reporting & Audit
 | Method | Endpoint | Auth |
@@ -1400,7 +1421,7 @@ sequenceDiagram
 - **Data isolation:** mọi query có scope filter bắt buộc theo JWT claims (`employee_id`, `managed_team_ids`).
 - **Encryption:** at-rest (DB-level encryption), in-transit (TLS 1.2+).
 - **PII protection:** email/full_name là PII — mask trong log ngoài audit_log chính thức; export report cá nhân ghi audit.
-- **Rate limiting** cho `/imports/csv`, `/reports/*`, và `/auth/google/callback` (chống brute-force/abuse endpoint auth) để tránh abuse.
+- **Rate limiting** cho `/data-imports/*`, `/reports/*`, và `/auth/google/callback` (chống brute-force/abuse endpoint auth) để tránh abuse.
 
 ---
 
@@ -1628,7 +1649,7 @@ Unique: `(user_account_id, notification_type)`.
 ## 22. Performance & Scalability
 
 - **Quy mô (✅ đã HR/Product xác nhận):** ~1,000 employees, ~50 concurrent users giờ cao điểm, CSV import tối đa ~5,000 rows/file. Ở quy mô này, materialized view refresh theo batch (mục 19) và cache Redis TTL 15 phút là đủ dùng — **không cần** tối ưu sớm (premature optimization) cho scale >5,000 employee.
-- CSV import >500 rows → xử lý **bất đồng bộ qua job queue**, trả `import_job.id` ngay, client poll status — tránh timeout HTTP.
+- CSV import >500 rows → xử lý **bất đồng bộ qua job queue**, trả `import_id` ngay, client poll status — tránh timeout HTTP.
 - Report query dùng materialized view + cache (Redis) TTL ngắn (~15 phút) cho dashboard tổng hợp.
 - Batch tính score khi import dùng bulk insert/transaction theo batch 100-200 rows, tránh 1 transaction khổng lồ.
 
@@ -1667,7 +1688,7 @@ Chuẩn hóa response lỗi:
 |---|---|
 | Concurrent evaluation update (2 tab cùng sửa 1 evaluation_item) | **Optimistic locking** — cột `version int` trên `evaluation_item`, so khớp khi UPDATE, trả `409 CONFLICT` nếu mismatch |
 | Concurrent approval (2 người cùng approve) | Transition state machine kiểm tra `status` hiện tại trong cùng transaction (SELECT FOR UPDATE) trước khi chuyển state |
-| Duplicate CSV import | Unique `(evaluation_cycle_id, file_hash)` + check ở `import_row` level như mục 15 |
+| Duplicate CSV import | Unique `(evaluation_cycle_id, source_system, batch_reference)` + check ở `evaluation_data_import_row` level như mục 15 |
 | Double submit | Idempotency-key header cho `POST /evaluations/{id}/submit`; hoặc kiểm tra `status` hiện tại (nếu đã SUBMITTED thì trả 409, không tạo hành động trùng) |
 | Lock cycle giữa lúc đang có transaction ghi | `evaluation_cycle.status` transition dùng row lock; mọi API ghi evaluation kiểm tra `cycle.status NOT IN (LOCKED)` trong cùng transaction trước khi commit |
 
@@ -1801,9 +1822,9 @@ flowchart LR
 15. ~~Ngoài EN/VI, tổ chức có kế hoạch mở rộng thêm ngôn ngữ khác trong 1-2 năm tới không?~~ **✅ Đã chốt: Có** — đã đổi kiến trúc sang bảng `i18n_translation` generic (mục 21.1) để sẵn sàng mở rộng mà không cần `ALTER TABLE` mỗi lần thêm ngôn ngữ.
 16. ~~User có được phép tắt hoàn toàn tất cả notification (kể cả RESULT_PUBLISHED) không?~~ **✅ Đã chốt: Không** — giữ tối thiểu loại `RESULT_PUBLISHED` bắt buộc, chặn cứng ở tầng API (mục 21.2, Rule 17).
 17. ~~Thời gian retention cho `notification_log` là bao lâu?~~ **✅ Đã chốt: 1 năm**, purge hẳn bằng job riêng (mục 21.2, Rule 19).
-18. **[MỚI] Ai được phép viết/sửa Crawl Script — chỉ System Admin, hay có thể nới cho HR/Admin có kỹ thuật?** — ✅ đề xuất mặc định: **chỉ System Admin** (mục 15.1.6), do rủi ro code execution — cần lãnh đạo kỹ thuật xác nhận nếu muốn nới lỏng (không khuyến khích).
-19. **[MỚI] Dữ liệu crawl có bắt buộc luôn qua review thủ công (không auto-apply), hay có thể bật auto-apply cho nguồn đã tin tưởng sau 1 thời gian vận hành ổn định?** — ✅ đề xuất MVP: luôn bắt buộc review thủ công (mục 15.1.5); auto-apply để Phase 2, cần Product Owner xác nhận tiêu chí "đủ tin tưởng" là gì.
-20. **[MỚI] `evaluation_data_import` có nên hợp nhất với `import_job` (CSV thủ công) thành 1 bảng chung trong tương lai không?** — ảnh hưởng độ phức tạp Reporting/Import History (hiện tại 2 nguồn nằm 2 bảng riêng, mục 15.1.1).
+18. ~~Ai được phép viết/sửa Crawl Script — chỉ System Admin, hay có thể nới cho HR/Admin có kỹ thuật?~~ **✅ Đã chốt: chỉ System Admin**, không nới lỏng (mục 15.1.6).
+19. ~~Dữ liệu crawl có bắt buộc luôn qua review thủ công (không auto-apply), hay có thể bật auto-apply cho nguồn đã tin tưởng sau 1 thời gian vận hành ổn định?~~ **✅ Đã chốt: luôn bắt buộc review thủ công**, kể cả về lâu dài — **không có kế hoạch bật auto-apply** (đã loại bỏ khỏi Phase 2, mục 5).
+20. ~~`evaluation_data_import` có nên hợp nhất với `import_job` (CSV thủ công) thành 1 bảng chung trong tương lai không?~~ **✅ Đã chốt: Có, hợp nhất ngay ở v1.9** — `import_job`/`import_row` đã bị loại bỏ, dùng chung `evaluation_data_import`/`evaluation_data_import_row` cho cả CSV và Crawl (mục 15.1.1).
 
 ---
 
@@ -1829,9 +1850,9 @@ flowchart LR
 | 16 | Có kế hoạch mở rộng >2 ngôn ngữ trong tương lai gần không? | **✅ Đã chốt: Có** — kiến trúc đã đổi sang `i18n_translation` generic | Product Owner |
 | 17 | User có được tắt hoàn toàn mọi notification (kể cả RESULT_PUBLISHED)? | **✅ Đã chốt: Không** — giữ tối thiểu `RESULT_PUBLISHED` bắt buộc | HR |
 | 18 | Retention `notification_log` bao lâu? | **✅ Đã chốt: 1 năm**, purge hẳn (không cần cold storage) | Compliance/HR |
-| 19 | **[MỚI]** Ai được viết/sửa Crawl Script? | Đề xuất tạm: chỉ System Admin | Tech Lead |
-| 20 | **[MỚI]** Dữ liệu crawl có luôn cần review thủ công không, hay cho auto-apply sau này? | Đề xuất tạm: luôn review thủ công ở MVP | Product Owner |
-| 21 | **[MỚI]** Hợp nhất `evaluation_data_import` với `import_job` trong tương lai? | Đề xuất tạm: chưa hợp nhất, giữ 2 bảng riêng ở MVP | Tech Lead |
+| 19 | Ai được viết/sửa Crawl Script? | **✅ Đã chốt: chỉ System Admin** | Tech Lead |
+| 20 | Dữ liệu crawl có luôn cần review thủ công không, hay cho auto-apply sau này? | **✅ Đã chốt: luôn cần review thủ công**, không có kế hoạch auto-apply | Product Owner |
+| 21 | Hợp nhất `evaluation_data_import` với `import_job` trong tương lai? | **✅ Đã chốt: Có** — đã hợp nhất ngay ở v1.9, `import_job`/`import_row` bị loại bỏ | Tech Lead |
 
 ---
 
@@ -1971,4 +1992,20 @@ Security review, performance test (import lớn, concurrent), UAT với 18 KPI m
 
 ---
 
-*Hết tài liệu — v1.8.*
+## Changelog v1.8 → v1.9
+
+| # | Thay đổi | Vị trí |
+|---|---|---|
+| 15 | **[HỢP NHẤT] `import_job`/`import_row` bị loại bỏ hoàn toàn** — thay bằng `evaluation_data_import`/`evaluation_data_import_row` dùng chung cho cả CSV Import thủ công **và** Automated Data Crawling, phân biệt bằng `source_system` (thêm `'CSV_UPLOAD'`) | Mục 9 (ERD — không đổi vì đã tham chiếu tên mới từ v1.8), 10.6 (xóa schema cũ, trỏ sang 15.1.1), 15 (CSV Import Design — sequence diagram + dedup logic dùng bảng mới), **15.1.1 (viết lại — schema hợp nhất, bảng so sánh hành vi CSV vs Crawl)**, 16 (API đổi `/imports/csv` → `/data-imports/csv`), 21 (rate limiting), 22 (Performance), 26 (Concurrency) |
+| 16 | **✅ Chốt vĩnh viễn: chỉ System Admin được viết/sửa Crawl Script**, không nới lỏng cho HR/Admin | Mục 29 (#18), 30 (#19) |
+| 17 | **✅ Chốt vĩnh viễn: không có auto-apply** dữ liệu crawl — luôn bắt buộc con người review + nhập `reviewer_comment` trước Apply, kể cả về lâu dài (loại bỏ khỏi Phase 2 roadmap) | Mục 5 (Phase 2 — xóa mục auto-apply), 29 (#19), 30 (#20) |
+
+**Thiết kế cốt lõi sau khi hợp nhất (tóm tắt):**
+- **1 bảng staging duy nhất** cho toàn hệ thống — `evaluation_data_import`/`evaluation_data_import_row`. Phân biệt nguồn bằng `source_system` (CSV_UPLOAD/BLUEPRINT/JIRA/GOOGLE_SHEET), constraint CHECK đảm bảo đúng 1 trong 2 FK (`csv_template_id` hoặc `crawl_job_definition_id`) được set tùy nguồn.
+- **`batch_reference` dùng lại cho cả 2 mục đích** (file_hash cho CSV, execution ID cho crawl) — tránh thêm cột dư thừa.
+- **Tách `source_comment` (tại nguồn) và `reviewer_comment` (xác nhận cuối)** — áp dụng thống nhất cho cả 2 luồng, chỉ khác *ai/khi nào* điền `reviewer_comment`: CSV được tự động copy từ `source_comment` lúc Validate (người upload = người giải thích), Crawl bắt buộc con người nhập riêng ở bước Review (giữ nguyên tinh thần Rule E1 không bị pha loãng).
+- **2 quyết định về Crawl Script giờ là vĩnh viễn, không còn "đề xuất tạm cho MVP"**: chỉ System Admin viết script; không bao giờ auto-apply. Cả 2 đã được loại khỏi danh sách "Open Question" và Phase 2 roadmap.
+
+---
+
+*Hết tài liệu — v1.9.*

@@ -26,23 +26,35 @@ export class EvaluationController {
     }
   }
 
-  getMyEvaluations = async (req: Request, res: Response): Promise<void> => {
-    const actor = this.getActor(req);
-    const evaluations = await this.evaluationService.getMyEvaluations(actor);
-    sendSuccess(res, 200, 'My evaluations retrieved successfully.', evaluations);
+  getMyEvaluations = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const actor = this.getActor(req);
+      const evaluations = await this.evaluationService.getMyEvaluations(actor);
+      sendSuccess(res, 200, 'My evaluations retrieved successfully.', evaluations);
+    } catch (err) {
+      next(err);
+    }
   };
 
-  getTeamEvaluations = async (req: Request, res: Response): Promise<void> => {
-    const actor = this.getActor(req);
-    const evaluations = await this.evaluationService.getTeamEvaluations(actor);
-    sendSuccess(res, 200, 'Team evaluations retrieved successfully.', evaluations);
+  getTeamEvaluations = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const actor = this.getActor(req);
+      const evaluations = await this.evaluationService.getTeamEvaluations(actor);
+      sendSuccess(res, 200, 'Team evaluations retrieved successfully.', evaluations);
+    } catch (err) {
+      next(err);
+    }
   };
 
-  getEvaluationDetail = async (req: Request, res: Response): Promise<void> => {
-    const actor = this.getActor(req);
-    const id = req.params.id as string;
-    const detail = await this.evaluationService.getEvaluationDetail(id, actor);
-    sendSuccess(res, 200, 'Evaluation detail retrieved successfully.', detail);
+  getEvaluationDetail = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const actor = this.getActor(req);
+      const id = req.params.id as string;
+      const detail = await this.evaluationService.getEvaluationDetail(id, actor);
+      sendSuccess(res, 200, 'Evaluation detail retrieved successfully.', detail);
+    } catch (err) {
+      next(err);
+    }
   };
 
   saveDraft = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -208,11 +220,15 @@ export class EvaluationController {
     }
   };
 
-  getKpiEvidence = async (req: Request, res: Response): Promise<void> => {
-    const actor = this.getActor(req);
-    const id = req.params.id as string;
-    const code = req.params.code as string;
-    const result = await this.evaluationService.getKpiExplainability(id, code, actor);
-    sendSuccess(res, 200, 'KPI evidence and explainability retrieved successfully.', result);
+  getKpiEvidence = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const actor = this.getActor(req);
+      const id = req.params.id as string;
+      const code = req.params.code as string;
+      const result = await this.evaluationService.getKpiExplainability(id, code, actor);
+      sendSuccess(res, 200, 'KPI evidence and explainability retrieved successfully.', result);
+    } catch (err) {
+      next(err);
+    }
   };
 }

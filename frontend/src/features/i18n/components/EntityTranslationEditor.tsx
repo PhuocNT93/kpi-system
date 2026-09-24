@@ -14,6 +14,8 @@ import {
 import { Button } from '@/shared/ui/Button/Button';
 import { LoadingSpinner, ErrorAlert } from '@/shared/components/ui';
 import { MASTER_ENTITY_TYPES } from './entity-translation-constants';
+import { useTheme } from '@/shared/theme';
+import { useUiTranslation } from '@/shared/i18n/ui-i18n';
 
 
 interface Props {
@@ -25,6 +27,8 @@ export const EntityTranslationEditor: React.FC<Props> = ({
   initialEntityType = 'DEPARTMENT',
   initialEntityId = '',
 }) => {
+  const { isDark } = useTheme();
+  const { t } = useUiTranslation();
   const [searchMode, setSearchMode] = useState<'GLOBAL' | 'CATEGORY'>('GLOBAL');
   const [globalSearchTerm, setGlobalSearchTerm] = useState('');
   const [entityType, setEntityType] = useState(initialEntityType);
@@ -262,30 +266,32 @@ export const EntityTranslationEditor: React.FC<Props> = ({
   return (
     <div
       style={{
-        background: '#ffffff',
+        background: isDark ? '#111827' : '#ffffff',
         borderRadius: 8,
-        border: '1px solid #e2e8f0',
+        border: `1px solid ${isDark ? '#1f2937' : '#e2e8f0'}`,
         padding: '1.25rem',
         boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
         display: 'flex',
         flexDirection: 'column',
         gap: '1.25rem',
+        width: '100%',
+        boxSizing: 'border-box',
       }}
     >
       {/* Entity Selection Panel */}
       <div
         style={{
-          background: '#f8fafc',
+          background: isDark ? '#1e293b' : '#f8fafc',
           borderRadius: 6,
           padding: '1rem',
-          border: '1px solid #cbd5e1',
+          border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
           display: 'flex',
           flexDirection: 'column',
           gap: '1rem',
         }}
       >
         {/* Search Mode Toggle Tabs */}
-        <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: 8, borderBottom: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, paddingBottom: '0.5rem', overflowX: 'auto' }}>
           <button
             type="button"
             onClick={() => {
@@ -297,14 +303,15 @@ export const EntityTranslationEditor: React.FC<Props> = ({
               borderRadius: '6px 6px 0 0',
               border: '1px solid',
               borderColor: searchMode === 'GLOBAL' ? '#3b82f6' : 'transparent',
-              background: searchMode === 'GLOBAL' ? '#fff' : 'transparent',
-              color: searchMode === 'GLOBAL' ? '#1d4ed8' : '#64748b',
+              background: searchMode === 'GLOBAL' ? (isDark ? '#111827' : '#fff') : 'transparent',
+              color: searchMode === 'GLOBAL' ? (isDark ? '#60a5fa' : '#1d4ed8') : (isDark ? '#94a3b8' : '#64748b'),
               fontWeight: searchMode === 'GLOBAL' ? 700 : 500,
               fontSize: '0.8125rem',
               cursor: 'pointer',
+              whiteSpace: 'nowrap',
             }}
           >
-            🔍 Global Search All Items (Search across ALL Categories)
+            🔍 {t('i18n.global_search_tab', 'Global Search All Items (Search across ALL Categories)')}
           </button>
           <button
             type="button"
@@ -317,26 +324,27 @@ export const EntityTranslationEditor: React.FC<Props> = ({
               borderRadius: '6px 6px 0 0',
               border: '1px solid',
               borderColor: searchMode === 'CATEGORY' ? '#3b82f6' : 'transparent',
-              background: searchMode === 'CATEGORY' ? '#fff' : 'transparent',
-              color: searchMode === 'CATEGORY' ? '#1d4ed8' : '#64748b',
+              background: searchMode === 'CATEGORY' ? (isDark ? '#111827' : '#fff') : 'transparent',
+              color: searchMode === 'CATEGORY' ? (isDark ? '#60a5fa' : '#1d4ed8') : (isDark ? '#94a3b8' : '#64748b'),
               fontWeight: searchMode === 'CATEGORY' ? 700 : 500,
               fontSize: '0.8125rem',
               cursor: 'pointer',
+              whiteSpace: 'nowrap',
             }}
           >
-            📂 Browse by Specific Category (Filter by Category)
+            📂 {t('i18n.category_search_tab', 'Browse by Specific Category (Filter by Category)')}
           </button>
         </div>
 
         {/* Global Search Mode */}
         {searchMode === 'GLOBAL' ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <label style={{ fontSize: '0.875rem', fontWeight: 600, color: '#334155' }}>
-              Search across all master data items in the entire system:
+            <label style={{ fontSize: '0.875rem', fontWeight: 600, color: isDark ? '#e2e8f0' : '#334155' }}>
+              {t('i18n.global_search_label', 'Search across all master data items in the entire system:')}
             </label>
 
             {isGlobalLoading ? (
-              <LoadingSpinner label="Loading all master data items from backend..." />
+              <LoadingSpinner label={t('i18n.loading_global', 'Loading all master data items from backend...')} />
             ) : globalEntitiesError ? (
               <ErrorAlert error={globalEntitiesError} />
             ) : (
@@ -344,7 +352,7 @@ export const EntityTranslationEditor: React.FC<Props> = ({
                 {/* Search Input */}
                 <input
                   type="text"
-                  placeholder="Type to search anything (e.g. 'Phòng Nhân Sự', 'Manager', 'KPI', 'Chất lượng')..."
+                  placeholder={t('i18n.global_search_placeholder', "Type to search anything (e.g. 'Phòng Nhân Sự', 'Manager', 'KPI', 'Chất lượng')...")}
                   value={globalSearchTerm}
                   onChange={(e) => setGlobalSearchTerm(e.target.value)}
                   style={{
@@ -354,7 +362,10 @@ export const EntityTranslationEditor: React.FC<Props> = ({
                     border: '1px solid #3b82f6',
                     fontSize: '0.875rem',
                     outline: 'none',
+                    background: isDark ? '#0f172a' : '#ffffff',
+                    color: isDark ? '#f8fafc' : '#0f172a',
                     boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.1)',
+                    boxSizing: 'border-box',
                   }}
                 />
 
@@ -369,14 +380,16 @@ export const EntityTranslationEditor: React.FC<Props> = ({
                     width: '100%',
                     padding: '0.5rem 0.75rem',
                     borderRadius: 6,
-                    border: '1px solid #94a3b8',
+                    border: `1px solid ${isDark ? '#475569' : '#94a3b8'}`,
                     fontSize: '0.875rem',
-                    background: '#fff',
+                    background: isDark ? '#0f172a' : '#fff',
+                    color: isDark ? '#f8fafc' : '#0f172a',
                     outline: 'none',
+                    boxSizing: 'border-box',
                   }}
                 >
                   <option value="">
-                    -- Choose an item ({filteredGlobalEntities.length} matching found) --
+                    -- {t('i18n.choose_item', 'Choose an item')} ({filteredGlobalEntities.length} {t('i18n.matching_found', 'matching found')}) --
                   </option>
                   {filteredGlobalEntities.map((item) => (
                     <option key={`${item.entityType}-${item.id}`} value={item.id}>
@@ -392,8 +405,8 @@ export const EntityTranslationEditor: React.FC<Props> = ({
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
             {/* Entity Type Dropdown */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label style={{ fontSize: '0.875rem', fontWeight: 600, color: '#334155' }}>
-                1. Select Entity Type
+              <label style={{ fontSize: '0.875rem', fontWeight: 600, color: isDark ? '#e2e8f0' : '#334155' }}>
+                1. {t('i18n.select_entity_type', 'Select Entity Type')}
               </label>
               <select
                 value={entityType}
@@ -401,15 +414,16 @@ export const EntityTranslationEditor: React.FC<Props> = ({
                 style={{
                   padding: '0.5rem 0.75rem',
                   borderRadius: 6,
-                  border: '1px solid #cbd5e1',
+                  border: `1px solid ${isDark ? '#475569' : '#cbd5e1'}`,
                   fontSize: '0.875rem',
                   outline: 'none',
-                  background: '#fff',
+                  background: isDark ? '#0f172a' : '#fff',
+                  color: isDark ? '#f8fafc' : '#0f172a',
                 }}
               >
-                {MASTER_ENTITY_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
+                {MASTER_ENTITY_TYPES.map((tItem) => (
+                  <option key={tItem.value} value={tItem.value}>
+                    {tItem.label}
                   </option>
                 ))}
               </select>
@@ -417,12 +431,12 @@ export const EntityTranslationEditor: React.FC<Props> = ({
 
             {/* List Selection Mode */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label style={{ fontSize: '0.875rem', fontWeight: 600, color: '#334155' }}>
-                2. Choose Item to Translate
+              <label style={{ fontSize: '0.875rem', fontWeight: 600, color: isDark ? '#e2e8f0' : '#334155' }}>
+                2. {t('i18n.choose_item_to_translate', 'Choose Item to Translate')}
               </label>
 
               {isCategoryLoading ? (
-                <LoadingSpinner label={`Loading ${entityType} list...`} />
+                <LoadingSpinner label={`${t('i18n.loading', 'Loading')} ${entityType}...`} />
               ) : categoryEntitiesError ? (
                 <ErrorAlert error={categoryEntitiesError} />
               ) : categoryEntities && categoryEntities.length > 0 ? (
@@ -430,16 +444,19 @@ export const EntityTranslationEditor: React.FC<Props> = ({
                   {/* Search Filter input */}
                   <input
                     type="text"
-                    placeholder={`Search ${entityType} by name or code...`}
+                    placeholder={`${t('common.search', 'Search')} ${entityType}...`}
                     value={categorySearchTerm}
                     onChange={(e) => setCategorySearchTerm(e.target.value)}
                     style={{
                       width: '100%',
                       padding: '0.4rem 0.75rem',
                       borderRadius: 6,
-                      border: '1px solid #cbd5e1',
+                      border: `1px solid ${isDark ? '#475569' : '#cbd5e1'}`,
                       fontSize: '0.8125rem',
                       outline: 'none',
+                      background: isDark ? '#0f172a' : '#fff',
+                      color: isDark ? '#f8fafc' : '#0f172a',
+                      boxSizing: 'border-box',
                     }}
                   />
 
@@ -455,13 +472,15 @@ export const EntityTranslationEditor: React.FC<Props> = ({
                       width: '100%',
                       padding: '0.5rem 0.75rem',
                       borderRadius: 6,
-                      border: '1px solid #94a3b8',
+                      border: `1px solid ${isDark ? '#475569' : '#94a3b8'}`,
                       fontSize: '0.875rem',
-                      background: '#fff',
+                      background: isDark ? '#0f172a' : '#fff',
+                      color: isDark ? '#f8fafc' : '#0f172a',
                       outline: 'none',
+                      boxSizing: 'border-box',
                     }}
                   >
-                    <option value="">-- Choose an item ({filteredCategoryEntities.length} available) --</option>
+                    <option value="">-- {t('i18n.choose_item', 'Choose an item')} ({filteredCategoryEntities.length} {t('i18n.available', 'available')}) --</option>
                     {filteredCategoryEntities.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.name} {item.code ? `(${item.code})` : ''}
@@ -470,8 +489,8 @@ export const EntityTranslationEditor: React.FC<Props> = ({
                   </select>
                 </div>
               ) : (
-                <div style={{ fontSize: '0.875rem', color: '#64748b', padding: '0.5rem 0' }}>
-                  No master data records found for <code>{entityType}</code>. Try creating one in the administration setup first.
+                <div style={{ fontSize: '0.875rem', color: isDark ? '#94a3b8' : '#64748b', padding: '0.5rem 0' }}>
+                  {t('i18n.no_records', 'No master data records found for')} <code>{entityType}</code>.
                 </div>
               )}
             </div>
@@ -483,8 +502,8 @@ export const EntityTranslationEditor: React.FC<Props> = ({
       {selectedEntityId && (
         <div
           style={{
-            background: '#eff6ff',
-            border: '1px solid #bfdbfe',
+            background: isDark ? '#1e3a5f' : '#eff6ff',
+            border: `1px solid ${isDark ? '#2563eb' : '#bfdbfe'}`,
             borderRadius: 6,
             padding: '0.75rem 1rem',
             display: 'flex',
@@ -495,14 +514,14 @@ export const EntityTranslationEditor: React.FC<Props> = ({
           }}
         >
           <div>
-            <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#1e40af' }}>
-              Translating: {selectedEntityObj ? `${selectedEntityObj.name} ${selectedEntityObj.code ? `(${selectedEntityObj.code})` : ''}` : 'Selected Item'}
+            <div style={{ fontSize: '0.875rem', fontWeight: 700, color: isDark ? '#bfdbfe' : '#1e40af' }}>
+              {t('i18n.translating', 'Translating')}: {selectedEntityObj ? `${selectedEntityObj.name} ${selectedEntityObj.code ? `(${selectedEntityObj.code})` : ''}` : t('i18n.selected_item', 'Selected Item')}
             </div>
-            <div style={{ fontSize: '0.75rem', color: '#3b82f6', marginTop: 2 }}>
-              Category: <code>{entityType}</code>
+            <div style={{ fontSize: '0.75rem', color: isDark ? '#93c5fd' : '#3b82f6', marginTop: 2 }}>
+              {t('i18n.category', 'Category')}: <code>{entityType}</code>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {locales.map((loc) => {
               const st = localeStatusMap[loc];
               const isEn = loc === 'en';
@@ -515,12 +534,12 @@ export const EntityTranslationEditor: React.FC<Props> = ({
                     fontWeight: 600,
                     padding: '0.2rem 0.5rem',
                     borderRadius: 12,
-                    background: isOk ? '#dcfce7' : '#fef3c7',
-                    color: isOk ? '#166534' : '#92400e',
-                    border: `1px solid ${isOk ? '#86efac' : '#fde68a'}`,
+                    background: isOk ? (isDark ? 'rgba(34, 197, 94, 0.2)' : '#dcfce7') : (isDark ? 'rgba(234, 179, 8, 0.2)' : '#fef3c7'),
+                    color: isOk ? (isDark ? '#86efac' : '#166534') : (isDark ? '#fde047' : '#92400e'),
+                    border: `1px solid ${isOk ? (isDark ? '#166534' : '#86efac') : (isDark ? '#854d0e' : '#fde68a')}`,
                   }}
                 >
-                  {loc.toUpperCase()}: {st?.filled}/{st?.total} {isOk ? '✓' : isEn ? '⚠️ Required' : '⚠️'}
+                  {loc.toUpperCase()}: {st?.filled}/{st?.total} {isOk ? '✓' : isEn ? `⚠️ ${t('i18n.required', 'Required')}` : '⚠️'}
                 </span>
               );
             })}
@@ -535,9 +554,9 @@ export const EntityTranslationEditor: React.FC<Props> = ({
             padding: '0.75rem 1rem',
             borderRadius: 6,
             fontSize: '0.875rem',
-            backgroundColor: feedback.type === 'success' ? '#ecfdf5' : '#fef2f2',
-            color: feedback.type === 'success' ? '#065f46' : '#991b1b',
-            border: `1px solid ${feedback.type === 'success' ? '#a7f3d0' : '#fecaca'}`,
+            backgroundColor: feedback.type === 'success' ? (isDark ? 'rgba(5, 150, 105, 0.2)' : '#ecfdf5') : (isDark ? 'rgba(220, 38, 38, 0.2)' : '#fef2f2'),
+            color: feedback.type === 'success' ? (isDark ? '#6ee7b7' : '#065f46') : (isDark ? '#fca5a5' : '#991b1b'),
+            border: `1px solid ${feedback.type === 'success' ? (isDark ? '#059669' : '#a7f3d0') : (isDark ? '#dc2626' : '#fecaca')}`,
           }}
         >
           {feedback.message}
@@ -546,12 +565,12 @@ export const EntityTranslationEditor: React.FC<Props> = ({
 
       {/* Content Area */}
       {localesLoading ? (
-        <LoadingSpinner label="Loading supported locales..." />
+        <LoadingSpinner label={t('i18n.loading_locales', 'Loading supported locales...')} />
       ) : fetchError ? (
         <ErrorAlert error={fetchError} onRetry={refetch} />
       ) : !selectedEntityId ? (
-        <div style={{ padding: '2.5rem 1rem', textAlign: 'center', color: '#64748b', fontSize: '0.875rem' }}>
-          👈 Select an item from the list above to manage its translations.
+        <div style={{ padding: '2.5rem 1rem', textAlign: 'center', color: isDark ? '#94a3b8' : '#64748b', fontSize: '0.875rem' }}>
+          👈 {t('i18n.select_prompt', 'Select an item from the list above to manage its translations.')}
         </div>
       ) : (
         <div>
@@ -566,15 +585,15 @@ export const EntityTranslationEditor: React.FC<Props> = ({
               gap: 8,
             }}
           >
-            <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
-              Rule 12: English (<code>'en'</code>) is mandatory baseline for all fields.
+            <span style={{ fontSize: '0.8125rem', color: isDark ? '#94a3b8' : '#64748b' }}>
+              {t('i18n.rule12_notice', "Rule 12: English ('en') is mandatory baseline for all fields.")}
             </span>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <Button size="sm" variant="outlined" onClick={handleCopyEnglishToOthers}>
-                Auto-fill English to empty languages
+                {t('i18n.auto_fill_en', 'Auto-fill English to empty languages')}
               </Button>
               <Button size="sm" variant="outlined" onClick={() => refetch()} disabled={isFetching}>
-                {isFetching ? 'Refreshing...' : 'Refresh'}
+                {isFetching ? t('common.refreshing', 'Refreshing...') : t('common.refresh', 'Refresh')}
               </Button>
             </div>
           </div>
@@ -586,51 +605,56 @@ export const EntityTranslationEditor: React.FC<Props> = ({
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              background: '#f1f5f9',
+              background: isDark ? '#1e293b' : '#f1f5f9',
               padding: '0.5rem 0.75rem',
               borderRadius: 6,
+              border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
               marginBottom: 12,
+              flexWrap: 'wrap',
             }}
           >
-            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#334155', whiteSpace: 'nowrap' }}>
-              ➕ Add Field to Translate:
+            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: isDark ? '#cbd5e1' : '#334155', whiteSpace: 'nowrap' }}>
+              ➕ {t('i18n.add_field', 'Add Field to Translate')}:
             </span>
             <input
               type="text"
-              placeholder="e.g. description, short_name, summary"
+              placeholder={t('i18n.add_field_placeholder', 'e.g. description, short_name, summary')}
               value={newFieldName}
               onChange={(e) => setNewFieldName(e.target.value)}
               style={{
                 flex: 1,
+                minWidth: '200px',
                 padding: '0.3rem 0.6rem',
                 borderRadius: 4,
-                border: '1px solid #cbd5e1',
+                border: `1px solid ${isDark ? '#475569' : '#cbd5e1'}`,
+                background: isDark ? '#0f172a' : '#ffffff',
+                color: isDark ? '#f8fafc' : '#0f172a',
                 fontSize: '0.8125rem',
                 outline: 'none',
               }}
             />
             <Button size="sm" type="submit" disabled={!newFieldName.trim()}>
-              Add Field Row
+              {t('i18n.add_field_btn', 'Add Field Row')}
             </Button>
           </form>
 
           {/* Translation Matrix Table */}
-          <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 6 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+          <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: 6 }}>
+            <table style={{ width: '100%', minWidth: '650px', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
               <thead>
-                <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                  <th style={{ textAlign: 'left', padding: '0.625rem 0.75rem', fontWeight: 600, color: '#475569', width: '180px' }}>
-                    Field Name
+                <tr style={{ background: isDark ? '#1e293b' : '#f8fafc', borderBottom: `1px solid ${isDark ? '#334155' : '#e2e8f0'}` }}>
+                  <th style={{ textAlign: 'left', padding: '0.625rem 0.75rem', fontWeight: 600, color: isDark ? '#cbd5e1' : '#475569', width: '180px' }}>
+                    {t('i18n.field_name', 'Field Name')}
                   </th>
                   {locales.map((loc) => (
-                    <th key={loc} style={{ textAlign: 'left', padding: '0.625rem 0.75rem', fontWeight: 600, color: '#475569' }}>
+                    <th key={loc} style={{ textAlign: 'left', padding: '0.625rem 0.75rem', fontWeight: 600, color: isDark ? '#cbd5e1' : '#475569' }}>
                       {loc.toUpperCase()}{' '}
                       {loc === 'en' ? (
-                        <span style={{ color: '#dc2626', fontWeight: 700 }} title="Required Baseline">
-                          * Required
+                        <span style={{ color: '#ef4444', fontWeight: 700 }} title="Required Baseline">
+                          * {t('i18n.required', 'Required')}
                         </span>
                       ) : (
-                        <span style={{ color: '#94a3b8', fontWeight: 400 }}>(Optional)</span>
+                        <span style={{ color: isDark ? '#94a3b8' : '#94a3b8', fontWeight: 400 }}>({t('i18n.optional', 'Optional')})</span>
                       )}
                     </th>
                   ))}
@@ -638,8 +662,8 @@ export const EntityTranslationEditor: React.FC<Props> = ({
               </thead>
               <tbody>
                 {fieldNames.map((field) => (
-                  <tr key={field} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '0.625rem 0.75rem', fontWeight: 600, color: '#1e293b' }}>
+                  <tr key={field} style={{ borderBottom: `1px solid ${isDark ? '#1f2937' : '#f1f5f9'}` }}>
+                    <td style={{ padding: '0.625rem 0.75rem', fontWeight: 600, color: isDark ? '#f8fafc' : '#1e293b' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <code>{field}</code>
                         <button
@@ -649,7 +673,7 @@ export const EntityTranslationEditor: React.FC<Props> = ({
                           style={{
                             border: 'none',
                             background: 'transparent',
-                            color: '#94a3b8',
+                            color: isDark ? '#94a3b8' : '#94a3b8',
                             cursor: 'pointer',
                             fontSize: '0.875rem',
                             padding: '0 4px',
@@ -672,9 +696,12 @@ export const EntityTranslationEditor: React.FC<Props> = ({
                             width: '100%',
                             padding: '0.375rem 0.625rem',
                             borderRadius: 4,
-                            border: '1px solid #cbd5e1',
+                            border: `1px solid ${isDark ? '#475569' : '#cbd5e1'}`,
+                            background: isDark ? '#0f172a' : '#ffffff',
+                            color: isDark ? '#f8fafc' : '#0f172a',
                             fontSize: '0.875rem',
                             outline: 'none',
+                            boxSizing: 'border-box',
                           }}
                         />
                       </td>
@@ -688,7 +715,7 @@ export const EntityTranslationEditor: React.FC<Props> = ({
           {/* Action Bar */}
           <div style={{ marginTop: '1.25rem', display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
             <Button onClick={handleSave} disabled={upsert.isPending}>
-              {upsert.isPending ? 'Saving...' : 'Save Translations'}
+              {upsert.isPending ? t('common.saving', 'Saving...') : t('i18n.save_translations', 'Save Translations')}
             </Button>
           </div>
         </div>

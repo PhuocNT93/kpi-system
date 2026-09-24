@@ -42,7 +42,11 @@ export function useAssignPermission(roleId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: AssignPermissionRequest) => iamApi.assignPermission(roleId, body),
-    onSuccess: () => {
+    onSuccess: (updatedRole) => {
+      queryClient.setQueryData<import('../domain/iam-models').IamRole[]>(iamKeys.roles.list(), (old) => {
+        if (!old) return old;
+        return old.map((r) => (r.id === roleId ? updatedRole : r));
+      });
       queryClient.invalidateQueries({ queryKey: iamKeys.roles.all });
       queryClient.invalidateQueries({ queryKey: iamKeys.permissions.all });
     },
@@ -53,7 +57,11 @@ export function useRevokePermission(roleId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (permissionCode: string) => iamApi.revokePermission(roleId, permissionCode),
-    onSuccess: () => {
+    onSuccess: (updatedRole) => {
+      queryClient.setQueryData<import('../domain/iam-models').IamRole[]>(iamKeys.roles.list(), (old) => {
+        if (!old) return old;
+        return old.map((r) => (r.id === roleId ? updatedRole : r));
+      });
       queryClient.invalidateQueries({ queryKey: iamKeys.roles.all });
     },
   });

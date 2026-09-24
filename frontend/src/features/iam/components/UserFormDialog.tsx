@@ -7,6 +7,8 @@ import { useRoles } from '../hooks/useRoles';
 import { ErrorAlert } from '../../../shared/components/ui';
 import { Button } from '../../../shared/ui/Button/Button';
 import type { IamUser } from '../domain/iam-models';
+import { useTheme } from '@/shared/theme';
+import { useUiTranslation } from '@/shared/i18n/ui-i18n';
 
 const createSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -31,6 +33,8 @@ interface UserFormDialogProps {
 }
 
 export function UserFormDialog({ isOpen, user, onClose }: UserFormDialogProps) {
+  const { isDark } = useTheme();
+  const { t } = useUiTranslation();
   const isEditMode = user !== undefined;
   const rolesQuery = useRoles();
   const createMutation = useCreateUser();
@@ -82,7 +86,7 @@ export function UserFormDialog({ isOpen, user, onClose }: UserFormDialogProps) {
         const apiErr = err as { code: string; message: string };
         if (apiErr.code === 'DUPLICATE_EMAIL') {
           setError('email' as keyof CreateFormValues, {
-            message: 'This email is already registered.',
+            message: t('iam.users.duplicate_email', 'This email is already registered.'),
           });
         }
       }
@@ -90,35 +94,51 @@ export function UserFormDialog({ isOpen, user, onClose }: UserFormDialogProps) {
     }
   });
 
+  const inputStyle = {
+    display: 'block',
+    width: '100%',
+    padding: '0.45rem 0.75rem',
+    borderRadius: 6,
+    border: `1px solid ${isDark ? '#374151' : '#cbd5e1'}`,
+    background: isDark ? '#1f2937' : '#ffffff',
+    color: isDark ? '#f8fafc' : '#0f172a',
+    fontSize: '0.875rem',
+    boxSizing: 'border-box' as const,
+  };
+
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="user-form-dialog-title"
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
       }}
     >
-      <div style={{ background: '#fff', borderRadius: 8, padding: '1.5rem', maxWidth: 480, width: '90%' }}>
-        <h2 id="user-form-dialog-title" style={{ margin: '0 0 1rem' }}>
-          {isEditMode ? 'Edit User' : 'Create User'}
+      <div style={{ background: isDark ? '#111827' : '#fff', border: `1px solid ${isDark ? '#1f2937' : '#e2e8f0'}`, borderRadius: 8, padding: '1.5rem', maxWidth: 480, width: '90%', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)' }}>
+        <h2 id="user-form-dialog-title" style={{ margin: '0 0 1rem', color: isDark ? '#f8fafc' : '#0f172a' }}>
+          {isEditMode ? t('iam.users.edit_user', 'Edit User') : t('iam.users.create_user', 'Create User')}
         </h2>
 
         {mutationError && <ErrorAlert error={mutationError} />}
 
         <form onSubmit={onSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <div>
-            <label htmlFor="user-name">Full Name *</label>
-            <input id="user-name" type="text" aria-required="true" {...register('name')} style={{ display: 'block', width: '100%' }} />
+            <label htmlFor="user-name" style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem', fontWeight: 500, color: isDark ? '#cbd5e1' : '#374151' }}>
+              {t('iam.users.fullname', 'Full Name')} *
+            </label>
+            <input id="user-name" type="text" aria-required="true" {...register('name')} style={inputStyle} />
             {errors.name && <span role="alert" style={{ color: '#dc2626', fontSize: '0.8rem' }}>{errors.name.message}</span>}
           </div>
 
           {!isEditMode && (
             <>
               <div>
-                <label htmlFor="user-email">Email *</label>
-                <input id="user-email" type="email" aria-required="true" {...register('email' as keyof CreateFormValues)} style={{ display: 'block', width: '100%' }} />
+                <label htmlFor="user-email" style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem', fontWeight: 500, color: isDark ? '#cbd5e1' : '#374151' }}>
+                  {t('iam.users.email', 'Email')} *
+                </label>
+                <input id="user-email" type="email" aria-required="true" {...register('email' as keyof CreateFormValues)} style={inputStyle} />
                 {(errors as Record<string, { message?: string }>).email && (
                   <span role="alert" style={{ color: '#dc2626', fontSize: '0.8rem' }}>
                     {(errors as Record<string, { message?: string }>).email?.message}
@@ -126,8 +146,10 @@ export function UserFormDialog({ isOpen, user, onClose }: UserFormDialogProps) {
                 )}
               </div>
               <div>
-                <label htmlFor="user-password">Password *</label>
-                <input id="user-password" type="password" aria-required="true" {...register('password' as keyof CreateFormValues)} style={{ display: 'block', width: '100%' }} />
+                <label htmlFor="user-password" style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem', fontWeight: 500, color: isDark ? '#cbd5e1' : '#374151' }}>
+                  {t('iam.users.password', 'Password')} *
+                </label>
+                <input id="user-password" type="password" aria-required="true" {...register('password' as keyof CreateFormValues)} style={inputStyle} />
                 {(errors as Record<string, { message?: string }>).password && (
                   <span role="alert" style={{ color: '#dc2626', fontSize: '0.8rem' }}>
                     {(errors as Record<string, { message?: string }>).password?.message}
@@ -138,9 +160,11 @@ export function UserFormDialog({ isOpen, user, onClose }: UserFormDialogProps) {
           )}
 
           <div>
-            <label htmlFor="user-role">Role *</label>
-            <select id="user-role" aria-required="true" {...register('role_code')} style={{ display: 'block', width: '100%' }}>
-              <option value="">Select a role…</option>
+            <label htmlFor="user-role" style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem', fontWeight: 500, color: isDark ? '#cbd5e1' : '#374151' }}>
+              {t('iam.users.role', 'Role')} *
+            </label>
+            <select id="user-role" aria-required="true" {...register('role_code')} style={inputStyle}>
+              <option value="">{t('iam.users.select_role', 'Select a role…')}</option>
               {rolesQuery.data?.map((role) => (
                 <option key={role.id} value={role.code}>{role.name}</option>
               ))}
@@ -149,10 +173,10 @@ export function UserFormDialog({ isOpen, user, onClose }: UserFormDialogProps) {
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-            <Button variant="secondary" onClick={onClose} disabled={isPending}>Cancel</Button>
+            <Button variant="secondary" onClick={onClose} disabled={isPending}>{t('common.cancel', 'Cancel')}</Button>
             {/* Per FE Rule §5: disable repeated submits while pending */}
             <Button type="submit" disabled={isPending}>
-              {isPending ? 'Saving…' : isEditMode ? 'Save Changes' : 'Create User'}
+              {isPending ? t('common.saving', 'Saving…') : isEditMode ? t('common.save_changes', 'Save Changes') : t('iam.users.create_user', 'Create User')}
             </Button>
           </div>
         </form>

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { notificationApi } from '../api/notification-api';
 import type { UserNotificationPreference, NotificationType } from '../types/notification-types';
 import { TestNotificationModal } from '../components/TestNotificationModal';
+import { useTheme } from '@/shared/theme';
+import { useUiTranslation } from '@/shared/i18n/ui-i18n';
 
 const NOTIFICATION_LABELS: Record<NotificationType, { title: string; desc: string }> = {
   RESULT_PUBLISHED: {
@@ -43,6 +45,8 @@ const NOTIFICATION_LABELS: Record<NotificationType, { title: string; desc: strin
 };
 
 export function NotificationPreferencesPage() {
+  const { isDark } = useTheme();
+  const { t } = useUiTranslation();
   const [preferences, setPreferences] = useState<UserNotificationPreference[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -58,7 +62,7 @@ export function NotificationPreferencesPage() {
       const data = await notificationApi.getUserPreferences();
       setPreferences(Array.isArray(data) ? data : []);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Không thể tải cài đặt thông báo.';
+      const msg = err instanceof Error ? err.message : t('failed_load_notif_prefs', 'Không thể tải cài đặt thông báo.');
       setToast({ type: 'error', message: msg });
     } finally {
       setLoading(false);
@@ -87,9 +91,9 @@ export function NotificationPreferencesPage() {
           enabled: p.enabled,
         }))
       );
-      setToast({ type: 'success', message: 'Đã lưu tùy chọn thông báo thành công!' });
+      setToast({ type: 'success', message: t('saved_notif_prefs', 'Đã lưu tùy chọn thông báo thành công!') });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Lỗi khi cập nhật cài đặt thông báo.';
+      const msg = err instanceof Error ? err.message : t('failed_save_notif_prefs', 'Lỗi khi cập nhật cài đặt thông báo.');
       setToast({ type: 'error', message: msg });
     } finally {
       setSaving(false);
@@ -97,7 +101,7 @@ export function NotificationPreferencesPage() {
   }
 
   return (
-    <div style={{ maxWidth: 880, margin: '1.5rem auto', padding: '0 1rem', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div style={{ margin: '1.5rem auto', padding: 'clamp(1rem, 2vw, 2rem)', width: '100%', boxSizing: 'border-box' }}>
       <div
         style={{
           display: 'flex',
@@ -109,11 +113,11 @@ export function NotificationPreferencesPage() {
         }}
       >
         <div style={{ flex: 1, minWidth: 280 }}>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.5rem 0' }}>
-            Tùy chọn nhận thông báo qua Email (Notification Preferences)
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: isDark ? '#f8fafc' : '#0f172a', margin: '0 0 0.5rem 0' }}>
+            {t('notif_prefs_title', 'Tùy chọn nhận thông báo qua Email (Notification Preferences)')}
           </h1>
-          <p style={{ fontSize: '0.9375rem', color: '#64748b', margin: 0 }}>
-            Quản lý các loại thông báo sự kiện bạn muốn nhận qua email cơ quan. Cấu hình sẽ được áp dụng ngay lập tức cho tài khoản của bạn.
+          <p style={{ fontSize: '0.9375rem', color: isDark ? '#94a3b8' : '#64748b', margin: 0 }}>
+            {t('notif_prefs_desc', 'Quản lý các loại thông báo sự kiện bạn muốn nhận qua email cơ quan. Cấu hình sẽ được áp dụng ngay lập tức cho tài khoản của bạn.')}
           </p>
         </div>
         <div>
@@ -129,9 +133,9 @@ export function NotificationPreferencesPage() {
             marginBottom: '1.5rem',
             fontSize: '0.875rem',
             fontWeight: 500,
-            background: toast.type === 'success' ? '#f0fdf4' : '#fef2f2',
-            color: toast.type === 'success' ? '#166534' : '#991b1b',
-            border: `1px solid ${toast.type === 'success' ? '#bbf7d0' : '#fecaca'}`,
+            background: toast.type === 'success' ? (isDark ? 'rgba(34, 197, 94, 0.2)' : '#f0fdf4') : (isDark ? 'rgba(239, 68, 68, 0.2)' : '#fef2f2'),
+            color: toast.type === 'success' ? (isDark ? '#86efac' : '#166534') : (isDark ? '#fca5a5' : '#991b1b'),
+            border: `1px solid ${toast.type === 'success' ? (isDark ? '#15803d' : '#bbf7d0') : (isDark ? '#991b1b' : '#fecaca')}`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -148,14 +152,14 @@ export function NotificationPreferencesPage() {
       )}
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '3rem 0', color: '#64748b' }}>
-          Đang tải tùy chọn thông báo...
+        <div style={{ textAlign: 'center', padding: '3rem 0', color: isDark ? '#94a3b8' : '#64748b' }}>
+          {t('loading_notif_prefs', 'Đang tải tùy chọn thông báo...')}
         </div>
       ) : (
-        <div style={{ background: '#ffffff', borderRadius: 12, border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
-          <div style={{ padding: '1rem 1.5rem', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#475569' }}>LOẠI THÔNG BÁO</span>
-            <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#475569' }}>TRẠNG THÁI</span>
+        <div style={{ background: isDark ? '#111827' : '#ffffff', borderRadius: 12, border: `1px solid ${isDark ? '#1f2937' : '#e2e8f0'}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+          <div style={{ padding: '1rem 1.5rem', background: isDark ? '#1e293b' : '#f8fafc', borderBottom: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.875rem', fontWeight: 600, color: isDark ? '#cbd5e1' : '#475569' }}>{t('notif_col_type', 'LOẠI THÔNG BÁO')}</span>
+            <span style={{ fontSize: '0.875rem', fontWeight: 600, color: isDark ? '#cbd5e1' : '#475569' }}>{t('notif_col_status', 'TRẠNG THÁI')}</span>
           </div>
 
           <div>
@@ -173,33 +177,33 @@ export function NotificationPreferencesPage() {
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    borderBottom: '1px solid #f1f5f9',
-                    background: item.is_mandatory ? '#fcfdfd' : '#ffffff',
+                    borderBottom: `1px solid ${isDark ? '#1f2937' : '#f1f5f9'}`,
+                    background: item.is_mandatory ? (isDark ? 'rgba(30, 41, 59, 0.5)' : '#fcfdfd') : (isDark ? '#111827' : '#ffffff'),
                   }}
                 >
                   <div style={{ paddingRight: '2rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                      <span style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#1e293b' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '0.9375rem', fontWeight: 600, color: isDark ? '#f8fafc' : '#1e293b' }}>
                         {labelInfo.title}
                       </span>
                       {item.is_mandatory && (
                         <span
-                          title="Quy tắc bắt buộc Rule 17: Thông báo kết quả đánh giá không thể bị tắt"
+                          title={t('rule17_tooltip', 'Quy tắc bắt buộc Rule 17: Thông báo kết quả đánh giá không thể bị tắt')}
                           style={{
                             fontSize: '0.75rem',
                             fontWeight: 600,
                             padding: '2px 8px',
                             borderRadius: 12,
-                            background: '#eff6ff',
-                            color: '#1d4ed8',
-                            border: '1px solid #bfdbfe',
+                            background: isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff',
+                            color: isDark ? '#93c5fd' : '#1d4ed8',
+                            border: `1px solid ${isDark ? 'rgba(59, 130, 246, 0.4)' : '#bfdbfe'}`,
                           }}
                         >
-                          🔒 Bắt buộc (Rule 17)
+                          🔒 {t('rule17_mandatory', 'Bắt buộc (Rule 17)')}
                         </span>
                       )}
                     </div>
-                    <p style={{ fontSize: '0.8125rem', color: '#64748b', margin: 0 }}>
+                    <p style={{ fontSize: '0.8125rem', color: isDark ? '#94a3b8' : '#64748b', margin: 0 }}>
                       {labelInfo.desc}
                     </p>
                   </div>
@@ -231,7 +235,7 @@ export function NotificationPreferencesPage() {
                           left: 0,
                           right: 0,
                           bottom: 0,
-                          backgroundColor: item.enabled ? '#2563eb' : '#cbd5e1',
+                          backgroundColor: item.enabled ? '#2563eb' : (isDark ? '#4b5563' : '#cbd5e1'),
                           borderRadius: 24,
                           transition: '0.2s',
                         }}
@@ -258,7 +262,7 @@ export function NotificationPreferencesPage() {
             })}
           </div>
 
-          <div style={{ padding: '1.25rem 1.5rem', background: '#f8fafc', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #e2e8f0' }}>
+          <div style={{ padding: '1.25rem 1.5rem', background: isDark ? '#1e293b' : '#f8fafc', display: 'flex', justifyContent: 'flex-end', borderTop: `1px solid ${isDark ? '#334155' : '#e2e8f0'}` }}>
             <button
               onClick={handleSave}
               disabled={saving}
@@ -275,7 +279,7 @@ export function NotificationPreferencesPage() {
                 boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
               }}
             >
-              {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
+              {saving ? t('saving', 'Đang lưu...') : t('save_settings', 'Lưu thay đổi')}
             </button>
           </div>
         </div>

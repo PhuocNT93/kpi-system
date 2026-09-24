@@ -301,7 +301,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         top: isMobileDrawer ? 0 : undefined,
         bottom: isMobileDrawer ? 0 : undefined,
         left: isMobileDrawer ? 0 : undefined,
-        zIndex: isMobileDrawer ? 50 : 10,
+        zIndex: isMobileDrawer ? 50 : 30,
+        overflow: 'visible',
         boxShadow: isMobileDrawer ? '4px 0 24px rgba(0, 0, 0, 0.35)' : undefined,
       }}
     >
@@ -316,7 +317,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           style={{
             position: 'absolute',
             top: '24px',
-            right: '-12px',
+            right: '-13px',
             width: '26px',
             height: '26px',
             borderRadius: RADII.full,
@@ -347,10 +348,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             cursor: 'pointer',
             outline: 'none',
             boxShadow: isDark
-              ? '0 2px 8px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1)'
+              ? '0 2px 8px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.12)'
               : (toggleHovered ? SHADOWS.md : SHADOWS.sm),
             transition: 'all 0.15s ease-in-out',
-            zIndex: 20,
+            zIndex: 40,
           }}
         >
           {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}

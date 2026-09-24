@@ -64,7 +64,30 @@ export class IamController {
   getRoles = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const roles = await this.roleService.getRoles();
-      sendSuccess(res, 200, 'Roles retrieved successfully.', roles);
+      const coreRoleCodes = ['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE'];
+      const filteredRoles = roles.filter(
+        (r) => coreRoleCodes.includes(r.code.toUpperCase()) || r.systemRole
+      );
+      const rolesWithPerms = await Promise.all(
+        filteredRoles.map(async (role) => {
+          try {
+            const perms = await this.roleAssignmentService.getRolePermissions(role.id);
+            const codes = perms.map((p) => p.code);
+            return {
+              ...role,
+              permission_codes: codes,
+              permissionCodes: codes,
+            };
+          } catch {
+            return {
+              ...role,
+              permission_codes: [],
+              permissionCodes: [],
+            };
+          }
+        })
+      );
+      sendSuccess(res, 200, 'Roles retrieved successfully.', rolesWithPerms);
     } catch (err) {
       next(err);
     }
@@ -74,7 +97,18 @@ export class IamController {
     try {
       const id = req.params.id as string;
       const role = await this.roleService.getRoleById(id);
-      sendSuccess(res, 200, 'Role retrieved successfully.', role);
+      let codes: string[] = [];
+      try {
+        const perms = await this.roleAssignmentService.getRolePermissions(id);
+        codes = perms.map((p) => p.code);
+      } catch {
+        // ignore
+      }
+      sendSuccess(res, 200, 'Role retrieved successfully.', {
+        ...role,
+        permission_codes: codes,
+        permissionCodes: codes,
+      });
     } catch (err) {
       next(err);
     }
@@ -171,17 +205,21 @@ export class IamController {
     try {
       const actorId = req.actor?.userId;
       const roleId = req.params.roleId as string;
-      const { permissionCode, scope } = req.body;
+      const permissionCode = req.body.permissionCode || req.body.permission_code;
+      const scope = req.body.scope || 'ORGANIZATION';
       await this.roleAssignmentService.assignPermissionToRole(
         roleId,
         permissionCode,
         scope as AuthorizationScope,
         actorId
       );
+      const role = await this.roleService.getRoleById(roleId);
+      const perms = await this.roleAssignmentService.getRolePermissions(roleId);
+      const codes = perms.map((p) => p.code);
       sendSuccess(res, 200, `Permission '${permissionCode}' assigned to role successfully.`, {
-        roleId,
-        permissionCode,
-        scope,
+        ...role,
+        permission_codes: codes,
+        permissionCodes: codes,
       });
     } catch (err) {
       next(err);
@@ -194,7 +232,14 @@ export class IamController {
       const roleId = req.params.roleId as string;
       const permissionCode = req.params.permissionCode as string;
       await this.roleAssignmentService.removePermissionFromRole(roleId, permissionCode, actorId);
-      sendSuccess(res, 200, `Permission '${permissionCode}' removed from role.`, { roleId, permissionCode });
+      const role = await this.roleService.getRoleById(roleId);
+      const perms = await this.roleAssignmentService.getRolePermissions(roleId);
+      const codes = perms.map((p) => p.code);
+      sendSuccess(res, 200, `Permission '${permissionCode}' removed from role.`, {
+        ...role,
+        permission_codes: codes,
+        permissionCodes: codes,
+      });
     } catch (err) {
       next(err);
     }

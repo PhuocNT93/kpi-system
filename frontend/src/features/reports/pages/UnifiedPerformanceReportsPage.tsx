@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/shared/auth/auth-context';
-import { RADII, TYPOGRAPHY, SHADOWS } from '@/shared/theme';
+import { RADII, TYPOGRAPHY, SHADOWS, useTheme } from '@/shared/theme';
+import { useUiTranslation } from '@/shared/i18n/ui-i18n';
 import {
   User,
   Users,
@@ -19,11 +20,15 @@ export type ReportScopeId = 'my' | 'team' | 'org' | 'summary';
 
 interface ReportScopeConfig {
   id: ReportScopeId;
-  label: string;
-  badge: string;
+  labelKey: string;
+  defaultLabel: string;
+  badgeKey: string;
+  defaultBadge: string;
   badgeColor: string;
   badgeBg: string;
-  description: string;
+  badgeBgDark: string;
+  descriptionKey: string;
+  defaultDescription: string;
   icon: React.ReactNode;
   allowedRoles: Array<'SYSTEM_ADMIN' | 'HR_ADMIN' | 'MANAGER' | 'EMPLOYEE'>;
 }
@@ -31,41 +36,57 @@ interface ReportScopeConfig {
 const REPORT_SCOPES: ReportScopeConfig[] = [
   {
     id: 'my',
-    label: '1. Báo cáo của tôi',
-    badge: 'Cá nhân',
+    labelKey: 'reports.scope.my',
+    defaultLabel: '1. Báo cáo của tôi',
+    badgeKey: 'reports.badge.personal',
+    defaultBadge: 'Cá nhân',
     badgeColor: '#2563eb',
     badgeBg: '#eff6ff',
-    description: 'Chi tiết điểm số, radar năng lực và lịch sử đánh giá cá nhân qua các kỳ',
+    badgeBgDark: 'rgba(37, 99, 235, 0.2)',
+    descriptionKey: 'reports.desc.my',
+    defaultDescription: 'Chi tiết điểm số, radar năng lực và lịch sử đánh giá cá nhân qua các kỳ',
     icon: <User size={18} />,
     allowedRoles: ['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE'],
   },
   {
     id: 'team',
-    label: '2. Báo cáo Đội nhóm',
-    badge: 'Team & Phòng ban',
+    labelKey: 'reports.scope.team',
+    defaultLabel: '2. Báo cáo Đội nhóm',
+    badgeKey: 'reports.badge.team',
+    defaultBadge: 'Team & Phòng ban',
     badgeColor: '#059669',
     badgeBg: '#ecfdf5',
-    description: 'Xếp hạng, phân phối điểm trung bình và tiến độ đánh giá của các thành viên trong nhóm',
+    badgeBgDark: 'rgba(5, 150, 105, 0.2)',
+    descriptionKey: 'reports.desc.team',
+    defaultDescription: 'Xếp hạng, phân phối điểm trung bình và tiến độ đánh giá của các thành viên trong nhóm',
     icon: <Users size={18} />,
     allowedRoles: ['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER'],
   },
   {
     id: 'org',
-    label: '3. Báo cáo Toàn công ty',
-    badge: 'Toàn tổ chức',
+    labelKey: 'reports.scope.org',
+    defaultLabel: '3. Báo cáo Toàn công ty',
+    badgeKey: 'reports.badge.org',
+    defaultBadge: 'Toàn tổ chức',
     badgeColor: '#7c3aed',
     badgeBg: '#f5f3ff',
-    description: 'Bức tranh tổng thể về hiệu suất giữa các bộ phận, tỷ lệ hoàn thành KPI toàn doanh nghiệp',
+    badgeBgDark: 'rgba(124, 58, 237, 0.2)',
+    descriptionKey: 'reports.desc.org',
+    defaultDescription: 'Bức tranh tổng thể về hiệu suất giữa các bộ phận, tỷ lệ hoàn thành KPI toàn doanh nghiệp',
     icon: <Building2 size={18} />,
     allowedRoles: ['SYSTEM_ADMIN', 'HR_ADMIN'],
   },
   {
     id: 'summary',
-    label: '4. Bảng tổng hợp KPI',
-    badge: 'Dashboard Thống kê',
+    labelKey: 'reports.scope.summary',
+    defaultLabel: '4. Bảng tổng hợp KPI',
+    badgeKey: 'reports.badge.summary',
+    defaultBadge: 'Dashboard Thống kê',
     badgeColor: '#d97706',
     badgeBg: '#fffbeb',
-    description: 'Ma trận thống kê phân bổ hạng S, A, B, C, D và phân tích biến động chỉ số cốt lõi',
+    badgeBgDark: 'rgba(217, 119, 6, 0.2)',
+    descriptionKey: 'reports.desc.summary',
+    defaultDescription: 'Ma trận thống kê phân bổ hạng S, A, B, C, D và phân tích biến động chỉ số cốt lõi',
     icon: <BarChart3 size={18} />,
     allowedRoles: ['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE'],
   },
@@ -73,6 +94,8 @@ const REPORT_SCOPES: ReportScopeConfig[] = [
 
 export const UnifiedPerformanceReportsPage: React.FC = () => {
   const { user } = useAuth();
+  const { isDark } = useTheme();
+  const { t } = useUiTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const userRole = (user?.role || 'EMPLOYEE') as 'SYSTEM_ADMIN' | 'HR_ADMIN' | 'MANAGER' | 'EMPLOYEE';
@@ -98,13 +121,13 @@ export const UnifiedPerformanceReportsPage: React.FC = () => {
   const activeScopeConfig = availableScopes.find((s) => s.id === activeScope);
 
   return (
-    <div style={{ width: '100%', padding: '0 0 40px 0' }}>
+    <div style={{ width: '100%', boxSizing: 'border-box', padding: '0 0 40px 0' }}>
       {/* Top Banner & Scope Switcher Hub */}
       <div
         style={{
-          backgroundColor: '#ffffff',
+          backgroundColor: isDark ? '#111827' : '#ffffff',
           borderRadius: RADII.xl,
-          border: '1px solid #e2e8f0',
+          border: `1px solid ${isDark ? '#1f2937' : '#e2e8f0'}`,
           boxShadow: SHADOWS.sm,
           padding: '24px 28px 20px 28px',
           marginBottom: '24px',
@@ -128,8 +151,8 @@ export const UnifiedPerformanceReportsPage: React.FC = () => {
                   width: '38px',
                   height: '38px',
                   borderRadius: RADII.lg,
-                  backgroundColor: '#f5f3ff',
-                  color: '#7c3aed',
+                  backgroundColor: isDark ? 'rgba(124, 58, 237, 0.2)' : '#f5f3ff',
+                  color: isDark ? '#c4b5fd' : '#7c3aed',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -143,20 +166,20 @@ export const UnifiedPerformanceReportsPage: React.FC = () => {
                     margin: 0,
                     fontSize: '22px',
                     fontWeight: 800,
-                    color: '#0f172a',
+                    color: isDark ? '#f8fafc' : '#0f172a',
                     letterSpacing: '-0.02em',
                   }}
                 >
-                  Trung Tâm Báo Cáo Hiệu Suất (Performance Reports)
+                  {t('reports.title', 'Trung Tâm Báo Cáo Hiệu Suất (Performance Reports)')}
                 </h1>
                 <p
                   style={{
                     margin: '3px 0 0 0',
                     fontSize: TYPOGRAPHY.fontSize.xs,
-                    color: '#64748b',
+                    color: isDark ? '#94a3b8' : '#64748b',
                   }}
                 >
-                  Theo dõi kết quả đánh giá, phân tích xu hướng điểm số và xuất báo cáo đa chiều theo phạm vi
+                  {t('reports.subtitle', 'Theo dõi kết quả đánh giá, phân tích xu hướng điểm số và xuất báo cáo đa chiều theo phạm vi')}
                 </p>
               </div>
             </div>
@@ -170,14 +193,14 @@ export const UnifiedPerformanceReportsPage: React.FC = () => {
               gap: '6px',
               padding: '6px 14px',
               borderRadius: RADII.full,
-              backgroundColor: '#f8fafc',
-              border: '1px solid #e2e8f0',
-              color: '#334155',
+              backgroundColor: isDark ? '#1f2937' : '#f8fafc',
+              border: `1px solid ${isDark ? '#374151' : '#e2e8f0'}`,
+              color: isDark ? '#e2e8f0' : '#334155',
               fontSize: TYPOGRAPHY.fontSize.xs,
               fontWeight: 700,
             }}
           >
-            <span>Phạm vi tài khoản: {userRole}</span>
+            <span>{t('reports.role_scope', 'Phạm vi tài khoản')}: {userRole}</span>
           </div>
         </div>
 
@@ -186,9 +209,10 @@ export const UnifiedPerformanceReportsPage: React.FC = () => {
           style={{
             display: 'flex',
             gap: '10px',
-            borderBottom: '1px solid #e2e8f0',
+            borderBottom: `1px solid ${isDark ? '#1f2937' : '#e2e8f0'}`,
             paddingBottom: '2px',
             overflowX: 'auto',
+            WebkitOverflowScrolling: 'touch',
           }}
         >
           {availableScopes.map((scope) => {
@@ -205,9 +229,9 @@ export const UnifiedPerformanceReportsPage: React.FC = () => {
                   padding: '10px 18px',
                   borderRadius: `${RADII.lg} ${RADII.lg} 0 0`,
                   border: 'none',
-                  borderBottom: isActive ? '3px solid #7c3aed' : '3px solid transparent',
-                  backgroundColor: isActive ? '#f8fafc' : 'transparent',
-                  color: isActive ? '#5b21b6' : '#64748b',
+                  borderBottom: isActive ? `3px solid ${isDark ? '#a78bfa' : '#7c3aed'}` : '3px solid transparent',
+                  backgroundColor: isActive ? (isDark ? '#1e293b' : '#f8fafc') : 'transparent',
+                  color: isActive ? (isDark ? '#c4b5fd' : '#5b21b6') : (isDark ? '#94a3b8' : '#64748b'),
                   cursor: 'pointer',
                   fontSize: TYPOGRAPHY.fontSize.sm,
                   fontWeight: isActive ? 700 : 500,
@@ -215,19 +239,21 @@ export const UnifiedPerformanceReportsPage: React.FC = () => {
                   whiteSpace: 'nowrap',
                 }}
               >
-                <span style={{ color: isActive ? '#7c3aed' : '#94a3b8' }}>{scope.icon}</span>
-                <span>{scope.label}</span>
+                <span style={{ color: isActive ? (isDark ? '#a78bfa' : '#7c3aed') : (isDark ? '#64748b' : '#94a3b8') }}>
+                  {scope.icon}
+                </span>
+                <span>{t(scope.labelKey, scope.defaultLabel)}</span>
                 <span
                   style={{
                     fontSize: '10px',
                     fontWeight: 700,
                     padding: '2px 7px',
                     borderRadius: RADII.full,
-                    backgroundColor: scope.badgeBg,
-                    color: scope.badgeColor,
+                    backgroundColor: isDark ? scope.badgeBgDark : scope.badgeBg,
+                    color: isDark ? '#ffffff' : scope.badgeColor,
                   }}
                 >
-                  {scope.badge}
+                  {t(scope.badgeKey, scope.defaultBadge)}
                 </span>
               </button>
             );
@@ -242,10 +268,10 @@ export const UnifiedPerformanceReportsPage: React.FC = () => {
               alignItems: 'center',
               marginTop: '12px',
               fontSize: TYPOGRAPHY.fontSize.xs,
-              color: '#64748b',
+              color: isDark ? '#94a3b8' : '#64748b',
             }}
           >
-            <span>💡 {activeScopeConfig.description}</span>
+            <span>💡 {t(activeScopeConfig.descriptionKey, activeScopeConfig.defaultDescription)}</span>
           </div>
         )}
       </div>

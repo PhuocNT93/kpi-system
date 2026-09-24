@@ -15,7 +15,8 @@ import type { CalibrationEvaluationRow, CreateSessionDTO } from '../types/calibr
 import { Button } from '@/shared/ui/Button/Button';
 import { LoadingSpinner, EmptyState } from '@/shared/components/ui';
 import { COLORS } from '@/lib/theme';
-import { RADII, TYPOGRAPHY } from '@/shared/theme';
+import { RADII, TYPOGRAPHY, useTheme } from '@/shared/theme';
+import { useUiTranslation } from '@/shared/i18n/ui-i18n';
 import {
   SlidersHorizontal,
   PlusCircle,
@@ -30,6 +31,8 @@ import {
 
 export function CalibrationPage() {
   const { user } = useAuth();
+  const { isDark } = useTheme();
+  const { t } = useUiTranslation();
   const [selectedCycleId, setSelectedCycleId] = useState<string>('');
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
   const [adjustingEvaluation, setAdjustingEvaluation] = useState<CalibrationEvaluationRow | null>(null);
@@ -81,8 +84,8 @@ export function CalibrationPage() {
           style={{
             padding: '3rem 2rem',
             borderRadius: RADII.xl,
-            backgroundColor: '#fff',
-            border: '1px solid #e2e8f0',
+            backgroundColor: isDark ? '#111827' : '#fff',
+            border: `1px solid ${isDark ? '#1f2937' : '#e2e8f0'}`,
             boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
             display: 'flex',
             flexDirection: 'column',
@@ -95,18 +98,17 @@ export function CalibrationPage() {
               display: 'inline-flex',
               padding: '16px',
               borderRadius: RADII.full,
-              backgroundColor: '#fee2e2',
-              color: '#dc2626',
+              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : '#fee2e2',
+              color: isDark ? '#f87171' : '#dc2626',
             }}
           >
             <ShieldAlert size={36} />
           </span>
-          <h2 style={{ fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: TYPOGRAPHY.fontWeight.bold, margin: 0, color: '#1e293b' }}>
-            Không có quyền truy cập (403 Forbidden)
+          <h2 style={{ fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: TYPOGRAPHY.fontWeight.bold, margin: 0, color: isDark ? '#f8fafc' : '#1e293b' }}>
+            {t('forbidden_title', 'Không có quyền truy cập (403 Forbidden)')}
           </h2>
-          <p style={{ color: '#64748b', fontSize: TYPOGRAPHY.fontSize.sm, maxWidth: '480px', margin: 0 }}>
-            Tính năng Hiệu chuẩn điểm (Calibration) chỉ dành riêng cho Quản trị viên nhân sự (HR_ADMIN).
-            Nhân viên, Quản lý và Quản trị hệ thống không có quyền thực hiện nghiệp vụ này.
+          <p style={{ color: isDark ? '#94a3b8' : '#64748b', fontSize: TYPOGRAPHY.fontSize.sm, maxWidth: '480px', margin: 0 }}>
+            {t('calibration_hr_only', 'Tính năng Hiệu chuẩn điểm (Calibration) chỉ dành riêng cho Quản trị viên nhân sự (HR_ADMIN). Nhân viên, Quản lý và Quản trị hệ thống không có quyền thực hiện nghiệp vụ này.')}
           </p>
         </div>
       </main>
@@ -175,7 +177,7 @@ export function CalibrationPage() {
   };
 
   return (
-    <main style={{ padding: '2rem', maxWidth: '1440px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <main style={{ padding: 'clamp(1rem, 2vw, 2rem)', maxWidth: '1440px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px', width: '100%', boxSizing: 'border-box' }}>
       {/* Page Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -187,18 +189,18 @@ export function CalibrationPage() {
               width: '42px',
               height: '42px',
               borderRadius: RADII.xl,
-              backgroundColor: '#eff6ff',
-              color: '#2563eb',
+              backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff',
+              color: isDark ? '#93c5fd' : '#2563eb',
             }}
           >
             <SlidersHorizontal size={24} />
           </span>
           <div>
-            <h1 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral[900] }}>
-              Hiệu chuẩn điểm đánh giá (Calibration Sessions)
+            <h1 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: TYPOGRAPHY.fontWeight.bold, color: isDark ? '#f8fafc' : COLORS.neutral[900] }}>
+              {t('calibration_title', 'Hiệu chuẩn điểm đánh giá (Calibration Sessions)')}
             </h1>
-            <p style={{ margin: '3px 0 0 0', fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral[500] }}>
-              So sánh phân phối điểm số, điều chỉnh điểm cuối cùng (Final Score) kèm lý do bắt buộc và chốt phiên tự động xuất bản.
+            <p style={{ margin: '3px 0 0 0', fontSize: TYPOGRAPHY.fontSize.sm, color: isDark ? '#94a3b8' : COLORS.neutral[500] }}>
+              {t('calibration_desc', 'So sánh phân phối điểm số, điều chỉnh điểm cuối cùng (Final Score) kèm lý do bắt buộc và chốt phiên tự động xuất bản.')}
             </p>
           </div>
         </div>
@@ -207,7 +209,7 @@ export function CalibrationPage() {
         {selectedCycleId && !isCycleLocked && isCalibrationEnabled && (
           <Button size="sm" onClick={() => setIsCreateModalOpen(true)}>
             <PlusCircle size={16} style={{ marginRight: '6px' }} />
-            Tạo phiên hiệu chuẩn mới
+            {t('create_session_btn', 'Tạo phiên hiệu chuẩn mới')}
           </Button>
         )}
       </div>
@@ -218,9 +220,9 @@ export function CalibrationPage() {
           style={{
             padding: '12px 18px',
             borderRadius: RADII.lg,
-            backgroundColor: feedbackMsg.type === 'success' ? '#dcfce7' : '#fee2e2',
-            border: `1px solid ${feedbackMsg.type === 'success' ? '#86efac' : '#fca5a5'}`,
-            color: feedbackMsg.type === 'success' ? '#15803d' : '#991b1b',
+            backgroundColor: feedbackMsg.type === 'success' ? (isDark ? 'rgba(34, 197, 94, 0.2)' : '#dcfce7') : (isDark ? 'rgba(239, 68, 68, 0.2)' : '#fee2e2'),
+            border: `1px solid ${feedbackMsg.type === 'success' ? (isDark ? '#15803d' : '#86efac') : (isDark ? '#991b1b' : '#fca5a5')}`,
+            color: feedbackMsg.type === 'success' ? (isDark ? '#86efac' : '#15803d') : (isDark ? '#fca5a5' : '#991b1b'),
             fontSize: TYPOGRAPHY.fontSize.sm,
             fontWeight: 500,
             display: 'flex',
@@ -244,9 +246,9 @@ export function CalibrationPage() {
           style={{
             padding: '12px 18px',
             borderRadius: RADII.lg,
-            backgroundColor: '#fef3c7',
-            border: '1px solid #fcd34d',
-            color: '#92400e',
+            backgroundColor: isDark ? 'rgba(245, 158, 11, 0.2)' : '#fef3c7',
+            border: `1px solid ${isDark ? '#b45309' : '#fcd34d'}`,
+            color: isDark ? '#fde68a' : '#92400e',
             fontSize: TYPOGRAPHY.fontSize.sm,
             display: 'flex',
             alignItems: 'center',
@@ -255,7 +257,7 @@ export function CalibrationPage() {
         >
           <Lock size={18} />
           <span>
-            <strong>Kỳ đánh giá đã bị khóa (LOCKED):</strong> Tất cả các phiên hiệu chuẩn thuộc kỳ đánh giá này đều ở chế độ chỉ đọc. Không thể tạo mới hay điều chỉnh điểm số.
+            <strong>{t('cycle_locked_warning', 'Kỳ đánh giá đã bị khóa (LOCKED):')}</strong> {t('cycle_locked_desc', 'Tất cả các phiên hiệu chuẩn thuộc kỳ đánh giá này đều ở chế độ chỉ đọc. Không thể tạo mới hay điều chỉnh điểm số.')}
           </span>
         </div>
       )}
@@ -266,9 +268,9 @@ export function CalibrationPage() {
           style={{
             padding: '12px 18px',
             borderRadius: RADII.lg,
-            backgroundColor: '#fef2f2',
-            border: '1px solid #fecaca',
-            color: '#991b1b',
+            backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : '#fef2f2',
+            border: `1px solid ${isDark ? '#991b1b' : '#fecaca'}`,
+            color: isDark ? '#fca5a5' : '#991b1b',
             fontSize: TYPOGRAPHY.fontSize.sm,
             display: 'flex',
             alignItems: 'center',
@@ -277,7 +279,7 @@ export function CalibrationPage() {
         >
           <AlertTriangle size={18} />
           <span>
-            <strong>Hiệu chuẩn điểm bị tắt (Calibration Disabled):</strong> Kỳ đánh giá này được cấu hình không áp dụng bước hiệu chuẩn. Đánh giá sẽ chuyển thẳng từ Đang duyệt (REVIEWING) sang Phê duyệt (APPROVED).
+            <strong>{t('calibration_disabled_warning', 'Hiệu chuẩn điểm bị tắt (Calibration Disabled):')}</strong> {t('calibration_disabled_desc', 'Kỳ đánh giá này được cấu hình không áp dụng bước hiệu chuẩn. Đánh giá sẽ chuyển thẳng từ Đang duyệt (REVIEWING) sang Phê duyệt (APPROVED).')}
           </span>
         </div>
       )}
@@ -289,26 +291,27 @@ export function CalibrationPage() {
           gap: '16px',
           alignItems: 'center',
           flexWrap: 'wrap',
-          backgroundColor: '#fff',
+          backgroundColor: isDark ? '#111827' : '#fff',
           padding: '16px 20px',
           borderRadius: RADII.xl,
-          border: '1px solid #e2e8f0',
+          border: `1px solid ${isDark ? '#1f2937' : '#e2e8f0'}`,
           boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
         }}
       >
         {/* Select Cycle */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Calendar size={18} color="#64748b" />
-          <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 600, color: '#475569' }}>Kỳ đánh giá:</span>
+          <Calendar size={18} color={isDark ? '#94a3b8' : '#64748b'} />
+          <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 600, color: isDark ? '#cbd5e1' : '#475569' }}>{t('cycle_label', 'Kỳ đánh giá:')}</span>
           <select
             value={selectedCycleId}
             onChange={(e) => setSelectedCycleId(e.target.value)}
             style={{
               padding: '7px 12px',
               borderRadius: RADII.md,
-              border: '1px solid #cbd5e1',
+              border: `1px solid ${isDark ? '#374151' : '#cbd5e1'}`,
               fontSize: TYPOGRAPHY.fontSize.sm,
-              backgroundColor: '#fff',
+              backgroundColor: isDark ? '#1f2937' : '#fff',
+              color: isDark ? '#f8fafc' : '#0f172a',
               outline: 'none',
               fontWeight: 500,
             }}
@@ -323,8 +326,8 @@ export function CalibrationPage() {
 
         {/* Select Session */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Layers size={18} color="#64748b" />
-          <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 600, color: '#475569' }}>Phiên hiệu chuẩn:</span>
+          <Layers size={18} color={isDark ? '#94a3b8' : '#64748b'} />
+          <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 600, color: isDark ? '#cbd5e1' : '#475569' }}>{t('session_label', 'Phiên hiệu chuẩn:')}</span>
           {sessionsQuery.data && sessionsQuery.data.length > 0 ? (
             <select
               value={selectedSessionId}
@@ -332,9 +335,10 @@ export function CalibrationPage() {
               style={{
                 padding: '7px 12px',
                 borderRadius: RADII.md,
-                border: '1px solid #cbd5e1',
+                border: `1px solid ${isDark ? '#374151' : '#cbd5e1'}`,
                 fontSize: TYPOGRAPHY.fontSize.sm,
-                backgroundColor: '#fff',
+                backgroundColor: isDark ? '#1f2937' : '#fff',
+                color: isDark ? '#f8fafc' : '#0f172a',
                 outline: 'none',
                 fontWeight: 500,
               }}
@@ -346,8 +350,8 @@ export function CalibrationPage() {
               ))}
             </select>
           ) : (
-            <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#94a3b8', fontStyle: 'italic' }}>
-              Chưa có phiên nào. Bấm nút tạo phiên ở trên.
+            <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: isDark ? '#64748b' : '#94a3b8', fontStyle: 'italic' }}>
+              {t('no_sessions_yet', 'Chưa có phiên nào. Bấm nút tạo phiên ở trên.')}
             </span>
           )}
         </div>
@@ -424,9 +428,9 @@ export function CalibrationPage() {
           {/* Evaluations Table */}
           <section
             style={{
-              backgroundColor: '#fff',
+              backgroundColor: isDark ? '#111827' : '#fff',
               borderRadius: RADII.xl,
-              border: '1px solid #e2e8f0',
+              border: `1px solid ${isDark ? '#1f2937' : '#e2e8f0'}`,
               overflow: 'hidden',
               boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
             }}
@@ -434,56 +438,56 @@ export function CalibrationPage() {
             <div
               style={{
                 padding: '16px 20px',
-                borderBottom: '1px solid #e2e8f0',
+                borderBottom: `1px solid ${isDark ? '#1f2937' : '#e2e8f0'}`,
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                backgroundColor: '#f8fafc',
+                backgroundColor: isDark ? '#1e293b' : '#f8fafc',
               }}
             >
               <div>
-                <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.base, fontWeight: 700, color: '#0f172a' }}>
-                  Danh sách nhân viên ({sessionDetail.evaluations.length})
+                <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.base, fontWeight: 700, color: isDark ? '#f8fafc' : '#0f172a' }}>
+                  {t('employee_list', 'Danh sách nhân viên')} ({sessionDetail.evaluations.length})
                 </h3>
-                <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: '#64748b' }}>
-                  Điểm tính toán gốc giữ nguyên; điểm sau hiệu chuẩn là điểm số có hiệu lực chính thức.
+                <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: isDark ? '#94a3b8' : '#64748b' }}>
+                  {t('calibration_table_note', 'Điểm tính toán gốc giữ nguyên; điểm sau hiệu chuẩn là điểm số có hiệu lực chính thức.')}
                 </div>
               </div>
             </div>
 
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: TYPOGRAPHY.fontSize.sm }}>
-                <thead style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+              <table style={{ width: '100%', minWidth: 850, borderCollapse: 'collapse', textAlign: 'left', fontSize: TYPOGRAPHY.fontSize.sm }}>
+                <thead style={{ background: isDark ? '#1e293b' : '#f8fafc', borderBottom: `2px solid ${isDark ? '#334155' : '#e2e8f0'}` }}>
                   <tr>
-                    <th style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>Nhân viên</th>
-                    <th style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>Mã NV</th>
-                    <th style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>Nhóm / Phòng ban</th>
-                    <th style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>Trạng thái</th>
-                    <th style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>Điểm tính toán gốc (Weighted)</th>
-                    <th style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>Điểm cuối cùng (Final Score)</th>
-                    <th style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>Lý do điều chỉnh gần nhất</th>
-                    <th style={{ padding: '10px 16px', fontWeight: 600, color: '#475569', textAlign: 'right' }}>Thao tác</th>
+                    <th style={{ padding: '10px 16px', fontWeight: 600, color: isDark ? '#94a3b8' : '#475569' }}>{t('employee', 'Nhân viên')}</th>
+                    <th style={{ padding: '10px 16px', fontWeight: 600, color: isDark ? '#94a3b8' : '#475569' }}>{t('employee_code', 'Mã NV')}</th>
+                    <th style={{ padding: '10px 16px', fontWeight: 600, color: isDark ? '#94a3b8' : '#475569' }}>{t('team_dept', 'Nhóm / Phòng ban')}</th>
+                    <th style={{ padding: '10px 16px', fontWeight: 600, color: isDark ? '#94a3b8' : '#475569' }}>{t('status', 'Trạng thái')}</th>
+                    <th style={{ padding: '10px 16px', fontWeight: 600, color: isDark ? '#94a3b8' : '#475569' }}>{t('calculated_score_weighted', 'Điểm tính toán gốc (Weighted)')}</th>
+                    <th style={{ padding: '10px 16px', fontWeight: 600, color: isDark ? '#94a3b8' : '#475569' }}>{t('final_score', 'Điểm cuối cùng (Final Score)')}</th>
+                    <th style={{ padding: '10px 16px', fontWeight: 600, color: isDark ? '#94a3b8' : '#475569' }}>{t('latest_adjustment_reason', 'Lý do điều chỉnh gần nhất')}</th>
+                    <th style={{ padding: '10px 16px', fontWeight: 600, color: isDark ? '#94a3b8' : '#475569', textAlign: 'right' }}>{t('actions', 'Thao tác')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sessionDetail.evaluations.length === 0 ? (
                     <tr>
-                      <td colSpan={8} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>
-                        Không có nhân viên nào trong phạm vi hiệu chuẩn này.
+                      <td colSpan={8} style={{ padding: '24px', textAlign: 'center', color: isDark ? '#94a3b8' : '#64748b' }}>
+                        {t('no_employees_in_scope', 'Không có nhân viên nào trong phạm vi hiệu chuẩn này.')}
                       </td>
                     </tr>
                   ) : (
                     sessionDetail.evaluations.map((row) => {
                       const isAdjusted = row.finalScore != null && row.calculatedScore != null && row.finalScore !== row.calculatedScore;
                       return (
-                        <tr key={row.evaluationId} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '12px 16px', fontWeight: 600, color: '#0f172a' }}>
+                        <tr key={row.evaluationId} style={{ borderBottom: `1px solid ${isDark ? '#1f2937' : '#f1f5f9'}` }}>
+                          <td style={{ padding: '12px 16px', fontWeight: 600, color: isDark ? '#f8fafc' : '#0f172a' }}>
                             {row.employeeName}
                           </td>
-                          <td style={{ padding: '12px 16px', color: '#64748b', fontFamily: 'monospace' }}>
+                          <td style={{ padding: '12px 16px', color: isDark ? '#94a3b8' : '#64748b', fontFamily: 'monospace' }}>
                             {row.employeeCode}
                           </td>
-                          <td style={{ padding: '12px 16px', color: '#475569' }}>
+                          <td style={{ padding: '12px 16px', color: isDark ? '#cbd5e1' : '#475569' }}>
                             {row.teamName || row.departmentName || '-'}
                           </td>
                           <td style={{ padding: '12px 16px' }}>

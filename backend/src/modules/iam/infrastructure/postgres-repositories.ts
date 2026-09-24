@@ -67,7 +67,16 @@ export class PostgresRoleRepository implements RoleRepository {
     const query = `
       SELECT role_id, code, name, description, active, system_role, created_at, updated_at
       FROM role
-      ORDER BY code ASC
+      WHERE system_role = true OR code IN ('EMPLOYEE', 'HR_ADMIN', 'MANAGER', 'SYSTEM_ADMIN')
+      ORDER BY 
+        CASE UPPER(code)
+          WHEN 'SYSTEM_ADMIN' THEN 1
+          WHEN 'HR_ADMIN' THEN 2
+          WHEN 'MANAGER' THEN 3
+          WHEN 'EMPLOYEE' THEN 4
+          ELSE 5
+        END ASC,
+        code ASC
     `;
     const res = await this.pool.query<RoleRow>(query);
     return res.rows.map((row) => this.mapRow(row));
