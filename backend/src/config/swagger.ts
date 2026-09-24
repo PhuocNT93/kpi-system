@@ -4734,6 +4734,60 @@ export const swaggerOptions: swaggerJsdoc.Options = {
           },
         },
       },
+      '/api/v1/evaluation-cycles/individual': {
+        post: {
+          summary: 'Create individual evaluation cycles',
+          description:
+            'Creates one INDIVIDUAL_SCHEDULED cycle (status OPEN) with one evaluation per selected employee, reusing the Open Cycle generation logic. ' +
+            'Employees with an active evaluation are skipped (listed in data.skipped); if every employee is skipped the request fails with 409 EVALUATION_ALREADY_OPEN. ' +
+            'Upcoming DRAFT batch cycles covering an employee produce non-blocking data.warnings (UPCOMING_BATCH_CYCLE, window BATCH_CYCLE_LEAD_TIME_WEEKS). ' +
+            'Requires HR_ADMIN or SYSTEM_ADMIN (organisation-wide) or MANAGER (own teams only).',
+          tags: ['Evaluation Cycle'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['employee_ids', 'start_date', 'end_date'],
+                  properties: {
+                    name: { type: 'string', maxLength: 140, example: 'Individual Review' },
+                    evaluation_template_version_id: { type: 'string', format: 'uuid', description: 'Optional; defaults to the latest PUBLISHED template version.' },
+                    template_version_id: { type: 'string', format: 'uuid', description: 'Alias of evaluation_template_version_id (Review Due Dashboard).' },
+                    employee_ids: { type: 'array', minItems: 1, maxItems: 100, items: { type: 'string', format: 'uuid' } },
+                    start_date: { type: 'string', format: 'date', example: '2026-09-24' },
+                    end_date: { type: 'string', format: 'date', example: '2026-10-24' },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            201: { description: 'Individual cycles created; data = { created[], skipped[], warnings[] }' },
+            400: { description: 'VALIDATION_ERROR' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden - role not allowed or employee outside the manager team scope' },
+            404: { description: 'Employee or template version not found' },
+            409: { description: 'EVALUATION_ALREADY_OPEN - every selected employee already has an active evaluation' },
+            422: { description: 'EMPLOYEE_NOT_ELIGIBLE, TEMPLATE_NOT_PUBLISHED or INVALID_TEMPLATE_CONFIGURATION' },
+          },
+        },
+      },
+      '/api/evaluation-cycles/individual': {
+        post: {
+          summary: 'Create individual evaluation cycles (alias)',
+          description: 'Alias of /api/v1/evaluation-cycles/individual.',
+          tags: ['Evaluation Cycle'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            201: { description: 'Individual cycles created' },
+            400: { description: 'VALIDATION_ERROR' },
+            403: { description: 'Forbidden' },
+            409: { description: 'EVALUATION_ALREADY_OPEN' },
+          },
+        },
+      },
       '/api/v1/evaluation-cycles/{id}/transition': {
         post: {
           summary: 'Transition evaluation cycle status',

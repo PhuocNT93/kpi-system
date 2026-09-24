@@ -4,13 +4,18 @@ import {
   Evaluation,
   EvaluationItem,
   EvaluationCycleStatus,
+  EvaluationCycleType,
   EvaluationStatus,
   ListEvaluationCycleQuery,
+  EvaluationEmployeeRecord,
+  ActiveEvaluationRef,
+  NON_ACTIVE_EVALUATION_STATUSES,
 } from '../domain/evaluation-cycle.types.js';
 import {
   IEvaluationCycleRepository,
   IEvaluationRepository,
   IEvaluationItemRepository,
+  NewEvaluationCycle,
 } from '../domain/evaluation-cycle.repository.js';
 import { QueryExecutor } from '../../../shared/database/query-executor.js';
 
@@ -18,6 +23,8 @@ interface EvaluationCycleRow {
   evaluation_cycle_id: string;
   code: string;
   name: string;
+  cycle_type: string | null;
+  triggered_by_employee_id: string | null;
   start_date: Date | string;
   end_date: Date | string;
   status: string;
@@ -53,6 +60,23 @@ interface EvaluationRow {
   updated_at: Date | string;
   created_by: string | null;
   updated_by: string | null;
+}
+
+interface EmployeeLockRow {
+  employee_id: string;
+  employee_code: string;
+  team_id: string | null;
+  role_id: string | null;
+  job_level_id: string | null;
+  manager_id: string | null;
+  employment_status: string;
+}
+
+interface ActiveEvaluationRow {
+  evaluation_id: string;
+  evaluation_cycle_id: string;
+  employee_id: string;
+  status: string;
 }
 
 interface EvaluationItemRow {
@@ -99,7 +123,7 @@ export class PostgresEvaluationCycleRepository implements IEvaluationCycleReposi
     if (!this.hasQuery(executor)) return null;
 
     const res = await executor.query(
-      `SELECT evaluation_cycle_id, code, name, start_date, end_date, status,
+      `SELECT evaluation_cycle_id, code, name, cycle_type, triggered_by_employee_id, start_date, end_date, status,
               evaluation_template_version_id, applicable_team_ids, applicable_role_ids, applicable_employee_ids,
               approved_by, locked_at, created_at, updated_at, created_by, updated_by
        FROM evaluation_cycle
@@ -115,7 +139,7 @@ export class PostgresEvaluationCycleRepository implements IEvaluationCycleReposi
     if (!this.hasQuery(client)) return null;
 
     const res = await client.query(
-      `SELECT evaluation_cycle_id, code, name, start_date, end_date, status,
+      `SELECT evaluation_cycle_id, code, name, cycle_type, triggered_by_employee_id, start_date, end_date, status,
               evaluation_template_version_id, applicable_team_ids, applicable_role_ids, applicable_employee_ids,
               approved_by, locked_at, created_at, updated_at, created_by, updated_by
        FROM evaluation_cycle
@@ -133,7 +157,7 @@ export class PostgresEvaluationCycleRepository implements IEvaluationCycleReposi
     if (!this.hasQuery(executor)) return null;
 
     const res = await executor.query(
-      `SELECT evaluation_cycle_id, code, name, start_date, end_date, status,
+      `SELECT evaluation_cycle_id, code, name, cycle_type, triggered_by_employee_id, start_date, end_date, status,
               evaluation_template_version_id, applicable_team_ids, applicable_role_ids, applicable_employee_ids,
               approved_by, locked_at, created_at, updated_at, created_by, updated_by
        FROM evaluation_cycle
@@ -180,7 +204,7 @@ export class PostgresEvaluationCycleRepository implements IEvaluationCycleReposi
     const sortDir = query.sortDirection?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
     const dataRes = await executor.query(
-      `SELECT evaluation_cycle_id, code, name, start_date, end_date, status,
+      `SELECT evaluation_cycle_id, code, name, cycle_type, triggered_by_employee_id, start_date, end_date, status,
               evaluation_template_version_id, applicable_team_ids, applicable_role_ids, applicable_employee_ids,
               approved_by, locked_at, created_at, updated_at, created_by, updated_by
        FROM evaluation_cycle
@@ -196,19 +220,16 @@ export class PostgresEvaluationCycleRepository implements IEvaluationCycleReposi
     };
   }
 
-  async create(
-    cycle: Omit<EvaluationCycle, 'evaluationCycleId' | 'createdAt' | 'updatedAt'>,
-    client?: PoolClient
-  ): Promise<EvaluationCycle> {
+  async create(cycle: NewEvaluationCycle, client?: PoolClient): Promise<EvaluationCycle> {
     const executor = this.getExecutor(client);
 
     const res = await executor.query(
       `INSERT INTO evaluation_cycle (
         code, name, start_date, end_date, status,
         evaluation_template_version_id, applicable_team_ids, applicable_role_ids, applicable_employee_ids,
-        approved_by, locked_at, created_by, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-      RETURNING evaluation_cycle_id, code, name, start_date, end_date, status,
+        approved_by, locked_at, created_by, updated_by, cycle_type, triggered_by_employee_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      RETURNING evaluation_cycle_id, code, name, cycle_type, triggered_by_employee_id, start_date, end_date, status,
                 evaluation_template_version_id, applicable_team_ids, applicable_role_ids, applicable_employee_ids,
                 approved_by, locked_at, created_at, updated_at, created_by, updated_by`,
       [
@@ -225,10 +246,28 @@ export class PostgresEvaluationCycleRepository implements IEvaluationCycleReposi
         cycle.lockedAt,
         cycle.createdBy,
         cycle.updatedBy,
+        cycle.cycleType ?? EvaluationCycleType.BATCH,
+        cycle.triggeredByEmployeeId ?? null,
       ]
     );
 
     return this.mapRowToCycle(res.rows[0]);
+  }
+
+  async findUpcomingBatchCycles(fromDate: string, toDate: string, client: PoolClient): Promise<EvaluationCycle[]> {
+    const res = await client.query(
+      `SELECT evaluation_cycle_id, code, name, cycle_type, triggered_by_employee_id, start_date, end_date, status,
+              evaluation_template_version_id, applicable_team_ids, applicable_role_ids, applicable_employee_ids,
+              approved_by, locked_at, created_at, updated_at, created_by, updated_by
+       FROM evaluation_cycle
+       WHERE cycle_type = $1
+         AND status = $2
+         AND start_date BETWEEN $3::date AND $4::date
+       ORDER BY start_date ASC, code ASC`,
+      [EvaluationCycleType.BATCH, EvaluationCycleStatus.DRAFT, fromDate, toDate]
+    );
+
+    return res.rows.map((row: EvaluationCycleRow) => this.mapRowToCycle(row));
   }
 
   async update(cycle: EvaluationCycle, client?: PoolClient): Promise<EvaluationCycle> {
@@ -240,7 +279,7 @@ export class PostgresEvaluationCycleRepository implements IEvaluationCycleReposi
            evaluation_template_version_id = $6, applicable_team_ids = $7, applicable_role_ids = $8,
            applicable_employee_ids = $9, approved_by = $10, locked_at = $11, updated_by = $12
          WHERE evaluation_cycle_id = $13
-       RETURNING evaluation_cycle_id, code, name, start_date, end_date, status,
+       RETURNING evaluation_cycle_id, code, name, cycle_type, triggered_by_employee_id, start_date, end_date, status,
              evaluation_template_version_id, applicable_team_ids, applicable_role_ids, applicable_employee_ids,
                  approved_by, locked_at, created_at, updated_at, created_by, updated_by`,
       [
@@ -268,7 +307,7 @@ export class PostgresEvaluationCycleRepository implements IEvaluationCycleReposi
       `UPDATE evaluation_cycle
        SET status = $1, locked_at = $2
        WHERE evaluation_cycle_id = $3
-       RETURNING evaluation_cycle_id, code, name, start_date, end_date, status,
+       RETURNING evaluation_cycle_id, code, name, cycle_type, triggered_by_employee_id, start_date, end_date, status,
                  evaluation_template_version_id, applicable_team_ids, applicable_role_ids, applicable_employee_ids,
                  approved_by, locked_at, created_at, updated_at, created_by, updated_by`,
       [EvaluationCycleStatus.LOCKED, lockedAt, id]
@@ -282,6 +321,8 @@ export class PostgresEvaluationCycleRepository implements IEvaluationCycleReposi
       evaluationCycleId: row.evaluation_cycle_id,
       code: row.code,
       name: row.name,
+      cycleType: (row.cycle_type as EvaluationCycleType | null) ?? EvaluationCycleType.BATCH,
+      triggeredByEmployeeId: row.triggered_by_employee_id ?? null,
       startDate: row.start_date instanceof Date ? row.start_date.toISOString().slice(0, 10) : row.start_date,
       endDate: row.end_date instanceof Date ? row.end_date.toISOString().slice(0, 10) : row.end_date,
       status: row.status as EvaluationCycleStatus,
@@ -378,6 +419,53 @@ export class PostgresEvaluationRepository implements IEvaluationRepository {
 
     if (res.rows.length === 0) return null;
     return this.mapRowToEvaluation(res.rows[0]);
+  }
+
+  async lockEmployeesForEvaluation(employeeIds: string[], client: PoolClient): Promise<EvaluationEmployeeRecord[]> {
+    if (employeeIds.length === 0) return [];
+
+    // Fixed lock order (employee_id) prevents deadlocks between concurrent requests on overlapping employees.
+    const res = await client.query(
+      `SELECT e.employee_id, e.employee_code, e.team_id, e.role_id, e.job_level_id, e.manager_id, e.employment_status
+       FROM employee e
+       WHERE e.employee_id = ANY($1::uuid[])
+       ORDER BY e.employee_id
+       FOR UPDATE OF e`,
+      [employeeIds]
+    );
+
+    return res.rows.map((row: EmployeeLockRow) => ({
+      employeeId: row.employee_id,
+      employeeCode: row.employee_code,
+      teamId: row.team_id,
+      roleId: row.role_id,
+      jobLevelId: row.job_level_id,
+      managerId: row.manager_id,
+      employmentStatus: row.employment_status,
+    }));
+  }
+
+  async findActiveEvaluationsByEmployees(employeeIds: string[], client: PoolClient): Promise<ActiveEvaluationRef[]> {
+    if (employeeIds.length === 0) return [];
+
+    const res = await client.query(
+      `SELECT ev.evaluation_id, ev.evaluation_cycle_id, ev.employee_id, ev.status
+       FROM evaluation ev
+       JOIN evaluation_cycle ec ON ec.evaluation_cycle_id = ev.evaluation_cycle_id
+       WHERE ev.employee_id = ANY($1::uuid[])
+         AND ev.status <> ALL($2::varchar[])
+         AND ev.is_locked = false
+         AND ec.status <> $3
+       ORDER BY ev.employee_id, ev.created_at DESC`,
+      [employeeIds, [...NON_ACTIVE_EVALUATION_STATUSES], EvaluationCycleStatus.LOCKED]
+    );
+
+    return res.rows.map((row: ActiveEvaluationRow) => ({
+      evaluationId: row.evaluation_id,
+      evaluationCycleId: row.evaluation_cycle_id,
+      employeeId: row.employee_id,
+      status: row.status,
+    }));
   }
 
   private mapRowToEvaluation(row: EvaluationRow): Evaluation {

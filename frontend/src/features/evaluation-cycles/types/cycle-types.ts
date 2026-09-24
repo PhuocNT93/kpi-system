@@ -9,6 +9,8 @@ export type CycleStatus =
   | 'PUBLISHED'
   | 'LOCKED';
 
+export type CycleType = 'BATCH' | 'INDIVIDUAL_SCHEDULED';
+
 export type CycleAllowedAction =
   | 'EDIT'
   | 'OPEN'
@@ -54,6 +56,10 @@ export interface EvaluationCycleDTO {
   id: string;
   code: string;
   name: string;
+  /** Always set by the API mapper; optional only so static fixtures stay valid. */
+  cycleType?: CycleType;
+  /** Evaluated employee of an INDIVIDUAL_SCHEDULED cycle; null for batch cycles. */
+  triggeredByEmployeeId?: string | null;
   status: CycleStatus;
   template: TemplateReferenceDTO;
   period: PeriodDTO;
@@ -121,4 +127,47 @@ export interface CycleFilterParams {
   status?: string;
   templateId?: string;
   teamId?: string;
+}
+
+// ── Individual evaluation cycles (POST /evaluation-cycles/individual) ─────────
+
+export const EVALUATION_ALREADY_OPEN = 'EVALUATION_ALREADY_OPEN';
+export const UPCOMING_BATCH_CYCLE = 'UPCOMING_BATCH_CYCLE';
+
+export interface IndividualCycleCreateInput {
+  name?: string;
+  templateVersionId: string;
+  employeeIds: string[];
+  startDate: string;
+  endDate: string;
+}
+
+export interface IndividualCycleCreated {
+  cycle: EvaluationCycleDTO;
+  employeeId: string;
+  evaluationId: string;
+  evaluationItemCount: number;
+}
+
+export interface IndividualCycleSkip {
+  employeeId: string;
+  reasonCode: string;
+  existingEvaluationId: string;
+  existingEvaluationCycleId: string;
+}
+
+export interface IndividualCycleWarning {
+  code: string;
+  employeeId: string;
+  evaluationCycleId: string;
+  evaluationCycleCode: string;
+  evaluationCycleName: string;
+  startDate: string;
+  message: string;
+}
+
+export interface IndividualCycleCreationResult {
+  created: IndividualCycleCreated[];
+  skipped: IndividualCycleSkip[];
+  warnings: IndividualCycleWarning[];
 }

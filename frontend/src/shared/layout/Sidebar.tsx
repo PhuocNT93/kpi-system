@@ -20,6 +20,7 @@ import {
   Award,
   Mail,
   X,
+  UserPlus,
 } from 'lucide-react';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY, SHADOWS } from '@/shared/theme';
@@ -163,6 +164,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
             title: 'Configuration',
             collapsible: true,
             items: [
+              {
+                id: 'individual-cycles',
+                label: 'Individual Evaluation',
+                icon: <UserPlus size={18} />,
+              },
               ...(canViewConfig
                 ? [
                     {
