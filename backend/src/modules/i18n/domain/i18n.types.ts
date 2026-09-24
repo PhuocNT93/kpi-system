@@ -16,6 +16,7 @@ export const EntityTypeSchema = z.enum([
   'DASHBOARD_UI',
   'ORGANIZATION_UI',
   'REVIEW_DUE_UI',
+  'INDIVIDUAL_CYCLE_UI',
 ]);
 
 export type EntityType = z.infer<typeof EntityTypeSchema> | string;

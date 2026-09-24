@@ -84,3 +84,13 @@ DONE — with the user-approved exception that full test suites are run by the u
 
 ## Next Step
 None — task complete pending user acceptance (commit/PR only on request).
+
+## Update — revision after first Step 10 review
+- Added per user request: i18n like AUDIT_UI (migration `1791000000004`, entity type `INDIVIDUAL_CYCLE_UI`, `useUiTranslation` + localStorage), dark/light theme palettes, responsive layout (< 768px). Details in Step 6 "Revision" sections.
+- Evidence: frontend/backend `typecheck` 0 errors, `lint` clean; migration applied on local DB (`pgmigrations` has `1791000000004…`, `i18n_translation` has 126 en + 126 vi rows for `INDIVIDUAL_CYCLE_UI`).
+- Environment note: the compose `migrate` service runs `migrate:up && seed`; the seed truncates evaluation data. A stack restart at 09:04 UTC re-seeded the local DB, removing the test template `TPL_INDIVIDUAL_TEST` and any test cycles. Use `docker compose run --rm migrate npm run migrate:up` to migrate without seeding and `docker compose up -d --build --no-deps backend frontend` to rebuild apps only.
+- Commits: `9810fd4` (review-due-date), `2a2ae60` (individual cycle). The i18n/theme/responsive revision is **not committed yet**.
+- User approved Step 10 ("Next step").
+
+## Final Status (updated)
+DONE — with the user-approved exception that full test suites are run by the user; revision pending commit.

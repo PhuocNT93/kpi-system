@@ -13,6 +13,11 @@ npm --prefix frontend run dev     # frontend (Vite)
 ```
 Stop with `Ctrl+C` in each terminal.
 
+## Language, theme and mobile
+- All labels follow the header language switch (English / Tiếng Việt). Strings come from the `INDIVIDUAL_CYCLE_UI` translations (migration `1791000000005`), cached in the browser (localStorage) and editable in **I18n Translation**; English is the fallback.
+- Follows the dark/light theme toggle.
+- On screens narrower than 768px the table shows Employee (with team) and Review status only, fields stack in one column and the buttons become full width.
+
 ## Where to find it
 - URL: `/admin/individual-cycles`.
 - Sidebar: **Configuration → Individual Evaluation** (HR_ADMIN, SYSTEM_ADMIN, MANAGER).

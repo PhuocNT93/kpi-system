@@ -3,7 +3,9 @@ import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import type { OrgEmployee } from '@/features/organization/domain/organization-models';
 import { Badge } from '@/shared/ui/Badge/Badge';
 import { COLORS } from '@/lib/theme';
+import { useTheme } from '@/shared/theme';
 import { getEmployeeReviewStatus, getReviewBadgeMeta } from '../domain/employee-review-status';
+import { useIndividualCycleTranslation, useIsMobile } from '../hooks/use-individual-cycle-ui';
 
 export const EMPLOYEE_PICKER_PAGE_SIZE = 10;
 
@@ -42,6 +44,9 @@ export const IndividualEmployeePicker: React.FC<IndividualEmployeePickerProps> =
   error,
   disabled = false,
 }) => {
+  const { t } = useIndividualCycleTranslation();
+  const { isDark } = useTheme();
+  const isMobile = useIsMobile();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
@@ -61,6 +66,27 @@ export const IndividualEmployeePicker: React.FC<IndividualEmployeePickerProps> =
   );
   const pageIds = pageEmployees.map((employee) => employee.id);
   const isPageFullySelected = pageIds.length > 0 && pageIds.every((id) => selectedEmployeeIds.includes(id));
+  const columnCount = isMobile ? 3 : 5;
+
+  const accent = isDark ? '#A5B4FC' : '#4F46E5';
+  const avatarBackground = isDark ? 'rgba(129, 140, 248, 0.2)' : '#4F46E51A';
+  const selectedRowBackground = isDark ? 'rgba(129, 140, 248, 0.12)' : '#4F46E50D';
+
+  const reviewLabel = (status: ReturnType<typeof getEmployeeReviewStatus>): string => {
+    const days = status.daysUntilDue;
+    switch (status.status) {
+      case 'OVERDUE':
+        return days === null
+          ? t('ic_review_overdue', 'Overdue')
+          : t('ic_review_overdue_days', '{days}d overdue', { days: Math.abs(days) });
+      case 'UPCOMING':
+        return days === 0 ? t('ic_review_due_today', 'Due today') : t('ic_review_due_in', 'Due in {days}d', { days: days ?? 0 });
+      case 'NOT_DUE':
+        return days === null ? t('ic_review_not_due', 'Not due') : t('ic_review_days_left', '{days}d left', { days });
+      default:
+        return t('ic_review_no_schedule', 'No schedule');
+    }
+  };
 
   const toggleEmployee = (employeeId: string) => {
     onChange(
@@ -81,18 +107,18 @@ export const IndividualEmployeePicker: React.FC<IndividualEmployeePickerProps> =
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', flex: '1 1 280px', maxWidth: '420px' }}>
+        <div style={{ position: 'relative', flex: '1 1 260px', maxWidth: isMobile ? '100%' : '420px' }}>
           <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
           <input
             type="search"
-            aria-label="Search employees"
+            aria-label={t('ic_search_placeholder', 'Search by name, code or email')}
             value={search}
             disabled={disabled}
             onChange={(event) => {
               setSearch(event.target.value);
               setPage(1);
             }}
-            placeholder="Search by name, code or email"
+            placeholder={t('ic_search_placeholder', 'Search by name, code or email')}
             style={{
               width: '100%',
               padding: '9px 12px 9px 36px',
@@ -107,16 +133,16 @@ export const IndividualEmployeePicker: React.FC<IndividualEmployeePickerProps> =
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
           <span>
-            <strong style={{ color: 'var(--text-primary)' }}>{selectedEmployeeIds.length}</strong> selected
+            <strong style={{ color: 'var(--text-primary)' }}>{selectedEmployeeIds.length}</strong> {t('ic_selected', 'selected')}
           </span>
           {selectedEmployeeIds.length > 0 && (
             <button
               type="button"
               onClick={() => onChange([])}
               disabled={disabled}
-              style={{ border: 'none', background: 'transparent', color: COLORS.primary.DEFAULT, fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+              style={{ border: 'none', background: 'transparent', color: accent, fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
             >
-              Clear selection
+              {t('ic_clear_selection', 'Clear selection')}
             </button>
           )}
         </div>
@@ -124,7 +150,7 @@ export const IndividualEmployeePicker: React.FC<IndividualEmployeePickerProps> =
 
       <div style={{ border: `1px solid ${error ? COLORS.status.error : 'var(--border-subtle)'}`, borderRadius: '10px', overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-primary)' }}>
             <thead>
               <tr
                 style={{
@@ -139,23 +165,23 @@ export const IndividualEmployeePicker: React.FC<IndividualEmployeePickerProps> =
                 <th style={{ ...headerCellStyle, width: '44px' }}>
                   <input
                     type="checkbox"
-                    aria-label="Select all employees on this page"
+                    aria-label={t('ic_select_page', 'Select all employees on this page')}
                     checked={isPageFullySelected}
                     disabled={disabled || pageIds.length === 0}
                     onChange={togglePage}
                   />
                 </th>
-                <th style={headerCellStyle}>Employee</th>
-                <th style={headerCellStyle}>Team</th>
-                <th style={headerCellStyle}>Next review</th>
-                <th style={headerCellStyle}>Review status</th>
+                <th style={headerCellStyle}>{t('ic_col_employee', 'Employee')}</th>
+                {!isMobile && <th style={headerCellStyle}>{t('ic_col_team', 'Team')}</th>}
+                {!isMobile && <th style={headerCellStyle}>{t('ic_col_next_review', 'Next review')}</th>}
+                <th style={headerCellStyle}>{t('ic_col_review_status', 'Review status')}</th>
               </tr>
             </thead>
             <tbody>
               {pageEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={5} style={{ ...cellStyle, padding: '24px 16px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                    No matching employees.
+                  <td colSpan={columnCount} style={{ ...cellStyle, padding: '24px 16px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                    {t('ic_no_match', 'No matching employees.')}
                   </td>
                 </tr>
               ) : (
@@ -163,13 +189,14 @@ export const IndividualEmployeePicker: React.FC<IndividualEmployeePickerProps> =
                   const reviewStatus = getEmployeeReviewStatus(employee);
                   const badgeMeta = getReviewBadgeMeta(reviewStatus.status, reviewStatus.daysUntilDue);
                   const isSelected = selectedEmployeeIds.includes(employee.id);
+                  const teamName = employee.teamId ? teamNameById?.get(employee.teamId) : undefined;
                   return (
                     <tr
                       key={employee.id}
                       onClick={() => !disabled && toggleEmployee(employee.id)}
                       style={{
                         borderBottom: '1px solid var(--border-subtle)',
-                        backgroundColor: isSelected ? '#4F46E50D' : 'transparent',
+                        backgroundColor: isSelected ? selectedRowBackground : 'transparent',
                         cursor: disabled ? 'not-allowed' : 'pointer',
                       }}
                     >
@@ -184,42 +211,46 @@ export const IndividualEmployeePicker: React.FC<IndividualEmployeePickerProps> =
                       </td>
                       <td style={cellStyle}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <div
-                            aria-hidden="true"
-                            style={{
-                              width: '34px',
-                              height: '34px',
-                              borderRadius: '50%',
-                              backgroundColor: '#4F46E51A',
-                              color: '#4F46E5',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontWeight: 700,
-                              fontSize: '0.8rem',
-                              flexShrink: 0,
-                            }}
-                          >
-                            {employee.fullName.slice(0, 2).toUpperCase()}
-                          </div>
+                          {!isMobile && (
+                            <div
+                              aria-hidden="true"
+                              style={{
+                                width: '34px',
+                                height: '34px',
+                                borderRadius: '50%',
+                                backgroundColor: avatarBackground,
+                                color: accent,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontWeight: 700,
+                                fontSize: '0.8rem',
+                                flexShrink: 0,
+                              }}
+                            >
+                              {employee.fullName.slice(0, 2).toUpperCase()}
+                            </div>
+                          )}
                           <div style={{ minWidth: 0 }}>
                             <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{employee.fullName}</div>
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                               <span>{employee.employeeCode}</span>
                               <span>•</span>
-                              <span>{employee.email}</span>
+                              <span style={{ wordBreak: 'break-all' }}>{isMobile ? teamName ?? '—' : employee.email}</span>
                             </div>
                           </div>
                         </div>
                       </td>
-                      <td style={{ ...cellStyle, color: 'var(--text-primary)' }}>
-                        {(employee.teamId && teamNameById?.get(employee.teamId)) || <span style={{ color: 'var(--text-muted)' }}>—</span>}
-                      </td>
-                      <td style={{ ...cellStyle, color: 'var(--text-secondary)' }}>
-                        {employee.nextReviewDueDate ?? <span style={{ color: 'var(--text-muted)' }}>—</span>}
-                      </td>
+                      {!isMobile && (
+                        <td style={cellStyle}>{teamName ?? <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
+                      )}
+                      {!isMobile && (
+                        <td style={{ ...cellStyle, color: 'var(--text-secondary)' }}>
+                          {employee.nextReviewDueDate ?? <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                        </td>
+                      )}
                       <td style={cellStyle}>
-                        <Badge variant={badgeMeta.variant}>{badgeMeta.label}</Badge>
+                        <Badge variant={badgeMeta.variant}>{reviewLabel(reviewStatus)}</Badge>
                       </td>
                     </tr>
                   );
@@ -233,33 +264,35 @@ export const IndividualEmployeePicker: React.FC<IndividualEmployeePickerProps> =
           style={{
             padding: '12px 16px',
             display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
             justifyContent: 'space-between',
-            alignItems: 'center',
+            alignItems: isMobile ? 'stretch' : 'center',
             gap: '12px',
             backgroundColor: 'var(--bg-surface)',
           }}
         >
-          <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-            Page {currentPage} of {totalPages} · {filteredEmployees.length} employees
+          <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textAlign: isMobile ? 'center' : 'left' }}>
+            {t('ic_page_label', 'Page')} {currentPage} {t('ic_of_label', 'of')} {totalPages} · {filteredEmployees.length}{' '}
+            {t('ic_employees_label', 'employees')}
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', justifyContent: isMobile ? 'space-between' : 'flex-end' }}>
             <button
               type="button"
-              aria-label="Previous employees page"
+              aria-label={t('ic_prev_btn', 'Previous')}
               disabled={currentPage <= 1}
               onClick={() => setPage(currentPage - 1)}
               style={pagerButtonStyle(currentPage <= 1)}
             >
-              <ChevronLeft size={16} /> Previous
+              <ChevronLeft size={16} /> {t('ic_prev_btn', 'Previous')}
             </button>
             <button
               type="button"
-              aria-label="Next employees page"
+              aria-label={t('ic_next_btn', 'Next')}
               disabled={currentPage >= totalPages}
               onClick={() => setPage(currentPage + 1)}
               style={pagerButtonStyle(currentPage >= totalPages)}
             >
-              Next <ChevronRight size={16} />
+              {t('ic_next_btn', 'Next')} <ChevronRight size={16} />
             </button>
           </div>
         </div>

@@ -10,15 +10,19 @@ import { ApiClientError } from '@/shared/api/api-client';
 import { LoadingSpinner, ErrorAlert, ConfirmDialog } from '@/shared/components/ui';
 import { Button } from '@/shared/ui/Button/Button';
 import { COLORS } from '@/lib/theme';
-import { RADII, TYPOGRAPHY } from '@/shared/theme';
+import { RADII, TYPOGRAPHY, useTheme } from '@/shared/theme';
 import { IndividualEmployeePicker } from '../components/IndividualEmployeePicker';
 import { IndividualCycleResultPanel } from '../components/IndividualCycleResultPanel';
 import { useCreateIndividualCyclesMutation } from '../hooks/use-evaluation-cycles';
+import { useIndividualCycleTranslation, useIsMobile } from '../hooks/use-individual-cycle-ui';
+import type { TranslationVars } from '../hooks/use-individual-cycle-ui';
 import { EVALUATION_ALREADY_OPEN } from '../types/cycle-types';
 import type { IndividualCycleCreationResult } from '../types/cycle-types';
 
 const ACTIVE_EMPLOYMENT_STATUS = 'ACTIVE';
 const DEFAULT_DURATION_DAYS = 30;
+
+type Translate = (key: string, fallback: string, vars?: TranslationVars) => string;
 
 interface FormErrors {
   employeeIds?: string;
@@ -50,30 +54,41 @@ function toTemplateOption(template: EvaluationTemplate): TemplateOption | null {
   const criteriaCount = template.criteriaCount ?? template.currentVersion?.criteria?.length;
   return {
     id,
-    label: `${template.name} (v${versionNo}) — ${template.status}${criteriaCount ? ` (${criteriaCount} criteria)` : ''}`,
+    label: `${template.name} (v${versionNo}) — ${template.status}${criteriaCount ? ` (${criteriaCount})` : ''}`,
   };
 }
 
 /** Maps a failed submission to a blocking message; the backend message/code stays authoritative. */
-function describeSubmitError(error: unknown): { title: string; message: string; requestId?: string } {
+function describeSubmitError(error: unknown, t: Translate): { title: string; message: string; requestId?: string } {
   if (error instanceof ApiClientError) {
     if (error.statusCode === 409 && error.code === EVALUATION_ALREADY_OPEN) {
       return {
-        title: 'No evaluation was created',
-        message: `Every selected employee already has an active evaluation (${error.code}). Finish or close it before creating a new one.`,
+        title: t('ic_err_all_blocked_title', 'No evaluation was created'),
+        message: t(
+          'ic_err_all_blocked_msg',
+          'Every selected employee already has an active evaluation ({code}). Finish or close it before creating a new one.',
+          { code: error.code }
+        ),
         requestId: error.requestId,
       };
     }
     if (error.statusCode === 403) {
       return {
-        title: 'Not allowed',
-        message: `${error.message} You can only create individual evaluations for employees within your permission scope.`,
+        title: t('ic_err_forbidden_title', 'Not allowed'),
+        message: `${error.message} ${t('ic_err_forbidden_msg', 'You can only create individual evaluations for employees within your permission scope.')}`,
         requestId: error.requestId,
       };
     }
-    return { title: 'Could not create individual evaluations', message: `${error.message} (${error.code})`, requestId: error.requestId };
+    return {
+      title: t('ic_err_generic_title', 'Could not create individual evaluations'),
+      message: `${error.message} (${error.code})`,
+      requestId: error.requestId,
+    };
   }
-  return { title: 'Could not create individual evaluations', message: error instanceof Error ? error.message : 'Unexpected error.' };
+  return {
+    title: t('ic_err_generic_title', 'Could not create individual evaluations'),
+    message: error instanceof Error ? error.message : t('ic_err_unexpected', 'Unexpected error.'),
+  };
 }
 
 const sectionStyle: React.CSSProperties = {
@@ -116,14 +131,8 @@ const inputStyle = (hasError: boolean): React.CSSProperties => ({
   boxSizing: 'border-box',
   backgroundColor: 'var(--bg-surface)',
   color: 'var(--text-primary)',
+  colorScheme: 'light dark',
 });
-
-const footerStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'flex-end',
-  gap: '12px',
-};
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
@@ -137,6 +146,9 @@ function FieldError({ message }: { message?: string }) {
 export const IndividualCycleCreatePage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t } = useIndividualCycleTranslation();
+  const { isDark } = useTheme();
+  const isMobile = useIsMobile();
   const employeesQuery = useEmployees();
   const templatesQuery = useTemplatesQuery();
   const teamsQuery = useTeams();
@@ -156,6 +168,7 @@ export const IndividualCycleCreatePage: React.FC = () => {
   const isManager = user?.role === 'MANAGER';
   const managedTeamIds = useMemo(() => user?.managedTeamIds ?? [], [user?.managedTeamIds]);
   const backTarget = isManager ? '/admin/team-evaluations' : '/admin/cycles';
+  const defaultCycleName = t('ic_name_default', 'Individual Review');
 
   // UX only: the backend enforces eligibility and the manager's team scope.
   const eligibleEmployees = useMemo(
@@ -189,11 +202,13 @@ export const IndividualCycleCreatePage: React.FC = () => {
 
   const validate = (): boolean => {
     const nextErrors: FormErrors = {};
-    if (selectedEmployeeIds.length === 0) nextErrors.employeeIds = 'Select at least one employee.';
-    if (!templateVersionId) nextErrors.templateVersionId = 'Evaluation template is required.';
-    if (!startDate) nextErrors.startDate = 'Start date is required.';
-    if (!endDate) nextErrors.endDate = 'End date is required.';
-    if (startDate && endDate && startDate > endDate) nextErrors.endDate = 'End date must be on or after the start date.';
+    if (selectedEmployeeIds.length === 0) nextErrors.employeeIds = t('ic_err_employees', 'Select at least one employee.');
+    if (!templateVersionId) nextErrors.templateVersionId = t('ic_err_template', 'Evaluation template is required.');
+    if (!startDate) nextErrors.startDate = t('ic_err_start', 'Start date is required.');
+    if (!endDate) nextErrors.endDate = t('ic_err_end', 'End date is required.');
+    if (startDate && endDate && startDate > endDate) {
+      nextErrors.endDate = t('ic_err_date_order', 'End date must be on or after the start date.');
+    }
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
@@ -232,10 +247,28 @@ export const IndividualCycleCreatePage: React.FC = () => {
 
   const isLoading = employeesQuery.isLoading || templatesQuery.isLoading;
   const loadError = employeesQuery.error ?? templatesQuery.error;
-  const submitErrorView = submitError ? describeSubmitError(submitError) : null;
+  const submitErrorView = submitError ? describeSubmitError(submitError, t) : null;
+
+  const errorBoxStyle: React.CSSProperties = {
+    padding: '12px 16px',
+    borderRadius: RADII.md,
+    background: isDark ? 'rgba(239, 68, 68, 0.15)' : '#fef2f2',
+    border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.4)' : '#fecaca'}`,
+    color: isDark ? '#fca5a5' : '#b91c1c',
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    wordBreak: 'break-word',
+  };
+
+  const footerStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: isMobile ? 'column-reverse' : 'row',
+    alignItems: isMobile ? 'stretch' : 'center',
+    justifyContent: 'flex-end',
+    gap: '12px',
+  };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '16px' : '20px' }}>
       <button
         type="button"
         onClick={() => navigate(backTarget)}
@@ -245,7 +278,7 @@ export const IndividualCycleCreatePage: React.FC = () => {
           gap: '6px',
           background: 'none',
           border: 'none',
-          color: COLORS.neutral.textSecondary,
+          color: 'var(--text-secondary)',
           fontSize: '0.875rem',
           fontWeight: 600,
           cursor: 'pointer',
@@ -253,19 +286,30 @@ export const IndividualCycleCreatePage: React.FC = () => {
           width: 'fit-content',
         }}
       >
-        <ArrowLeft size={16} /> {isManager ? 'Back to Team Reviews' : 'Back to Evaluation Cycles'}
+        <ArrowLeft size={16} />{' '}
+        {isManager ? t('ic_back_team', 'Back to Team Reviews') : t('ic_back_cycles', 'Back to Evaluation Cycles')}
       </button>
 
       <div>
-        <h1 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize['2xl'], fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
-          Create Individual Evaluation
+        <h1
+          style={{
+            margin: 0,
+            fontSize: isMobile ? TYPOGRAPHY.fontSize.xl : TYPOGRAPHY.fontSize['2xl'],
+            fontWeight: TYPOGRAPHY.fontWeight.bold,
+            color: 'var(--text-primary)',
+          }}
+        >
+          {t('ic_page_title', 'Create Individual Evaluation')}
         </h1>
-        <p style={{ margin: '4px 0 0', fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary }}>
-          Creates a separate evaluation cycle for each selected employee, opened immediately with the chosen published template.
+        <p style={{ margin: '4px 0 0', fontSize: TYPOGRAPHY.fontSize.sm, color: 'var(--text-secondary)' }}>
+          {t(
+            'ic_page_subtitle',
+            'Creates a separate evaluation cycle for each selected employee, opened immediately with the chosen published template.'
+          )}
         </p>
       </div>
 
-      {isLoading && <LoadingSpinner label="Loading employees and templates..." />}
+      {isLoading && <LoadingSpinner label={t('ic_loading', 'Loading employees and templates...')} />}
       {loadError && !isLoading && (
         <ErrorAlert
           error={loadError}
@@ -277,41 +321,41 @@ export const IndividualCycleCreatePage: React.FC = () => {
       )}
 
       {submitErrorView && (
-        <div
-          role="alert"
-          style={{ padding: '12px 16px', borderRadius: RADII.md, background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', fontSize: TYPOGRAPHY.fontSize.sm }}
-        >
+        <div role="alert" style={errorBoxStyle}>
           <strong>{submitErrorView.title}</strong>
           <div>{submitErrorView.message}</div>
-          {submitErrorView.requestId && <div style={{ marginTop: '4px', fontSize: TYPOGRAPHY.fontSize.xs }}>Request ID: {submitErrorView.requestId}</div>}
+          {submitErrorView.requestId && (
+            <div style={{ marginTop: '4px', fontSize: TYPOGRAPHY.fontSize.xs }}>
+              {t('ic_request_id', 'Request ID')}: {submitErrorView.requestId}
+            </div>
+          )}
         </div>
       )}
 
       {result ? (
-        <section style={{ ...sectionStyle }}>
-          <h3 style={sectionTitleStyle}>Result</h3>
+        <section style={sectionStyle}>
+          <h3 style={sectionTitleStyle}>{t('ic_result_title', 'Result')}</h3>
           <IndividualCycleResultPanel result={result} getEmployeeLabel={getEmployeeLabel} canOpenCycle={!isManager} />
           <div style={footerStyle}>
             <Button variant="secondary" type="button" onClick={() => navigate(backTarget)}>
-              Done
+              {t('ic_btn_done', 'Done')}
             </Button>
             <Button type="button" onClick={handleStartOver}>
-              Create another
+              {t('ic_btn_create_another', 'Create another')}
             </Button>
           </div>
         </section>
       ) : (
         !isLoading && (
-          <form
-            onSubmit={handleReview}
-            noValidate
-            style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}
-          >
-            <section style={sectionStyle}>
+          <form onSubmit={handleReview} noValidate style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '16px' : '20px' }}>
+            <section style={{ ...sectionStyle, padding: isMobile ? '16px' : '20px' }}>
               <div>
-                <h3 style={sectionTitleStyle}>Select employees</h3>
+                <h3 style={sectionTitleStyle}>{t('ic_section_employees', 'Select employees')}</h3>
                 <p style={sectionHintStyle}>
-                  Each selected employee gets their own cycle. Employees who already have an active evaluation will be skipped.
+                  {t(
+                    'ic_section_employees_hint',
+                    'Each selected employee gets their own cycle. Employees who already have an active evaluation will be skipped.'
+                  )}
                 </p>
               </div>
               <IndividualEmployeePicker
@@ -324,14 +368,14 @@ export const IndividualCycleCreatePage: React.FC = () => {
               />
             </section>
 
-            <section style={sectionStyle}>
+            <section style={{ ...sectionStyle, padding: isMobile ? '16px' : '20px' }}>
               <div>
-                <h3 style={sectionTitleStyle}>Cycle settings</h3>
-                <p style={sectionHintStyle}>Applied to every cycle created in this request.</p>
+                <h3 style={sectionTitleStyle}>{t('ic_section_settings', 'Cycle settings')}</h3>
+                <p style={sectionHintStyle}>{t('ic_section_settings_hint', 'Applied to every cycle created in this request.')}</p>
               </div>
               <div>
                 <label htmlFor="individual-template" style={labelStyle}>
-                  Published Template Version *
+                  {t('ic_template_label', 'Published Template Version *')}
                 </label>
                 <select
                   id="individual-template"
@@ -340,7 +384,7 @@ export const IndividualCycleCreatePage: React.FC = () => {
                   disabled={createMutation.isPending}
                   style={inputStyle(Boolean(errors.templateVersionId))}
                 >
-                  <option value="">-- Select Published Template Version --</option>
+                  <option value="">{t('ic_template_placeholder', '-- Select Published Template Version --')}</option>
                   {templateOptions.map((option) => (
                     <option key={option.id} value={option.id}>
                       {option.label}
@@ -349,28 +393,34 @@ export const IndividualCycleCreatePage: React.FC = () => {
                 </select>
                 <FieldError message={errors.templateVersionId} />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))',
+                  gap: '16px',
+                }}
+              >
                 <div>
                   <label htmlFor="individual-name" style={labelStyle}>
-                    Cycle Name
+                    {t('ic_name_label', 'Cycle Name')}
                   </label>
                   <input
                     id="individual-name"
                     type="text"
                     maxLength={140}
-                    placeholder="Individual Review"
+                    placeholder={defaultCycleName}
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                     disabled={createMutation.isPending}
                     style={inputStyle(false)}
                   />
-                  <span style={{ fontSize: '0.75rem', color: COLORS.neutral.textSecondary }}>
-                    Saved as “{name.trim() || 'Individual Review'} - employee code”
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    {t('ic_name_hint', 'Saved as “{name} - employee code”', { name: name.trim() || defaultCycleName })}
                   </span>
                 </div>
                 <div>
                   <label htmlFor="individual-start-date" style={labelStyle}>
-                    Start Date *
+                    {t('ic_start_label', 'Start Date *')}
                   </label>
                   <input
                     id="individual-start-date"
@@ -384,7 +434,7 @@ export const IndividualCycleCreatePage: React.FC = () => {
                 </div>
                 <div>
                   <label htmlFor="individual-end-date" style={labelStyle}>
-                    End Date *
+                    {t('ic_end_label', 'End Date *')}
                   </label>
                   <input
                     id="individual-end-date"
@@ -401,10 +451,10 @@ export const IndividualCycleCreatePage: React.FC = () => {
 
             <div style={footerStyle}>
               <Button variant="secondary" type="button" onClick={() => navigate(backTarget)} disabled={createMutation.isPending}>
-                Cancel
+                {t('ic_btn_cancel', 'Cancel')}
               </Button>
               <Button type="submit" disabled={createMutation.isPending}>
-                {createMutation.isPending ? 'Creating…' : 'Review and create'}
+                {createMutation.isPending ? t('ic_btn_creating', 'Creating…') : t('ic_btn_review', 'Review and create')}
               </Button>
             </div>
           </form>
@@ -413,14 +463,18 @@ export const IndividualCycleCreatePage: React.FC = () => {
 
       <ConfirmDialog
         isOpen={isConfirmOpen}
-        title="Create individual evaluations?"
+        title={t('ic_confirm_title', 'Create individual evaluations?')}
         description={
           <span>
-            {selectedEmployeeIds.length} employee(s) will each get a new evaluation cycle from {startDate} to {endDate}, opened immediately.
-            Employees who already have an active evaluation will be skipped.
+            {t(
+              'ic_confirm_desc',
+              '{count} employee(s) will each get a new evaluation cycle from {start} to {end}, opened immediately. Employees who already have an active evaluation will be skipped.',
+              { count: selectedEmployeeIds.length, start: startDate, end: endDate }
+            )}
           </span>
         }
-        confirmLabel="Create"
+        confirmLabel={t('ic_btn_create', 'Create')}
+        cancelLabel={t('ic_btn_cancel', 'Cancel')}
         onConfirm={() => void handleConfirm()}
         onCancel={() => setIsConfirmOpen(false)}
         isPending={createMutation.isPending}
