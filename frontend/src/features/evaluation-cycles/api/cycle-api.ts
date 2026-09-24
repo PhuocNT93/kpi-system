@@ -8,12 +8,18 @@ import type {
   CycleOpeningStatusDTO,
   CycleFilterParams,
   CycleAllowedAction,
+  CycleType,
+  IndividualCycleCreateInput,
+  IndividualCycleCreationResult,
+  IndividualCycleWarning,
 } from '../types/cycle-types';
 
 export interface BackendEvaluationCycleResponse {
   id: string;
   code: string;
   name: string;
+  cycle_type?: CycleType;
+  triggered_by_employee_id?: string | null;
   start_date: string;
   end_date: string;
   status: EvaluationCycleDTO['status'];
@@ -66,6 +72,8 @@ export function mapBackendToCycleDTO(raw: BackendEvaluationCycleResponse): Evalu
     id: raw.id,
     code: raw.code,
     name: parseLocalizedName(raw.name),
+    cycleType: raw.cycle_type ?? 'BATCH',
+    triggeredByEmployeeId: raw.triggered_by_employee_id ?? null,
     status: raw.status,
     template: {
       id: raw.evaluation_template_version_id || 'tpl-default',
@@ -97,6 +105,85 @@ export function mapBackendToCycleDTO(raw: BackendEvaluationCycleResponse): Evalu
     lockedAt: raw.locked_at,
     createdBy: raw.created_by ?? undefined,
     approvedBy: raw.approved_by,
+  };
+}
+
+export interface IndividualCycleCreateRequestWire {
+  name?: string;
+  evaluation_template_version_id: string;
+  employee_ids: string[];
+  start_date: string;
+  end_date: string;
+}
+
+export interface IndividualCycleCreateResponseWire {
+  created: {
+    evaluation_cycle: BackendEvaluationCycleResponse;
+    employee_id: string;
+    evaluation_id: string;
+    evaluation_item_count: number;
+  }[];
+  skipped: {
+    employee_id: string;
+    reason_code: string;
+    existing_evaluation_id: string;
+    existing_evaluation_cycle_id: string;
+  }[];
+  warnings: {
+    code: string;
+    employee_id: string;
+    evaluation_cycle_id: string;
+    evaluation_cycle_code: string;
+    evaluation_cycle_name: string;
+    start_date: string;
+    message: string;
+  }[];
+}
+
+export function mapIndividualCycleCreateRequest(input: IndividualCycleCreateInput): IndividualCycleCreateRequestWire {
+  const name = input.name?.trim();
+  return {
+    ...(name ? { name } : {}),
+    evaluation_template_version_id: input.templateVersionId,
+    employee_ids: Array.from(new Set(input.employeeIds)),
+    start_date: input.startDate,
+    end_date: input.endDate,
+  };
+}
+
+/** Maps the wire response; warnings are deduplicated per (employee, batch cycle) defensively. */
+export function mapIndividualCycleCreationResult(raw: IndividualCycleCreateResponseWire): IndividualCycleCreationResult {
+  const seenWarnings = new Set<string>();
+  const warnings: IndividualCycleWarning[] = [];
+  for (const warning of raw.warnings ?? []) {
+    const key = `${warning.code}:${warning.employee_id}:${warning.evaluation_cycle_id}`;
+    if (seenWarnings.has(key)) continue;
+    seenWarnings.add(key);
+    warnings.push({
+      code: warning.code,
+      employeeId: warning.employee_id,
+      evaluationCycleId: warning.evaluation_cycle_id,
+      evaluationCycleCode: warning.evaluation_cycle_code,
+      evaluationCycleName: warning.evaluation_cycle_name,
+      startDate: warning.start_date,
+      message: warning.message,
+    });
+  }
+
+  return {
+    created: (raw.created ?? []).map((entry) => ({
+      cycle: mapBackendToCycleDTO(entry.evaluation_cycle),
+      employeeId: entry.employee_id,
+      evaluationId: entry.evaluation_id,
+      evaluationItemCount: entry.evaluation_item_count,
+    })),
+    skipped: (raw.skipped ?? []).map((entry) => ({
+      employeeId: entry.employee_id,
+      reasonCode: entry.reason_code,
+      existingEvaluationId: entry.existing_evaluation_id,
+      existingEvaluationCycleId: entry.existing_evaluation_cycle_id,
+    })),
+    warnings,
   };
 }
 
@@ -162,6 +249,14 @@ export const evaluationCycleApi = {
         ],
       };
     }
+  },
+
+  createIndividualCycles: async (input: IndividualCycleCreateInput): Promise<IndividualCycleCreationResult> => {
+    const raw = await postApi<IndividualCycleCreateResponseWire>(
+      '/api/evaluation-cycles/individual',
+      mapIndividualCycleCreateRequest(input)
+    );
+    return mapIndividualCycleCreationResult(raw);
   },
 
   openCycle: async (id: string): Promise<CycleOpenResultDTO> => {

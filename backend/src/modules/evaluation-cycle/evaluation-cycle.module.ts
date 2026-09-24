@@ -7,6 +7,8 @@ import {
 import { EvaluationCycleTransitionService } from './application/evaluation-cycle-transition.service.js';
 import { EvaluationCycleService } from './application/evaluation-cycle.service.js';
 import { EvaluationCycleOpeningService } from './application/evaluation-cycle-opening.service.js';
+import { EvaluationGenerationService } from './application/evaluation-generation.service.js';
+import { IndividualCycleCreationService } from './application/individual-cycle-creation.service.js';
 import { EvaluationCycleController } from './api/evaluation-cycle.controller.js';
 import { AuditService } from '../audit/application/audit.service.js';
 
@@ -17,6 +19,8 @@ export interface EvaluationCycleModule {
   transitionService: EvaluationCycleTransitionService;
   cycleService: EvaluationCycleService;
   openingService: EvaluationCycleOpeningService;
+  generationService: EvaluationGenerationService;
+  individualCreationService: IndividualCycleCreationService;
   cycleController: EvaluationCycleController;
 }
 
@@ -42,17 +46,25 @@ export function createEvaluationCycleModule(
     notificationService
   );
 
+  const generationService = new EvaluationGenerationService(evaluationRepo, evaluationItemRepo, notificationService);
+
   const openingService = new EvaluationCycleOpeningService(
     pool,
     cycleRepo,
-    evaluationRepo,
-    evaluationItemRepo,
+    generationService,
     transitionService,
-    auditService,
-    notificationService
+    auditService
   );
 
-  const cycleController = new EvaluationCycleController(cycleService, openingService);
+  const individualCreationService = new IndividualCycleCreationService(
+    pool,
+    cycleRepo,
+    evaluationRepo,
+    generationService,
+    auditService
+  );
+
+  const cycleController = new EvaluationCycleController(cycleService, openingService, individualCreationService);
 
   return {
     cycleRepo,
@@ -61,6 +73,8 @@ export function createEvaluationCycleModule(
     transitionService,
     cycleService,
     openingService,
+    generationService,
+    individualCreationService,
     cycleController,
   };
 }
