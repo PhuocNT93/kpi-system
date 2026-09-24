@@ -97,13 +97,14 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
     return cadence.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   };
 
-  const formatMonthYear = (dateString: string | null) => {
+  const formatDateWithDay = (dateString: string | null) => {
     if (!dateString) return '-';
     const parsedDate = new Date(dateString);
     if (Number.isNaN(parsedDate.getTime())) return '-';
 
+    const day = String(parsedDate.getDate()).padStart(2, '0');
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${monthNames[parsedDate.getMonth()]} ${parsedDate.getFullYear()}`;
+    return `${day} ${monthNames[parsedDate.getMonth()]} ${parsedDate.getFullYear()}`;
   };
 
   const thBg = isDark ? '#0f172a' : '#f9fafb';
@@ -212,11 +213,11 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
                         <span style={{ color: subTextColor }}>-</span>
                       )}
                     </td>
-                    <td style={{ padding: '0.75rem 1rem', color: subTextColor, fontSize: '0.875rem' }}>
-                      {formatMonthYear(emp.lastEvaluationCompletedAt)}
+                    <td style={{ padding: '0.75rem 1rem', color: subTextColor, fontSize: '0.875rem', whiteSpace: 'nowrap' }}>
+                      {formatDateWithDay(emp.lastEvaluationCompletedAt)}
                     </td>
-                    <td style={{ padding: '0.75rem 1rem', color: isDark ? '#fb923c' : '#ea580c', fontSize: '0.875rem', fontWeight: 500 }}>
-                      {formatMonthYear(emp.nextReviewDueDate)}
+                    <td style={{ padding: '0.75rem 1rem', color: isDark ? '#fb923c' : '#ea580c', fontSize: '0.875rem', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                      {formatDateWithDay(emp.nextReviewDueDate)}
                     </td>
                     <td style={{ padding: '0.75rem 1rem' }}>
                       <StatusBadge status={emp.employmentStatus} />

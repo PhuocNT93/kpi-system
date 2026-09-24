@@ -52,9 +52,11 @@ export class EmployeeController {
       lastDate.setMonth(lastDate.getMonth() + 3);
       break;
     case 'SEMI_ANNUAL':
+    case 'BIANNUALLY':
       lastDate.setMonth(lastDate.getMonth() + 6);
       break;
     case 'ANNUAL':
+    case 'ANNUALLY':
       lastDate.setFullYear(lastDate.getFullYear() + 1);
       break;
     default:
@@ -62,6 +64,19 @@ export class EmployeeController {
   }
   return lastDate.toISOString();
 }
+
+  private cadenceToMonths(cadence: string | null | undefined): number {
+    if (!cadence) return 6;
+    switch (cadence.toUpperCase()) {
+      case 'MONTHLY': return 1;
+      case 'QUARTERLY': return 3;
+      case 'SEMI_ANNUAL':
+      case 'BIANNUALLY': return 6;
+      case 'ANNUAL':
+      case 'ANNUALLY': return 12;
+      default: return 6;
+    }
+  }
 
 // ── Employee ─────────────────────────────────────────────────────────────
 
@@ -222,6 +237,7 @@ export class EmployeeController {
         employmentStatus: employment_status || EmploymentStatus.ACTIVE,
         joinDate: joinDate,
         reviewCadence: review_cadence || null,
+        reviewCadenceMonths: this.cadenceToMonths(review_cadence),
         lastEvaluationCompletedAt: last_evaluation_completed_at || null,
         nextReviewDueDate: next_review_due_date || this.calculateNextReviewDate(last_evaluation_completed_at, review_cadence),
       });
@@ -395,6 +411,15 @@ export class EmployeeController {
         }
       }
 
+      const targetCadence = req.body.review_cadence !== undefined ? (req.body.review_cadence || null) : existing.reviewCadence;
+      const targetLastEval = req.body.last_evaluation_completed_at !== undefined ? (req.body.last_evaluation_completed_at || null) : existing.lastEvaluationCompletedAt;
+      const targetNextReview = req.body.next_review_due_date !== undefined
+        ? (req.body.next_review_due_date || null)
+        : (this.calculateNextReviewDate(targetLastEval, targetCadence) ?? existing.nextReviewDueDate);
+      const targetCadenceMonths = req.body.review_cadence_months !== undefined
+        ? (Number(req.body.review_cadence_months) || 6)
+        : this.cadenceToMonths(targetCadence);
+
       const updated = await this.employeeRepo.update({
         ...existing,
         fullName: req.body.full_name ?? existing.fullName,
@@ -406,9 +431,10 @@ export class EmployeeController {
         managerId: newManagerId,
         employmentStatus: req.body.employment_status ?? existing.employmentStatus,
         terminationDate: req.body.termination_date ?? existing.terminationDate,
-        reviewCadence: req.body.review_cadence ?? existing.reviewCadence,
-        lastEvaluationCompletedAt: req.body.last_evaluation_completed_at ?? existing.lastEvaluationCompletedAt,
-        nextReviewDueDate: req.body.next_review_due_date ?? this.calculateNextReviewDate(req.body.last_evaluation_completed_at ?? existing.lastEvaluationCompletedAt, req.body.review_cadence ?? existing.reviewCadence) ?? existing.nextReviewDueDate,
+        reviewCadence: targetCadence,
+        reviewCadenceMonths: targetCadenceMonths,
+        lastEvaluationCompletedAt: targetLastEval,
+        nextReviewDueDate: targetNextReview,
       });
 
       // Sync app_user name and email if changed
@@ -1371,6 +1397,7 @@ export class EmployeeController {
       join_date: emp.joinDate,
       termination_date: emp.terminationDate,
       review_cadence: emp.reviewCadence,
+      review_cadence_months: emp.reviewCadenceMonths ?? null,
       review_cadence_override_id: emp.reviewCadenceOverrideId ?? null,
       last_evaluation_completed_at: emp.lastEvaluationCompletedAt,
       next_review_due_date: emp.nextReviewDueDate,

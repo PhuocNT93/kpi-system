@@ -125,14 +125,16 @@ export class JiraCrawlerController {
 
       let memberName = `Nhân viên (${employeeCode})`;
       let memberEmail = `${employeeCode}@cyberlogitec.com`;
+      let blueprintUsername: string | undefined;
       try {
         const empRes = await this.pool.query(
-          'SELECT full_name, email FROM employee WHERE employee_code = $1',
+          'SELECT full_name, email, blueprint_username FROM employee WHERE employee_code = $1',
           [employeeCode]
         );
         if (empRes.rows.length > 0) {
           memberName = empRes.rows[0].full_name;
           memberEmail = empRes.rows[0].email;
+          blueprintUsername = empRes.rows[0].blueprint_username || undefined;
         }
       } catch (error) {
         console.error('Error fetching employee name', error);
@@ -142,6 +144,7 @@ export class JiraCrawlerController {
         code: employeeCode,
         name: memberName,
         email: memberEmail,
+        blueprintUsername,
         team: 'ALLEGRO' as const,
       };
 
@@ -150,6 +153,8 @@ export class JiraCrawlerController {
         toDate,
         maxLimit: 100,
         scriptConfig: activeConfig,
+        email: member.email,
+        blueprintUsername: member.blueprintUsername,
       });
 
       const metrics = this.jiraClient.aggregateMemberMetrics(member, issues, activeConfig);
@@ -206,7 +211,7 @@ export class JiraCrawlerController {
           : null;
 
         const recommendedDateFrom = lastReview || defaultFromDate;
-        const recommendedDateTo = today;
+        const recommendedDateTo = nextReview || today;
 
         // Due for review if nextReview is null or due within leadTimeDays
         let isDueForReview = true;
@@ -266,11 +271,17 @@ export class JiraCrawlerController {
       }
 
       const empRes = await this.pool.query(
-        'SELECT employee_code as code, full_name as name, email FROM employee WHERE employee_code = $1',
+        'SELECT employee_code as code, full_name as name, email, blueprint_username FROM employee WHERE employee_code = $1',
         [employeeCode]
       );
       const member = empRes.rows.length > 0
-        ? { code: empRes.rows[0].code, name: empRes.rows[0].name, email: empRes.rows[0].email, team: 'ALLEGRO' as const }
+        ? {
+            code: empRes.rows[0].code,
+            name: empRes.rows[0].name,
+            email: empRes.rows[0].email,
+            blueprintUsername: empRes.rows[0].blueprint_username || undefined,
+            team: 'ALLEGRO' as const,
+          }
         : null;
 
       if (!member) {
@@ -294,6 +305,8 @@ export class JiraCrawlerController {
         fromDate,
         toDate,
         scriptConfig,
+        email: member.email,
+        blueprintUsername: member.blueprintUsername,
       });
 
       const metrics: MemberJiraMetrics = this.jiraClient.aggregateMemberMetrics(member, issues, scriptConfig);

@@ -37,6 +37,32 @@ export interface MemberJiraMetrics {
   sampleTaskKeys: string[];
   bugTaskKeys: string[];
   inProgressTaskKeys?: string[];
+  tasks?: JiraIssueRecord[];
+}
+
+export interface JiraIssueRecord {
+  key: string;
+  summary: string;
+  projectKey: string;
+  projectName: string;
+  issueType: string;
+  isBug: boolean;
+  priority: string;
+  status: string;
+  isCompleted: boolean;
+  isOnTime: boolean;
+  createdDate: string | null;
+  dueDate: string | null;
+  resolutionDate: string | null;
+  timeSpentHours: number;
+  originalEstimateHours?: number;
+  jiraUrl: string;
+  descriptionPreview?: string;
+  components?: string[];
+  labels?: string[];
+  commentsCount?: number;
+  latestComment?: string;
+  resolution?: string | null;
 }
 
 export interface EvaluatedKpiRecord {
