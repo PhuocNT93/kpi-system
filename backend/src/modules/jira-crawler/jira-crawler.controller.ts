@@ -652,6 +652,7 @@ export class JiraCrawlerController {
         durationMs: r.durationMs,
         cronExpression: r.cronExpression,
         blueprintMembersCount: r.results.filter((res) => res.blueprintSummary?.hasData).length,
+        errorLog: r.errorLog || [],
         // Quick score summary (without full task details)
         scoreSummary: r.results.map((res) => ({
           employeeCode: res.employeeCode,

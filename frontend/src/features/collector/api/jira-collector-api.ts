@@ -242,6 +242,7 @@ export interface BatchRunListItem {
   durationMs: number;
   cronExpression: string;
   blueprintMembersCount?: number;
+  errorLog?: string[];
   scoreSummary: BatchRunSummaryItem[];
 }
 

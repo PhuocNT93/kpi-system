@@ -237,8 +237,31 @@ export class AiScoringEngine {
     const taskMap = new Map<string, JiraIssueRecord>(sampleTasks.map((t) => [t.key, t]));
 
     if (this.apiKey) {
-      const taskList = sampleTasks.map((t, idx) =>
-        `Task ${idx + 1}:
+      const hasTaskPlaceholders = Boolean(
+        this.taskPromptTemplate &&
+        (this.taskPromptTemplate.includes('{{taskKey}}') ||
+         this.taskPromptTemplate.includes('{{key}}') ||
+         this.taskPromptTemplate.includes('{{taskSummary}}') ||
+         this.taskPromptTemplate.includes('{{summary}}'))
+      );
+
+      const taskList = sampleTasks.map((t, idx) => {
+        if (hasTaskPlaceholders && this.taskPromptTemplate) {
+          const renderedTask = this.taskPromptTemplate
+            .replace(/\{\{(taskKey|key)\}\}/g, t.key)
+            .replace(/\{\{(taskSummary|summary)\}\}/g, t.summary)
+            .replace(/\{\{(taskDescription|description)\}\}/g, t.descriptionPreview || 'Không có mô tả bổ sung')
+            .replace(/\{\{priority\}\}/g, t.priority)
+            .replace(/\{\{issueType\}\}/g, t.issueType)
+            .replace(/\{\{status\}\}/g, t.status)
+            .replace(/\{\{timeSpentHours\}\}/g, String(t.timeSpentHours))
+            .replace(/\{\{originalEstimateHours\}\}/g, String(t.originalEstimateHours || 0))
+            .replace(/\{\{memberName\}\}/g, metrics.memberName)
+            .replace(/\{\{employeeCode\}\}/g, metrics.employeeCode);
+          return `--- Task ${idx + 1} (${t.key}) ---\n${renderedTask}`;
+        }
+
+        return `Task ${idx + 1}:
 - Key: ${t.key}
 - Summary: "${t.summary}"
 - Type: ${t.issueType} | Priority: ${t.priority} | Status: ${t.status} | OnTime: ${t.isOnTime ? 'Đúng hạn' : 'Trễ hạn'}
@@ -246,12 +269,20 @@ export class AiScoringEngine {
 - Labels: ${t.labels && t.labels.length > 0 ? t.labels.join(', ') : 'N/A'}
 - TimeSpent: ${t.timeSpentHours}h${t.originalEstimateHours ? ` (Ước lượng ban đầu: ${t.originalEstimateHours}h)` : ''}
 - Description: "${t.descriptionPreview || 'Không có mô tả bổ sung'}"
-- Số lượng trao đổi/comment: ${t.commentsCount || 0}${t.latestComment ? ` | Comment gần nhất: "${t.latestComment}"` : ''}`
-      ).join('\n\n');
+- Số lượng trao đổi/comment: ${t.commentsCount || 0}${t.latestComment ? ` | Comment gần nhất: "${t.latestComment}"` : ''}`;
+      }).join('\n\n');
+
+      const customPromptInstructions = (!hasTaskPlaceholders && this.taskPromptTemplate)
+        ? this.renderPrompt(this.taskPromptTemplate, {
+            memberName: metrics.memberName,
+            employeeCode: metrics.employeeCode,
+          })
+        : '';
 
       const prompt = `Bạn là Giám đốc kỹ thuật (Engineering Director) tại CyberLogitec Việt Nam.
 Hãy đánh giá CHI TIẾT và TOÀN DIỆN từng task Jira của nhân viên ${metrics.memberName} (Mã NV: ${metrics.employeeCode}).
 
+${customPromptInstructions ? `HƯỚNG DẪN & TIÊU CHÍ ĐÁNH GIÁ TÙY CHỈNH:\n${customPromptInstructions}\n` : ''}
 DANH SÁCH TASKS CẦN ĐÁNH GIÁ:
 ${taskList}
 

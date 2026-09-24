@@ -43,3 +43,17 @@ services:
         value: 60
       - key: PORTAL_BASE_URL
         sync: false
+      - key: JIRA_BASE_URL
+        value: https://pim.cyberlogitec.com/jira
+      - key: JIRA_USERNAME
+        value: ky.luong
+      - key: JIRA_PASSWORD
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: BLUEPRINT_BASE_URL
+        value: https://blueprint.cyberlogitec.com.vn
+      - key: BLUEPRINT_USERNAME
+        value: kyluong
+      - key: BLUEPRINT_PASSWORD
+        sync: false

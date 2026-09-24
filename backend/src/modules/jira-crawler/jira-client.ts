@@ -78,6 +78,7 @@ export interface MemberJiraMetrics {
 
 export class JiraPimClient {
   private readonly baseUrl: string;
+  private readonly username: string;
   private readonly authHeader: string;
 
   constructor(
@@ -86,6 +87,7 @@ export class JiraPimClient {
     password = JIRA_CONFIG.password
   ) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
+    this.username = username;
     this.authHeader = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
   }
 
@@ -104,6 +106,16 @@ export class JiraPimClient {
     });
 
     if (!res.ok) {
+      const authDenied = res.headers.get('X-Authentication-Denied-Reason') || '';
+      const seraphReason = res.headers.get('X-Seraph-LoginReason') || '';
+      if (res.status === 403 && (authDenied.includes('CAPTCHA') || seraphReason === 'AUTHENTICATION_DENIED')) {
+        throw new Error(
+          `Jira API 403 [CAPTCHA_CHALLENGE]: Tài khoản Jira '${this.username}' bị khóa tạm thời do Jira kích hoạt CAPTCHA challenge. Vui lòng mở trình duyệt và đăng nhập vào ${this.baseUrl}/login.jsp để giải mã CAPTCHA, sau đó thử lại.`
+        );
+      }
+      if (res.status === 401) {
+        throw new Error(`Jira API 401 [UNAUTHORIZED]: Sai thông tin tài khoản hoặc mật khẩu Jira (${this.username}).`);
+      }
       const errText = await res.text();
       throw new Error(`Jira API ${res.status} [${url}]: ${errText.slice(0, 300)}`);
     }
