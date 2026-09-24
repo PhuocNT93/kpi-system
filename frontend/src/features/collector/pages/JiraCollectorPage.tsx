@@ -492,8 +492,8 @@ function MemberDetailPanel({
             </div>
           </div>
 
-          {/* Task Contribution Scores with Deep AI Reasoning */}
-          {result.taskContributions.length > 0 && (
+          {/* Task Contribution Scores with Deep AI Reasoning or Raw Tasks List */}
+          {result.taskContributions.length > 0 ? (
             <div style={{ marginBottom: 24 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
                 <div style={{ fontWeight: 700, fontSize: 14, color: '#374151', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -524,6 +524,7 @@ function MemberDetailPanel({
                   <tbody>
                     {result.taskContributions.map((t, idx) => {
                       const isExpanded = expandedTaskKeys.has(t.taskKey);
+                      const isDone = ['done', 'resolved', 'closed', 'complete'].some((s) => (t.status || '').toLowerCase().includes(s));
                       return (
                         <React.Fragment key={t.taskKey}>
                           <tr
@@ -548,6 +549,15 @@ function MemberDetailPanel({
                                 >
                                   {t.taskKey}
                                 </a>
+                                <span style={{
+                                  fontSize: 10, padding: '1px 6px', borderRadius: 4,
+                                  background: isDone ? '#f0fdf4' : '#eff6ff',
+                                  color: isDone ? '#16a34a' : '#2563eb',
+                                  border: `1px solid ${isDone ? '#bbf7d0' : '#bfdbfe'}`,
+                                  fontWeight: 600,
+                                }}>
+                                  {t.status || (isDone ? 'Đã xong' : 'Đang làm')}
+                                </span>
                                 <span style={{
                                   fontSize: 10, padding: '1px 6px', borderRadius: 4,
                                   background: t.isOnTime ? '#ecfdf5' : '#fef2f2',
@@ -674,6 +684,71 @@ function MemberDetailPanel({
                   </tbody>
                 </table>
               </div>
+            </div>
+          ) : (result.metrics?.tasks && result.metrics.tasks.length > 0) ? (
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: '#374151', marginBottom: 10 }}>
+                📋 Danh sách nhiệm vụ Jira ({result.metrics.tasks.length} tasks)
+              </div>
+              <div style={{ maxHeight: 420, overflowY: 'auto', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                      <th style={{ padding: '10px 14px', textAlign: 'left', color: '#475569', fontWeight: 600 }}>Task & Tiêu đề</th>
+                      <th style={{ padding: '10px 8px', textAlign: 'center', color: '#475569', fontWeight: 600, width: 120 }}>Trạng thái</th>
+                      <th style={{ padding: '10px 8px', textAlign: 'center', color: '#475569', fontWeight: 600, width: 100 }}>Tiến độ</th>
+                      <th style={{ padding: '10px 8px', textAlign: 'center', color: '#475569', fontWeight: 600, width: 90 }}>Thời gian</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.metrics.tasks.map((task, idx) => {
+                      const isDone = ['done', 'resolved', 'closed', 'complete'].some((s) => (task.status || '').toLowerCase().includes(s));
+                      return (
+                        <tr key={task.key} style={{ borderBottom: idx < (result.metrics.tasks?.length ?? 0) - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                          <td style={{ padding: '10px 14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <a href={task.jiraUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', fontWeight: 700, textDecoration: 'none' }}>
+                                {task.key}
+                              </a>
+                              <span style={{ fontSize: 10, color: '#64748b' }}>{task.issueType}</span>
+                              <span style={{ fontSize: 10, color: '#64748b' }}>• {task.priority}</span>
+                            </div>
+                            <div style={{ fontSize: 12, color: '#334155', marginTop: 2 }}>{task.summary}</div>
+                          </td>
+                          <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                            <span style={{
+                              fontSize: 11, padding: '2px 8px', borderRadius: 4,
+                              background: isDone ? '#f0fdf4' : '#eff6ff',
+                              color: isDone ? '#16a34a' : '#2563eb',
+                              border: `1px solid ${isDone ? '#bbf7d0' : '#bfdbfe'}`,
+                              fontWeight: 600,
+                            }}>
+                              {task.status}
+                            </span>
+                          </td>
+                          <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                            <span style={{
+                              fontSize: 11, padding: '2px 8px', borderRadius: 4,
+                              background: task.isOnTime ? '#ecfdf5' : '#fef2f2',
+                              color: task.isOnTime ? '#059669' : '#dc2626',
+                              fontWeight: 600,
+                            }}>
+                              {task.isOnTime ? 'Đúng hạn' : 'Trễ hạn'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '10px 8px', textAlign: 'center', fontSize: 12, color: '#64748b' }}>
+                            {task.timeSpentHours > 0 ? `⏱ ${task.timeSpentHours}h` : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div style={{ marginBottom: 24, padding: '20px', textAlign: 'center', background: '#f8fafc', borderRadius: 8, border: '1px dashed #cbd5e1', color: '#64748b', fontSize: 13 }}>
+              Không ghi nhận nhiệm vụ Jira nào của nhân sự trong khoảng thời gian đánh giá.
             </div>
           )}
 

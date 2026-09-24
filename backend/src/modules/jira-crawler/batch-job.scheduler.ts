@@ -126,25 +126,25 @@ async function loadBlueprintSummaries(
   const blueprintMap = new Map<string, BlueprintMemberSummary>();
 
   try {
-    // 1. Query Attendance snapshots from H2-2026 (July to September 2026)
+    // 1. Query Attendance snapshots from H2-2026 (July to September 2026) with DISTINCT ON (year_month)
     const attSnapshots = await pool.query(
-      `SELECT year_month, data_json
+      `SELECT DISTINCT ON (year_month) year_month, data_json
        FROM collector_monthly_snapshot
        WHERE source_type = 'TEAM_ATTENDANCE'
          AND year_month IN ('2026-07', '2026-08', '2026-09')
-       ORDER BY year_month DESC`
+       ORDER BY year_month, created_at DESC`
     );
 
-    // 2. Query Tasks snapshots from H2-2026
+    // 2. Query Tasks snapshots from H2-2026 with DISTINCT ON (year_month, target_member)
     const taskSnapshots = await pool.query(
-      `SELECT target_member, year_month, score10, total_records
+      `SELECT DISTINCT ON (year_month, target_member) target_member, year_month, score10, total_records
        FROM collector_monthly_snapshot
        WHERE source_type = 'TASKS'
          AND year_month IN ('2026-07', '2026-08', '2026-09')
-       ORDER BY year_month DESC`
+       ORDER BY year_month, target_member, created_at DESC`
     );
 
-    // Group attendance records by empeNo
+    // Group attendance records by empeNo with in-memory deduplication by date
     const attByEmp = new Map<string, {
       totalWorkDays: number;
       onTimeDays: number;
@@ -154,11 +154,22 @@ async function loadBlueprintSummaries(
       lateRecords: BlueprintAttendanceLateRecord[];
     }>();
 
+    const seenEmpDates = new Set<string>();
+
     for (const snap of attSnapshots.rows) {
       const records = snap.data_json?.records || [];
       for (const rec of records) {
         const empCode = String(rec.empeNo || '').trim();
         if (!empCode) continue;
+
+        const dateStr = String(rec.date || '').trim();
+        const dedupKey = `${empCode}#${dateStr}`;
+        if (dateStr && seenEmpDates.has(dedupKey)) {
+          continue;
+        }
+        if (dateStr) {
+          seenEmpDates.add(dedupKey);
+        }
 
         if (!attByEmp.has(empCode)) {
           attByEmp.set(empCode, { totalWorkDays: 0, onTimeDays: 0, lateDays: 0, lateMinutes: 0, leaveDays: 0, lateRecords: [] });
@@ -214,11 +225,18 @@ async function loadBlueprintSummaries(
       }
 
       let punctualityRate = 100;
-      let attScore10 = 8.0;
+      let attScore10 = 10.0;
       if (attStats && attStats.totalWorkDays > 0) {
-        punctualityRate = Math.round((attStats.onTimeDays / (attStats.totalWorkDays - attStats.leaveDays || 1)) * 1000) / 10;
+        const actualWorkDays = attStats.totalWorkDays - attStats.leaveDays || 1;
+        punctualityRate = Math.round((attStats.onTimeDays / actualWorkDays) * 1000) / 10;
         punctualityRate = Math.min(100, Math.max(0, punctualityRate));
-        attScore10 = punctualityRate >= 95 ? 10 : punctualityRate >= 90 ? 9 : punctualityRate >= 85 ? 8 : punctualityRate >= 75 ? 7 : 6;
+        if (attStats.lateDays === 0) {
+          attScore10 = 10.0;
+        } else {
+          // Khi có ngày đi trễ, điểm chuyên cần không thể đạt 10.0 và khống chế tối đa 9.0 (Level 4)
+          const rawScore = Math.round((punctualityRate / 10) * 10) / 10;
+          attScore10 = Math.min(9.0, Math.max(1.0, rawScore - (attStats.lateDays > 2 ? 0.5 : 0)));
+        }
       }
 
       const pimScore10 = taskStats && taskStats.count > 0
@@ -363,7 +381,7 @@ export async function executeBatchRun(
     for (const member of members) {
       try {
         const dateFrom = member.lastEvaluationCompletedAt || defaultFromDate;
-        const dateTo = today;
+        const dateTo = member.nextReviewDueDate || today;
 
         console.log(`  [BatchJob] Đang thu thập Jira: ${member.name} (${member.code}) [${dateFrom} → ${dateTo}]...`);
 
@@ -371,6 +389,8 @@ export async function executeBatchRun(
           fromDate: dateFrom,
           toDate: dateTo,
           scriptConfig,
+          email: member.email,
+          blueprintUsername: member.blueprintUsername,
         });
 
         const metrics = jiraClient.aggregateMemberMetrics(member, issues, scriptConfig);
@@ -411,8 +431,10 @@ export async function executeBatchRun(
           if (bpSummary.attendance) {
             const attScore = bpSummary.attendance.score10 * 10;
             const existingAtt = result.records.find((r) => r.kpi_code === 'ATTENDANCE');
+            const attLevel = bpSummary.attendance.lateDays === 0 ? 5 : Math.min(4, Math.max(1, Math.round(bpSummary.attendance.score10 / 2)));
             if (existingAtt) {
               existingAtt.value = attScore;
+              existingAtt.resolved_level = attLevel;
               existingAtt.rationale = `[Blueprint UI_TAT_028]: Chuyên cần ${bpSummary.attendance.punctualityRate}% (${bpSummary.attendance.onTimeDays}/${bpSummary.attendance.totalWorkDays} ngày đúng giờ, trễ ${bpSummary.attendance.lateDays} ngày).`;
             } else {
               result.records.push({
@@ -420,7 +442,7 @@ export async function executeBatchRun(
                 evaluation_cycle_code: cycleCode,
                 kpi_code: 'ATTENDANCE',
                 value: attScore,
-                resolved_level: Math.round(bpSummary.attendance.score10 / 2),
+                resolved_level: attLevel,
                 comment: `Tỷ lệ đúng giờ đạt ${bpSummary.attendance.punctualityRate}% trên cổng Blueprint UI_TAT_028`,
                 rationale: `Được trích xuất từ bảng chấm công CLV Blueprint: ${bpSummary.attendance.onTimeDays} ngày đúng giờ, ${bpSummary.attendance.lateDays} ngày trễ (${bpSummary.attendance.lateMinutes} phút).`,
                 source_snapshot: {
@@ -478,12 +500,56 @@ export async function executeBatchRun(
           const wI = weights.INDEPENDENCE ?? 0.20;
           const totalW = (wP + wQ + wV + wO + wI) || 1;
 
-          result.overallScore = Math.round(((pScore * wP + qScore * wQ + vScore * wV + oScore * wO + iScore * wI) / totalW) * 10) / 10;
-          if (result.overallScore >= 95) result.overallLevel = 5;
-          else if (result.overallScore >= 85) result.overallLevel = 4;
-          else if (result.overallScore >= 75) result.overallLevel = 3;
-          else if (result.overallScore >= 65) result.overallLevel = 2;
-          else result.overallLevel = 1;
+          if (bpSummary.attendance && result.penaltyBreakdown) {
+            const strictness = engine.getStrictnessMode();
+            const lateRate = strictness === 'HARD' ? 3 : strictness === 'EASY' ? 1 : 2;
+            const maxLatePenalty = strictness === 'HARD' ? 30 : strictness === 'EASY' ? 10 : 20;
+
+            if (bpSummary.attendance.lateDays > 0) {
+              const latePenalty = Math.min(maxLatePenalty, bpSummary.attendance.lateDays * lateRate);
+              result.penaltyBreakdown.deductions.push({
+                category: 'ATTENDANCE',
+                reason: `Đi trễ ${bpSummary.attendance.lateDays} ngày (chấm công Blueprint UI_TAT_028) [-${latePenalty}đ]`,
+                points: latePenalty,
+              });
+              result.penaltyBreakdown.totalDeductions += latePenalty;
+            }
+
+            const rawFinal = result.penaltyBreakdown.baselineScore - result.penaltyBreakdown.totalDeductions + result.penaltyBreakdown.totalBonuses;
+
+            // NGUYÊN TẮC TRẦN ĐIỂM VI PHẠM (Infraction Ceiling):
+            // Thưởng năng suất không được xóa sạch vi phạm kỷ luật (chuyên cần hoặc critical bug)
+            const disciplinePenalty = result.penaltyBreakdown.deductions
+              .filter((d) => d.category === 'ATTENDANCE' || d.category === 'CODE_QUALITY')
+              .reduce((sum, d) => sum + d.points, 0);
+
+            const ceiling = disciplinePenalty > 0 ? Math.max(0, 100 - disciplinePenalty) : 100;
+            result.penaltyBreakdown.finalScore = Math.min(ceiling, Math.max(0, Math.round(rawFinal * 10) / 10));
+            result.overallScore = result.penaltyBreakdown.finalScore;
+
+            // Xếp loại Level: Mức 5 (Xuất sắc) bắt buộc KHÔNG có vi phạm kỷ luật/chuyên cần
+            if (result.overallScore >= 95 && disciplinePenalty === 0) {
+              result.overallLevel = 5;
+            } else if (result.overallScore >= 85) {
+              result.overallLevel = 4;
+            } else if (result.overallScore >= 75) {
+              result.overallLevel = 3;
+            } else if (result.overallScore >= 65) {
+              result.overallLevel = 2;
+            } else {
+              result.overallLevel = 1;
+            }
+
+            const strictnessLabel = strictness === 'HARD' ? 'Khắt khe' : strictness === 'EASY' ? 'Dễ' : 'Tiêu chuẩn';
+            result.penaltyBreakdown.explanation = `Cơ chế trừ điểm (${strictnessLabel}): Khởi điểm 100đ - ${result.penaltyBreakdown.totalDeductions}đ vi phạm (gồm chuyên cần) + ${result.penaltyBreakdown.totalBonuses}đ thưởng = ${result.overallScore}/100 (Level ${result.overallLevel}).`;
+          } else {
+            result.overallScore = Math.round(((pScore * wP + qScore * wQ + vScore * wV + oScore * wO + iScore * wI) / totalW) * 10) / 10;
+            if (result.overallScore >= 95) result.overallLevel = 5;
+            else if (result.overallScore >= 85) result.overallLevel = 4;
+            else if (result.overallScore >= 75) result.overallLevel = 3;
+            else if (result.overallScore >= 65) result.overallLevel = 2;
+            else result.overallLevel = 1;
+          }
         }
 
         run.results.push(result);

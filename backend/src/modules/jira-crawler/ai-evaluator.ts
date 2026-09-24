@@ -102,6 +102,55 @@ export interface AiScoringBatchPayload {
   };
 }
 
+export interface ScoreDeductionItem {
+  category: 'CODE_QUALITY' | 'ATTENDANCE' | 'DEADLINE' | 'OTHER';
+  reason: string;
+  points: number;
+}
+
+export interface ScoreBonusItem {
+  category: 'TASK_VOLUME' | 'COMPLEXITY' | 'INITIATIVE' | 'OTHER';
+  reason: string;
+  points: number;
+}
+
+export interface PenaltyBreakdown {
+  baselineScore: number; // 100
+  totalDeductions: number;
+  totalBonuses: number;
+  deductions: ScoreDeductionItem[];
+  bonuses: ScoreBonusItem[];
+  finalScore: number;
+  explanation: string;
+}
+
+export type EvaluationStrictness = 'EASY' | 'MEDIUM' | 'HARD';
+
+export function detectEvaluationStrictness(promptTemplate?: string): EvaluationStrictness {
+  if (!promptTemplate) return 'MEDIUM';
+  const lower = promptTemplate.toLowerCase();
+  if (
+    lower.includes('nghiêm ngặt') ||
+    lower.includes('khắt khe') ||
+    lower.includes('architect') ||
+    lower.includes('thẩm định chuyên sâu') ||
+    lower.includes('mức 3') ||
+    lower.includes('khó')
+  ) {
+    return 'HARD';
+  }
+  if (
+    lower.includes('ngắn gọn') ||
+    lower.includes('tiết kiệm token') ||
+    lower.includes('tóm tắt nhanh') ||
+    lower.includes('mức 1') ||
+    lower.includes('dễ')
+  ) {
+    return 'EASY';
+  }
+  return 'MEDIUM';
+}
+
 // Per-member batch result (for dashboard view)
 export interface MemberBatchResult {
   employeeCode: string;
@@ -112,11 +161,12 @@ export interface MemberBatchResult {
   metrics: MemberJiraMetrics;
   records: EvaluatedKpiRecord[];
   taskContributions: TaskContributionScore[];
-  overallScore: number; // weighted avg (PERF_01 30% + CODE_QUALITY 20% + TASK_VOLUME 20% + task_contribution 30%)
+  overallScore: number;
   overallLevel: number;
   dateFrom: string | null;
   dateTo: string | null;
   blueprintSummary?: BlueprintMemberSummary;
+  penaltyBreakdown?: PenaltyBreakdown;
 }
 
 interface GeminiEvaluationResponse {
@@ -162,6 +212,13 @@ export class AiScoringEngine {
     this.geminiModel = geminiModel || 'gemini-2.0-flash-lite';
     this.memberPromptTemplate = memberPromptTemplate;
     this.taskPromptTemplate = taskPromptTemplate;
+  }
+
+  /**
+   * Xác định mức độ khắt khe của đánh giá (EASY, MEDIUM, HARD) từ prompt template
+   */
+  public getStrictnessMode(): EvaluationStrictness {
+    return detectEvaluationStrictness(this.taskPromptTemplate);
   }
 
   /**
@@ -230,10 +287,11 @@ export class AiScoringEngine {
     metrics: MemberJiraMetrics
   ): Promise<TaskContributionScore[]> {
     const completedTasks = metrics.tasks.filter((t) => t.isCompleted);
-    if (completedTasks.length === 0) return [];
+    const inProgressTasks = metrics.tasks.filter((t) => !t.isCompleted);
+    if (completedTasks.length === 0 && inProgressTasks.length === 0) return [];
 
-    // Evaluate top completed tasks (up to 15 tasks)
-    const sampleTasks = completedTasks.slice(0, 15);
+    // Prioritize completed tasks, then in-progress tasks (up to 25 tasks)
+    const sampleTasks = [...completedTasks, ...inProgressTasks].slice(0, 25);
     const taskMap = new Map<string, JiraIssueRecord>(sampleTasks.map((t) => [t.key, t]));
 
     if (this.apiKey) {
@@ -279,6 +337,44 @@ export class AiScoringEngine {
           })
         : '';
 
+      const strictness = this.getStrictnessMode();
+      let strictnessCriteria = '';
+      if (strictness === 'HARD') {
+        strictnessCriteria = `TIÊU CHÍ ĐÁNH GIÁ KHẮT KHE CẤP ARCHITECT (MỨC 3 - KHÓ):
+- complexityScore (1-5):
+  * 5 (Rất cao): Nhiệm vụ kiến trúc hệ thống, xử lý sự cố cấp bách Block/Critical hệ thống lớn, timeSpent > 10h.
+  * 4 (Cao): Feature nghiệp vụ cốt lõi, logic phức tạp, tối ưu hiệu năng DB/API quy mô lớn, timeSpent 6-10h.
+  * 3 (Trung bình): Nghiệp vụ thông thường, bug chuẩn, timeSpent 3-6h.
+  * 2 (Thấp): Chức năng CRUD cơ bản, sửa lỗi giao diện, cấu hình tham số, timeSpent 1-3h.
+  * 1 (Rất thấp): Cập nhật label, chỉnh sửa văn bản, việc phụ trợ < 1h.
+- contributionScore (1-5):
+  * 5 (Đột phá): Giải quyết dứt điểm vấn đề hóc búa, dẫn dắt giải pháp kỹ thuật, bàn giao hoàn hảo.
+  * 4 (Xuất sắc): Hoàn thành độc lập, code chất lượng cao, bàn giao đúng hạn.
+  * 3 (Đạt yêu cầu): Hoàn thành nhiệm vụ nhưng cần nhắc nhở hoặc không có cải tiến nổi bật.
+  * 2 (Cần cải thiện): Trễ hạn, thiếu chủ động hoặc còn sót lỗi phải sửa lại.
+  * 1 (Kém): Gây rủi ro kỹ thuật hoặc không đạt cam kết bàn giao.
+* ĐẶC BIỆT LƯU Ý: Thẩm định nghiêm ngặt! Nếu task không có mô tả chi tiết, không log thời gian hoặc bị trễ hạn thì KHÔNG được chấm điểm 4 hoặc 5.`;
+      } else if (strictness === 'EASY') {
+        strictnessCriteria = `TIÊU CHÍ ĐÁNH GIÁ ĐỘNG VIÊN & TÓM TẮT NHANH (MỨC 1 - DỄ):
+- complexityScore (1-5): Khích lệ tinh thần nỗ lực, hầu hết các task nghiệp vụ hoàn thành đạt mức 3-4, task quan trọng đạt mức 5.
+- contributionScore (1-5): Ưu tiên ghi nhận sự tận tụy và hoàn thành đúng cam kết (mức 4-5).
+- Nhận xét: Ngắn gọn 1-2 câu, mang tính khích lệ và tóm tắt nhanh.`;
+      } else {
+        strictnessCriteria = `TIÊU CHÍ ĐÁNH GIÁ TIÊU CHUẨN TECH LEAD (MỨC 2 - VỪA):
+- complexityScore (1-5):
+  * 5 (Rất cao): Nhiệm vụ kiến trúc hệ thống, bug Critical/Blocker, xử lý logic lõi, timeSpent > 8h.
+  * 4 (Cao): Feature nghiệp vụ lớn, bug High priority, tích hợp API phức tạp, timeSpent 4-8h.
+  * 3 (Trung bình): Bug thường gặp, Service Request trung bình, tối ưu query, timeSpent 2-4h.
+  * 2 (Thấp): Chỉnh sửa nhỏ, label, cấu hình tham số, timeSpent < 2h.
+  * 1 (Rất thấp): Subtask phụ trợ, việc cơ bản không đòi hỏi tư duy giải thuật.
+- contributionScore (1-5):
+  * 5 (Xuất sắc): Chủ động giải quyết độc lập, khắc phục dứt điểm gốc rễ vấn đề, bàn giao đúng/vượt tiến độ.
+  * 4 (Tốt): Hoàn thành đúng hạn, tuân thủ tiêu chuẩn lập trình, log work đầy đủ.
+  * 3 (Đạt yêu cầu): Hoàn thành theo yêu cầu, khối lượng ở mức bình thường.
+  * 2 (Cần cải thiện): Trễ hạn hoặc phải làm lại do sót lỗi.
+  * 1 (Kém): Không hoàn thành hoặc gây ảnh hưởng tiêu cực.`;
+      }
+
       const prompt = `Bạn là Giám đốc kỹ thuật (Engineering Director) tại CyberLogitec Việt Nam.
 Hãy đánh giá CHI TIẾT và TOÀN DIỆN từng task Jira của nhân viên ${metrics.memberName} (Mã NV: ${metrics.employeeCode}).
 
@@ -301,19 +397,7 @@ YÊU CẦU: Trả về DUY NHẤT một chuỗi JSON hợp lệ theo schema sau 
   "overallContributionSummary": "<Nhận xét tổng thể 2-3 câu về năng lực chuyên môn và mức độ cống hiến>"
 }
 
-TIÊU CHÍ ĐÁNH GIÁ ĐỘ PHỨC TẠP (complexityScore 1-5):
-- 5 (Rất cao): Nhiệm vụ kiến trúc hệ thống, bug nghiêm trọng mức Critical/Blocker, xử lý logic lõi nghiệp vụ vận tải biển đa bên, thời gian xử lý > 8h.
-- 4 (Cao): Feature nghiệp vụ lớn, bug High priority, tích hợp API phức tạp hoặc điều chỉnh cấu trúc dữ liệu, timeSpent 4-8h.
-- 3 (Trung bình): Bug thường gặp, Service Request trung bình, cải tiến UI/UX hoặc tối ưu query, timeSpent 2-4h.
-- 2 (Thấp): Chỉnh sửa nhỏ (small fix), label, cấu hình tham số, cập nhật tài liệu kỹ thuật, timeSpent < 2h.
-- 1 (Rất thấp): Subtask phụ trợ, việc cơ bản không đòi hỏi tư duy giải thuật.
-
-TIÊU CHÍ ĐÁNH GIÁ MỨC ĐỘ ĐÓNG GÓP (contributionScore 1-5):
-- 5 (Xuất sắc): Chủ động giải quyết độc lập, khắc phục dứt điểm gốc rễ vấn đề, bàn giao vượt tiến độ, comment và tài liệu hóa rõ ràng.
-- 4 (Tốt): Hoàn thành đúng hạn, tuân thủ tiêu chuẩn lập trình, log work đầy đủ, phối hợp hiệu quả với team.
-- 3 (Đạt yêu cầu): Hoàn thành theo yêu cầu nhưng cần nhắc nhở hoặc trễ nhẹ, khối lượng ở mức bình thường.
-- 2 (Cần cải thiện): Trễ hạn nhiều lần hoặc phải làm lại do sót lỗi, thiếu sót trong việc kiểm thử.
-- 1 (Kém): Không hoàn thành hoặc gây ảnh hưởng tiêu cực tới hệ thống.`;
+${strictnessCriteria}`;
 
       try {
         const res = await fetch(
@@ -371,35 +455,95 @@ TIÊU CHÍ ĐÁNH GIÁ MỨC ĐỘ ĐÓNG GÓP (contributionScore 1-5):
     }
 
     // Heuristic deep analyzer fallback if Gemini fails or is not configured
-    return this.generateFallbackTaskContributions(sampleTasks);
+    return this.generateFallbackTaskContributions(sampleTasks, this.getStrictnessMode());
   }
 
   /**
-   * Intelligent heuristic rule-based evaluator providing in-depth Vietnamese rationales
+   * Intelligent heuristic rule-based evaluator providing in-depth Vietnamese rationales calibrated by strictness
    */
-  private generateFallbackTaskContributions(tasks: JiraIssueRecord[]): TaskContributionScore[] {
+  private generateFallbackTaskContributions(
+    tasks: JiraIssueRecord[],
+    strictness: EvaluationStrictness = 'MEDIUM'
+  ): TaskContributionScore[] {
     return tasks.map((t) => {
       let complexity = 3;
-      if (t.priority === 'Critical' || t.priority === 'Highest' || t.timeSpentHours >= 8) {
-        complexity = 5;
-      } else if (t.priority === 'High' || (t.timeSpentHours >= 4 && t.timeSpentHours < 8)) {
-        complexity = 4;
-      } else if (t.priority === 'Low' || t.priority === 'Lowest' || t.timeSpentHours < 1.5) {
-        complexity = t.timeSpentHours < 1 ? 1 : 2;
-      }
+      let contribution = 3;
 
-      let contribution = 4;
-      if (t.isOnTime && complexity >= 4) {
-        contribution = 5;
-      } else if (!t.isOnTime) {
-        contribution = complexity >= 4 ? 3 : 2;
-      } else if (complexity <= 2) {
-        contribution = 3;
+      if (strictness === 'HARD') {
+        // Chế độ Khắt khe: Yêu cầu cao hơn nhiều, hạ chuẩn điểm
+        if (t.priority === 'Critical' || (t.priority === 'Highest' && t.timeSpentHours >= 12)) {
+          complexity = 5;
+        } else if ((t.priority === 'High' || t.priority === 'Highest') && t.timeSpentHours >= 6) {
+          complexity = 4;
+        } else if (t.timeSpentHours >= 3) {
+          complexity = 3;
+        } else if (t.timeSpentHours >= 1) {
+          complexity = 2;
+        } else {
+          complexity = 1;
+        }
+
+        if (t.isCompleted) {
+          if (t.isOnTime && complexity >= 4) {
+            contribution = 4; // Khắt khe: chỉ 4, rất hiếm 5
+          } else if (t.isOnTime) {
+            contribution = 3;
+          } else {
+            contribution = 1; // Trễ hạn trong chế độ khó bị trừ rất nặng
+          }
+        } else {
+          contribution = t.isOnTime ? 2 : 1;
+        }
+      } else if (strictness === 'EASY') {
+        // Chế độ Dễ: Khích lệ và ghi nhận tối đa
+        if (t.priority === 'Critical' || t.priority === 'Highest' || t.timeSpentHours >= 4) {
+          complexity = 5;
+        } else if (t.priority === 'High' || t.timeSpentHours >= 2) {
+          complexity = 4;
+        } else {
+          complexity = 3;
+        }
+
+        if (t.isCompleted) {
+          contribution = t.isOnTime ? 5 : 4;
+        } else {
+          contribution = t.isOnTime ? 4 : 3;
+        }
+      } else {
+        // Chế độ Vừa (Standard Tech Lead)
+        if (t.priority === 'Critical' || t.priority === 'Highest' || t.timeSpentHours >= 8) {
+          complexity = 5;
+        } else if (t.priority === 'High' || (t.timeSpentHours >= 4 && t.timeSpentHours < 8)) {
+          complexity = 4;
+        } else if (t.priority === 'Low' || t.priority === 'Lowest' || t.timeSpentHours < 1.5) {
+          complexity = t.timeSpentHours < 1 ? 1 : 2;
+        }
+
+        if (t.isCompleted) {
+          if (t.isOnTime && complexity >= 4) {
+            contribution = 5;
+          } else if (!t.isOnTime) {
+            contribution = complexity >= 4 ? 3 : 2;
+          } else if (complexity <= 2) {
+            contribution = 3;
+          } else {
+            contribution = 4;
+          }
+        } else {
+          if (!t.isOnTime) {
+            contribution = 2;
+          } else if (t.timeSpentHours > 0) {
+            contribution = 4;
+          } else {
+            contribution = 3;
+          }
+        }
       }
 
       const complexityRationale = this.getDefaultComplexityRationale(t, complexity);
       const contributionRationale = this.getDefaultContributionRationale(t, contribution);
-      const aiComment = `Được đánh giá ${complexity}/5 về độ phức tạp nghiệp vụ và ${contribution}/5 về mức đóng góp giải quyết vấn đề.`;
+      const statusLabel = t.isCompleted ? 'Đã hoàn thành' : `Đang thực hiện (${t.status})`;
+      const aiComment = `${statusLabel}: Được đánh giá ${complexity}/5 về độ phức tạp nghiệp vụ và ${contribution}/5 về mức đóng góp giải quyết vấn đề.`;
 
       return {
         taskKey: t.key,
@@ -445,8 +589,17 @@ TIÊU CHÍ ĐÁNH GIÁ MỨC ĐỘ ĐÓNG GÓP (contributionScore 1-5):
 
   private getDefaultContributionRationale(task?: JiraIssueRecord, score = 4): string {
     if (!task) return `Mức đóng góp ${score}/5 phản ánh sự nỗ lực và cam kết hoàn thành công việc.`;
-    const onTimeText = task.isOnTime ? 'hoàn thành đúng hạn cam kết' : 'hoàn thành nhưng ghi nhận trễ tiến độ';
+    const onTimeText = task.isCompleted
+      ? (task.isOnTime ? 'hoàn thành đúng hạn cam kết' : 'hoàn thành nhưng ghi nhận trễ tiến độ')
+      : (task.isOnTime ? 'đang tiến hành trong thời hạn quy định' : 'đang xử lý nhưng đã quá hạn due date');
     const timeSpent = task.timeSpentHours > 0 ? ` (ghi nhận ${task.timeSpentHours} giờ làm việc)` : '';
+
+    if (!task.isCompleted) {
+      if (!task.isOnTime) {
+        return `Nhiệm vụ đang thực hiện (${task.status}) nhưng đã quá hạn cam kết${timeSpent}. Cần tập trung nguồn lực đẩy nhanh tiến độ bàn giao để hạn chế ảnh hưởng đến sprint.`;
+      }
+      return `Nhiệm vụ đang được triển khai tích cực theo đúng tiến độ (${task.status})${timeSpent}. Nhân sự đang kiểm soát tốt các yêu cầu kỹ thuật của task.`;
+    }
 
     if (score >= 5) {
       return `Đóng góp xuất sắc (${score}/5): Nhân sự chủ động xử lý triệt để bài toán, ${onTimeText}${timeSpent}, đảm bảo chất lượng deliverable chuẩn mực và giúp đội ngũ giảm thiểu rủi ro kỹ thuật đáng kể.`;
@@ -773,32 +926,10 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ theo schema sau (tiến
     });
 
     // 5. Calculate overall weighted score using dynamic rubric weights
-    const weights = this.rubric.weights || {
-      PERF_01: 0.25,
-      CODE_QUALITY: 0.20,
-      TASK_VOLUME: 0.15,
-      OWNERSHIP_SCOPE: 0.20,
-      INDEPENDENCE: 0.20,
-    };
+    // 5. Calculate Penalty-based scoring from baseline 100 with deduction/bonus breakdown
+    const penaltyBreakdown = this.calculatePenaltyScore(metrics, taskContributions);
+    const overallScore = penaltyBreakdown.finalScore;
 
-    const perf01Score = (records.find((r) => r.kpi_code === 'PERF_01')?.resolved_level || 3) * 20;
-    const qualityScore = (records.find((r) => r.kpi_code === 'CODE_QUALITY')?.resolved_level || 3) * 20;
-    const volumeScore = (records.find((r) => r.kpi_code === 'TASK_VOLUME')?.resolved_level || 3) * 20;
-    const ownershipScore = ownershipRes.score;
-    const indepScore = indepRes.score;
-
-    const wPerf = weights.PERF_01 ?? 0.25;
-    const wQuality = weights.CODE_QUALITY ?? 0.20;
-    const wVolume = weights.TASK_VOLUME ?? 0.15;
-    const wOwner = weights.OWNERSHIP_SCOPE ?? 0.20;
-    const wIndep = weights.INDEPENDENCE ?? 0.20;
-    const totalWeight = (wPerf + wQuality + wVolume + wOwner + wIndep) || 1;
-
-    const overallScore = Math.round(
-      ((perf01Score * wPerf + qualityScore * wQuality + volumeScore * wVolume + ownershipScore * wOwner + indepScore * wIndep) / totalWeight) * 10
-    ) / 10;
-
-    // Map overall score to level (1-5)
     let overallLevel = 1;
     if (overallScore >= 95) overallLevel = 5;
     else if (overallScore >= 85) overallLevel = 4;
@@ -819,6 +950,166 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ theo schema sau (tiến
       overallLevel,
       dateFrom,
       dateTo,
+      penaltyBreakdown,
+    };
+  }
+
+  /**
+   * Tính điểm theo cơ chế Penalty từ mốc 100 điểm:
+   * - Mốc bắt đầu: 100 điểm (tính từ sau ngày lastEvaluation completed)
+   * - Trừ điểm vi phạm Code Quality (critical bugs, defects)
+   * - Trừ điểm trễ hạn cam kết nhiệm vụ (delayed tasks)
+   * - Cộng thưởng năng suất (nhiều task hoàn thành, task phức tạp cao)
+   * - Giới hạn an toàn trong khoảng [0, 100]
+   */
+  public calculatePenaltyScore(
+    metrics: MemberJiraMetrics,
+    taskContributions: TaskContributionScore[],
+    customStrictness?: EvaluationStrictness
+  ): PenaltyBreakdown {
+    const strictness = customStrictness || this.getStrictnessMode();
+    const baselineScore = 100;
+    const deductions: ScoreDeductionItem[] = [];
+    const bonuses: ScoreBonusItem[] = [];
+
+    // Cấu hình tham số theo mức độ DỄ - VỪA - KHÓ
+    const penaltyConfig = {
+      HARD: {
+        criticalBugPoints: 20,
+        criticalBugCap: 40,
+        minorBugThreshold: 1,
+        minorBugPoints: 5,
+        minorBugCap: 25,
+        delayTaskPoints: 6,
+        delayTaskCap: 36,
+        volumeHighMinTasks: 25,
+        volumeHighPoints: 3,
+        volumeMidMinTasks: 15,
+        volumeMidPoints: 1,
+        complexityMinScore: 4,
+        complexityMinTasks: 4,
+        complexityPoints: 3,
+      },
+      MEDIUM: {
+        criticalBugPoints: 15,
+        criticalBugCap: 30,
+        minorBugThreshold: 2,
+        minorBugPoints: 3,
+        minorBugCap: 15,
+        delayTaskPoints: 4,
+        delayTaskCap: 25,
+        volumeHighMinTasks: 20,
+        volumeHighPoints: 5,
+        volumeMidMinTasks: 10,
+        volumeMidPoints: 2,
+        complexityMinScore: 4,
+        complexityMinTasks: 3,
+        complexityPoints: 5,
+      },
+      EASY: {
+        criticalBugPoints: 10,
+        criticalBugCap: 20,
+        minorBugThreshold: 4,
+        minorBugPoints: 2,
+        minorBugCap: 10,
+        delayTaskPoints: 2,
+        delayTaskCap: 16,
+        volumeHighMinTasks: 15,
+        volumeHighPoints: 7,
+        volumeMidMinTasks: 8,
+        volumeMidPoints: 4,
+        complexityMinScore: 3,
+        complexityMinTasks: 2,
+        complexityPoints: 7,
+      },
+    }[strictness];
+
+    // 1. Vi phạm Code Quality
+    if (metrics.criticalBugs > 0) {
+      const bugPenalty = Math.min(penaltyConfig.criticalBugCap, metrics.criticalBugs * penaltyConfig.criticalBugPoints);
+      deductions.push({
+        category: 'CODE_QUALITY',
+        reason: `Phát sinh ${metrics.criticalBugs} lỗi nghiêm trọng (Critical Bug) [-${bugPenalty}đ]`,
+        points: bugPenalty,
+      });
+    }
+    const nonCriticalBugs = Math.max(0, metrics.totalBugs - metrics.criticalBugs);
+    if (nonCriticalBugs > penaltyConfig.minorBugThreshold) {
+      const diff = nonCriticalBugs - penaltyConfig.minorBugThreshold;
+      const minorBugPenalty = Math.min(penaltyConfig.minorBugCap, diff * penaltyConfig.minorBugPoints);
+      deductions.push({
+        category: 'CODE_QUALITY',
+        reason: `Phát sinh ${nonCriticalBugs} lỗi phần mềm thông thường [-${minorBugPenalty}đ]`,
+        points: minorBugPenalty,
+      });
+    }
+
+    // 2. Vi phạm tiến độ bàn giao (Deadline)
+    if (metrics.delayedTasks > 0) {
+      const delayPenalty = Math.min(penaltyConfig.delayTaskCap, metrics.delayedTasks * penaltyConfig.delayTaskPoints);
+      deductions.push({
+        category: 'DEADLINE',
+        reason: `Ghi nhận ${metrics.delayedTasks} nhiệm vụ trễ hạn cam kết [-${delayPenalty}đ]`,
+        points: delayPenalty,
+      });
+    }
+
+    // 3. Thưởng năng suất hoàn thành vượt trội
+    if (metrics.completedTasks >= penaltyConfig.volumeHighMinTasks) {
+      bonuses.push({
+        category: 'TASK_VOLUME',
+        reason: `Hoàn thành khối lượng lớn (${metrics.completedTasks} nhiệm vụ) [${strictness === 'HARD' ? 'Mức Khó: +3đ' : strictness === 'EASY' ? 'Mức Dễ: +7đ' : '+5đ'}]`,
+        points: penaltyConfig.volumeHighPoints,
+      });
+    } else if (metrics.completedTasks >= penaltyConfig.volumeMidMinTasks) {
+      bonuses.push({
+        category: 'TASK_VOLUME',
+        reason: `Năng suất tốt (${metrics.completedTasks} nhiệm vụ hoàn tất) [${strictness === 'HARD' ? 'Mức Khó: +1đ' : strictness === 'EASY' ? 'Mức Dễ: +4đ' : '+2đ'}]`,
+        points: penaltyConfig.volumeMidPoints,
+      });
+    }
+
+    // 4. Thưởng xử lý nhiệm vụ phức tạp cao
+    const highComplexityTasks = taskContributions.filter((t) => t.complexityScore >= penaltyConfig.complexityMinScore);
+    if (highComplexityTasks.length >= penaltyConfig.complexityMinTasks) {
+      bonuses.push({
+        category: 'COMPLEXITY',
+        reason: `Chủ động đảm nhận ${highComplexityTasks.length} nhiệm vụ có độ khó cao (≥${penaltyConfig.complexityMinScore}/5) [${strictness === 'HARD' ? 'Mức Khó: +3đ' : strictness === 'EASY' ? 'Mức Dễ: +7đ' : '+5đ'}]`,
+        points: penaltyConfig.complexityPoints,
+      });
+    }
+
+    const totalDeductions = deductions.reduce((sum, d) => sum + d.points, 0);
+    const totalBonuses = bonuses.reduce((sum, b) => sum + b.points, 0);
+    const rawScore = baselineScore - totalDeductions + totalBonuses;
+
+    // NGUYÊN TẮC TRẦN ĐIỂM VI PHẠM (Infraction Ceiling):
+    // Điểm thưởng chỉ bù đắp nỗ lực/deadline, KHÔNG THỂ xóa sạch điểm phạt kỷ luật chất lượng/critical bugs
+    const disciplineDeduction = deductions
+      .filter((d) => d.category === 'CODE_QUALITY')
+      .reduce((sum, d) => sum + d.points, 0);
+
+    const ceiling = disciplineDeduction > 0 ? Math.max(0, 100 - disciplineDeduction) : 100;
+    const finalScore = Math.min(ceiling, Math.max(0, Math.round(rawScore * 10) / 10));
+
+    let overallLevel = 1;
+    if (finalScore >= 95 && disciplineDeduction === 0) overallLevel = 5;
+    else if (finalScore >= 85) overallLevel = 4;
+    else if (finalScore >= 75) overallLevel = 3;
+    else if (finalScore >= 65) overallLevel = 2;
+    else overallLevel = 1;
+
+    const strictnessLabel = strictness === 'HARD' ? 'Khắt khe' : strictness === 'EASY' ? 'Dễ' : 'Tiêu chuẩn';
+    const explanation = `Cơ chế trừ điểm (${strictnessLabel}): Khởi điểm 100đ - ${totalDeductions}đ vi phạm + ${totalBonuses}đ thưởng = ${finalScore}/100 (Level ${overallLevel}).`;
+
+    return {
+      baselineScore,
+      totalDeductions,
+      totalBonuses,
+      deductions,
+      bonuses,
+      finalScore,
+      explanation,
     };
   }
 
