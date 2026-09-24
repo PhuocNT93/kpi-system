@@ -108,9 +108,13 @@ export function percentToTenPointScore(value: number | string | null | undefined
   return (percentValue / 10).toFixed(percentValue % 10 === 0 ? 0 : 1);
 }
 
-export function getCriterionCategory(item: Pick<EvaluationItem, 'criterion_code_snapshot' | 'criterion_name_snapshot'>): CriterionCategory {
-  const code = (item.criterion_code_snapshot || '').toLowerCase();
-  const name = getCriterionName(item.criterion_name_snapshot, item.criterion_code_snapshot).toLowerCase();
+export function getCriterionCategory(
+  item: Pick<EvaluationItem, 'category' | 'criterion_code_snapshot' | 'criterion_name_snapshot' | 'kpi_code_snapshot' | 'kpi_name_snapshot'>,
+): CriterionCategory {
+  if (item.category) return item.category;
+
+  const code = [item.criterion_code_snapshot, item.kpi_code_snapshot].filter(Boolean).join(' ').toLowerCase();
+  const name = [getCriterionName(item.criterion_name_snapshot, item.criterion_code_snapshot), item.kpi_name_snapshot].filter(Boolean).join(' ').toLowerCase();
 
   if (code.startsWith('perf') || name.includes('performance')) return 'Performance';
   if (code.startsWith('cap') || name.includes('capability') || name.includes('competency')) return 'Capability';
@@ -150,6 +154,8 @@ export function buildEvaluationScoringSummary(evaluationDetail?: EvaluationDetai
       accent: COLORS.primary.DEFAULT,
       kpis: [],
     };
+
+    criterionEntry.category = category;
 
     criterionEntry.kpis.push({
       label: kpiLabel,
