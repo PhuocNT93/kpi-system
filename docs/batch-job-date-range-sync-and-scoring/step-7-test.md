@@ -59,6 +59,10 @@ Status: produced during this step
 - **Bug 3 (Strictness Gradation - Dễ, Vừa, Khó)**:
   - Cause: AI task prompt template presets in `CollectorScriptEditorPage.tsx` did not propagate distinct evaluation criteria or scoring parameters to the engine.
   - Fix: Engine detects strictness mode from template; Gemini prompt instructions, heuristic fallback, penalty deduction rates, and bonus thresholds scale proportionally so that Khó yields lower scores and Dễ yields higher scores.
+- **Bug 4 (5 Members Showing 'Chỉ Jira' Due to Team Part Snapshot Shadowing)**:
+  - Cause: `collector_monthly_snapshot` stores attendance partitioned by team part (`Maritime Solutions Part` and `ALLEGRO NX Part`). The query used `DISTINCT ON (year_month)`, causing `Maritime Solutions Part` (created at 08:52:13) to shadow and drop `ALLEGRO NX Part` (created at 08:51:50, containing 12 employees including 5 who had no records in `TASKS` snapshot).
+  - Fix: Updated query in `batch-job.scheduler.ts` to `SELECT DISTINCT ON (year_month, target_member)` to load all parts.
+  - Verified: All 19/19 members now have Blueprint attendance records; in-memory deduplication prevents any date overlap; all 19 members will display `🚢 Tích hợp` instead of `Chỉ Jira`.
 
 ## Next Step
 - Step 8: User Review

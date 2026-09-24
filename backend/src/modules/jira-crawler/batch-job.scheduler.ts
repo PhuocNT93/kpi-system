@@ -126,13 +126,14 @@ async function loadBlueprintSummaries(
   const blueprintMap = new Map<string, BlueprintMemberSummary>();
 
   try {
-    // 1. Query Attendance snapshots from H2-2026 (July to September 2026) with DISTINCT ON (year_month)
+    // 1. Query Attendance snapshots from H2-2026 (July to September 2026) with DISTINCT ON (year_month, target_member)
+    // to preserve all team parts (e.g. Maritime Solutions Part, ALLEGRO NX Part).
     const attSnapshots = await pool.query(
-      `SELECT DISTINCT ON (year_month) year_month, data_json
+      `SELECT DISTINCT ON (year_month, target_member) year_month, target_member, data_json
        FROM collector_monthly_snapshot
        WHERE source_type = 'TEAM_ATTENDANCE'
          AND year_month IN ('2026-07', '2026-08', '2026-09')
-       ORDER BY year_month, created_at DESC`
+       ORDER BY year_month, target_member, created_at DESC`
     );
 
     // 2. Query Tasks snapshots from H2-2026 with DISTINCT ON (year_month, target_member)
