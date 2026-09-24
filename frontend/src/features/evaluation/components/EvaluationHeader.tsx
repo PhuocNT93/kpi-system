@@ -57,7 +57,6 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
   submittingLabel = 'Đang gửi...',
   mode = 'self',
   isHrAdmin = false,
-  onPublish,
   onLock,
   onRequestCorrection,
   onReject,
