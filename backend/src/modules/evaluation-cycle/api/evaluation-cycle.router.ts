@@ -47,7 +47,7 @@ export function createEvaluationCycleRouter(
   };
 
   router.post('/evaluation-cycles', requireHrAdmin, controller.createCycle);
-  router.post('/evaluation-cycles/individual', requireManagerOrHrAdmin, controller.createIndividualCycle);
+  router.post('/evaluation-cycles/individual', requireManagerOrHrAdmin, controller.createIndividualCycles);
   router.get('/evaluation-cycles', requireAuthenticated, controller.listCycles);
   router.get('/evaluation-cycles/:id', requireAuthenticated, controller.getCycleById);
   router.patch('/evaluation-cycles/:id', requireHrAdmin, controller.updateDraftCycle);

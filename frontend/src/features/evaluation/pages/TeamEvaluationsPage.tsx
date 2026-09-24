@@ -12,6 +12,9 @@ export function TeamEvaluationsPage() {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const openStatusValues = ['OPEN', 'SELF_ASSESSMENT'] as const;
+  const reviewStatusValues = ['SUBMITTED', 'MANAGER_ASSESSMENT', 'MANAGER_REVIEW', 'REVIEWING'] as const;
+  const completedStatusValues = ['APPROVED', 'PUBLISHED', 'LOCKED'] as const;
 
   const { data: evaluations = [], isLoading } = useQuery({
     queryKey: ['team-evaluations'],
@@ -22,30 +25,29 @@ export function TeamEvaluationsPage() {
     return <div style={{ padding: '24px' }}>Loading team reviews...</div>;
   }
 
-  const getStatusBadge = (status: EvaluationStatus) => {
+  const getStatusBadge = (status: string) => {
     switch (status) {
-      case EvaluationStatus.OPEN:
+      case 'OPEN':
+      case 'SELF_ASSESSMENT':
         return {
           bg: COLORS.neutral[100],
           text: COLORS.neutral[700],
           label: 'Self-Review In Progress',
           icon: <Clock size={14} />,
         };
-      case EvaluationStatus.SUBMITTED:
+      case 'SUBMITTED':
+      case 'MANAGER_ASSESSMENT':
+      case 'MANAGER_REVIEW':
+      case 'REVIEWING':
         return {
           bg: (COLORS.semantic as Record<string, Record<number, string>>).warning[50],
           text: (COLORS.semantic as Record<string, Record<number, string>>).warning[700],
           label: 'Ready for Manager Review',
           icon: <Clock size={14} />,
         };
-      case EvaluationStatus.MANAGER_REVIEW:
-        return {
-          bg: COLORS.primary[50],
-          text: COLORS.primary[700],
-          label: 'In Review',
-          icon: <Clock size={14} />,
-        };
-      case EvaluationStatus.APPROVED:
+      case 'APPROVED':
+      case 'PUBLISHED':
+      case 'LOCKED':
         return {
           bg: (COLORS.semantic as Record<string, Record<number, string>>).success[50],
           text: (COLORS.semantic as Record<string, Record<number, string>>).success[700],
@@ -75,29 +77,20 @@ export function TeamEvaluationsPage() {
     return matchesSearch && matchesStatus;
   });
 
-  const inProgressStatuses = [
-    EvaluationStatus.OPEN,
-    EvaluationStatus.SUBMITTED,
-    EvaluationStatus.MANAGER_REVIEW,
-  ];
-
-  const completedStatuses = [
-    EvaluationStatus.APPROVED,
-    EvaluationStatus.PUBLISHED,
-    EvaluationStatus.LOCKED,
-  ];
+  const inProgressStatuses = [...openStatusValues, ...reviewStatusValues];
+  const completedStatuses = [...completedStatusValues];
 
   const inProgress = filteredEvaluations.filter((item: TeamEvaluation) =>
-    inProgressStatuses.includes(item.evaluation.status as EvaluationStatus)
+    inProgressStatuses.includes(item.evaluation.status as (typeof inProgressStatuses)[number])
   );
 
   const completed = filteredEvaluations.filter((item: TeamEvaluation) =>
-    completedStatuses.includes(item.evaluation.status as EvaluationStatus)
+    completedStatuses.includes(item.evaluation.status as (typeof completedStatuses)[number])
   );
 
   const upcoming = filteredEvaluations.filter((item: TeamEvaluation) =>
-    !inProgressStatuses.includes(item.evaluation.status as EvaluationStatus) &&
-    !completedStatuses.includes(item.evaluation.status as EvaluationStatus)
+    !inProgressStatuses.includes(item.evaluation.status as (typeof inProgressStatuses)[number]) &&
+    !completedStatuses.includes(item.evaluation.status as (typeof completedStatuses)[number])
   );
 
   return (

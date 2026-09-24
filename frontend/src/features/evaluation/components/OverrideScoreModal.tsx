@@ -61,9 +61,8 @@ export const OverrideScoreModal: React.FC<OverrideScoreModalProps> = ({
 
   // Helper to resolve category for an item
   const getItemCategory = (item: EvaluationItem): string => {
-    const rawCat = (item as unknown as Record<string, unknown>).category;
-    if (rawCat) {
-      return String(rawCat).toUpperCase();
+    if (item.category) {
+      return item.category.toUpperCase();
     }
     const code = (item.criterion_code_snapshot || '').toUpperCase();
     if (code.startsWith('PERF') || code.includes('JOB') || code.includes('TASK') || code.includes('DELIVERY') || code.includes('QUALITY')) {

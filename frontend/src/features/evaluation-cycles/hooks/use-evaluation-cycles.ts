@@ -1,7 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { evaluationCycleApi } from '../api/cycle-api';
+import { organizationKeys } from '@/features/organization/api/organization-keys';
 import type {
   CreateEvaluationCyclePayload,
+  IndividualCycleCreateInput,
   UpdateEvaluationCyclePayload,
   CycleFilterParams,
 } from '../types/cycle-types';
@@ -43,6 +45,18 @@ export function useCreateEvaluationCycleMutation() {
     mutationFn: (payload: CreateEvaluationCyclePayload) => evaluationCycleApi.createCycle(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: CYCLE_QUERY_KEYS.all });
+    },
+  });
+}
+
+export function useCreateIndividualCyclesMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: IndividualCycleCreateInput) => evaluationCycleApi.createIndividualCycles(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: CYCLE_QUERY_KEYS.all });
+      // Review status shown next to employees depends on their open evaluations.
+      queryClient.invalidateQueries({ queryKey: organizationKeys.employees.all });
     },
   });
 }

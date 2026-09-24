@@ -22,7 +22,6 @@ import {
   resetCollectorScript,
   testCollectorScript,
   getJiraManagedMembers,
-  updateMemberCadenceApi,
   type CollectorScriptConfig,
   type TestScriptResult,
   type ManagedMember,
@@ -374,6 +373,14 @@ const PresetChip: React.FC<PresetChipProps> = ({ preset, onSelect, icon }) => {
   );
 };
 
+function getCadenceLabel(months?: number, cadenceStr?: string): string {
+  if (months === 1 || cadenceStr === 'MONTHLY') return '1 tháng';
+  if (months === 3 || cadenceStr === 'QUARTERLY') return '3 tháng (Quý)';
+  if (months === 6 || cadenceStr === 'SEMIANNUAL' || cadenceStr === 'SEMI_ANNUAL' || cadenceStr === 'BIANNUALLY') return '6 tháng (Bán niên)';
+  if (months === 12 || cadenceStr === 'ANNUAL' || cadenceStr === 'ANNUALLY') return '12 tháng (Hàng năm)';
+  return months ? `${months} tháng` : '6 tháng (Bán niên)';
+}
+
 export const CollectorScriptEditorPage: React.FC = () => {
   const [config, setConfig] = useState<CollectorScriptConfig | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -394,9 +401,7 @@ export const CollectorScriptEditorPage: React.FC = () => {
   const [testing, setTesting] = useState<boolean>(false);
   const [testResult, setTestResult] = useState<TestScriptResult | null>(null);
 
-  // Member Cadence state
-  const [cadenceUpdating, setCadenceUpdating] = useState<string | null>(null);
-  const [cadenceMessage, setCadenceMessage] = useState<string | null>(null);
+  // Member Cadence state (read-only view)
 
   useEffect(() => {
     async function loadData() {
@@ -485,24 +490,6 @@ export const CollectorScriptEditorPage: React.FC = () => {
       setError((err as Error).message || 'Lỗi khi chạy thử nghiệm script');
     } finally {
       setTesting(false);
-    }
-  };
-
-  const handleUpdateCadence = async (memberCode: string, newCadenceMonths: number) => {
-    try {
-      setCadenceUpdating(memberCode);
-      const updated = await updateMemberCadenceApi(memberCode, {
-        reviewCadenceMonths: newCadenceMonths,
-      });
-      setMembers((prev) =>
-        prev.map((m) => (m.code === memberCode ? { ...m, ...updated } : m))
-      );
-      setCadenceMessage(`Đã cập nhật chu kỳ đánh giá cho nhân viên ${memberCode} thành ${newCadenceMonths} tháng.`);
-      setTimeout(() => setCadenceMessage(null), 4000);
-    } catch (err: unknown) {
-      setError((err as Error).message || 'Lỗi khi cập nhật chu kỳ đánh giá');
-    } finally {
-      setCadenceUpdating(null);
     }
   };
 
@@ -660,24 +647,6 @@ export const CollectorScriptEditorPage: React.FC = () => {
         </div>
       )}
 
-      {cadenceMessage && (
-        <div
-          style={{
-            padding: '12px 16px',
-            backgroundColor: '#eff6ff',
-            border: '1px solid #93c5fd',
-            borderRadius: RADII.md,
-            color: '#1d4ed8',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontSize: TYPOGRAPHY.fontSize.sm,
-          }}
-        >
-          <CheckCircle2 size={18} />
-          <span>{cadenceMessage}</span>
-        </div>
-      )}
 
       {error && (
         <div
@@ -1410,24 +1379,20 @@ export const CollectorScriptEditorPage: React.FC = () => {
                     )}
                   </td>
                   <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                    <select
-                      value={m.reviewCadenceMonths ?? 6}
-                      disabled={cadenceUpdating === m.code}
-                      onChange={(e) => handleUpdateCadence(m.code, parseInt(e.target.value, 10))}
+                    <span
                       style={{
-                        padding: '4px 8px',
+                        display: 'inline-block',
+                        padding: '4px 10px',
                         borderRadius: RADII.sm,
-                        border: `1px solid ${COLORS.neutral[300]}`,
+                        border: `1px solid ${COLORS.neutral[200]}`,
+                        backgroundColor: '#f8fafc',
+                        color: '#334155',
                         fontSize: '12px',
-                        backgroundColor: '#fff',
-                        cursor: 'pointer',
+                        fontWeight: 500,
                       }}
                     >
-                      <option value={1}>1 tháng</option>
-                      <option value={3}>3 tháng (Quý)</option>
-                      <option value={6}>6 tháng (Bán niên)</option>
-                      <option value={12}>12 tháng (Hàng năm)</option>
-                    </select>
+                      {getCadenceLabel(m.reviewCadenceMonths, m.reviewCadence)}
+                    </span>
                   </td>
                   <td style={{ padding: '10px 14px', textAlign: 'center', color: '#475569', fontSize: '12px' }}>
                     {(m.nextReviewDueDate || m.nextReviewDate) ? new Date(m.nextReviewDueDate || m.nextReviewDate!).toLocaleDateString('vi-VN') : '—'}

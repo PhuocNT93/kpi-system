@@ -133,9 +133,12 @@ export class JiraPimClient {
       toDate?: string;
       maxLimit?: number;
       scriptConfig?: Partial<CollectorScriptConfig>;
+      email?: string;
+      jiraUsername?: string;
+      blueprintUsername?: string;
     }
   ): Promise<JiraIssueRecord[]> {
-    const { fromDate, toDate, maxLimit = 2000, scriptConfig } = options || {};
+    const { fromDate, toDate, maxLimit = 2000, scriptConfig, email, jiraUsername, blueprintUsername } = options || {};
     if (!scriptConfig) {
       console.warn(`[JiraClient] Warning: scriptConfig not provided for ${employeeCode}, using default dynamic script definitions`);
     }
@@ -143,8 +146,32 @@ export class JiraPimClient {
     const picField = scriptConfig?.picCustomField || '11902';
     let jql = scriptConfig?.jqlTemplate || `(assignee = "{{employee_code}}" OR cf[{{pic_field}}] = "{{employee_code}}") {{date_filter}} ORDER BY updated DESC`;
 
-    // Substitute placeholders
+    const emailPrefix = email ? (email.split('@')[0] ?? '').trim() : '';
+    const userIdentifiers = Array.from(
+      new Set(
+        [
+          employeeCode,
+          jiraUsername,
+          blueprintUsername,
+          emailPrefix,
+        ].filter(Boolean) as string[]
+      )
+    );
+    const inClause = userIdentifiers.map((u) => `"${u}"`).join(', ');
+
+    // If template has assignee = "{{employee_code}}", convert to assignee in (...) or cf in (...) + worklogAuthor
+    if (userIdentifiers.length > 1) {
+      jql = jql.replace(/assignee\s*=\s*"\{\{employee_code\}\}"/g, `assignee in (${inClause})`);
+      jql = jql.replace(/cf\[\{\{pic_field\}\}\]\s*=\s*"\{\{employee_code\}\}"/g, `(cf[{{pic_field}}] in (${inClause}) OR worklogAuthor in (${inClause}))`);
+      jql = jql.replace(/reporter\s*=\s*"\{\{employee_code\}\}"/g, `reporter in (${inClause})`);
+      jql = jql.replace(/worklogAuthor\s*=\s*"\{\{employee_code\}\}"/g, `worklogAuthor in (${inClause})`);
+    } else {
+      jql = jql.replace(/cf\[\{\{pic_field\}\}\]\s*=\s*"\{\{employee_code\}\}"/g, `(cf[{{pic_field}}] = "{{employee_code}}" OR worklogAuthor = "{{employee_code}}")`);
+    }
+
+    // Substitute remaining placeholders
     jql = jql
+      .replace(/\{\{user_identifiers\}\}/g, inClause)
       .replace(/\{\{employee_code\}\}/g, employeeCode)
       .replace(/\{\{pic_field\}\}/g, picField);
 
@@ -299,7 +326,14 @@ export class JiraPimClient {
    * Aggregate high-level metrics for an employee
    */
   public aggregateMemberMetrics(
-    member: { code: string; name: string; team: string },
+    member: {
+      code: string;
+      name: string;
+      team: string;
+      email?: string;
+      jiraUsername?: string;
+      blueprintUsername?: string;
+    },
     tasks: JiraIssueRecord[],
     scriptConfig?: Partial<CollectorScriptConfig>
   ): MemberJiraMetrics {
@@ -331,8 +365,24 @@ export class JiraPimClient {
     const inProgressTaskRecords = tasks.filter((t) => !t.isCompleted);
     const inProgressTaskKeys = inProgressTaskRecords.map((t) => t.key);
 
+    const emailPrefix = member.email ? (member.email.split('@')[0] ?? '').trim() : '';
+    const userIdentifiers = Array.from(
+      new Set(
+        [
+          member.code,
+          member.jiraUsername,
+          member.blueprintUsername,
+          emailPrefix,
+        ].filter(Boolean) as string[]
+      )
+    );
+    const inList = userIdentifiers.map((u) => `"${u}"`).join(', ');
+    const memberJqlExpr = userIdentifiers.length > 1
+      ? `(assignee in (${inList}) OR cf[11902] in (${inList}) OR worklogAuthor in (${inList}))`
+      : `(assignee = "${member.code}" OR cf[11902] = "${member.code}" OR worklogAuthor = "${member.code}")`;
+
     const filterUrl = `${this.baseUrl}/issues/?jql=${encodeURIComponent(
-      `assignee = "${member.code}" OR reporter = "${member.code}" ORDER BY updated DESC`
+      `${memberJqlExpr} ORDER BY updated DESC`
     )}`;
 
     const completedStatusList = (scriptConfig?.completedStatuses && scriptConfig.completedStatuses.length > 0)
@@ -345,11 +395,11 @@ export class JiraPimClient {
             `key in (${inProgressTaskKeys.join(', ')}) ORDER BY updated DESC`
           )}`
         : `${this.baseUrl}/issues/?jql=${encodeURIComponent(
-            `(assignee = "${member.code}" OR reporter = "${member.code}") AND status not in (${completedStatusList}) ORDER BY updated DESC`
+            `${memberJqlExpr} AND status not in (${completedStatusList}) ORDER BY updated DESC`
           )}`;
 
     const completedFilterUrl = `${this.baseUrl}/issues/?jql=${encodeURIComponent(
-      `(assignee = "${member.code}" OR reporter = "${member.code}") AND status in (${completedStatusList}) ORDER BY updated DESC`
+      `${memberJqlExpr} AND status in (${completedStatusList}) ORDER BY updated DESC`
     )}`;
 
     return {

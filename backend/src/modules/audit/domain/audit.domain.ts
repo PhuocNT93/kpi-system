@@ -20,7 +20,8 @@ export const AuditActionSchema = z.enum([
   'CALIBRATION_SESSION_CREATE',
   'CALIBRATION_ADJUST',
   'CALIBRATION_FINALIZE',
-  'FINALIZE'
+  'FINALIZE',
+  'INDIVIDUAL_CYCLE_CREATED'
 ]);
 
 export type AuditAction = z.infer<typeof AuditActionSchema>;

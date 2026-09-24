@@ -21,10 +21,25 @@ export enum EvaluationStatus {
   LOCKED = 'LOCKED',
 }
 
+/**
+ * Evaluation statuses that no longer count as an active (open) evaluation for an employee.
+ * Every other status — DRAFT through CALIBRATION, plus the legacy SUBMITTED/MANAGER_REVIEW —
+ * is active. APPROVED auto-publishes and REJECTED can only be locked, so both are finished.
+ */
+export const NON_ACTIVE_EVALUATION_STATUSES = ['APPROVED', 'PUBLISHED', 'LOCKED', 'REJECTED'] as const;
+
+export enum EvaluationCycleType {
+  BATCH = 'BATCH',
+  INDIVIDUAL_SCHEDULED = 'INDIVIDUAL_SCHEDULED',
+}
+
 export interface EvaluationCycle {
   evaluationCycleId: string;
   code: string;
   name: string;
+  cycleType: EvaluationCycleType;
+  /** The evaluated employee of an INDIVIDUAL_SCHEDULED cycle; null for BATCH cycles. */
+  triggeredByEmployeeId: string | null;
   startDate: string;
   endDate: string;
   status: EvaluationCycleStatus;
@@ -111,5 +126,26 @@ export const EvaluationCycleErrorCodes = {
   INVALID_CYCLE_STATE_TRANSITION: 'INVALID_CYCLE_STATE_TRANSITION',
   EVALUATION_CYCLE_ALREADY_LOCKED: 'EVALUATION_CYCLE_ALREADY_LOCKED',
   EVALUATION_CYCLE_OPEN_CONFLICT: 'EVALUATION_CYCLE_OPEN_CONFLICT',
+  EVALUATION_ALREADY_OPEN: 'EVALUATION_ALREADY_OPEN',
+  EMPLOYEE_NOT_ELIGIBLE: 'EMPLOYEE_NOT_ELIGIBLE',
   FORBIDDEN: 'FORBIDDEN',
 } as const;
+
+/** Current organisational context of an employee, read (and row-locked) before generating evaluations. */
+export interface EvaluationEmployeeRecord {
+  employeeId: string;
+  employeeCode: string;
+  teamId: string | null;
+  roleId: string | null;
+  jobLevelId: string | null;
+  managerId: string | null;
+  employmentStatus: string;
+}
+
+/** An active evaluation that blocks creating another evaluation for the same employee. */
+export interface ActiveEvaluationRef {
+  evaluationId: string;
+  evaluationCycleId: string;
+  employeeId: string;
+  status: string;
+}

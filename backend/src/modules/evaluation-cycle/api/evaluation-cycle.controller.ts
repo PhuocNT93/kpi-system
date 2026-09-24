@@ -1,23 +1,30 @@
 import { Request, Response, NextFunction } from 'express';
 import { sendSuccess, sendCollection, sendCreated } from '../../../api/http-response.js';
-import { ValidationError, BadRequest } from '../../../api/app-error.js';
+import { ValidationError, BadRequest, Unauthenticated } from '../../../api/app-error.js';
 import { parsePaginationQuery } from '../../../api/pagination.js';
 import { getActorFromContext } from '../../../shared/auth/actor-context.js';
 import { EvaluationCycleService } from '../application/evaluation-cycle.service.js';
 import { EvaluationCycleOpeningService } from '../application/evaluation-cycle-opening.service.js';
 import {
+  IndividualCycleCreationService,
+  IndividualCycleCreationResult,
+} from '../application/individual-cycle-creation.service.js';
+import {
   CreateEvaluationCycleSchema,
   UpdateEvaluationCycleSchema,
   ListEvaluationCycleQuerySchema,
   TransitionEvaluationCycleSchema,
+  CreateIndividualCyclesSchema,
   EvaluationCycleResponse,
+  IndividualCycleCreationResponse,
 } from './evaluation-cycle.dto.js';
 import { EvaluationCycle, EvaluationCycleStatus } from '../domain/evaluation-cycle.types.js';
 
 export class EvaluationCycleController {
   constructor(
     private cycleService: EvaluationCycleService,
-    private openingService: EvaluationCycleOpeningService
+    private openingService: EvaluationCycleOpeningService,
+    private individualCreationService: IndividualCycleCreationService
   ) {}
 
   public createCycle = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -130,6 +137,47 @@ export class EvaluationCycleController {
     }
   };
 
+  public createIndividualCycles = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const parsed = CreateIndividualCyclesSchema.safeParse(req.body);
+      if (!parsed.success) {
+        throw new ValidationError(
+          'Invalid individual evaluation cycle payload',
+          parsed.error.issues.map((e) => ({
+            field: e.path.join('.'),
+            code: e.code.toUpperCase(),
+            message: e.message,
+          }))
+        );
+      }
+
+      const actor = getActorFromContext(req);
+      if (!actor) {
+        throw new Unauthenticated('Authentication required');
+      }
+
+      const result = await this.individualCreationService.createIndividualCycles(
+        {
+          name: parsed.data.name,
+          evaluationTemplateVersionId: parsed.data.evaluation_template_version_id ?? parsed.data.template_version_id,
+          employeeIds: parsed.data.employee_ids,
+          startDate: parsed.data.start_date,
+          endDate: parsed.data.end_date,
+        },
+        actor
+      );
+
+      sendCreated(
+        res,
+        `Created ${result.created.length} individual evaluation cycle(s)`,
+        this.mapIndividualCreationResult(result),
+        '/v1/evaluation-cycles'
+      );
+    } catch (err) {
+      next(err);
+    }
+  };
+
   public transitionCycle = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const id = req.params.id as string;
@@ -198,6 +246,8 @@ export class EvaluationCycleController {
       id: cycle.evaluationCycleId,
       code: cycle.code,
       name: cycle.name,
+      cycle_type: cycle.cycleType,
+      triggered_by_employee_id: cycle.triggeredByEmployeeId,
       start_date: cycle.startDate,
       end_date: cycle.endDate,
       status: cycle.status,
@@ -214,29 +264,29 @@ export class EvaluationCycleController {
     };
   }
 
-  public createIndividualCycle = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const actor = getActorFromContext(req);
-      if (!actor) {
-        res.status(401).json({ success: false, message: 'Unauthorized' });
-        return;
-      }
-
-      const { employee_ids, template_version_id, start_date, end_date } = req.body || {};
-      const result = await this.cycleService.createIndividualCycles(
-        actor,
-        {
-          employee_ids,
-          template_version_id,
-          start_date,
-          end_date,
-        },
-        this.openingService
-      );
-
-      sendSuccess(res, 200, 'Individual evaluation cycle processing completed.', result);
-    } catch (err) {
-      next(err);
-    }
-  };
+  private mapIndividualCreationResult(result: IndividualCycleCreationResult): IndividualCycleCreationResponse {
+    return {
+      created: result.created.map((entry) => ({
+        evaluation_cycle: this.mapToResponse(entry.cycle),
+        employee_id: entry.employeeId,
+        evaluation_id: entry.evaluationId,
+        evaluation_item_count: entry.evaluationItemCount,
+      })),
+      skipped: result.skipped.map((entry) => ({
+        employee_id: entry.employeeId,
+        reason_code: entry.reasonCode,
+        existing_evaluation_id: entry.existingEvaluationId,
+        existing_evaluation_cycle_id: entry.existingEvaluationCycleId,
+      })),
+      warnings: result.warnings.map((warning) => ({
+        code: warning.code,
+        employee_id: warning.employeeId,
+        evaluation_cycle_id: warning.evaluationCycleId,
+        evaluation_cycle_code: warning.evaluationCycleCode,
+        evaluation_cycle_name: warning.evaluationCycleName,
+        start_date: warning.startDate,
+        message: warning.message,
+      })),
+    };
+  }
 }

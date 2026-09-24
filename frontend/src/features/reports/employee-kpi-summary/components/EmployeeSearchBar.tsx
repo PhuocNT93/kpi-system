@@ -335,7 +335,10 @@ export const EmployeeSearchBar: React.FC<EmployeeSearchBarProps> = ({
               <option value="">All Statuses</option>
               <option value="DRAFT">DRAFT</option>
               <option value="IN_PROGRESS">IN_PROGRESS</option>
+              <option value="SELF_ASSESSMENT">SELF_ASSESSMENT</option>
+              <option value="MANAGER_ASSESSMENT">MANAGER_ASSESSMENT</option>
               <option value="SUBMITTED">SUBMITTED</option>
+              <option value="MANAGER_REVIEW">MANAGER_REVIEW</option>
               <option value="REVIEWING">REVIEWING</option>
               <option value="APPROVED">APPROVED</option>
               <option value="PUBLISHED">PUBLISHED</option>
@@ -451,8 +454,18 @@ export const EmployeeSearchBar: React.FC<EmployeeSearchBarProps> = ({
                           padding: '3px 8px',
                           borderRadius: '12px',
                           fontWeight: 500,
-                          backgroundColor: emp.evaluationStatus === 'PUBLISHED' || emp.evaluationStatus === 'APPROVED' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)',
-                          color: emp.evaluationStatus === 'PUBLISHED' || emp.evaluationStatus === 'APPROVED' ? '#059669' : '#d97706',
+                          backgroundColor:
+                            emp.evaluationStatus === 'PUBLISHED' || emp.evaluationStatus === 'APPROVED'
+                              ? 'rgba(16, 185, 129, 0.12)'
+                              : emp.evaluationStatus === 'SELF_ASSESSMENT' || emp.evaluationStatus === 'OPEN'
+                                ? 'rgba(59, 130, 246, 0.12)'
+                                : 'rgba(245, 158, 11, 0.12)',
+                          color:
+                            emp.evaluationStatus === 'PUBLISHED' || emp.evaluationStatus === 'APPROVED'
+                              ? '#059669'
+                              : emp.evaluationStatus === 'SELF_ASSESSMENT' || emp.evaluationStatus === 'OPEN'
+                                ? '#2563eb'
+                                : '#d97706',
                         }}
                       >
                         {emp.evaluationStatus}

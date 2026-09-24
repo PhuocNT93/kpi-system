@@ -11,6 +11,8 @@ import type { EvaluationCycleDTO } from '../types/cycle-types';
 import { LoadingSpinner, ErrorAlert } from '@/shared/components/ui';
 import { COLORS } from '@/lib/theme';
 import { TYPOGRAPHY } from '@/shared/theme';
+import { Button } from '@/shared/ui/Button/Button';
+import { UserPlus } from 'lucide-react';
 
 const MOCK_CYCLES: EvaluationCycleDTO[] = [
   {
@@ -148,6 +150,7 @@ export const EvaluationCycleListPage: React.FC = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <PageToast toast={toast} />
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
       <div>
         <h1
           style={{
@@ -168,6 +171,10 @@ export const EvaluationCycleListPage: React.FC = () => {
         >
           Configure, manage, open, and review company performance evaluation cycles.
         </p>
+      </div>
+        <Button variant="outlined" icon={<UserPlus size={16} />} onClick={() => navigate('/admin/individual-cycles')}>
+          Create Individual Evaluation
+        </Button>
       </div>
 
       {isLoading && <LoadingSpinner label="Loading evaluation cycles..." />}

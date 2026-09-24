@@ -28,6 +28,7 @@ import {
   EvaluationCycleCreatePage,
   EvaluationCycleDetailPage,
   EvaluationCycleEditPage,
+  IndividualCycleCreatePage,
 } from './features/evaluation-cycles';
 import { ReviewDueDashboard } from './features/evaluation-cycles/pages/ReviewDueDashboard';
 import { ReviewCadencesPage } from './features/organization/pages/ReviewCadencesPage';
@@ -80,6 +81,7 @@ const ADMIN_PAGE_TITLES: Record<string, string> = {
   cycles: 'Evaluation Cycles',
   'review-due': 'Review Due Dashboard',
   'review-cadences': 'Review Cadence Management',
+  'individual-cycles': 'Individual Evaluation',
   calibration: 'Calibration Sessions & Adjustment',
   'my-evaluations': 'My Evaluations',
   'team-evaluations': 'Team Evaluations',
@@ -299,6 +301,11 @@ export default function App() {
               <Route path="/admin/calibration" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
                   <CalibrationPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/individual-cycles" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER']}>
+                  <IndividualCycleCreatePage />
                 </ProtectedRoute>
               } />
               <Route path="/admin/cycles/new" element={
