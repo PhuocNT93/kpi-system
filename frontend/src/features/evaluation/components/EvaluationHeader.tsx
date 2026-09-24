@@ -57,7 +57,6 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
   submittingLabel = 'Đang gửi...',
   mode = 'self',
   isHrAdmin = false,
-  onPublish,
   onLock,
   onRequestCorrection,
   onReject,
@@ -73,7 +72,13 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
   if (isLocked || status === EvaluationStatus.LOCKED) {
     readOnlyReason = 'Kỳ đánh giá đã bị KHÓA. Toàn bộ thông tin điểm số và phản hồi là cố định và không thể chỉnh sửa.';
     readOnlyTitle = 'STATUS: LOCKED';
-  } else if (mode === 'self' && (status === EvaluationStatus.SUBMITTED || (status as string) === 'MANAGER_ASSESSMENT')) {
+  } else if (
+    mode === 'self' &&
+    (status === EvaluationStatus.SUBMITTED ||
+      (status as string) === 'MANAGER_ASSESSMENT' ||
+      (status as string) === 'MANAGER_REVIEW' ||
+      (status as string) === 'REVIEWING')
+  ) {
     readOnlyReason = 'Bạn đã gửi tự đánh giá thành công. Đánh giá hiện đang ở trạng thái Chờ Quản lý (Manager Review) và ở chế độ Chỉ đọc.';
     readOnlyTitle = 'STATUS: READ ONLY';
     readOnlyColor = '#fbbf24'; // amber
@@ -244,24 +249,6 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
 
             {isHrAdmin && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                {status === EvaluationStatus.APPROVED && onPublish && (
-                  <button
-                    type="button"
-                    onClick={onPublish}
-                    style={{
-                      padding: '8px 16px',
-                      borderRadius: RADII.lg,
-                      backgroundColor: '#10b981',
-                      border: 'none',
-                      color: COLORS.neutral.white,
-                      fontSize: TYPOGRAPHY.fontSize.sm,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Publish Results
-                  </button>
-                )}
                 {(status === EvaluationStatus.APPROVED || status === EvaluationStatus.PUBLISHED) && onLock && (
                   <button
                     type="button"

@@ -67,6 +67,13 @@ const STATUS_MESSAGES: Record<string, { icon: React.ReactNode; text: string; sub
   },
 };
 
+const normalizeStatus = (status: string): string => {
+  if (status === 'MANAGER_ASSESSMENT') return 'SUBMITTED';
+  if (status === 'MANAGER_REVIEW') return 'MANAGER_REVIEW';
+  if (status === 'REVIEWING') return 'MANAGER_REVIEW';
+  return status;
+};
+
 export const ActiveEvaluationCard: React.FC<ActiveEvaluationCardProps> = ({
   evaluation,
   progressStats,
@@ -89,7 +96,7 @@ export const ActiveEvaluationCard: React.FC<ActiveEvaluationCardProps> = ({
   const isLocked = (evalData.status as string) === 'LOCKED';
   const canSeeResults = isPublished || isLocked;
 
-  const statusMsg = STATUS_MESSAGES[evalData.status] || STATUS_MESSAGES.OPEN;
+  const statusMsg = STATUS_MESSAGES[normalizeStatus(evalData.status)] || STATUS_MESSAGES.OPEN;
 
   let ctaText = 'Xem chi tiết';
   if (canSeeResults) {

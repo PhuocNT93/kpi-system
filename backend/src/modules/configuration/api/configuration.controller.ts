@@ -13,6 +13,7 @@ import { ConfigurationSnapshotService } from '../application/services/configurat
 import { WorkflowConfigurationService } from '../application/services/workflow-configuration.service.js';
 import { ConfigurationAuditService } from '../application/services/configuration-audit.service.js';
 import { CriterionStatus, VersionStatus, ScoringRuleType, TemplateStatus, ApplicabilityRule } from '../domain/configuration.types.js';
+import { getActorFromContext } from '../../../shared/auth/index.js';
 
 export class ConfigurationController {
   constructor(
@@ -30,7 +31,7 @@ export class ConfigurationController {
   ) {}
 
   private getActorId(req: Request): string | undefined {
-    return (req as unknown as { user?: { userId?: string } }).user?.userId;
+    return getActorFromContext(req)?.userId;
   }
 
   // ── Criteria ────────────────────────────────────────────────────────────────

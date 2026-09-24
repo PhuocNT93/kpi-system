@@ -41,6 +41,7 @@ export interface EvaluationItem {
   template_criterion_id: string;
   criterion_code_snapshot: string;
   criterion_name_snapshot: Record<string, string> | string | undefined;
+  category?: CriterionCategory;
   weight_snapshot: number;
   kpi_id_snapshot?: string;
   kpi_code_snapshot?: string;
@@ -198,6 +199,7 @@ export interface ScoringCriterionKpi {
   previous: number;
   weight: string;
   weightValue: string;
+  rawWeightValue?: number;
   criterionWeight: number;
 }
 
@@ -215,6 +217,7 @@ export interface ScoringCriterionSummary {
   status: string;
   accent: string;
   kpis: ScoringCriterionKpi[];
+  rawWeightValue: number | undefined;
 }
 
 export interface ScoringGroupSummary {
@@ -274,13 +277,14 @@ export function percentToTenPointScore(value: number | string | null | undefined
   return (percentValue / 10).toFixed(percentValue % 10 === 0 ? 0 : 1);
 }
 
-export function getCriterionCategory(item: Pick<EvaluationItem, 'criterion_code_snapshot' | 'criterion_name_snapshot'>): CriterionCategory {
-  const code = (item.criterion_code_snapshot || '').toLowerCase();
-  const name = getCriterionName(item.criterion_name_snapshot, item.criterion_code_snapshot).toLowerCase();
+export function getCriterionCategory(item: Pick<EvaluationItem, 'category' | 'criterion_code_snapshot' | 'criterion_name_snapshot' | 'kpi_code_snapshot' | 'kpi_name_snapshot'>): CriterionCategory {
+  if (item.category) return item.category;
+  const code = [item.criterion_code_snapshot, item.kpi_code_snapshot].filter(Boolean).join(' ').toLowerCase();
+  const name = [getCriterionName(item.criterion_name_snapshot, item.criterion_code_snapshot), item.kpi_name_snapshot].filter(Boolean).join(' ').toLowerCase();
 
-  if (code.startsWith('perf') || name.includes('performance')) return 'Performance';
-  if (code.startsWith('cap') || name.includes('capability') || name.includes('competency')) return 'Capability';
-  if (code.startsWith('con') || name.includes('contribution') || name.includes('collaboration')) return 'Contribution';
+  if (code.includes('performance') || code.startsWith('perf') || name.includes('performance')) return 'Performance';
+  if (code.includes('capability') || code.startsWith('cap') || name.includes('capability') || name.includes('competency') || name.includes('competence') || name.includes('skill')) return 'Capability';
+  if (code.includes('contribution') || code.startsWith('con') || name.includes('contribution') || name.includes('collaboration') || name.includes('teamwork') || name.includes('support')) return 'Contribution';
   return 'Performance';
 }
 
@@ -299,7 +303,7 @@ export function buildEvaluationScoringSummary(evaluationDetail?: EvaluationDetai
     const category = getCriterionCategory(item);
     const kpiLabel = item.kpi_name_snapshot || item.kpi_code_snapshot || 'KPI';
 
-    const criterionEntry = criterionMap.get(criterionKey) ?? {
+    const criterionEntry: ScoringCriterionSummary = criterionMap.get(criterionKey) ?? {
       title: criterionTitle,
       category,
       score: 0,
@@ -313,6 +317,7 @@ export function buildEvaluationScoringSummary(evaluationDetail?: EvaluationDetai
       status: item.is_missing_score ? 'Missing score' : 'Calculated by API',
       accent: COLORS.primary.DEFAULT,
       kpis: [],
+      rawWeightValue: item.weight_snapshot,
     };
 
     criterionEntry.kpis.push({
@@ -325,15 +330,17 @@ export function buildEvaluationScoringSummary(evaluationDetail?: EvaluationDetai
       previous: item.raw_score ?? 0,
       weight: 'of KPI',
       weightValue: formatStoredPercent(item.kpi_weight_snapshot),
+      rawWeightValue: item.kpi_weight_snapshot,
       criterionWeight: normalizeStoredPercentValue(item.weight_snapshot),
     });
 
     const totalCriterionWeight = criterionEntry.kpis.reduce((sum, kpi) => sum + kpi.criterionWeight, 0);
     criterionEntry.weightValue = formatStoredPercent(totalCriterionWeight);
+    criterionEntry.rawWeightValue = totalCriterionWeight;
 
     const childScores = criterionEntry.kpis.map((kpi) => kpi.score);
     criterionEntry.rawScore = childScores.length > 0 ? childScores.reduce((sum, value) => sum + value, 0) : 0;
-    criterionEntry.weightedScore = criterionEntry.rawScore * (totalCriterionWeight / 100) / 20;
+    criterionEntry.weightedScore = (criterionEntry.rawScore * (totalCriterionWeight / 100));
     criterionEntry.rawScoreValue = `${(criterionEntry.rawScore * (totalCriterionWeight / 100)).toFixed(2)}%`;
     criterionEntry.weightedScoreValue = criterionEntry.weightedScore.toFixed(2);
     criterionEntry.score = criterionEntry.weightedScore;
@@ -343,9 +350,10 @@ export function buildEvaluationScoringSummary(evaluationDetail?: EvaluationDetai
 
   const criteria = Array.from(criterionMap.values());
   const grouped = criterionCategoryConfig.map((config) => {
-    const groupCriteria = criteria.filter((criterion) => criterion.category === config.key).map((criterion) => criterion.weightedScore);
-    let average = groupCriteria.length > 0 ? groupCriteria.reduce((sum, value) => sum + value, 0) / groupCriteria.length : 0;
-    average = average * (config.weight / 100);
+    const groupCriteria = criteria.filter((criterion) => criterion.category === config.key);
+    const max = groupCriteria.reduce((sum, criterion) => sum + (criterion.rawWeightValue ?? 0), 0);
+    const weightedScoreTotal = groupCriteria.reduce((sum, criterion) => sum + criterion.weightedScore, 0);
+    const average = max > 0 ? (weightedScoreTotal / max) * 5 : null;
 
     return {
       ...config,
@@ -354,7 +362,7 @@ export function buildEvaluationScoringSummary(evaluationDetail?: EvaluationDetai
     };
   });
 
-  const totalScore = grouped.reduce((sum, group) => sum + (group.average ?? 0), 0);
+  const totalScore = grouped.reduce((sum, group) => sum + ((group.average ?? 0) * (group.weight / 100)), 0);
   const totalRawScoreValue = criteria.reduce((sum, criterion) => sum + parsePercentValue(criterion.rawScoreValue), 0);
 
   return { criteria, grouped, totalScore, totalRawScoreValue };
