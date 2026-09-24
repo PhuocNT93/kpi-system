@@ -33,7 +33,6 @@ import {
   Eye,
   Sliders,
   Check,
-  Share2,
   ExternalLink,
 } from 'lucide-react';
 import type { EvaluationCycleDTO, ScopePreviewDTO, CycleStatus } from '../types/cycle-types';
@@ -312,16 +311,6 @@ export const EvaluationCycleDetailPage: React.FC = () => {
             >
               <Check size={16} style={{ marginRight: '6px' }} />
               Approve Cycle
-            </Button>
-          )}
-
-          {cycle.status === 'APPROVED' && (
-            <Button
-              onClick={() => handleTransition('PUBLISHED', 'Published')}
-              disabled={transitionMutation.isPending}
-            >
-              <Share2 size={16} style={{ marginRight: '6px' }} />
-              Publish Results
             </Button>
           )}
 

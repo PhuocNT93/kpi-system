@@ -11,19 +11,28 @@ interface EmployeeInfoCardProps {
 export const EmployeeInfoCard: React.FC<EmployeeInfoCardProps> = ({ employee, evaluation }) => {
   const getStatusBadge = (status: string) => {
     switch (status.toUpperCase()) {
+      case 'SELF_ASSESSMENT':
+      case 'OPEN':
+        return {
+          bg: 'rgba(59, 130, 246, 0.12)',
+          color: '#2563eb',
+          icon: <Clock size={14} />,
+        };
+      case 'MANAGER_ASSESSMENT':
+      case 'MANAGER_REVIEW':
+      case 'SUBMITTED':
+      case 'REVIEWING':
+        return {
+          bg: 'rgba(245, 158, 11, 0.12)',
+          color: '#d97706',
+          icon: <Clock size={14} />,
+        };
       case 'PUBLISHED':
       case 'APPROVED':
         return {
           bg: 'rgba(16, 185, 129, 0.12)',
           color: '#059669',
           icon: <CheckCircle size={14} />,
-        };
-      case 'REVIEWING':
-      case 'SUBMITTED':
-        return {
-          bg: 'rgba(59, 130, 246, 0.12)',
-          color: '#2563eb',
-          icon: <Clock size={14} />,
         };
       case 'IN_PROGRESS':
       case 'DRAFT':
@@ -112,7 +121,7 @@ export const EmployeeInfoCard: React.FC<EmployeeInfoCardProps> = ({ employee, ev
             }}
           >
             {statusStyle.icon}
-            {evaluation.status}
+            {evaluation.status === 'MANAGER_REVIEW' ? 'REVIEWING' : evaluation.status}
           </div>
 
           {evaluation.isLocked && (

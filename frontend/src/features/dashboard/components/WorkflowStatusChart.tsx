@@ -20,8 +20,9 @@ export const WorkflowStatusChart: React.FC<WorkflowStatusChartProps> = ({
   const displayTitle = title ?? t('workflow_distribution', 'Evaluation Workflow Distribution');
 
   const getStatusLabel = (status: string) => {
-    const fallback = status.replace(/_/g, ' ');
-    return t(`status_${status.toLowerCase()}`, t(status.toLowerCase(), fallback));
+    const normalizedStatus = status === 'MANAGER_REVIEW' ? 'REVIEWING' : status;
+    const fallback = normalizedStatus.replace(/_/g, ' ');
+    return t(`status_${normalizedStatus.toLowerCase()}`, t(normalizedStatus.toLowerCase(), fallback));
   };
 
   const getStatusBadgeStyle = (status: string) => {
@@ -30,6 +31,7 @@ export const WorkflowStatusChart: React.FC<WorkflowStatusChartProps> = ({
       case 'APPROVED':
         return { bg: isDark ? 'rgba(16, 185, 129, 0.2)' : '#ECFDF5', color: '#10B981', border: '#A7F3D0' };
       case 'MANAGER_ASSESSMENT':
+      case 'MANAGER_REVIEW':
       case 'REVIEWING':
         return { bg: isDark ? 'rgba(245, 158, 11, 0.2)' : '#FFFBEB', color: '#F59E0B', border: '#FDE68A' };
       case 'CALIBRATION':
