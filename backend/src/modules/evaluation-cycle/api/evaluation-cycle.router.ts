@@ -33,7 +33,21 @@ export function createEvaluationCycleRouter(
     next();
   };
 
+  const requireManagerOrHrAdmin = (req: Request, res: Response, next: NextFunction): void => {
+    const actor = getActorFromContext(req);
+    if (!actor) {
+      next(new Unauthenticated('Authentication required'));
+      return;
+    }
+    if (actor.role !== 'HR_ADMIN' && actor.role !== 'SYSTEM_ADMIN' && actor.role !== 'MANAGER') {
+      next(new Forbidden('Only Manager or HR/System Admin can trigger individual evaluations'));
+      return;
+    }
+    next();
+  };
+
   router.post('/evaluation-cycles', requireHrAdmin, controller.createCycle);
+  router.post('/evaluation-cycles/individual', requireManagerOrHrAdmin, controller.createIndividualCycle);
   router.get('/evaluation-cycles', requireAuthenticated, controller.listCycles);
   router.get('/evaluation-cycles/:id', requireAuthenticated, controller.getCycleById);
   router.patch('/evaluation-cycles/:id', requireHrAdmin, controller.updateDraftCycle);

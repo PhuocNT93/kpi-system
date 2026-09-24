@@ -213,4 +213,30 @@ export class EvaluationCycleController {
       updated_by: cycle.updatedBy,
     };
   }
+
+  public createIndividualCycle = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const actor = getActorFromContext(req);
+      if (!actor) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+
+      const { employee_ids, template_version_id, start_date, end_date } = req.body || {};
+      const result = await this.cycleService.createIndividualCycles(
+        actor,
+        {
+          employee_ids,
+          template_version_id,
+          start_date,
+          end_date,
+        },
+        this.openingService
+      );
+
+      sendSuccess(res, 200, 'Individual evaluation cycle processing completed.', result);
+    } catch (err) {
+      next(err);
+    }
+  };
 }

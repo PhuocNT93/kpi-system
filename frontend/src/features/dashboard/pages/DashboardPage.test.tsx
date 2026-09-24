@@ -372,6 +372,16 @@ describe('DashboardPage Component Suite', () => {
   // TC-19: Multiple Languages (i18n) Support
   it('TC-19: renders Vietnamese translations when active locale is vi', async () => {
     localStorage.setItem('kpi_locale', 'vi');
+    localStorage.setItem(
+      'kpi_ui_translations',
+      JSON.stringify({
+        vi: {
+          page_title: 'Tổng quan Hiệu suất & Thống kê',
+          role_employee: 'Bảng điều khiển Nhân viên',
+        },
+      })
+    );
+    window.dispatchEvent(new CustomEvent('kpi_ui_translations_updated'));
     window.dispatchEvent(new CustomEvent('kpi_locale_changed', { detail: 'vi' }));
 
     const mockEmployeeData: EmployeeDashboardData = {

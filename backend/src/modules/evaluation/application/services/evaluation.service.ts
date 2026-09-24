@@ -13,6 +13,7 @@ import { ExplainabilityViewDto, SourceSnapshot } from '../../../evaluation-data-
 import { EvaluationTransitionService } from './evaluation-transition.service.js';
 import { NotificationType } from '../../../notification/domain/notification.types.js';
 import { NotificationService } from '../../../notification/application/notification.service.js';
+import { ReviewScheduleService } from '../../../review-cadence/application/review-schedule.service.js';
 
 export class EvaluationService {
   constructor(
@@ -22,7 +23,8 @@ export class EvaluationService {
     private auditService?: AuditService,
     private ruleEngine?: RuleEngine,
     private transitionService: EvaluationTransitionService = new EvaluationTransitionService(),
-    private notificationService?: NotificationService
+    private notificationService?: NotificationService,
+    private reviewScheduleService?: ReviewScheduleService
   ) {}
 
   private async resolveUserForEmployee(employeeId: string, client?: PoolClient): Promise<{ userId: string; email: string } | null> {
@@ -658,12 +660,23 @@ export class EvaluationService {
         throw new AppError(400, 'INVALID_STATUS', 'Evaluation must be APPROVED before it can be published.');
       }
 
+      const publishedAt = new Date();
       const updated = await this.evaluationRepo.update(evaluationId, {
         status: EvaluationStatus.PUBLISHED,
-        published_at: new Date(),
+        published_at: publishedAt,
         published_by: actor.userId,
         updated_by: actor.userId,
       }, repositoryClient);
+
+      if (this.reviewScheduleService && evaluation.employee_id) {
+        await this.reviewScheduleService.onEvaluationPublished(
+          evaluationId,
+          evaluation.employee_id,
+          publishedAt,
+          repositoryClient,
+          actor.userId
+        );
+      }
 
       if (this.auditService) {
         await this.auditService.record(client, {

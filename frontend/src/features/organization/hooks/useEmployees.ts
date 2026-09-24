@@ -41,3 +41,36 @@ export function useBulkUpdateEmployees() {
     },
   });
 }
+
+export function useEmployeeCadence(employeeId: string | undefined) {
+  return useQuery({
+    queryKey: ['employee', employeeId, 'cadence'],
+    queryFn: () => employeeApi.getEmployeeCadence(employeeId!),
+    enabled: Boolean(employeeId),
+  });
+}
+
+export function useUpdateEmployeeCadenceOverride() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      employeeId,
+      reviewCadenceOverrideId,
+      reason,
+    }: {
+      employeeId: string;
+      reviewCadenceOverrideId: string | null;
+      reason?: string;
+    }) =>
+      employeeApi.updateEmployeeCadenceOverride(employeeId, {
+        review_cadence_override_id: reviewCadenceOverrideId,
+        reason,
+      }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: organizationKeys.employees.all });
+      queryClient.invalidateQueries({ queryKey: ['employee', variables.employeeId, 'cadence'] });
+      queryClient.invalidateQueries({ queryKey: ['reviews', 'due'] });
+    },
+  });
+}
+

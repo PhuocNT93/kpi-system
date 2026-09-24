@@ -112,7 +112,7 @@ export function useUiTranslation(explicitLocale?: UiLocale) {
   }, [explicitLocale]);
 
   const t = useCallback(
-    (key: string, fallback?: string): string => {
+    (key: string, fallback?: string, params?: Record<string, string | number>): string => {
       const activeDict = translations[currentLocale] || {};
       const enDict = translations['en'] || {};
 
@@ -126,15 +126,20 @@ export function useUiTranslation(explicitLocale?: UiLocale) {
         return undefined;
       };
 
-      const found = lookup(activeDict);
-      if (found !== undefined) return found;
-
-      if (currentLocale !== 'en') {
-        const enFound = lookup(enDict);
-        if (enFound !== undefined) return enFound;
+      let result = lookup(activeDict);
+      if (result === undefined && currentLocale !== 'en') {
+        result = lookup(enDict);
       }
 
-      return fallback ?? key;
+      let text = result !== undefined ? result : (fallback ?? key);
+
+      if (params) {
+        Object.entries(params).forEach(([paramKey, paramVal]) => {
+          text = text.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), String(paramVal));
+        });
+      }
+
+      return text;
     },
     [translations, currentLocale]
   );
@@ -147,6 +152,10 @@ export function useUiTranslation(explicitLocale?: UiLocale) {
   };
 }
 
-// Alias for convenience across audit views
+// Aliases for convenience across all UI feature views (strictly reading from localStorage)
 export const useAuditI18n = useUiTranslation;
+export const useDashboardTranslation = useUiTranslation;
+export const useOrganizationTranslation = useUiTranslation;
+export const useReviewDueTranslation = useUiTranslation;
 export const getAuditLocale = getUiLocale;
+

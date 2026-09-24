@@ -3,6 +3,8 @@ import type {
   WireEmployee,
   CreateEmployeeRequest,
   UpdateEmployeeRequest,
+  EmployeeCadenceInfoResponse,
+  EmployeeCadenceOverrideResponse,
 } from './organization-types';
 import { mapWireEmployeeToDomain } from '../domain/organization-mappers';
 import type { OrgEmployee } from '../domain/organization-models';
@@ -35,5 +37,16 @@ export const employeeApi = {
 
   bulkUpdateStatus: async (employeeIds: string[], status: 'ACTIVE' | 'INACTIVE'): Promise<{ updatedCount: number; status: string }> => {
     return postApi<{ updatedCount: number; status: string }>('/api/employees/bulk-status', { employeeIds, status }, randomUUID());
+  },
+
+  getEmployeeCadence: async (employeeId: string): Promise<EmployeeCadenceInfoResponse> => {
+    return getApi<EmployeeCadenceInfoResponse>(`/api/employees/${employeeId}/review-cadence`);
+  },
+
+  updateEmployeeCadenceOverride: async (
+    employeeId: string,
+    body: { review_cadence_override_id: string | null; reason?: string }
+  ): Promise<EmployeeCadenceOverrideResponse> => {
+    return patchApi<EmployeeCadenceOverrideResponse>(`/api/employees/${employeeId}/review-cadence-override`, body);
   },
 };

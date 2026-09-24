@@ -19,7 +19,9 @@ export function createEmployeeRouter(
   
   router.get('/employees/:employeeId', (req, res, next) => { employeeController.getEmployeeById(req, res).catch(next); });
   router.get('/employees/:employeeId/kpi-summary', (req, res, next) => { employeeController.getEmployeeKpiSummary(req, res).catch(next); });
+  router.get('/employees/:employeeId/review-cadence', (req, res, next) => { employeeController.getEmployeeReviewCadence(req, res).catch(next); });
   router.patch('/employees/:employeeId', (req, res, next) => { employeeController.updateEmployee(req, res).catch(next); });
+  router.patch('/employees/:employeeId/review-cadence-override', (req, res, next) => { employeeController.updateReviewCadenceOverride(req, res).catch(next); });
   
   router.post('/employees/:employeeId/deactivate', (req, res, next) => { employeeController.deactivateEmployee(req, res).catch(next); });
   router.post('/employees/:employeeId/reactivate', (req, res, next) => { employeeController.reactivateEmployee(req, res).catch(next); });

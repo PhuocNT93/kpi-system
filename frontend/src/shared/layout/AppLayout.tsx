@@ -3,7 +3,7 @@ import { COLORS } from '@/lib/theme';
 import { useTheme } from '@/shared/theme';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
-import { FooterActionBar, type FooterActionBarProps } from './FooterActionBar';
+import type { FooterActionBarProps } from './FooterActionBar';
 
 export interface AppLayoutProps {
   children?: React.ReactNode;
@@ -28,7 +28,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   pageTitle = 'Configure Evaluation',
   pageSubtitle,
   headerActions,
-  footerProps,
+  footerProps: _footerProps,
   onSelectMenuItem,
   onGenerateReport
 }) => {
@@ -132,7 +132,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         </main>
 
         {/* Bottom Action / Footer Bar */}
-        <FooterActionBar {...footerProps} />
+        {/* <FooterActionBar {...footerProps} /> */}
       </div>
     </div>
   );

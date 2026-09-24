@@ -1,6 +1,7 @@
 import { Pool, PoolClient } from 'pg';
 import { withTransaction } from '../../../shared/database/transaction.js';
-import { NotFound, Conflict, BadRequest } from '../../../api/app-error.js';
+import { NotFound, Conflict, BadRequest, AppError } from '../../../api/app-error.js';
+import { Actor } from '../../../shared/auth/types.js';
 import {
   EvaluationCycle,
   EvaluationCycleStatus,
@@ -16,6 +17,7 @@ import { AuditService } from '../../audit/application/audit.service.js';
 import { CreateEvaluationCycleInput, UpdateEvaluationCycleInput } from '../api/evaluation-cycle.dto.js';
 import { appEventEmitter, AppEvent } from '../../../shared/events/index.js';
 import { NotificationType, NotificationService } from '../../notification/index.js';
+import type { EvaluationCycleOpeningService } from './evaluation-cycle-opening.service.js';
 
 export class EvaluationCycleService {
   constructor(
@@ -472,5 +474,207 @@ export class EvaluationCycleService {
     }
 
     throw new Error('No app_user available for audit logging');
+  }
+
+  public async createIndividualCycles(
+    actor: Actor,
+    input: {
+      employee_ids: string[];
+      template_version_id?: string;
+      start_date?: string;
+      end_date?: string;
+    },
+    openingService: EvaluationCycleOpeningService
+  ): Promise<{
+    created: Array<{ employee_id: string; evaluation_cycle_id: string; evaluation_id?: string }>;
+    warnings: Array<{ employee_id: string; warning: { code: 'BATCH_CYCLE_UPCOMING'; cycle_code: string; cycle_name?: string; scheduled_date: string } }>;
+    conflicts: Array<{ employee_id: string; code: string; message: string }>;
+  }> {
+    if (!input.employee_ids || !Array.isArray(input.employee_ids) || input.employee_ids.length === 0) {
+      throw new BadRequest('employee_ids must be a non-empty array of employee IDs');
+    }
+
+    const created: Array<{ employee_id: string; evaluation_cycle_id: string; evaluation_id?: string }> = [];
+    const warnings: Array<{ employee_id: string; warning: { code: 'BATCH_CYCLE_UPCOMING'; cycle_code: string; cycle_name?: string; scheduled_date: string } }> = [];
+    const conflicts: Array<{ employee_id: string; code: string; message: string }> = [];
+
+    // 1. Resolve template version
+    let templateVersionId = input.template_version_id;
+    if (!templateVersionId) {
+      const tplRes = await this.pool.query(
+        `SELECT id FROM evaluation_template_versions WHERE status = 'PUBLISHED' ORDER BY version_no DESC LIMIT 1`
+      );
+      if (tplRes.rows.length === 0) {
+        throw new AppError(422, 'TEMPLATE_NOT_PUBLISHED', 'No published evaluation template version found.');
+      }
+      templateVersionId = tplRes.rows[0].id;
+    } else {
+      const tplRes = await this.pool.query(
+        `SELECT id, status FROM evaluation_template_versions WHERE id = $1`,
+        [templateVersionId]
+      );
+      if (tplRes.rows.length === 0) {
+        throw new NotFound('EvaluationTemplateVersion');
+      }
+      if (tplRes.rows[0].status !== 'PUBLISHED') {
+        throw new AppError(422, 'TEMPLATE_NOT_PUBLISHED', 'Specified template version is not published.');
+      }
+    }
+
+    // Configurable batch cycle lead time in weeks
+    const batchLeadWeeks = Math.max(1, parseInt(process.env.BATCH_CYCLE_LEAD_TIME_WEEKS || '4', 10));
+
+    // 2. Fetch all requested employees
+    const empRes = await this.pool.query(
+      `SELECT employee_id, employee_code, full_name, team_id, role_id, employment_status
+       FROM employee
+       WHERE employee_id = ANY($1::uuid[])`,
+      [input.employee_ids]
+    );
+
+    interface IndividualCycleEmployeeRow {
+      employee_id: string;
+      employee_code: string;
+      full_name: string;
+      team_id: string | null;
+      role_id: string;
+      employment_status: string;
+    }
+
+    const empMap = new Map<string, IndividualCycleEmployeeRow>();
+    for (const r of empRes.rows as IndividualCycleEmployeeRow[]) {
+      empMap.set(r.employee_id, r);
+    }
+
+    const actorEmployeeId = actor.employeeId || actor.userId || null;
+    const isManager = actor.role === 'MANAGER';
+    const managedTeamIds = actor.managedTeamIds ?? [];
+
+    for (const empId of input.employee_ids) {
+      const emp = empMap.get(empId);
+      if (!emp) {
+        conflicts.push({
+          employee_id: empId,
+          code: 'EMPLOYEE_NOT_FOUND',
+          message: `Employee with ID ${empId} not found`,
+        });
+        continue;
+      }
+
+      // Scope validation: Manager can only trigger for own team
+      if (isManager && (!emp.team_id || !managedTeamIds.includes(emp.team_id))) {
+        conflicts.push({
+          employee_id: empId,
+          code: 'UNAUTHORIZED_TEAM',
+          message: 'You do not have permission to trigger reviews for employees outside your team.',
+        });
+        continue;
+      }
+
+      // Employment status check: Inactive/Terminated excluded
+      if (emp.employment_status === 'INACTIVE' || emp.employment_status === 'TERMINATED') {
+        conflicts.push({
+          employee_id: empId,
+          code: 'EMPLOYEE_INACTIVE',
+          message: `Employee is ${emp.employment_status} and ineligible for review.`,
+        });
+        continue;
+      }
+
+      // Existing open evaluation check
+      const openEvalRes = await this.pool.query(
+        `SELECT evaluation_id, status FROM evaluation
+         WHERE employee_id = $1 AND status NOT IN ('APPROVED', 'PUBLISHED', 'LOCKED', 'REJECTED')
+         LIMIT 1`,
+        [empId]
+      );
+
+      if (openEvalRes.rows.length > 0) {
+        conflicts.push({
+          employee_id: empId,
+          code: 'EVALUATION_ALREADY_OPEN',
+          message: `Employee already has an active evaluation (${openEvalRes.rows[0].status}).`,
+        });
+        continue;
+      }
+
+      // Upcoming batch cycle check (Soft warning)
+      const upcomingCycleRes = await this.pool.query(
+        `SELECT ec.evaluation_cycle_id, ec.code, ec.name, ec.start_date
+         FROM evaluation_cycle ec
+         WHERE ec.status IN ('DRAFT', 'OPEN')
+           AND ec.code NOT LIKE 'IND-%'
+           AND ec.start_date >= CURRENT_DATE
+           AND ec.start_date <= (CURRENT_DATE + ($1::int * INTERVAL '1 week'))
+           AND (
+             $2 = ANY(ec.applicable_employee_ids) OR
+             $3 = ANY(ec.applicable_team_ids) OR
+             $4 = ANY(ec.applicable_role_ids) OR
+             (array_length(ec.applicable_employee_ids, 1) IS NULL AND array_length(ec.applicable_team_ids, 1) IS NULL AND array_length(ec.applicable_role_ids, 1) IS NULL)
+           )
+         ORDER BY ec.start_date ASC
+         LIMIT 1`,
+        [batchLeadWeeks, empId, emp.team_id, emp.role_id]
+      );
+
+      if (upcomingCycleRes.rows.length > 0) {
+        const upCycle = upcomingCycleRes.rows[0];
+        warnings.push({
+          employee_id: empId,
+          warning: {
+            code: 'BATCH_CYCLE_UPCOMING',
+            cycle_code: upCycle.code,
+            cycle_name: upCycle.name,
+            scheduled_date: new Date(upCycle.start_date).toISOString().slice(0, 10),
+          },
+        });
+      }
+
+      // Create individual cycle and open it
+      try {
+        const uniqueSuffix = `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+        const cycleCode = `IND-${emp.employee_code || 'EMP'}-${uniqueSuffix}`.slice(0, 50);
+        const cycleName = `Individual Review - ${emp.full_name}`;
+        const startDate = input.start_date || new Date().toISOString().slice(0, 10);
+        const endDate = input.end_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+        const newCycle = await this.createCycle(
+          {
+            code: cycleCode,
+            name: cycleName,
+            start_date: startDate,
+            end_date: endDate,
+            evaluation_template_version_id: templateVersionId!,
+            applicable_employee_ids: [empId],
+            applicable_team_ids: emp.team_id ? [emp.team_id] : [],
+            applicable_role_ids: emp.role_id ? [emp.role_id] : [],
+          },
+          actorEmployeeId
+        );
+
+        await openingService.openCycle(newCycle.evaluationCycleId, actorEmployeeId);
+
+        const evalRes = await this.pool.query(
+          `SELECT evaluation_id FROM evaluation
+           WHERE evaluation_cycle_id = $1 AND employee_id = $2
+           LIMIT 1`,
+          [newCycle.evaluationCycleId, empId]
+        );
+
+        created.push({
+          employee_id: empId,
+          evaluation_cycle_id: newCycle.evaluationCycleId,
+          evaluation_id: evalRes.rows[0]?.evaluation_id,
+        });
+      } catch (err: unknown) {
+        conflicts.push({
+          employee_id: empId,
+          code: 'CREATION_FAILED',
+          message: (err as Error)?.message || 'Failed to create individual evaluation cycle',
+        });
+      }
+    }
+
+    return { created, warnings, conflicts };
   }
 }

@@ -6,14 +6,31 @@ import { PostgresTeamRepository } from './infrastructure/postgres-team.repositor
 import { EmployeeController } from './api/employee.controller.js';
 import { AuditService } from '../audit/application/audit.service.js';
 import { EvaluationService } from '../evaluation/application/services/evaluation.service.js';
+import { EmployeeCadenceService } from './application/employee-cadence.service.js';
+import { ReviewScheduleService } from '../review-cadence/application/review-schedule.service.js';
 
-export function createEmployeeModule(pool: Pool, auditService: AuditService, _evaluationService?: EvaluationService) {
+export function createEmployeeModule(
+  pool: Pool,
+  auditService: AuditService,
+  _evaluationService?: EvaluationService,
+  reviewScheduleService?: ReviewScheduleService
+) {
   const employeeRepo = new PostgresEmployeeRepository(pool);
   const assignmentRepo = new PostgresEmployeeAssignmentRepository(pool);
   const teamRepo = new PostgresTeamRepository(pool);
   const contextService = new EmployeeContextService(employeeRepo, assignmentRepo);
   const teamService = new TeamService(teamRepo, employeeRepo, pool, auditService);
-  const employeeController = new EmployeeController(employeeRepo, assignmentRepo, contextService, pool, teamService);
+  const scheduleService = reviewScheduleService ?? new ReviewScheduleService(pool, auditService);
+  const cadenceService = new EmployeeCadenceService(pool, auditService, scheduleService);
+  const employeeController = new EmployeeController(
+    employeeRepo,
+    assignmentRepo,
+    contextService,
+    pool,
+    teamService,
+    _evaluationService,
+    cadenceService
+  );
 
   return {
     employeeRepo,
@@ -21,6 +38,7 @@ export function createEmployeeModule(pool: Pool, auditService: AuditService, _ev
     teamRepo,
     contextService,
     teamService,
+    cadenceService,
     employeeController,
   };
 }
