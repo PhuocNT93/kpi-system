@@ -2,7 +2,7 @@ import { schedule as cronSchedule, validate as cronValidate, ScheduledTask } fro
 import { Pool } from 'pg';
 import { ManagedMember } from './config.js';
 import { JiraPimClient } from './jira-client.js';
-import { AiScoringEngine, MemberBatchResult, BlueprintMemberSummary, BlueprintAttendanceLateRecord } from './ai-evaluator.js';
+import { AiScoringEngine, MemberBatchResult, BlueprintMemberSummary, BlueprintAttendanceLateRecord, EvaluatedKpiRecord } from './ai-evaluator.js';
 import { CollectorScriptStore } from './collector-script.store.js';
 
 export interface BatchRunRecord {
@@ -515,42 +515,85 @@ export async function executeBatchRun(
               });
               result.penaltyBreakdown.totalDeductions += latePenalty;
             }
-
-            const rawFinal = result.penaltyBreakdown.baselineScore - result.penaltyBreakdown.totalDeductions + result.penaltyBreakdown.totalBonuses;
-
-            // NGUYÊN TẮC TRẦN ĐIỂM VI PHẠM (Infraction Ceiling):
-            // Thưởng năng suất không được xóa sạch vi phạm kỷ luật (chuyên cần hoặc critical bug)
-            const disciplinePenalty = result.penaltyBreakdown.deductions
-              .filter((d) => d.category === 'ATTENDANCE' || d.category === 'CODE_QUALITY')
-              .reduce((sum, d) => sum + d.points, 0);
-
-            const ceiling = disciplinePenalty > 0 ? Math.max(0, 100 - disciplinePenalty) : 100;
-            result.penaltyBreakdown.finalScore = Math.min(ceiling, Math.max(0, Math.round(rawFinal * 10) / 10));
-            result.overallScore = result.penaltyBreakdown.finalScore;
-
-            // Xếp loại Level: Mức 5 (Xuất sắc) bắt buộc KHÔNG có vi phạm kỷ luật/chuyên cần
-            if (result.overallScore >= 95 && disciplinePenalty === 0) {
-              result.overallLevel = 5;
-            } else if (result.overallScore >= 85) {
-              result.overallLevel = 4;
-            } else if (result.overallScore >= 75) {
-              result.overallLevel = 3;
-            } else if (result.overallScore >= 65) {
-              result.overallLevel = 2;
-            } else {
-              result.overallLevel = 1;
-            }
-
-            const strictnessLabel = strictness === 'HARD' ? 'Khắt khe' : strictness === 'EASY' ? 'Dễ' : 'Tiêu chuẩn';
-            result.penaltyBreakdown.explanation = `Cơ chế trừ điểm (${strictnessLabel}): Khởi điểm 100đ - ${result.penaltyBreakdown.totalDeductions}đ vi phạm (gồm chuyên cần) + ${result.penaltyBreakdown.totalBonuses}đ thưởng = ${result.overallScore}/100 (Level ${result.overallLevel}).`;
-          } else {
-            result.overallScore = Math.round(((pScore * wP + qScore * wQ + vScore * wV + oScore * wO + iScore * wI) / totalW) * 10) / 10;
-            if (result.overallScore >= 95) result.overallLevel = 5;
-            else if (result.overallScore >= 85) result.overallLevel = 4;
-            else if (result.overallScore >= 75) result.overallLevel = 3;
-            else if (result.overallScore >= 65) result.overallLevel = 2;
-            else result.overallLevel = 1;
           }
+        }
+
+        // 3. Recalculate overall weighted score for ALL members (both Jira-only and Blended)
+        const perfRec = result.records.find((r) => r.kpi_code === 'PERF_01');
+        const qualRec = result.records.find((r) => r.kpi_code === 'CODE_QUALITY');
+        const volRec = result.records.find((r) => r.kpi_code === 'TASK_VOLUME');
+        const ownerRec = result.records.find((r) => r.kpi_code === 'OWNERSHIP_SCOPE');
+        const indepRec = result.records.find((r) => r.kpi_code === 'INDEPENDENCE');
+
+        const levelScoreMap: Record<number, number> = { 5: 100, 4: 95, 3: 85, 2: 75, 1: 60 };
+        const getMemberKpiScore = (rec?: EvaluatedKpiRecord, kpiCode = ''): number => {
+          if (!rec) return 85;
+          const res = engine.resolveLevel(kpiCode, rec.value);
+          if (res && typeof res.score === 'number') return res.score;
+          return levelScoreMap[rec.resolved_level] ?? 85;
+        };
+
+        const pScore = getMemberKpiScore(perfRec, 'PERF_01');
+        const qScore = getMemberKpiScore(qualRec, 'CODE_QUALITY');
+        const vScore = getMemberKpiScore(volRec, 'TASK_VOLUME');
+        const oScore = getMemberKpiScore(ownerRec, 'OWNERSHIP_SCOPE');
+        const iScore = getMemberKpiScore(indepRec, 'INDEPENDENCE');
+
+        const weights = scriptConfig.scoringRubric?.weights || {
+          PERF_01: 0.25,
+          CODE_QUALITY: 0.20,
+          TASK_VOLUME: 0.15,
+          OWNERSHIP_SCOPE: 0.20,
+          INDEPENDENCE: 0.20,
+        };
+        const wP = weights.PERF_01 ?? 0.25;
+        const wQ = weights.CODE_QUALITY ?? 0.20;
+        const wV = weights.TASK_VOLUME ?? 0.15;
+        const wO = weights.OWNERSHIP_SCOPE ?? 0.20;
+        const wI = weights.INDEPENDENCE ?? 0.20;
+        const totalW = (wP + wQ + wV + wO + wI) || 1;
+
+        let weightedScore = Math.round(
+          ((pScore * wP + qScore * wQ + vScore * wV + oScore * wO + iScore * wI) / totalW) * 10
+        ) / 10;
+
+        // Disciplinary deductions (Attendance late days or Code Quality critical bugs)
+        let attendanceLatePenalty = 0;
+        if (bpSummary?.attendance && bpSummary.attendance.lateDays > 0) {
+          const strictness = engine.getStrictnessMode();
+          const lateRate = strictness === 'HARD' ? 3 : strictness === 'EASY' ? 1 : 2;
+          const maxLatePenalty = strictness === 'HARD' ? 30 : strictness === 'EASY' ? 10 : 20;
+          attendanceLatePenalty = Math.min(maxLatePenalty, bpSummary.attendance.lateDays * lateRate);
+        }
+
+        if (attendanceLatePenalty > 0) {
+          weightedScore = Math.max(0, Math.round((weightedScore - attendanceLatePenalty) * 10) / 10);
+        }
+
+        const disciplinePenalty = (result.penaltyBreakdown?.deductions || [])
+          .filter((d) => d.category === 'ATTENDANCE' || d.category === 'CODE_QUALITY')
+          .reduce((sum, d) => sum + d.points, 0);
+
+        const ceiling = disciplinePenalty > 0 ? Math.max(0, 100 - disciplinePenalty) : 100;
+        result.overallScore = Math.min(ceiling, weightedScore);
+
+        // Xếp loại Level: Mức 5 (Xuất sắc) bắt buộc KHÔNG có vi phạm kỷ luật/chuyên cần
+        if (result.overallScore >= 95 && disciplinePenalty === 0) {
+          result.overallLevel = 5;
+        } else if (result.overallScore >= 85) {
+          result.overallLevel = 4;
+        } else if (result.overallScore >= 75) {
+          result.overallLevel = 3;
+        } else if (result.overallScore >= 65) {
+          result.overallLevel = 2;
+        } else {
+          result.overallLevel = 1;
+        }
+
+        if (result.penaltyBreakdown) {
+          result.penaltyBreakdown.finalScore = result.overallScore;
+          const strictnessLabel = engine.getStrictnessMode() === 'HARD' ? 'Khắt khe' : engine.getStrictnessMode() === 'EASY' ? 'Dễ' : 'Tiêu chuẩn';
+          result.penaltyBreakdown.explanation = `Điểm tổng hợp có trọng số (${strictnessLabel}): ${result.overallScore}/100 (Level ${result.overallLevel})${disciplinePenalty > 0 ? ` [Bị trừ/khống chế trần do ${disciplinePenalty}đ vi phạm kỷ luật]` : ''}.`;
         }
 
         run.results.push(result);

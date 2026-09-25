@@ -926,12 +926,53 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ theo schema sau (tiến
     });
 
     // 5. Calculate overall weighted score using dynamic rubric weights
-    // 5. Calculate Penalty-based scoring from baseline 100 with deduction/bonus breakdown
     const penaltyBreakdown = this.calculatePenaltyScore(metrics, taskContributions);
-    const overallScore = penaltyBreakdown.finalScore;
 
+    const weights = this.rubric.weights || {
+      PERF_01: 0.25,
+      CODE_QUALITY: 0.20,
+      TASK_VOLUME: 0.15,
+      OWNERSHIP_SCOPE: 0.20,
+      INDEPENDENCE: 0.20,
+    };
+
+    const levelScoreMap: Record<number, number> = { 5: 100, 4: 95, 3: 85, 2: 75, 1: 60 };
+    const getKpiScore = (kpiCode: string): number => {
+      const rec = records.find((r) => r.kpi_code === kpiCode);
+      if (!rec) return 85;
+      const res = this.resolveLevel(kpiCode, rec.value);
+      if (res && typeof res.score === 'number') return res.score;
+      return levelScoreMap[rec.resolved_level] ?? 85;
+    };
+
+    const pScore = getKpiScore('PERF_01');
+    const qScore = getKpiScore('CODE_QUALITY');
+    const vScore = getKpiScore('TASK_VOLUME');
+    const oScore = getKpiScore('OWNERSHIP_SCOPE');
+    const iScore = getKpiScore('INDEPENDENCE');
+
+    const wP = weights.PERF_01 ?? 0.25;
+    const wQ = weights.CODE_QUALITY ?? 0.20;
+    const wV = weights.TASK_VOLUME ?? 0.15;
+    const wO = weights.OWNERSHIP_SCOPE ?? 0.20;
+    const wI = weights.INDEPENDENCE ?? 0.20;
+    const totalW = (wP + wQ + wV + wO + wI) || 1;
+
+    const weightedScore = Math.round(
+      ((pScore * wP + qScore * wQ + vScore * wV + oScore * wO + iScore * wI) / totalW) * 10
+    ) / 10;
+
+    // Infraction Ceiling: Disciplinary infractions (Critical Bugs) strictly cap the score
+    const disciplineDeduction = penaltyBreakdown.deductions
+      .filter((d) => d.category === 'CODE_QUALITY')
+      .reduce((sum, d) => sum + d.points, 0);
+
+    const ceiling = disciplineDeduction > 0 ? Math.max(0, 100 - disciplineDeduction) : 100;
+    const overallScore = Math.min(ceiling, weightedScore);
+
+    // Mức 5 (Xuất sắc) bắt buộc đạt >= 95 và 0 vi phạm kỷ luật
     let overallLevel = 1;
-    if (overallScore >= 95) overallLevel = 5;
+    if (overallScore >= 95 && disciplineDeduction === 0) overallLevel = 5;
     else if (overallScore >= 85) overallLevel = 4;
     else if (overallScore >= 75) overallLevel = 3;
     else if (overallScore >= 65) overallLevel = 2;
