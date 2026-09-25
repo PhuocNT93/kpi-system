@@ -188,8 +188,8 @@ export class ReviewDueService {
         COALESCE(rc_override.interval_months, rc_job.interval_months, rc_sys.interval_months) AS cadence_interval_months,
         CASE
           WHEN rc_override.review_cadence_id IS NOT NULL THEN 'EMPLOYEE_OVERRIDE'
-          WHEN rc_job.review_cadence_id IS NOT NULL THEN 'JOB_LEVEL'
-          ELSE 'SYSTEM_DEFAULT'
+          WHEN rc_job.review_cadence_id IS NOT NULL THEN 'JOB_LEVEL_DEFAULT'
+          WHEN rc_sys.review_cadence_id IS NOT NULL THEN 'SYSTEM_DEFAULT'
         END AS cadence_source,
         COUNT(*) OVER() AS full_count
       FROM employee e
@@ -218,9 +218,9 @@ export class ReviewDueService {
 
       return {
         employee_id: row.employee_id,
-        employee_code: row.employee_code ?? '',
-        employee_name: row.employee_name ?? row.full_name ?? '',
-        full_name: row.full_name ?? row.employee_name ?? '',
+        employee_code: row.employee_code,
+        employee_name: row.employee_name,
+        full_name: row.employee_name ?? '',
         team_id: row.team_id ?? null,
         team_name: row.team_name ?? null,
         team: {
@@ -239,9 +239,7 @@ export class ReviewDueService {
               code: row.cadence_code,
               name: row.cadence_name,
               interval_months: row.cadence_interval_months,
-              source: row.cadence_source === 'EMPLOYEE_OVERRIDE' || row.cadence_source === 'JOB_LEVEL'
-                ? row.cadence_source
-                : 'SYSTEM_DEFAULT',
+              source: row.cadence_source,
             }
           : null,
         last_evaluation_completed_at: row.last_evaluation_completed_at

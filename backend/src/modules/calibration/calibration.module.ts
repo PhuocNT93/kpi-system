@@ -5,6 +5,7 @@ import { CalibrationController } from './api/calibration.controller.js';
 import { AuditService } from '../audit/application/audit.service.js';
 
 import { NotificationService } from '../notification/application/notification.service.js';
+import { EvaluationPublishedHandler } from '../employee/domain/review-schedule.port.js';
 
 export interface CalibrationModule {
   calibrationRepo: PostgresCalibrationRepository;
@@ -15,10 +16,11 @@ export interface CalibrationModule {
 export function createCalibrationModule(
   pool: Pool,
   auditService?: AuditService,
-  notificationService?: NotificationService
+  notificationService?: NotificationService,
+  evaluationPublishedHandler?: EvaluationPublishedHandler
 ): CalibrationModule {
   const calibrationRepo = new PostgresCalibrationRepository(pool);
-  const calibrationService = new CalibrationService(pool, calibrationRepo, auditService, notificationService);
+  const calibrationService = new CalibrationService(pool, calibrationRepo, auditService, notificationService, evaluationPublishedHandler);
   const calibrationController = new CalibrationController(calibrationService);
 
   return {

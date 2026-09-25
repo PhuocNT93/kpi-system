@@ -1,4 +1,4 @@
-import { ReviewCadence } from './review-cadence.types.js';
+import { ReviewCadence, ReviewCadenceSource } from './review-cadence.types.js';
 
 /**
  * CadencePrecedenceInput — the three possible cadence sources, pre-loaded by the caller.
@@ -32,4 +32,22 @@ export function resolveEffectiveCadence(
   input: CadencePrecedenceInput
 ): ReviewCadence | null {
   return input.employeeOverride ?? input.jobLevelDefault ?? input.systemDefault;
+}
+
+export interface ResolvedCadenceWithSource {
+  cadence: ReviewCadence;
+  source: ReviewCadenceSource;
+}
+
+/**
+ * Same precedence as resolveEffectiveCadence, also reporting which tier won.
+ * Inactive cadences must already be filtered out (passed as null) by the caller, so they fall through.
+ */
+export function resolveEffectiveCadenceWithSource(
+  input: CadencePrecedenceInput
+): ResolvedCadenceWithSource | null {
+  if (input.employeeOverride) return { cadence: input.employeeOverride, source: 'EMPLOYEE_OVERRIDE' };
+  if (input.jobLevelDefault) return { cadence: input.jobLevelDefault, source: 'JOB_LEVEL_DEFAULT' };
+  if (input.systemDefault) return { cadence: input.systemDefault, source: 'SYSTEM_DEFAULT' };
+  return null;
 }

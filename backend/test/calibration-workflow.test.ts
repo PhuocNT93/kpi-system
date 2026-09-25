@@ -44,6 +44,7 @@ describe('TC01 - TC12: Calibration Workflow Integration Tests', () => {
     query: ReturnType<typeof vi.fn>;
   };
 
+  let mockPublishedHandler: { onEvaluationsPublished: ReturnType<typeof vi.fn> };
   const hrActor: Actor = { userId: '11111111-1111-4111-8111-000000000001', role: 'HR_ADMIN', employeeId: 'emp-hr-1' };
   const cycleIdEnabled = '33333333-3333-4333-8333-333333333333';
   const sessionId = '22222222-2222-4222-8222-222222222222';
@@ -110,12 +111,16 @@ describe('TC01 - TC12: Calibration Workflow Integration Tests', () => {
         }
       }),
       transitionEvaluationsAndAutoPublish: vi.fn(async (ids: string[]) => {
+        const published: Array<{ evaluationId: string; employeeId: string; publishedAt: Date; previousStatus: string }> = [];
         for (const id of ids) {
           const evalRow = evaluationsDb.get(id);
           if (evalRow) {
+            const previousStatus = evalRow.status;
             evalRow.status = 'PUBLISHED';
+            published.push({ evaluationId: id, employeeId: evalRow.employeeId, publishedAt: new Date(), previousStatus });
           }
         }
+        return published;
       }),
       finalizeSession: vi.fn(async () => {
         sessionData.status = 'FINALIZED';
@@ -136,10 +141,13 @@ describe('TC01 - TC12: Calibration Workflow Integration Tests', () => {
       query: vi.fn().mockResolvedValue({ rows: [] }),
     };
 
+    mockPublishedHandler = { onEvaluationsPublished: vi.fn(async () => undefined) };
     calibrationService = new CalibrationService(
       mockPool as unknown as import('pg').Pool,
       mockCalibrationRepo as unknown as import('../src/modules/calibration/infrastructure/postgres-calibration.repository.js').ICalibrationRepository,
-      mockAuditService
+      mockAuditService,
+      undefined,
+      mockPublishedHandler
     );
   });
 
@@ -270,6 +278,12 @@ describe('TC01 - TC12: Calibration Workflow Integration Tests', () => {
     const finalized = await calibrationService.finalizeSession(sessionId, hrActor);
 
     expect(finalized.status).toBe('FINALIZED');
+    // EVAL-06: auto-publish updates the review schedule of the published evaluations in the same transaction
+    expect(mockPublishedHandler.onEvaluationsPublished).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.arrayContaining([expect.objectContaining({ employeeId: 'emp-001', publishedAt: expect.any(Date) })]),
+      hrActor.userId
+    );
     const evalRow = evaluationsDb.get(evalId1);
     expect(evalRow.status).toBe('PUBLISHED');
   });

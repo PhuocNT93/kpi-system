@@ -13,7 +13,7 @@ import { ExplainabilityViewDto, SourceSnapshot } from '../../../evaluation-data-
 import { EvaluationTransitionService } from './evaluation-transition.service.js';
 import { NotificationType } from '../../../notification/domain/notification.types.js';
 import { NotificationService } from '../../../notification/application/notification.service.js';
-import { ReviewScheduleService } from '../../../review-cadence/application/review-schedule.service.js';
+import { EvaluationPublishedHandler } from '../../../employee/domain/review-schedule.port.js';
 
 export class EvaluationService {
   constructor(
@@ -24,7 +24,7 @@ export class EvaluationService {
     private ruleEngine?: RuleEngine,
     private transitionService: EvaluationTransitionService = new EvaluationTransitionService(),
     private notificationService?: NotificationService,
-    private reviewScheduleService?: ReviewScheduleService
+    private evaluationPublishedHandler?: EvaluationPublishedHandler
   ) {}
 
   private async resolveUserForEmployee(employeeId: string, client?: PoolClient): Promise<{ userId: string; email: string } | null> {
@@ -643,6 +643,11 @@ export class EvaluationService {
       throw new AppError(403, 'FORBIDDEN', 'Only HR or System Admins can publish evaluations.');
     }
 
+    const publishedHandler = this.evaluationPublishedHandler;
+    if (!publishedHandler) {
+      throw new AppError(500, 'REVIEW_SCHEDULE_NOT_CONFIGURED', 'Review schedule handler is not configured; publishing is disabled.');
+    }
+
     return withTransaction(this.pool, async (client) => {
       const repositoryClient = client as unknown as PoolClient;
       const evaluation = await this.evaluationRepo.findByIdForUpdate(evaluationId, repositoryClient);
@@ -668,15 +673,13 @@ export class EvaluationService {
         updated_by: actor.userId,
       }, repositoryClient);
 
-      if (this.reviewScheduleService && evaluation.employee_id) {
-        await this.reviewScheduleService.onEvaluationPublished(
-          evaluationId,
-          evaluation.employee_id,
-          publishedAt,
-          repositoryClient,
-          actor.userId
-        );
-      }
+      // EVAL-06: the employee review schedule is updated in the SAME transaction as the publish;
+      // any failure here rolls the publish back.
+      await publishedHandler.onEvaluationsPublished(
+        client,
+        [{ evaluationId, employeeId: evaluation.employee_id, publishedAt }],
+        actor.userId
+      );
 
       if (this.auditService) {
         await this.auditService.record(client, {

@@ -262,7 +262,7 @@ body,
 @media (min-width: 1024px) {
   .org-structure-layout {
     flex-direction: row;
-    gap: 1.5rem;
+    gap: 1rem;
     align-items: flex-start;
   }
 }
@@ -277,7 +277,7 @@ body,
 
 @media (min-width: 1024px) {
   .org-tree-sidebar {
-    width: 300px;
+    width: 260px;
     max-height: none;
     min-height: 520px;
   }

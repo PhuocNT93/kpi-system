@@ -2,6 +2,7 @@ import { Pool } from 'pg';
 import { Employee, EmployeeAssignment, EmploymentStatus } from '../domain/employee.domain.js';
 import { EmployeeRepository, EmployeeAssignmentRepository, EmployeeSearchParams, EmployeeSearchResultItem } from '../domain/employee.repository.js';
 import { QueryExecutor } from '../../../shared/database/query-executor.js';
+import { toDateOnlyString, toTimestamp } from '../domain/review-schedule.js';
 
 interface EmployeeRow extends Record<string, unknown> {
   employee_id: string;
@@ -26,19 +27,6 @@ interface EmployeeRow extends Record<string, unknown> {
   review_cadence_override_id?: string | null;
   last_evaluation_completed_at?: string | null;
   next_review_due_date?: string | null;
-}
-
-export function cadenceToMonths(cadence?: string | null): number {
-  if (!cadence) return 6;
-  switch (cadence.toUpperCase()) {
-    case 'MONTHLY': return 1;
-    case 'QUARTERLY': return 3;
-    case 'SEMI_ANNUAL':
-    case 'BIANNUALLY': return 6;
-    case 'ANNUAL':
-    case 'ANNUALLY': return 12;
-    default: return 6;
-  }
 }
 
 interface EmployeeAssignmentRow extends Record<string, unknown> {
@@ -180,10 +168,9 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
         version: 1,
       };
     }
-    const cadenceMonths = employee.reviewCadenceMonths ?? cadenceToMonths(employee.reviewCadence);
     const res = await executor.query<EmployeeRow>(
-      `INSERT INTO employee (employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, review_cadence, review_cadence_months, review_cadence_override_id, last_evaluation_completed_at, next_review_due_date, created_by, updated_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      `INSERT INTO employee (employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, review_cadence_override_id, created_by, updated_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, review_cadence, review_cadence_months, review_cadence_override_id, last_evaluation_completed_at, next_review_due_date, created_at, updated_at, created_by, updated_by`,
       [
         employee.employeeCode,
@@ -196,11 +183,7 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
         employee.managerId,
         employee.employmentStatus,
         employee.joinDate,
-        employee.reviewCadence ?? null,
-        cadenceMonths,
         employee.reviewCadenceOverrideId ?? null,
-        employee.lastEvaluationCompletedAt ?? null,
-        employee.nextReviewDueDate ?? null,
         employee.createdBy,
         employee.updatedBy,
       ]
@@ -220,11 +203,10 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
         version: employee.version + 1,
       };
     }
-    const cadenceMonths = employee.reviewCadenceMonths ?? cadenceToMonths(employee.reviewCadence);
     const res = await executor.query<EmployeeRow>(
       `UPDATE employee
-       SET full_name = $1, email = $2, department_id = $3, team_id = $4, role_id = $5, job_level_id = $6, manager_id = $7, employment_status = $8, termination_date = $9, review_cadence = $10, review_cadence_months = $11, review_cadence_override_id = $12, last_evaluation_completed_at = $13, next_review_due_date = $14, updated_by = $15, version = version + 1
-       WHERE employee_id = $16 AND version = $17
+       SET full_name = $1, email = $2, department_id = $3, team_id = $4, role_id = $5, job_level_id = $6, manager_id = $7, employment_status = $8, termination_date = $9, updated_by = $10, version = version + 1
+       WHERE employee_id = $11 AND version = $12
        RETURNING employee_id, employee_code, full_name, email, department_id, team_id, role_id, job_level_id, manager_id, employment_status, join_date, termination_date, version, review_cadence, review_cadence_months, review_cadence_override_id, last_evaluation_completed_at, next_review_due_date, created_at, updated_at, created_by, updated_by`,
       [
         employee.fullName,
@@ -236,11 +218,6 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
         employee.managerId,
         employee.employmentStatus,
         employee.terminationDate,
-        employee.reviewCadence ?? null,
-        cadenceMonths,
-        employee.reviewCadenceOverrideId ?? null,
-        employee.lastEvaluationCompletedAt ?? null,
-        employee.nextReviewDueDate ?? null,
         employee.updatedBy,
         employee.employeeId,
         employee.version,
@@ -272,8 +249,8 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
       reviewCadence: row.review_cadence,
       reviewCadenceMonths: row.review_cadence_months !== undefined ? (Number(row.review_cadence_months) || null) : null,
       reviewCadenceOverrideId: row.review_cadence_override_id,
-      nextReviewDueDate: row.next_review_due_date,
-      lastEvaluationCompletedAt: row.last_evaluation_completed_at,
+      nextReviewDueDate: toDateOnlyString(row.next_review_due_date),
+      lastEvaluationCompletedAt: toTimestamp(row.last_evaluation_completed_at)?.toISOString() ?? null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       createdBy: row.created_by,

@@ -16,6 +16,7 @@ import { RADII, TYPOGRAPHY } from '@/shared/theme';
 import { AlertCircle, ArrowLeft, RefreshCw, CheckCircle2, Sparkles, Sliders, Save } from 'lucide-react';
 import { useAuth } from '@/shared/auth/auth-context';
 import { OverrideScoreModal } from '../components/OverrideScoreModal';
+import { invalidateAfterEvaluationPublish } from '../hooks/evaluation-publish-invalidation';
 import { ReviewActionModal, type ReviewActionType } from '../components/ReviewActionModal';
 import { buildEvaluationScoringSummary, getLocalizedText, type EvaluationItem, type ScoringKpiResult } from '../domain/evaluation-models';
 
@@ -281,7 +282,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
     mutationFn: () => evaluationApi.publishEvaluation(id!),
     onSuccess: () => {
       showToast('success', 'Đã công bố đánh giá thành công.');
-      queryClient.invalidateQueries({ queryKey: ['evaluation-detail', id] });
+      invalidateAfterEvaluationPublish(queryClient, id);
     },
     onError: (err: Error) => {
       showToast('error', err.message || 'Không thể công bố đánh giá.');

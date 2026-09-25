@@ -55,6 +55,14 @@ export const Button: React.FC<ButtonProps> = ({
             : 'none'
         };
       case 'outlined':
+        // Theme-aware: the light-theme text color is unreadable on dark surfaces.
+        if (isDark) {
+          return {
+            backgroundColor: isHovered && !disabled ? 'rgba(148, 163, 184, 0.16)' : 'transparent',
+            color: '#e2e8f0',
+            border: '1.5px solid #475569'
+          };
+        }
         return {
           backgroundColor: isHovered && !disabled
             ? (isDark ? 'rgba(255, 255, 255, 0.08)' : COLORS.neutral[100])

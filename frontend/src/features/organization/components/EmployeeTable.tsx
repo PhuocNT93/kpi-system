@@ -4,12 +4,20 @@ import { useJobRoles } from '../hooks/useJobRoles';
 import { useJobLevels } from '../hooks/useJobLevels';
 import { useAuth } from '../../../shared/auth/auth-context';
 import { ErrorAlert, LoadingSpinner, EmptyState, StatusBadge, ConfirmDialog } from '../../../shared/components/ui';
+import { Pencil } from 'lucide-react';
 import { Button } from '../../../shared/ui/Button/Button';
+import { IconButton } from '../../../shared/ui/IconButton/IconButton';
 import type { OrgEmployee } from '../domain/organization-models';
 import { EmployeeFormModal } from './EmployeeFormModal';
 import { BulkActionBar } from './BulkActionBar';
 import { useTheme } from '../../../shared/theme';
 import { useOrganizationTranslation } from '../hooks/useOrganizationTranslation';
+import {
+  EMPTY_SCHEDULE_VALUE,
+  formatTimestampDatePart,
+  formatCadenceLabel,
+  getCadenceSourceLabel,
+} from '../domain/review-schedule-display';
 
 export function EmployeeTable({ departmentId, teamId }: { departmentId?: string; teamId?: string }) {
   const { user } = useAuth();
@@ -92,21 +100,6 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
   const getRoleName = (roleId: string) => roles.find((r) => r.id === roleId)?.name ?? roleId;
   const getLevelName = (levelId: string) => levels.find((l) => l.id === levelId)?.name ?? levelId;
 
-  const formatCadence = (cadence: string | null) => {
-    if (!cadence) return '-';
-    return cadence.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-  };
-
-  const formatDateWithDay = (dateString: string | null) => {
-    if (!dateString) return '-';
-    const parsedDate = new Date(dateString);
-    if (Number.isNaN(parsedDate.getTime())) return '-';
-
-    const day = String(parsedDate.getDate()).padStart(2, '0');
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${day} ${monthNames[parsedDate.getMonth()]} ${parsedDate.getFullYear()}`;
-  };
-
   const thBg = isDark ? '#0f172a' : '#f9fafb';
   const thColor = isDark ? '#94a3b8' : '#374151';
   const trBorder = isDark ? '1px solid #334155' : '1px solid #f3f4f6';
@@ -133,7 +126,7 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
             <thead>
               <tr style={{ borderBottom: trHeaderBorder, backgroundColor: thBg }}>
                 {isAdmin && (
-                  <th style={{ padding: '0.75rem 1rem', width: '40px', textAlign: 'center', color: thColor }}>
+                  <th style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', width: '40px', textAlign: 'center', color: thColor }}>
                     <input
                       type="checkbox"
                       ref={headerCheckboxRef}
@@ -144,16 +137,16 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
                     />
                   </th>
                 )}
-                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_code', 'Code')}</th>
-                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_name', 'Name')}</th>
-                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>Role</th>
-                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>Level</th>
-                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>Email</th>
-                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>Review Cadence</th>
-                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>Last Review</th>
-                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>Next Review</th>
-                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_status', 'Status')}</th>
-                {isAdmin && <th style={{ padding: '0.75rem 1rem', width: '150px', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_actions', 'Actions')}</th>}
+                <th style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_code', 'Code')}</th>
+                <th style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_name', 'Name')}</th>
+                <th style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>Role</th>
+                <th style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>Level</th>
+                <th style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>Email</th>
+                <th style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}><span title={t('effective_review_cadence', 'Effective Review Cadence')}>{t('emp_col_cadence', 'Cadence')}</span></th>
+                <th style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}><span title={t('last_evaluation_completed', 'Last Evaluation Completed')}>{t('emp_col_last_review', 'Last Review')}</span></th>
+                <th style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}><span title={t('next_review_due_date', 'Next Review Due Date')}>{t('emp_col_next_review', 'Next Review')}</span></th>
+                <th style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_status', 'Status')}</th>
+                {isAdmin && <th style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', width: '56px', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_actions', 'Actions')}</th>}
               </tr>
             </thead>
             <tbody>
@@ -169,7 +162,7 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
                     }}
                   >
                     {isAdmin && (
-                      <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                      <td style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', textAlign: 'center' }}>
                         <input
                           type="checkbox"
                           checked={isSelected}
@@ -179,9 +172,9 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
                         />
                       </td>
                     )}
-                    <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: codeColor }}>{emp.employeeCode}</td>
-                    <td style={{ padding: '0.75rem 1rem', color: textColor, fontWeight: 500 }}>{emp.fullName}</td>
-                    <td style={{ padding: '0.75rem 1rem' }}>
+                    <td style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', fontWeight: 600, color: codeColor }}>{emp.employeeCode}</td>
+                    <td style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', color: textColor, fontWeight: 500, maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={emp.fullName}>{emp.fullName}</td>
+                    <td style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap' }}>
                       <span style={{
                         backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff',
                         color: isDark ? '#93c5fd' : '#1d4ed8',
@@ -190,7 +183,7 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
                         {getRoleName(emp.roleId)}
                       </span>
                     </td>
-                    <td style={{ padding: '0.75rem 1rem' }}>
+                    <td style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap' }}>
                       <span style={{
                         backgroundColor: isDark ? 'rgba(168, 85, 247, 0.2)' : '#f5f3ff',
                         color: isDark ? '#d8b4fe' : '#6d28d9',
@@ -199,39 +192,43 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
                         {getLevelName(emp.jobLevelId)}
                       </span>
                     </td>
-                    <td style={{ padding: '0.75rem 1rem', color: textColor }}>{emp.email}</td>
-                    <td style={{ padding: '0.75rem 1rem' }}>
-                      {emp.reviewCadence ? (
-                        <span style={{
-                          backgroundColor: isDark ? 'rgba(34, 197, 94, 0.2)' : '#f0fdf4',
-                          color: isDark ? '#86efac' : '#15803d',
-                          padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 500,
-                        }}>
-                          {formatCadence(emp.reviewCadence)}
+                    <td style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', color: textColor, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={emp.email}>{emp.email}</td>
+                    <td style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap' }}>
+                      {emp.effectiveCadence ? (
+                        <span
+                          title={`${t('cadence_source', 'Cadence Source')}: ${getCadenceSourceLabel(emp.effectiveCadence.source, t)}`}
+                          style={{
+                            backgroundColor: isDark ? 'rgba(34, 197, 94, 0.2)' : '#f0fdf4',
+                            color: isDark ? '#86efac' : '#15803d',
+                            padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 500,
+                          }}
+                        >
+                          {formatCadenceLabel(emp.effectiveCadence.name, emp.effectiveCadence.intervalMonths, t)}
                         </span>
                       ) : (
-                        <span style={{ color: subTextColor }}>-</span>
+                        <span style={{ color: subTextColor }}>{EMPTY_SCHEDULE_VALUE}</span>
                       )}
                     </td>
-                    <td style={{ padding: '0.75rem 1rem', color: subTextColor, fontSize: '0.875rem', whiteSpace: 'nowrap' }}>
-                      {formatDateWithDay(emp.lastEvaluationCompletedAt)}
+                    <td style={{ padding: '0.625rem 0.625rem', color: subTextColor, fontSize: '0.875rem', whiteSpace: 'nowrap' }}>
+                      {formatTimestampDatePart(emp.lastEvaluationCompletedAt)}
                     </td>
-                    <td style={{ padding: '0.75rem 1rem', color: isDark ? '#fb923c' : '#ea580c', fontSize: '0.875rem', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                      {formatDateWithDay(emp.nextReviewDueDate)}
+                    <td style={{ padding: '0.625rem 0.625rem', color: isDark ? '#fb923c' : '#ea580c', fontSize: '0.875rem', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                      {emp.nextReviewDueDate ?? EMPTY_SCHEDULE_VALUE}
                     </td>
-                    <td style={{ padding: '0.75rem 1rem' }}>
+                    <td style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap' }}>
                       <StatusBadge status={emp.employmentStatus} />
                     </td>
                     {isAdmin && (
-                      <td style={{ padding: '0.75rem 1rem', display: 'flex', gap: '0.5rem' }}>
-                        <Button
-                          variant="outlined"
+                      <td style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', display: 'flex', gap: '0.5rem' }}>
+                        <IconButton
+                          shape="square"
+                          colorVariant="neutral"
                           size="sm"
+                          icon={<Pencil size={15} aria-hidden="true" />}
                           aria-label={`Edit employee ${emp.fullName}`}
+                          title={t('btn_edit', 'Edit')}
                           onClick={() => setEditingEmployee(emp)}
-                        >
-                          {t('btn_edit', 'Edit')}
-                        </Button>
+                        />
                       </td>
                     )}
                   </tr>

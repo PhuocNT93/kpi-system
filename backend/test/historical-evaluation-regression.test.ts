@@ -1,36 +1,12 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Pool } from 'pg';
-import { ReviewScheduleService } from '../src/modules/review-cadence/application/review-schedule.service.js';
-import { calculateNextReviewDueDate } from '../src/modules/review-cadence/domain/review-due-calculator.js';
-import { AuditService } from '../src/modules/audit/application/audit.service.js';
-import type { Actor } from '../src/shared/auth/types.js';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { calculateNextReviewDueDate } from '../src/modules/employee/domain/review-schedule.js';
+import { createScheduleWorld, HR_USER_ID, ScheduleWorld, TIME_ZONE, uuid } from './mocks/review-schedule-fixture.js';
 
 describe('Historical Evaluation Regression & Cadence Immutability Test Suite (Scenarios A - E)', () => {
-  let mockPool: Pool;
-  let mockAuditService: AuditService;
-  let reviewScheduleService: ReviewScheduleService;
-
-  const hrActor: Actor = {
-    userId: '99999999-9999-9999-9999-999999999999',
-    role: 'HR_ADMIN',
-  };
+  let world: ScheduleWorld;
 
   beforeEach(() => {
-    mockAuditService = {
-      record: vi.fn().mockResolvedValue(undefined),
-    } as unknown as AuditService;
-
-    mockPool = {
-      query: vi.fn(),
-      connect: vi.fn().mockResolvedValue({
-        query: vi.fn().mockResolvedValue({ rows: [] }),
-        release: vi.fn(),
-      }),
-    } as unknown as Pool;
-
-    reviewScheduleService = new ReviewScheduleService(mockPool, mockAuditService);
+    world = createScheduleWorld();
   });
 
   // Scenario A: Immutability of Final Score and Status for PUBLISHED evaluations
@@ -96,153 +72,67 @@ describe('Historical Evaluation Regression & Cadence Immutability Test Suite (Sc
   // Scenario C: Schedule-drift-free recalculation from completion baseline
   it('Scenario C: Recalculates next_review_due_date strictly from last_evaluation_completed_at baseline (no schedule drift)', async () => {
     const completedAt = new Date('2026-01-15T09:00:00Z');
-    const intervalMonths = 6;
 
-    // Calculation using completedAt baseline: Jan 15 + 6 months = July 15
-    const nextDueDate = calculateNextReviewDueDate(completedAt, intervalMonths);
-
-    expect(nextDueDate.getUTCFullYear()).toBe(2026);
-    expect(nextDueDate.getUTCMonth()).toBe(6); // 0-indexed: 6 = July
-    expect(nextDueDate.getUTCDate()).toBe(15);
-
-    // Verify that calculation is completely independent of today's date
-    const driftFreeDate = calculateNextReviewDueDate(completedAt, intervalMonths);
-    expect(driftFreeDate.toISOString()).toBe(nextDueDate.toISOString());
+    // Jan 15 (business date) + 6 calendar months = July 15, independent of today's date
+    expect(calculateNextReviewDueDate(completedAt, 6, TIME_ZONE)).toBe('2026-07-15');
+    expect(calculateNextReviewDueDate(completedAt, 6, TIME_ZONE)).toBe(calculateNextReviewDueDate(completedAt, 6, TIME_ZONE));
   });
 
   // Scenario D: Immediate recalculation on override change + audit log
   it('Scenario D: Employee cadence override triggers immediate due date recalculation and audit logging', async () => {
-    const employeeId = 'emp-charlie-001';
-    const lastCompletedAt = new Date('2026-02-01T00:00:00Z');
-    const initialDueDate = new Date('2026-08-01T00:00:00Z'); // 6 months default
-
-    // Mock query client
-    const mockClient = {
-      query: vi.fn(),
-      release: vi.fn(),
-    };
-
-    // 1. Initial lock query returns employee with 6-month baseline
-    mockClient.query
-      .mockResolvedValueOnce({
-        rows: [
-          {
-            employee_id: employeeId,
-            last_evaluation_completed_at: lastCompletedAt,
-            next_review_due_date: initialDueDate,
-          },
-        ],
-      })
-      // 2. Resolve effective cadence query returns new override (3 months)
-      .mockResolvedValueOnce({
-        rows: [
-          {
-            review_cadence_override_id: 'cad-quarterly',
-            job_level_id: 'lvl-mid',
-            override_id: 'cad-quarterly',
-            override_code: 'QUARTERLY',
-            override_name: 'Quarterly Review',
-            override_interval_months: 3,
-            override_is_system_default: false,
-            override_active: true,
-          },
-        ],
-      })
-      // 3. Update employee row
-      .mockResolvedValueOnce({ rows: [] });
-
-    const result = await reviewScheduleService.recalculateEmployeeDueDate(
+    const employeeId = uuid(501);
+    const quarterly = uuid(3);
+    world.addCadence({ id: uuid(6), intervalMonths: 6, isSystemDefault: true });
+    world.addCadence({ id: quarterly, code: 'QUARTERLY', intervalMonths: 3 });
+    world.addJobLevel(uuid(900), null);
+    world.addEmployee({
       employeeId,
-      mockClient as any,
-      hrActor.userId,
+      jobLevelId: uuid(900),
+      lastEvaluationCompletedAt: new Date('2026-02-01T03:00:00Z'),
+      nextReviewDueDate: '2026-08-01',
+    });
+
+    const snapshot = await world.scheduleService.captureEmployees(world.client, [employeeId]);
+    world.employee(employeeId).overrideId = quarterly;
+    const results = await world.scheduleService.applyRecalculation(
+      world.client,
+      snapshot,
+      'EMPLOYEE_OVERRIDE_CHANGED',
+      HR_USER_ID,
       'Probation 3-month review cadence override applied'
     );
 
-    // New due date should be Feb 1 + 3 months = May 1, 2026
-    expect(result.nextReviewDueDate).toBeDefined();
-    expect(result.nextReviewDueDate?.getUTCFullYear()).toBe(2026);
-    expect(result.nextReviewDueDate?.getUTCMonth()).toBe(4); // May
-    expect(result.nextReviewDueDate?.getUTCDate()).toBe(1);
-
-    // Audit record must be logged with old and new values
-    expect(mockAuditService.record).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        entityType: 'EMPLOYEE',
-        entityId: employeeId,
-        action: 'UPDATE',
-        fieldName: 'next_review_due_date',
-        oldValue: initialDueDate.toISOString(),
-        newValue: result.nextReviewDueDate?.toISOString(),
-        reason: 'Probation 3-month review cadence override applied',
-        performedBy: hrActor.userId,
-      })
-    );
+    // Feb 1 + 3 months = May 1, 2026
+    expect(results.get(employeeId)?.nextReviewDueDate).toBe('2026-05-01');
+    const [entry] = world.auditOf('SCHEDULE_RECALC', employeeId);
+    expect(entry).toMatchObject({
+      entityType: 'EMPLOYEE',
+      fieldName: 'next_review_due_date',
+      reason: 'EMPLOYEE_OVERRIDE_CHANGED: Probation 3-month review cadence override applied',
+      performedBy: HR_USER_ID,
+    });
+    expect(JSON.parse(entry?.oldValue ?? '{}').next_review_due_date).toBe('2026-08-01');
+    expect(JSON.parse(entry?.newValue ?? '{}').next_review_due_date).toBe('2026-05-01');
   });
 
-  // Scenario E: Concurrency isolation — PUBLISH evaluation recalculates due date safely
-  it('Scenario E: onEvaluationPublished updates last_evaluation_completed_at and recalculates due date', async () => {
-    const employeeId = 'emp-david-001';
-    const publishedAt = new Date('2026-06-30T15:00:00Z');
+  // Scenario E: PUBLISH evaluation recalculates due date safely
+  it('Scenario E: onEvaluationsPublished updates last_evaluation_completed_at and recalculates due date', async () => {
+    const employeeId = uuid(502);
+    const evaluationId = uuid(503);
+    const publishedAt = new Date('2026-06-30T15:00:00Z'); // 22:00 Asia/Ho_Chi_Minh, still June 30
+    world.addCadence({ id: uuid(12), code: 'ANNUAL', intervalMonths: 12, isSystemDefault: true });
+    world.addJobLevel(uuid(900), null);
+    world.addEmployee({ employeeId, jobLevelId: uuid(900) });
 
-    const mockClient = {
-      query: vi.fn(),
-      release: vi.fn(),
-    };
-
-    // 1. Employee query
-    mockClient.query
-      .mockResolvedValueOnce({
-        rows: [
-          {
-            employee_id: employeeId,
-            last_evaluation_completed_at: null,
-            next_review_due_date: null,
-          },
-        ],
-      })
-      // 2. Resolve cadence query (Annual = 12 months)
-      .mockResolvedValueOnce({
-        rows: [
-          {
-            review_cadence_override_id: null,
-            job_level_id: 'lvl-principal',
-            sys_id: 'cad-annual',
-            sys_code: 'ANNUAL',
-            sys_name: 'Annual Review',
-            sys_interval_months: 12,
-            sys_is_system_default: true,
-            sys_active: true,
-          },
-        ],
-      })
-      // 3. Update query
-      .mockResolvedValueOnce({ rows: [] });
-
-    const result = await reviewScheduleService.onEvaluationPublished(
-      'eval-new-001',
-      employeeId,
-      publishedAt,
-      mockClient as any,
-      hrActor.userId
-    );
+    await world.scheduleService.onEvaluationsPublished(world.client, [{ evaluationId, employeeId, publishedAt }], HR_USER_ID);
 
     // June 30, 2026 + 12 months = June 30, 2027
-    expect(result.nextReviewDueDate).toBeDefined();
-    expect(result.nextReviewDueDate?.getUTCFullYear()).toBe(2027);
-    expect(result.nextReviewDueDate?.getUTCMonth()).toBe(5); // June
-    expect(result.nextReviewDueDate?.getUTCDate()).toBe(30);
-
-    // Verify audit record logged
-    expect(mockAuditService.record).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        entityType: 'EMPLOYEE',
-        entityId: employeeId,
-        action: 'UPDATE',
-        fieldName: 'next_review_due_date',
-        reason: 'Evaluation eval-new-001 published',
-      })
-    );
+    expect(world.employee(employeeId).lastEvaluationCompletedAt).toEqual(publishedAt);
+    expect(world.employee(employeeId).nextReviewDueDate).toBe('2027-06-30');
+    expect(world.auditOf('SCHEDULE_UPDATED', employeeId)[0]).toMatchObject({
+      entityType: 'EMPLOYEE',
+      fieldName: 'next_review_due_date',
+      reason: `EVALUATION_PUBLISHED evaluation_id=${evaluationId}`,
+    });
   });
 });

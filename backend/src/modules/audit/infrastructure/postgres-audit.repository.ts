@@ -24,6 +24,31 @@ export class PostgresAuditRepository implements AuditRepository {
     );
   }
 
+  async insertMany(params: AuditRecordParams[], client: TransactionClient): Promise<void> {
+    if (params.length === 0) return;
+    const values: unknown[] = [];
+    const tuples = params.map((entry, index) => {
+      const offset = index * 9;
+      values.push(
+        entry.entityType,
+        entry.entityId,
+        entry.action,
+        entry.fieldName ?? null,
+        entry.oldValue ?? null,
+        entry.newValue ?? null,
+        entry.reason ?? null,
+        entry.performedBy ?? null,
+        entry.source ?? 'API'
+      );
+      return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9})`;
+    });
+    await client.query(
+      `INSERT INTO audit_log (entity_type, entity_id, action, field_name, old_value, new_value, reason, performed_by, source)
+       VALUES ${tuples.join(', ')}`,
+      values
+    );
+  }
+
   async deleteOlderThan(cutoffDate: Date, batchSize: number, client: TransactionClient): Promise<number> {
     const result = await client.query(
       `DELETE FROM audit_log

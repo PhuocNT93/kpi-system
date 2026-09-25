@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { resolveEffectiveCadence, CadencePrecedenceInput } from './cadence-precedence-resolver.js';
+import {
+  resolveEffectiveCadence,
+  resolveEffectiveCadenceWithSource,
+  CadencePrecedenceInput,
+} from './cadence-precedence-resolver.js';
 import { ReviewCadence } from './review-cadence.types.js';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -89,5 +93,47 @@ describe('resolveEffectiveCadence', () => {
     expect(input.employeeOverride?.id).toBe(employeeOverride.id);
     expect(input.jobLevelDefault?.id).toBe(jobLevelDefault.id);
     expect(input.systemDefault?.id).toBe(systemDefault.id);
+  });
+});
+
+describe('resolveEffectiveCadenceWithSource', () => {
+  it('TC11: employee override wins with source EMPLOYEE_OVERRIDE', () => {
+    const result = resolveEffectiveCadenceWithSource({ employeeOverride, jobLevelDefault, systemDefault });
+    expect(result).toEqual({ cadence: employeeOverride, source: 'EMPLOYEE_OVERRIDE' });
+  });
+
+  it('TC12: job-level default applies without an override (source JOB_LEVEL_DEFAULT)', () => {
+    const result = resolveEffectiveCadenceWithSource({ employeeOverride: null, jobLevelDefault, systemDefault });
+    expect(result).toEqual({ cadence: jobLevelDefault, source: 'JOB_LEVEL_DEFAULT' });
+  });
+
+  it('TC13: system default is the fallback (source SYSTEM_DEFAULT)', () => {
+    const result = resolveEffectiveCadenceWithSource({ employeeOverride: null, jobLevelDefault: null, systemDefault });
+    expect(result).toEqual({ cadence: systemDefault, source: 'SYSTEM_DEFAULT' });
+  });
+
+  it('TC14: an inactive override (loaded as null by the caller) falls through to the job-level default', () => {
+    const result = resolveEffectiveCadenceWithSource({ employeeOverride: null, jobLevelDefault, systemDefault: null });
+    expect(result?.source).toBe('JOB_LEVEL_DEFAULT');
+  });
+
+  it('TC15: no cadence configured at any tier → null', () => {
+    expect(resolveEffectiveCadenceWithSource({ employeeOverride: null, jobLevelDefault: null, systemDefault: null })).toBeNull();
+  });
+
+  it('agrees with resolveEffectiveCadence for all 7 precedence combinations', () => {
+    const tiers = [null, 'x'] as const;
+    for (const o of tiers) {
+      for (const j of tiers) {
+        for (const sd of tiers) {
+          const input: CadencePrecedenceInput = {
+            employeeOverride: o ? employeeOverride : null,
+            jobLevelDefault: j ? jobLevelDefault : null,
+            systemDefault: sd ? systemDefault : null,
+          };
+          expect(resolveEffectiveCadenceWithSource(input)?.cadence ?? null).toEqual(resolveEffectiveCadence(input));
+        }
+      }
+    }
   });
 });

@@ -13,7 +13,8 @@ import {
   CreateCalibrationSessionInput,
   CreateCalibrationAdjustmentInput,
 } from '../domain/calibration.domain.js';
-import { NotFound, Forbidden, Conflict, Unprocessable, BadRequest } from '../../../api/app-error.js';
+import { AppError, NotFound, Forbidden, Conflict, Unprocessable, BadRequest } from '../../../api/app-error.js';
+import { EvaluationPublishedHandler } from '../../employee/domain/review-schedule.port.js';
 import { PostgresCalibrationRepository } from '../infrastructure/postgres-calibration.repository.js';
 import { NotificationType, NotificationService } from '../../notification/index.js';
 
@@ -22,7 +23,8 @@ export class CalibrationService {
     private pool: Pool,
     private calibrationRepo: PostgresCalibrationRepository,
     private auditService?: AuditService,
-    private notificationService?: NotificationService
+    private notificationService?: NotificationService,
+    private evaluationPublishedHandler?: EvaluationPublishedHandler
   ) {}
 
   private requireHrAdmin(actor: Actor): void {
@@ -295,7 +297,20 @@ export class CalibrationService {
       await this.calibrationRepo.finalizeSession(sessionId, actor.userId, client);
 
       const evaluationIds = evaluations.map((e) => e.evaluationId);
-      await this.calibrationRepo.transitionEvaluationsAndAutoPublish(evaluationIds, actor.userId, client);
+      const published = await this.calibrationRepo.transitionEvaluationsAndAutoPublish(evaluationIds, actor.userId, client);
+
+      // EVAL-06: auto-publish updates the review schedule of every employee whose evaluation became PUBLISHED
+      // now, in the same transaction. Evaluations that were already PUBLISHED before this finalize are excluded so
+      // their completion base (last_evaluation_completed_at) is not moved (no schedule drift).
+      const newlyPublished = published
+        .filter((row) => row.previousStatus !== 'PUBLISHED')
+        .map(({ evaluationId, employeeId, publishedAt }) => ({ evaluationId, employeeId, publishedAt }));
+      if (newlyPublished.length > 0) {
+        if (!this.evaluationPublishedHandler) {
+          throw new AppError(500, 'REVIEW_SCHEDULE_NOT_CONFIGURED', 'Review schedule handler is not configured; publishing is disabled.');
+        }
+        await this.evaluationPublishedHandler.onEvaluationsPublished(client, newlyPublished, actor.userId);
+      }
 
       if (audit) {
         audit.record({

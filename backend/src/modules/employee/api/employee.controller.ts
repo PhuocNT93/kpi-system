@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import type { Pool } from 'pg';
 import { sendSuccess, sendCollection, sendCreated } from '../../../api/http-response.js';
 import { parsePaginationQuery } from '../../../api/pagination.js';
-import { AppError, BadRequest, NotFound, Conflict, Forbidden, Unprocessable } from '../../../api/app-error.js';
+import { AppError, BadRequest, NotFound, Conflict, Forbidden, Unprocessable, Unauthenticated } from '../../../api/app-error.js';
 import { EmployeeRepository, EmployeeAssignmentRepository } from '../domain/employee.repository.js';
 import { EmployeeContextService } from '../application/employee-context.service.js';
 import { TeamService } from '../application/team.service.js';
@@ -11,7 +11,23 @@ import { getActorFromContext } from '../../../shared/auth/actor-context.js';
 import { SimplePasswordHasher } from '../../auth/services/password-hasher.service.js';
 
 import { EvaluationService } from '../../evaluation/application/services/evaluation.service.js';
-import { EmployeeCadenceService } from '../application/employee-cadence.service.js';
+import { EmployeeCadenceService, toEffectiveCadenceResponse } from '../application/employee-cadence.service.js';
+import { EffectiveCadence } from '../domain/review-schedule.js';
+
+/** Optional FK fields: '' means "none" (null). */
+const NULLABLE_UUID_FIELDS = ['manager_id', 'team_id', 'department_id'] as const;
+/** Required FK fields: '' means "not provided" (keep the current value). */
+const REQUIRED_UUID_FIELDS = ['role_id', 'job_level_id'] as const;
+
+function normalizeEmptyUuidFields(body: Record<string, unknown> | undefined): void {
+  if (!body) return;
+  for (const key of NULLABLE_UUID_FIELDS) {
+    if (body[key] === '') body[key] = null;
+  }
+  for (const key of REQUIRED_UUID_FIELDS) {
+    if (body[key] === '') delete body[key];
+  }
+}
 
 export class EmployeeController {
   constructor(
@@ -39,45 +55,6 @@ export class EmployeeController {
     }
   }
 
-  private calculateNextReviewDate(lastDateStr: string | null | undefined, cadence: string | null | undefined): string | null {
-  if (!lastDateStr || !cadence) return null;
-  const lastDate = new Date(lastDateStr);
-  if (isNaN(lastDate.getTime())) return null;
-
-  switch (cadence.toUpperCase()) {
-    case 'MONTHLY':
-      lastDate.setMonth(lastDate.getMonth() + 1);
-      break;
-    case 'QUARTERLY':
-      lastDate.setMonth(lastDate.getMonth() + 3);
-      break;
-    case 'SEMI_ANNUAL':
-    case 'BIANNUALLY':
-      lastDate.setMonth(lastDate.getMonth() + 6);
-      break;
-    case 'ANNUAL':
-    case 'ANNUALLY':
-      lastDate.setFullYear(lastDate.getFullYear() + 1);
-      break;
-    default:
-      return null;
-  }
-  return lastDate.toISOString();
-}
-
-  private cadenceToMonths(cadence: string | null | undefined): number {
-    if (!cadence) return 6;
-    switch (cadence.toUpperCase()) {
-      case 'MONTHLY': return 1;
-      case 'QUARTERLY': return 3;
-      case 'SEMI_ANNUAL':
-      case 'BIANNUALLY': return 6;
-      case 'ANNUAL':
-      case 'ANNUALLY': return 12;
-      default: return 6;
-    }
-  }
-
 // ── Employee ─────────────────────────────────────────────────────────────
 
   async getEmployees(req: Request, res: Response): Promise<void> {
@@ -86,7 +63,13 @@ export class EmployeeController {
     if (this.employeeRepo && this.hasDb()) {
       console.log('Fetching employees with limit:', limit, 'and offset:', offset);
       const result = await this.employeeRepo.findMany({ limit, offset });
-      const data = result.employees.map(this.mapEmployeeToResponse);
+      const cadences = this.employeeCadenceService
+        ? await this.employeeCadenceService.resolveEffectiveCadences(result.employees.map((emp) => emp.employeeId))
+        : new Map<string, EffectiveCadence | null>();
+      const data = result.employees.map((emp) => ({
+        ...this.mapEmployeeToResponse(emp),
+        effective_cadence: toEffectiveCadenceResponse(cadences.get(emp.employeeId)),
+      }));
       sendCollection(res, 'Employees retrieved successfully', data, buildPageMeta(result.total));
       return;
     }
@@ -189,10 +172,10 @@ export class EmployeeController {
       manager_id,
       employment_status,
       join_date,
-      review_cadence,
-      last_evaluation_completed_at,
-      next_review_due_date,
+      review_cadence_override_id,
     } = req.body || {};
+    // review_cadence / review_cadence_months / last_evaluation_completed_at / next_review_due_date are
+    // server-owned (ReviewScheduleService) and deliberately ignored here.
 
     const empCode = employee_code || req.body?.code || `EMP-${Date.now()}`;
     const fullName = full_name || req.body?.name || 'New Employee';
@@ -212,6 +195,8 @@ export class EmployeeController {
         await this.assertEntityActive('role', 'role_id', role_id, 'Job Role');
         await this.assertEntityActive('job_level', 'job_level_id', job_level_id, 'Job Level');
       }
+      // A new employee has no completed evaluation, so the override needs no schedule recalculation.
+      await this.assertEntityActive('review_cadence', 'review_cadence_id', review_cadence_override_id || null, 'Review Cadence');
 
       if (department_id && team_id) {
         const teamRes = await this.pool!.query('SELECT department_id FROM team WHERE team_id = $1', [team_id]);
@@ -236,10 +221,7 @@ export class EmployeeController {
         managerId: manager_id || null,
         employmentStatus: employment_status || EmploymentStatus.ACTIVE,
         joinDate: joinDate,
-        reviewCadence: review_cadence || null,
-        reviewCadenceMonths: this.cadenceToMonths(review_cadence),
-        lastEvaluationCompletedAt: last_evaluation_completed_at || null,
-        nextReviewDueDate: next_review_due_date || this.calculateNextReviewDate(last_evaluation_completed_at, review_cadence),
+        reviewCadenceOverrideId: review_cadence_override_id || null,
       });
 
       if (this.assignmentRepo && department_id && team_id) {
@@ -321,13 +303,8 @@ export class EmployeeController {
       }
       const responseData: Record<string, unknown> = this.mapEmployeeToResponse(emp);
       if (this.employeeCadenceService) {
-        const cadenceInfo = await this.employeeCadenceService.getEmployeeCadenceInfo(employeeId);
-        responseData['effective_cadence'] = cadenceInfo.effectiveCadence ? {
-          id: cadenceInfo.effectiveCadence.id,
-          code: cadenceInfo.effectiveCadence.code,
-          name: cadenceInfo.effectiveCadence.name,
-          interval_months: cadenceInfo.effectiveCadence.intervalMonths,
-        } : null;
+        const cadences = await this.employeeCadenceService.resolveEffectiveCadences([employeeId]);
+        responseData['effective_cadence'] = toEffectiveCadenceResponse(cadences.get(employeeId));
       }
       sendSuccess(res, 200, 'Employee retrieved successfully', responseData);
       return;
@@ -375,6 +352,9 @@ export class EmployeeController {
         throw new NotFound(`Employee with ID ${employeeId}`);
       }
 
+      // Forms send '' for "no selection"; an empty string is not a valid uuid for these FK columns.
+      normalizeEmptyUuidFields(req.body);
+
       const newManagerId = req.body.manager_id !== undefined ? req.body.manager_id : existing.managerId;
       const newTeamId = req.body.team_id ?? existing.teamId;
 
@@ -411,16 +391,9 @@ export class EmployeeController {
         }
       }
 
-      const targetCadence = req.body.review_cadence !== undefined ? (req.body.review_cadence || null) : existing.reviewCadence;
-      const targetLastEval = req.body.last_evaluation_completed_at !== undefined ? (req.body.last_evaluation_completed_at || null) : existing.lastEvaluationCompletedAt;
-      const targetNextReview = req.body.next_review_due_date !== undefined
-        ? (req.body.next_review_due_date || null)
-        : (this.calculateNextReviewDate(targetLastEval, targetCadence) ?? existing.nextReviewDueDate);
-      const targetCadenceMonths = req.body.review_cadence_months !== undefined
-        ? (Number(req.body.review_cadence_months) || 6)
-        : this.cadenceToMonths(targetCadence);
-
-      const updated = await this.employeeRepo.update({
+      // Review schedule fields (review_cadence, review_cadence_months, last_evaluation_completed_at,
+      // next_review_due_date) are server-owned and ignored; a job level change recalculates the schedule.
+      const nextEmployee: Employee = {
         ...existing,
         fullName: req.body.full_name ?? existing.fullName,
         email: req.body.email ?? existing.email,
@@ -431,11 +404,14 @@ export class EmployeeController {
         managerId: newManagerId,
         employmentStatus: req.body.employment_status ?? existing.employmentStatus,
         terminationDate: req.body.termination_date ?? existing.terminationDate,
-        reviewCadence: targetCadence,
-        reviewCadenceMonths: targetCadenceMonths,
-        lastEvaluationCompletedAt: targetLastEval,
-        nextReviewDueDate: targetNextReview,
-      });
+      };
+      const actor = getActorFromContext(req);
+      if (!actor) {
+        throw new Unauthenticated('Authentication required');
+      }
+      const updated = this.employeeCadenceService
+        ? await this.employeeCadenceService.updateEmployeeWithSchedule(actor, existing, nextEmployee)
+        : await this.employeeRepo.update(nextEmployee);
 
       // Sync app_user name and email if changed
       if (this.hasDb() && this.pool && (req.body.full_name || req.body.email)) {

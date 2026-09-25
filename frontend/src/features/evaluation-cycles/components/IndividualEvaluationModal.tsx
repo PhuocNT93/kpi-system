@@ -6,15 +6,13 @@ import { useTheme } from '@/shared/theme';
 import { Button } from '@/shared/ui/Button/Button';
 import { ErrorAlert, LoadingSpinner } from '@/shared/components/ui';
 import { AlertTriangle, CheckCircle2, XCircle, Info, Calendar } from 'lucide-react';
-import type {
-  ReviewDueItemDTO,
-  CreateIndividualCyclesResultDTO,
-} from '../types/review-due.types';
+import type { CreateIndividualCyclesResultDTO } from '../types/review-due.types';
+import type { ReviewDueItem } from '../domain/review-due-models';
 
 interface IndividualEvaluationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  selectedEmployees: ReviewDueItemDTO[];
+  selectedEmployees: Pick<ReviewDueItem, 'employeeId' | 'employeeCode' | 'employeeName'>[];
   onSuccess?: () => void;
 }
 
@@ -50,7 +48,7 @@ export function IndividualEvaluationModal({
 
     try {
       const response = await createMutation.mutateAsync({
-        employee_ids: selectedEmployees.map((e) => e.employee_id),
+        employee_ids: selectedEmployees.map((e) => e.employeeId),
         template_version_id: templateVersionId || undefined,
         start_date: startDate,
         end_date: endDate,
@@ -268,7 +266,7 @@ export function IndividualEvaluationModal({
                 >
                   {selectedEmployees.map((emp) => (
                     <span
-                      key={emp.employee_id}
+                      key={emp.employeeId}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -281,8 +279,8 @@ export function IndividualEvaluationModal({
                         fontWeight: 500,
                       }}
                     >
-                      <span>{emp.full_name}</span>
-                      <span style={{ opacity: 0.7 }}>({emp.employee_code})</span>
+                      <span>{emp.employeeName}</span>
+                      <span style={{ opacity: 0.7 }}>({emp.employeeCode})</span>
                     </span>
                   ))}
                 </div>

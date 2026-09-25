@@ -4,9 +4,9 @@ import { ReviewCadenceService } from './application/review-cadence.service.js';
 import { ReviewCadenceController } from './api/review-cadence.controller.js';
 import { ReviewDueService } from './application/review-due.service.js';
 import { ReviewDueScheduler } from './application/review-due-scheduler.js';
-import { ReviewScheduleService } from './application/review-schedule.service.js';
 import { ReviewDueController } from './api/review-due.controller.js';
 import { AuditService } from '../audit/application/audit.service.js';
+import { ReviewCadenceChangeHandler } from './domain/review-cadence-change-handler.js';
 
 export interface ReviewCadenceModule {
   reviewCadenceRepository: PostgresReviewCadenceRepository;
@@ -14,18 +14,17 @@ export interface ReviewCadenceModule {
   reviewCadenceController: ReviewCadenceController;
   reviewDueService: ReviewDueService;
   reviewDueScheduler: ReviewDueScheduler;
-  reviewScheduleService: ReviewScheduleService;
   reviewDueController: ReviewDueController;
 }
 
 export function createReviewCadenceModule(
   pool: Pool,
-  auditService: AuditService
+  auditService: AuditService,
+  changeHandler?: ReviewCadenceChangeHandler
 ): ReviewCadenceModule {
   const reviewCadenceRepository = new PostgresReviewCadenceRepository(pool);
-  const reviewCadenceService = new ReviewCadenceService(reviewCadenceRepository, auditService, pool);
+  const reviewCadenceService = new ReviewCadenceService(reviewCadenceRepository, auditService, pool, changeHandler);
   const reviewCadenceController = new ReviewCadenceController(reviewCadenceService);
-  const reviewScheduleService = new ReviewScheduleService(pool, auditService);
   const reviewDueService = new ReviewDueService(pool);
   const reviewDueScheduler = new ReviewDueScheduler(reviewDueService);
   const reviewDueController = new ReviewDueController(reviewDueService);
@@ -39,7 +38,6 @@ export function createReviewCadenceModule(
     reviewCadenceController,
     reviewDueService,
     reviewDueScheduler,
-    reviewScheduleService,
     reviewDueController,
   };
 }

@@ -1,6 +1,7 @@
 import { Pool } from 'pg';
 import { DepartmentRepository, JobRoleRepository, JobLevelRepository } from '../domain/repositories.js';
 import { Department, JobRole, JobLevel } from '../domain/types.js';
+import { QueryExecutor } from '../../../shared/database/query-executor.js';
 
 export class PostgresDepartmentRepository implements DepartmentRepository {
   constructor(private pool: Pool) {}
@@ -186,8 +187,9 @@ export class PostgresJobLevelRepository implements JobLevelRepository {
     return this.mapRow(rows[0]);
   }
 
-  async update(level: JobLevel): Promise<JobLevel> {
-    const { rows } = await this.pool.query(
+  async update(level: JobLevel, client?: QueryExecutor): Promise<JobLevel> {
+    const executor: QueryExecutor = client ?? this.pool;
+    const { rows } = await executor.query(
       'UPDATE job_level SET name = $1, rank = $2, active = $3, default_review_cadence_id = $4 WHERE job_level_id = $5 RETURNING job_level_id, code, name, rank, active, default_review_cadence_id, created_at, updated_at',
       [level.name, level.rank, level.active, level.defaultReviewCadenceId ?? null, level.id]
     );

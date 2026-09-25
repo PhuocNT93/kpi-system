@@ -6,7 +6,7 @@ import {
   CalibrationEvaluationRow,
   CreateCalibrationSessionInput,
 } from '../domain/calibration.domain.js';
-import { CalibrationRepository } from '../domain/calibration.repository.js';
+import { CalibrationRepository, PublishedEvaluationRow } from '../domain/calibration.repository.js';
 
 export class PostgresCalibrationRepository implements CalibrationRepository {
   constructor(private pool: Pool) {}
@@ -368,19 +368,36 @@ export class PostgresCalibrationRepository implements CalibrationRepository {
     evaluationIds: string[],
     updatedBy: string,
     client: TransactionClient
-  ): Promise<void> {
-    if (evaluationIds.length === 0) return;
-    await client.query(
-      `UPDATE evaluation
+  ): Promise<PublishedEvaluationRow[]> {
+    if (evaluationIds.length === 0) return [];
+    // The CTE locks the rows and captures their status under the lock, so callers can tell evaluations that
+    // become PUBLISHED now from ones that already were (even if a concurrent publish committed meanwhile).
+    const result = await client.query(
+      `WITH previous AS (
+         SELECT evaluation_id, status AS previous_status
+         FROM evaluation
+         WHERE evaluation_id = ANY($1) AND is_locked = false
+         ORDER BY evaluation_id
+         FOR UPDATE
+       )
+       UPDATE evaluation e
        SET status = 'PUBLISHED',
-           approved_at = COALESCE(approved_at, CURRENT_TIMESTAMP),
+           approved_at = COALESCE(e.approved_at, CURRENT_TIMESTAMP),
            published_at = CURRENT_TIMESTAMP,
            published_by = $2,
            updated_by = $2,
            updated_at = CURRENT_TIMESTAMP
-       WHERE evaluation_id = ANY($1) AND is_locked = false`,
+       FROM previous p
+       WHERE e.evaluation_id = p.evaluation_id
+       RETURNING e.evaluation_id, e.employee_id, e.published_at, p.previous_status`,
       [evaluationIds, updatedBy]
     );
+    return result.rows.map((row) => ({
+      evaluationId: String(row['evaluation_id']),
+      employeeId: String(row['employee_id']),
+      publishedAt: row['published_at'] instanceof Date ? row['published_at'] : new Date(String(row['published_at'])),
+      previousStatus: String(row['previous_status']),
+    }));
   }
 
   async getAdjustmentsBySession(sessionId: string, client?: TransactionClient): Promise<CalibrationAdjustment[]> {

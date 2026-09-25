@@ -13,6 +13,7 @@ import { Actor } from '../src/shared/auth/types.js';
 import { AuditService } from '../src/modules/audit/application/audit.service.js';
 
 describe('Task 45: Publish & Lock Commands, Idempotency and Locked Protections', () => {
+  let mockPublishedHandler: { onEvaluationsPublished: ReturnType<typeof vi.fn> };
   let mockClient: {
     query: ReturnType<typeof vi.fn>;
     release: ReturnType<typeof vi.fn>;
@@ -155,11 +156,16 @@ describe('Task 45: Publish & Lock Commands, Idempotency and Locked Protections',
       record: vi.fn().mockResolvedValue({ id: 'audit-1' }),
     };
 
+    mockPublishedHandler = { onEvaluationsPublished: vi.fn().mockResolvedValue(undefined) };
     service = new EvaluationService(
       mockEvaluationRepo as unknown as IEvaluationRepository,
       mockEvaluationItemRepo as unknown as IEvaluationItemRepository,
       mockPool as unknown as Pool,
-      mockAuditService as unknown as AuditService
+      mockAuditService as unknown as AuditService,
+      undefined,
+      undefined,
+      undefined,
+      mockPublishedHandler
     );
 
     controller = new EvaluationController(service);
@@ -205,6 +211,12 @@ describe('Task 45: Publish & Lock Commands, Idempotency and Locked Protections',
           action: 'PUBLISH',
           performedBy: hrAdminActor.userId,
         })
+      );
+      // EVAL-06: review schedule updated in the same transaction client as the publish
+      expect(mockPublishedHandler.onEvaluationsPublished).toHaveBeenCalledWith(
+        mockClient,
+        [{ evaluationId: 'eval-1', employeeId: sampleApprovedEvaluation.employee_id, publishedAt: expect.any(Date) }],
+        hrAdminActor.userId
       );
       expect(result.status).toBe(EvaluationStatus.PUBLISHED);
     });

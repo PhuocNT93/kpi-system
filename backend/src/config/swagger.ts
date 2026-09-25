@@ -241,9 +241,38 @@ export const swaggerOptions: swaggerJsdoc.Options = {
             employment_status: { type: 'string', enum: ['ACTIVE', 'ON_LEAVE', 'INACTIVE', 'TERMINATED'], example: 'ACTIVE' },
             join_date: { type: 'string', format: 'date', example: '2026-01-15' },
             termination_date: { type: 'string', format: 'date', nullable: true, example: null },
+            review_cadence_override_id: { type: 'string', format: 'uuid', nullable: true, example: null },
+            last_evaluation_completed_at: {
+              type: 'string',
+              format: 'date-time',
+              nullable: true,
+              description: 'Server-owned: set only when an evaluation of this employee is PUBLISHED.',
+              example: '2026-01-15T03:00:00Z',
+            },
+            next_review_due_date: {
+              type: 'string',
+              format: 'date',
+              nullable: true,
+              description:
+                'Server-owned: business date (BUSINESS_TIMEZONE) of last_evaluation_completed_at + effective_cadence.interval_months (calendar months). Null = never evaluated (due now).',
+              example: '2026-07-15',
+            },
+            effective_cadence: { $ref: '#/components/schemas/EffectiveCadence' },
             version: { type: 'integer', example: 1 },
             created_at: { type: 'string', format: 'date-time', example: '2026-01-15T08:00:00Z' },
             updated_at: { type: 'string', format: 'date-time', example: '2026-01-15T08:00:00Z' },
+          },
+        },
+        EffectiveCadence: {
+          type: 'object',
+          nullable: true,
+          description: 'Cadence in effect, resolved at runtime: employee override → job level default → system default (inactive cadences are skipped).',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            code: { type: 'string', example: 'SEMI_ANNUAL' },
+            name: { type: 'string', example: 'Semi-Annual (6 months)' },
+            interval_months: { type: 'integer', example: 6 },
+            source: { type: 'string', enum: ['EMPLOYEE_OVERRIDE', 'JOB_LEVEL_DEFAULT', 'SYSTEM_DEFAULT'] },
           },
         },
         CreateEmployeeRequest: {
@@ -264,6 +293,8 @@ export const swaggerOptions: swaggerJsdoc.Options = {
         },
         UpdateEmployeeRequest: {
           type: 'object',
+          description:
+            'review_cadence, review_cadence_months, last_evaluation_completed_at and next_review_due_date are server-owned and ignored. Changing job_level_id requires HR_ADMIN/SYSTEM_ADMIN and recalculates next_review_due_date from the existing last_evaluation_completed_at in the same transaction (audited).',
           properties: {
             full_name: { type: 'string', example: 'Nguyen Van A Updated' },
             email: { type: 'string', format: 'email', example: 'nva.updated@company.com' },
@@ -1847,7 +1878,8 @@ export const swaggerOptions: swaggerJsdoc.Options = {
         },
         patch: {
           summary: 'Update employee',
-          description: 'Updates employee profile attributes.',
+          description:
+            'Updates employee profile attributes. A job level change that alters the effective review cadence recalculates next_review_due_date atomically (audit SCHEDULE_RECALC).',
           tags: ['Employee - Employees'],
           security: [{ bearerAuth: [] }],
           parameters: [
@@ -1881,7 +1913,9 @@ export const swaggerOptions: swaggerJsdoc.Options = {
               },
             },
             401: { description: 'Unauthorized' },
+            403: { description: 'Job level change requires HR_ADMIN or SYSTEM_ADMIN' },
             404: { description: 'Employee not found' },
+            409: { description: 'VERSION_MISMATCH — employee modified concurrently' },
           },
         },
       },
@@ -2793,7 +2827,7 @@ export const swaggerOptions: swaggerJsdoc.Options = {
         },
         patch: {
           summary: 'Update job level',
-          description: 'Updates job level attributes.',
+          description: "Updates a job level. Changing default_review_cadence_id requires HR_ADMIN/SYSTEM_ADMIN and recalculates next_review_due_date of every employee on this level without a personal override, from each employee's existing last_evaluation_completed_at, in the same transaction (audited).",
           tags: ['Organization - Job Levels'],
           security: [{ bearerAuth: [] }],
           parameters: [

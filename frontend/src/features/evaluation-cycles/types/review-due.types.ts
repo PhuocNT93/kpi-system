@@ -1,6 +1,9 @@
-export type ReviewDueStatus = 'OVERDUE' | 'DUE' | 'UPCOMING' | 'NOT_DUE';
+// Wire DTOs (snake_case) for GET /api/reviews/due — must match the backend contract exactly.
+// Components never consume these directly; see domain/review-due-mappers.ts.
 
-export type ReviewCadenceSource = 'EMPLOYEE_OVERRIDE' | 'JOB_LEVEL' | 'SYSTEM_DEFAULT';
+export type ReviewDueStatus = 'OVERDUE' | 'DUE' | 'UPCOMING' | 'NOT_DUE' | 'NO_SCHEDULE';
+
+export type ReviewCadenceSource = 'EMPLOYEE_OVERRIDE' | 'JOB_LEVEL_DEFAULT' | 'SYSTEM_DEFAULT';
 
 export interface EffectiveCadenceDTO {
   id: string;
@@ -10,48 +13,43 @@ export interface EffectiveCadenceDTO {
   source: ReviewCadenceSource;
 }
 
+export interface ReviewDueRefDTO {
+  id: string;
+  name: string;
+}
+
 export interface ReviewDueItemDTO {
   employee_id: string;
   employee_code: string;
-  full_name: string;
-  team_id: string | null;
-  team_name: string | null;
-  job_level_id: string | null;
-  job_level_name: string | null;
+  employee_name: string;
+  team: ReviewDueRefDTO | null;
+  job_level: ReviewDueRefDTO | null;
+  effective_cadence: EffectiveCadenceDTO | null;
+  /** ISO timestamp */
   last_evaluation_completed_at: string | null;
+  /** Date-only string YYYY-MM-DD */
   next_review_due_date: string | null;
   status: ReviewDueStatus;
   days_overdue: number;
-  days_until_due: number;
-  effective_cadence: EffectiveCadenceDTO | null;
 }
 
-export interface ReviewDueCountsDTO {
-  overdue: number;
-  due: number;
-  upcoming: number;
-  total_due_or_upcoming: number;
-}
-
-export interface ReviewDueMetadataDTO {
-  total: number;
-  lead_time_days: number;
-  counts: ReviewDueCountsDTO;
-}
-
+/** Response `data` after the api-client unwraps the envelope. */
 export interface ReviewDueResponseDTO {
   items: ReviewDueItemDTO[];
-  meta: ReviewDueMetadataDTO;
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  last_updated_at: string;
 }
 
 export interface ReviewDueFiltersDTO {
-  status?: 'OVERDUE' | 'DUE' | 'UPCOMING' | 'ALL';
+  status?: ReviewDueStatus;
   team_id?: string;
   cadence_id?: string;
   search?: string;
-  lead_time_days?: number;
-  limit?: number;
-  offset?: number;
+  page?: number;
+  page_size?: number;
 }
 
 export interface CreateIndividualCyclesPayload {

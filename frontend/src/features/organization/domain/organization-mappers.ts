@@ -1,8 +1,8 @@
 // Wire → Domain mappers for the Organization feature
 // All snake_case → camelCase conversion happens here — never in components
 
-import type { WireTeam, WireTeamDetail, WireDepartment, WireJobRole, WireJobLevel, WireReviewCadence, WireEmployee } from '../api/organization-types';
-import type { OrgTeam, OrgTeamDetail, OrgDepartment, OrgJobRole, OrgJobLevel, OrgReviewCadence, OrgEmployee } from './organization-models';
+import type { WireTeam, WireTeamDetail, WireDepartment, WireJobRole, WireJobLevel, WireReviewCadence, WireEmployee, WireEffectiveCadence } from '../api/organization-types';
+import type { OrgTeam, OrgTeamDetail, OrgDepartment, OrgJobRole, OrgJobLevel, OrgReviewCadence, OrgEmployee, EffectiveCadence } from './organization-models';
 
 export function mapWireTeamToDomain(wire: WireTeam): OrgTeam {
   return {
@@ -74,6 +74,19 @@ export function mapWireReviewCadenceToDomain(wire: WireReviewCadence): OrgReview
   };
 }
 
+export function mapWireEffectiveCadenceToDomain(
+  wire: WireEffectiveCadence | null | undefined,
+): EffectiveCadence | null {
+  if (!wire) return null;
+  return {
+    id: wire.id,
+    code: wire.code,
+    name: wire.name,
+    intervalMonths: wire.interval_months,
+    source: wire.source,
+  };
+}
+
 export function mapWireEmployeeToDomain(wire: WireEmployee): OrgEmployee {
   return {
     id: wire.id,
@@ -88,10 +101,10 @@ export function mapWireEmployeeToDomain(wire: WireEmployee): OrgEmployee {
     employmentStatus: wire.employment_status,
     joinDate: wire.join_date,
     terminationDate: wire.termination_date,
-    reviewCadence: wire.review_cadence,
     reviewCadenceOverrideId: wire.review_cadence_override_id ?? null,
     lastEvaluationCompletedAt: wire.last_evaluation_completed_at,
     nextReviewDueDate: wire.next_review_due_date,
+    effectiveCadence: mapWireEffectiveCadenceToDomain(wire.effective_cadence),
     version: wire.version,
     createdAt: new Date(wire.created_at),
     updatedAt: new Date(wire.updated_at),

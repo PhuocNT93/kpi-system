@@ -2,7 +2,12 @@ import { DepartmentRepository, JobRoleRepository, JobLevelRepository } from '../
 import { Department, JobRole, JobLevel } from '../domain/types.js';
 import type { Pool } from 'pg';
 
-import { Unprocessable, NotFound, Conflict } from '../../../api/app-error.js';
+import { AppError, Unprocessable, NotFound, Conflict, Forbidden } from '../../../api/app-error.js';
+import { Actor } from '../../../shared/auth/types.js';
+import { toQueryExecutor } from '../../../shared/database/query-executor.js';
+import { AuditService } from '../../audit/application/audit.service.js';
+import { withAuditedTransaction } from '../../audit/application/audit-transaction.js';
+import { JobLevelCadenceChangeHandler } from '../domain/job-level-cadence-change-handler.js';
 
 export class BusinessRuleViolationError extends Unprocessable {
   constructor(message: string, code: string) {
@@ -16,7 +21,9 @@ export class OrganizationService {
     private readonly departmentRepository: DepartmentRepository,
     private readonly jobRoleRepository: JobRoleRepository,
     private readonly jobLevelRepository: JobLevelRepository,
-    private readonly pool: Pool
+    private readonly pool: Pool,
+    private readonly auditService?: AuditService,
+    private readonly jobLevelCadenceChangeHandler?: JobLevelCadenceChangeHandler
   ) {}
 
   // --- Department ---
@@ -189,7 +196,11 @@ export class OrganizationService {
     });
   }
 
-  async updateJobLevel(id: string, data: Omit<JobLevel, 'id' | 'code' | 'createdAt' | 'updatedAt'>): Promise<JobLevel> {
+  async updateJobLevel(
+    id: string,
+    data: Omit<JobLevel, 'id' | 'code' | 'createdAt' | 'updatedAt'>,
+    actor?: Actor
+  ): Promise<JobLevel> {
     const existing = await this.jobLevelRepository.findById(id);
     if (!existing) {
       throw new NotFound(`Job Level with ID ${id}`);
@@ -212,13 +223,65 @@ export class OrganizationService {
           throw new NotFound(`Review Cadence with ID ${data.defaultReviewCadenceId}`);
         }
       }
-      existing.defaultReviewCadenceId = data.defaultReviewCadenceId;
     }
 
+    const previousCadenceId = existing.defaultReviewCadenceId ?? null;
+    const isDefaultCadenceChanged =
+      data.defaultReviewCadenceId !== undefined && (data.defaultReviewCadenceId ?? null) !== previousCadenceId;
+    if (data.defaultReviewCadenceId !== undefined) {
+      existing.defaultReviewCadenceId = data.defaultReviewCadenceId;
+    }
     existing.name = data.name;
     existing.rank = data.rank;
     existing.active = data.active;
-    return this.jobLevelRepository.update(existing);
+
+    if (!isDefaultCadenceChanged) {
+      return this.jobLevelRepository.update(existing);
+    }
+    return this.updateJobLevelDefaultCadence(existing, previousCadenceId, actor);
+  }
+
+  /**
+   * Changing a job level's default cadence changes the effective cadence of every employee on that level
+   * without a personal override (LLD §14.1): the job-level write, their schedule recalculation and the audit
+   * entries commit together.
+   */
+  private async updateJobLevelDefaultCadence(
+    level: JobLevel,
+    previousCadenceId: string | null,
+    actor?: Actor
+  ): Promise<JobLevel> {
+    if (!actor || (actor.role !== 'HR_ADMIN' && actor.role !== 'SYSTEM_ADMIN')) {
+      throw new Forbidden('Only HR Admin or System Admin can change a job level default review cadence.');
+    }
+    const auditService = this.auditService;
+    const changeHandler = this.jobLevelCadenceChangeHandler;
+    if (!auditService || !changeHandler) {
+      throw new AppError(500, 'REVIEW_SCHEDULE_NOT_CONFIGURED', 'Review schedule handler is not configured.');
+    }
+
+    return withAuditedTransaction(
+      this.pool,
+      auditService,
+      async (client, audit) => {
+        await client.query('SELECT job_level_id FROM job_level WHERE job_level_id = $1 FOR UPDATE', [level.id]);
+        const pending = await changeHandler.prepareJobLevelDefaultChange(client, level.id);
+        const saved = await this.jobLevelRepository.update(level, toQueryExecutor(client));
+        audit.record({
+          entityType: 'JOB_LEVEL',
+          entityId: level.id,
+          action: 'UPDATE',
+          fieldName: 'default_review_cadence_id',
+          oldValue: previousCadenceId,
+          newValue: saved.defaultReviewCadenceId ?? null,
+          reason: 'Job level default review cadence changed',
+          performedBy: actor.userId,
+        });
+        await pending.apply(actor.userId, `job_level_id=${level.id}`);
+        return saved;
+      },
+      actor.userId
+    );
   }
 
   async bulkUpdateJobLevels(levelIds: string[], active: boolean): Promise<number> {

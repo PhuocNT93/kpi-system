@@ -197,7 +197,9 @@ describe('TC24 - TC33: Concurrency & Locking Hardening Tests', () => {
         }),
       } as unknown as import('pg').Pool;
 
-      const calService = new CalibrationService(mockPool, mockCalibrationRepo);
+      const calService = new CalibrationService(mockPool, mockCalibrationRepo, undefined, undefined, {
+        onEvaluationsPublished: vi.fn(async () => undefined),
+      });
 
       // Execute adjustment 1
       await calService.adjustScore(
@@ -243,7 +245,7 @@ describe('TC24 - TC33: Concurrency & Locking Hardening Tests', () => {
         finalizeSession: vi.fn(async () => {
           isFinalized = true;
         }),
-        transitionEvaluationsAndAutoPublish: vi.fn(async () => {}),
+        transitionEvaluationsAndAutoPublish: vi.fn(async () => []),
       } as unknown as import('../src/modules/calibration/infrastructure/postgres-calibration.repository.js').ICalibrationRepository;
 
       const mockPool = {
@@ -253,7 +255,9 @@ describe('TC24 - TC33: Concurrency & Locking Hardening Tests', () => {
         }),
       } as unknown as import('pg').Pool;
 
-      const calService = new CalibrationService(mockPool, mockCalibrationRepo);
+      const calService = new CalibrationService(mockPool, mockCalibrationRepo, undefined, undefined, {
+        onEvaluationsPublished: vi.fn(async () => undefined),
+      });
 
       // Call 1 succeeds
       await calService.finalizeSession('22222222-2222-4222-8222-222222222222', hrActor);

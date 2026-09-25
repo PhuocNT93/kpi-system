@@ -7,7 +7,13 @@ import { EmployeeController } from './api/employee.controller.js';
 import { AuditService } from '../audit/application/audit.service.js';
 import { EvaluationService } from '../evaluation/application/services/evaluation.service.js';
 import { EmployeeCadenceService } from './application/employee-cadence.service.js';
-import { ReviewScheduleService } from '../review-cadence/application/review-schedule.service.js';
+import { ReviewScheduleService } from './application/review-schedule.service.js';
+import { PostgresEmployeeScheduleRepository } from './infrastructure/postgres-employee-schedule.repository.js';
+
+/** Creates the single owner of the employee review schedule; app.ts shares one instance across modules. */
+export function createReviewScheduleService(auditService: AuditService): ReviewScheduleService {
+  return new ReviewScheduleService(new PostgresEmployeeScheduleRepository(), auditService);
+}
 
 export function createEmployeeModule(
   pool: Pool,
@@ -20,8 +26,8 @@ export function createEmployeeModule(
   const teamRepo = new PostgresTeamRepository(pool);
   const contextService = new EmployeeContextService(employeeRepo, assignmentRepo);
   const teamService = new TeamService(teamRepo, employeeRepo, pool, auditService);
-  const scheduleService = reviewScheduleService ?? new ReviewScheduleService(pool, auditService);
-  const cadenceService = new EmployeeCadenceService(pool, auditService, scheduleService);
+  const scheduleService = reviewScheduleService ?? createReviewScheduleService(auditService);
+  const cadenceService = new EmployeeCadenceService(pool, auditService, scheduleService, employeeRepo);
   const employeeController = new EmployeeController(
     employeeRepo,
     assignmentRepo,
@@ -39,6 +45,7 @@ export function createEmployeeModule(
     contextService,
     teamService,
     cadenceService,
+    reviewScheduleService: scheduleService,
     employeeController,
   };
 }

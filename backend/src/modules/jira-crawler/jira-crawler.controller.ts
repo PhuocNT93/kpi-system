@@ -570,16 +570,8 @@ export class JiraCrawlerController {
         appliedCount++;
       }
 
-      // 5. Update Review Cadence for employee if markReviewed is true
-      if (markReviewed) {
-        await client.query(
-          `UPDATE employee
-           SET last_evaluation_completed_at = CURRENT_TIMESTAMP,
-               next_review_due_date = CURRENT_TIMESTAMP + (COALESCE(review_cadence_months, 6) || ' months')::INTERVAL
-           WHERE employee_id = $1`,
-          [employeeId]
-        );
-      }
+      // 5. markReviewed no longer touches the review schedule: last_evaluation_completed_at /
+      //    next_review_due_date are owned by ReviewScheduleService and only move when an evaluation is PUBLISHED.
 
       await client.query('COMMIT');
 
@@ -832,7 +824,8 @@ export class JiraCrawlerController {
 
   /**
    * PATCH /api/collector/jira/members/:code/cadence
-   * Cập nhật chu kỳ đánh giá (review_cadence_months) và ngày đánh giá tiếp theo cho nhân viên
+   * Cập nhật blueprint username cho nhân viên. Chu kỳ đánh giá và ngày đánh giá tiếp theo do
+   * ReviewScheduleService quản lý — gửi reviewCadenceMonths / nextReviewDueDate sẽ bị từ chối (422).
    */
   public updateMemberCadence = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -843,19 +836,21 @@ export class JiraCrawlerController {
         blueprintUsername?: string;
       };
 
+      // The review schedule is server-owned (ReviewScheduleService): cadence comes from the review_cadence
+      // precedence and the due date from the last published evaluation.
+      if (reviewCadenceMonths !== undefined || nextReviewDueDate !== undefined) {
+        sendFailure(
+          res,
+          422,
+          'Review cadence and next review due date are managed by the review schedule and cannot be edited here.',
+          'REVIEW_SCHEDULE_READ_ONLY'
+        );
+        return;
+      }
+
       const fields: string[] = [];
       const values: unknown[] = [];
       let idx = 1;
-
-      if (typeof reviewCadenceMonths === 'number' && reviewCadenceMonths > 0) {
-        fields.push(`review_cadence_months = $${idx++}`);
-        values.push(reviewCadenceMonths);
-      }
-
-      if (nextReviewDueDate !== undefined) {
-        fields.push(`next_review_due_date = $${idx++}`);
-        values.push(nextReviewDueDate ? new Date(nextReviewDueDate) : null);
-      }
 
       if (blueprintUsername !== undefined) {
         fields.push(`blueprint_username = $${idx++}`);
@@ -870,7 +865,7 @@ export class JiraCrawlerController {
       values.push(employeeCode);
       const updateRes = await this.pool.query(
         `UPDATE employee SET ${fields.join(', ')} WHERE employee_code = $${idx}
-         RETURNING employee_code, full_name, review_cadence_months, next_review_due_date, blueprint_username`,
+         RETURNING employee_code, full_name, next_review_due_date, blueprint_username`,
         values
       );
 

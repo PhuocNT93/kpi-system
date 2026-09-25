@@ -1,15 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   useCreateEmployee,
   useUpdateEmployee,
-  useEmployeeCadence,
   useUpdateEmployeeCadenceOverride,
 } from '../hooks/useEmployees';
-import { useReviewCadences } from '../hooks/useReviewCadences';
+import { organizationKeys } from '../api/organization-keys';
+import { useCanManageReviewCadence } from '../hooks/useCanManageReviewCadence';
+import { useOrganizationTranslation } from '../hooks/useOrganizationTranslation';
+import { EmployeeReviewSchedulePanel, ReviewCadenceOverrideSelect } from './EmployeeReviewSchedulePanel';
 import { ErrorAlert } from '../../../shared/components/ui';
+import { ApiClientError } from '../../../shared/api/api-client';
 import { Button } from '../../../shared/ui/Button/Button';
 import type { OrgEmployee } from '../domain/organization-models';
 import { useDepartments } from '../hooks/useDepartments';
@@ -19,61 +23,6 @@ import { useJobLevels } from '../hooks/useJobLevels';
 import { AutoCodeButton } from '../../../shared/components/AutoCodeButton';
 import { generateCode } from '../../../shared/utils/code-generator';
 import { useTheme } from '../../../shared/theme';
-
-const reviewCadenceMonths: Record<string, number> = {
-  MONTHLY: 1,
-  QUARTERLY: 3,
-  BIANNUALLY: 6,
-  ANNUALLY: 12,
-};
-
-function normalizeMonthValue(value: string): string {
-  if (!value) return '';
-  if (/^\d{4}-\d{2}$/.test(value)) return value;
-  return value.slice(0, 7);
-}
-
-function formatMonthHint(value: string): string {
-  const normalized = normalizeMonthValue(value);
-  return normalized;
-}
-
-function addMonthsToMonthValue(monthValue: string, months: number): string {
-  if (!monthValue) return '';
-  const [yearText, monthText] = monthValue.split('-');
-  const year = Number(yearText);
-  const month = Number(monthText);
-  if (Number.isNaN(year) || Number.isNaN(month)) return '';
-
-  const date = new Date(Date.UTC(year, month - 1, 1));
-  date.setUTCMonth(date.getUTCMonth() + months);
-
-  const resultYear = date.getUTCFullYear();
-  const resultMonth = String(date.getUTCMonth() + 1).padStart(2, '0');
-  return `${resultYear}-${resultMonth}`;
-}
-
-function calculateNextReviewDate(lastReviewDate: string, reviewCadence: string): string {
-  const months = reviewCadenceMonths[reviewCadence] ?? 1;
-  if (!months) return '';
-  return addMonthsToMonthValue(normalizeMonthValue(lastReviewDate), months);
-}
-
-function monthToDateValue(value: string): string {
-  const normalized = normalizeMonthValue(value);
-  return normalized ? `${normalized}-01` : '';
-}
-
-function dateToMonthValue(value: string | null | undefined): string {
-  if (!value) return '';
-  const parsedDate = new Date(value);
-  if (!Number.isNaN(parsedDate.getTime())) {
-    const year = parsedDate.getFullYear();
-    const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
-    return `${year}-${month}`;
-  }
-  return normalizeMonthValue(value.slice(0, 7));
-}
 
 const createSchema = z.object({
   employee_code: z.string().optional(),
@@ -85,9 +34,6 @@ const createSchema = z.object({
   job_level_id: z.string().min(1, 'Job Level is required'),
   manager_id: z.string().optional(),
   employment_status: z.string().optional(),
-  review_cadence: z.string().optional(),
-  last_evaluation_completed_at: z.string().optional().or(z.literal('')),
-  next_review_due_date: z.string().min(1, 'Next Review Date is required'),
 });
 
 const updateSchema = z.object({
@@ -99,9 +45,6 @@ const updateSchema = z.object({
   job_level_id: z.string().min(1, 'Job Level is required'),
   manager_id: z.string().optional(),
   employment_status: z.string().optional(),
-  review_cadence: z.string().optional(),
-  last_evaluation_completed_at: z.string().optional().or(z.literal('')),
-  next_review_due_date: z.string().min(1, 'Next Review Date is required'),
 });
 
 type CreateFormValues = z.infer<typeof createSchema>;
@@ -118,12 +61,12 @@ interface EmployeeFormModalProps {
 export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initialTeamId, onClose }: EmployeeFormModalProps) {
   const isEditMode = employee !== undefined;
   const { isDark } = useTheme();
+  const { t } = useOrganizationTranslation();
+  const queryClient = useQueryClient();
+  const canManageCadence = useCanManageReviewCadence();
   const createMutation = useCreateEmployee();
   const updateMutation = useUpdateEmployee();
-  const isInitializingRef = useRef(false);
 
-  const { data: cadences } = useReviewCadences({ active: true });
-  const employeeCadenceQuery = useEmployeeCadence(employee?.id);
   const updateCadenceOverrideMutation = useUpdateEmployeeCadenceOverride();
   const [cadenceOverrideId, setCadenceOverrideId] = useState<string>(employee?.reviewCadenceOverrideId || '');
   const [cadenceOverrideReason, setCadenceOverrideReason] = useState<string>('');
@@ -139,6 +82,12 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
     updateCadenceOverrideMutation.isPending;
   const mutationError =
     createMutation.error ?? updateMutation.error ?? updateCadenceOverrideMutation.error;
+  const mutationApiError = mutationError instanceof ApiClientError ? mutationError : null;
+  const isVersionConflict = mutationApiError?.statusCode === 409;
+
+  const handleReloadLatest = () => {
+    void queryClient.invalidateQueries({ queryKey: organizationKeys.employees.all });
+  };
 
   const isDeptLocked = !isEditMode && !!initialDepartmentId;
   const isTeamLocked = !isEditMode && !!initialTeamId;
@@ -163,9 +112,6 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
           job_level_id: employee.jobLevelId,
           manager_id: employee.managerId || '',
           employment_status: employee.employmentStatus,
-          review_cadence: employee.reviewCadence || '',
-          last_evaluation_completed_at: dateToMonthValue(employee.lastEvaluationCompletedAt),
-          next_review_due_date: dateToMonthValue(employee.nextReviewDueDate),
         }
       : {
           employee_code: '',
@@ -177,9 +123,6 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
           job_level_id: '',
           manager_id: '',
           employment_status: 'ACTIVE',
-          review_cadence: '',
-          last_evaluation_completed_at: '',
-          next_review_due_date: '',
         },
   });
 
@@ -188,7 +131,6 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
       setCadenceOverrideId(employee?.reviewCadenceOverrideId || '');
       setCadenceOverrideReason('');
       updateCadenceOverrideMutation.reset();
-      isInitializingRef.current = true;
       reset(
         employee
           ? {
@@ -200,9 +142,6 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
               job_level_id: employee.jobLevelId,
               manager_id: employee.managerId || '',
               employment_status: employee.employmentStatus,
-              review_cadence: employee.reviewCadence || '',
-              last_evaluation_completed_at: dateToMonthValue(employee.lastEvaluationCompletedAt),
-              next_review_due_date: dateToMonthValue(employee.nextReviewDueDate),
             }
           : {
               employee_code: '',
@@ -214,33 +153,15 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
               job_level_id: '',
               manager_id: '',
               employment_status: 'ACTIVE',
-              review_cadence: '',
-              last_evaluation_completed_at: '',
-              next_review_due_date: '',
             },
       );
       createMutation.reset();
       updateMutation.reset();
-      queueMicrotask(() => {
-        isInitializingRef.current = false;
-      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, employee?.id, initialDepartmentId, initialTeamId]);
 
   const selectedDeptId = watch('department_id');
-  const selectedCadence = watch('review_cadence');
-  const selectedLastReviewDate = watch('last_evaluation_completed_at');
-
-  useEffect(() => {
-    if (isInitializingRef.current) return;
-    if (!selectedLastReviewDate) return;
-    const nextReviewDate = calculateNextReviewDate(selectedLastReviewDate, selectedCadence || '');
-    if (nextReviewDate) {
-      setValue('next_review_due_date', nextReviewDate, { shouldValidate: true, shouldDirty: true });
-    }
-  }, [selectedLastReviewDate, selectedCadence, setValue]);
-  
   const filteredDepartments = departments?.filter(d => d.isActive || d.id === employee?.departmentId) ?? [];
   const filteredTeams = teams?.filter(t => t.isActive || t.id === employee?.teamId) ?? [];
   const filteredRoles = roles?.filter(r => r.isActive || r.id === employee?.roleId) ?? [];
@@ -253,16 +174,13 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
   if (!isOpen) return null;
 
   const onSubmit = handleSubmit(async (values) => {
+    if (isPending) return;
     try {
-      const normalizedValues = {
-        ...values,
-        last_evaluation_completed_at: monthToDateValue(values.last_evaluation_completed_at || ''),
-        next_review_due_date: monthToDateValue(values.next_review_due_date || ''),
-      };
-
+      // Review schedule fields (last/next review dates, legacy cadence) are owned by the backend
+      // and are never sent from this form.
       if (isEditMode) {
-        await updateMutation.mutateAsync({ id: employee.id, data: normalizedValues as UpdateFormValues });
-        if (cadenceOverrideId !== (employee.reviewCadenceOverrideId || '')) {
+        await updateMutation.mutateAsync({ id: employee.id, data: values as UpdateFormValues });
+        if (canManageCadence && cadenceOverrideId !== (employee.reviewCadenceOverrideId || '')) {
           await updateCadenceOverrideMutation.mutateAsync({
             employeeId: employee.id,
             reviewCadenceOverrideId: cadenceOverrideId || null,
@@ -271,8 +189,8 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
         }
       } else {
         await createMutation.mutateAsync({
-          ...(normalizedValues as CreateFormValues),
-          review_cadence_override_id: cadenceOverrideId || null,
+          ...(values as CreateFormValues),
+          ...(canManageCadence ? { review_cadence_override_id: cadenceOverrideId || null } : {}),
         });
       }
       onClose();
@@ -321,7 +239,24 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
           {isEditMode ? 'Edit Employee' : 'Add Employee'}
         </h2>
 
-        {mutationError && <ErrorAlert error={mutationError} />}
+        {mutationError && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem', marginBottom: '0.75rem' }}>
+            <ErrorAlert error={mutationError} />
+            {mutationApiError?.code && (
+              <span data-testid="employee-form-error-code" style={{ fontSize: '0.75rem', color: isDark ? '#fca5a5' : '#b91c1c' }}>
+                {t('error_code_label', 'Error code')}: {mutationApiError.code}
+              </span>
+            )}
+            {isVersionConflict && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.8125rem' }}>
+                <span>{t('error_version_conflict_hint', 'This employee was changed by someone else. Reload the latest data and try again.')}</span>
+                <Button variant="outlined" size="sm" onClick={handleReloadLatest} disabled={isPending}>
+                  {t('btn_reload_latest', 'Reload latest data')}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
 
         <form onSubmit={onSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {!isEditMode && (
@@ -421,53 +356,22 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
               </select>
             </div>
 
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-                <label htmlFor="emp-cadence-override" style={{ fontWeight: 500, fontSize: '0.875rem' }}>
-                  Review Cadence Override
-                </label>
-                {employeeCadenceQuery.data?.effectiveCadence && (
-                  <span
-                    style={{
-                      fontSize: '0.75rem',
-                      padding: '0.125rem 0.375rem',
-                      borderRadius: '4px',
-                      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#e0f2fe',
-                      color: isDark ? '#93c5fd' : '#0369a1',
-                      fontWeight: 500,
-                    }}
-                  >
-                    Hiệu lực: {employeeCadenceQuery.data.effectiveCadence.name} ({employeeCadenceQuery.data.effectiveCadence.interval_months}m)
-                  </span>
-                )}
-              </div>
-              <select
-                id="emp-cadence-override"
+            {isEditMode && employee ? (
+              <EmployeeReviewSchedulePanel
+                employee={employee}
+                overrideValue={cadenceOverrideId}
+                onOverrideChange={setCadenceOverrideId}
+                isOverrideDisabled={isPending}
+              />
+            ) : (
+              <ReviewCadenceOverrideSelect
                 value={cadenceOverrideId}
-                onChange={(e) => setCadenceOverrideId(e.target.value)}
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  padding: '0.5rem',
-                  border: `1px solid ${isDark ? '#475569' : '#d1d5db'}`,
-                  borderRadius: '4px',
-                  backgroundColor: isDark ? '#0f172a' : '#ffffff',
-                  color: isDark ? '#f8fafc' : '#111827',
-                }}
-              >
-                <option value="">-- Kế thừa từ Job Level / Mặc định hệ thống --</option>
-                {cadences?.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.intervalMonths} tháng){c.isSystemDefault ? ' [Mặc định hệ thống]' : ''}
-                  </option>
-                ))}
-              </select>
-              <span style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#6b7280', marginTop: '0.25rem', display: 'block' }}>
-                Thiết lập chu kỳ gán riêng cho nhân viên nếu khác chu kỳ chuẩn của Job Level.
-              </span>
-            </div>
+                onChange={setCadenceOverrideId}
+                isDisabled={isPending}
+              />
+            )}
 
-            {isEditMode && cadenceOverrideId !== (employee?.reviewCadenceOverrideId || '') && (
+            {isEditMode && canManageCadence && cadenceOverrideId !== (employee?.reviewCadenceOverrideId || '') && (
               <div style={{ gridColumn: 'span 2' }}>
                 <label
                   htmlFor="emp-cadence-reason"
@@ -500,56 +404,6 @@ export function EmployeeFormModal({ isOpen, employee, initialDepartmentId, initi
                 />
               </div>
             )}
-
-            <div>
-              <label htmlFor="emp-last-review-date" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
-                Last Review Date
-              </label>
-              <input
-                id="emp-last-review-date"
-                type="text"
-                inputMode="numeric"
-                placeholder="YYYY-MM"
-                {...register('last_evaluation_completed_at')}
-                style={{ display: 'block', width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
-                onBlur={(event) => {
-                  const value = formatMonthHint(event.target.value);
-                  if (value) {
-                    setValue('last_evaluation_completed_at', value, { shouldValidate: true, shouldDirty: true });
-                  }
-                }}
-              />
-              {errors.last_evaluation_completed_at && (
-                <span role="alert" style={{ color: '#dc2626', fontSize: '0.875rem', marginTop: '0.25rem', display: 'block' }}>
-                  {errors.last_evaluation_completed_at.message}
-                </span>
-              )}
-            </div>
-
-            <div>
-              <label htmlFor="emp-next-review-date" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
-                Next Review Date *
-              </label>
-              <input
-                id="emp-next-review-date"
-                type="text"
-                inputMode="numeric"
-                placeholder="YYYY-MM"
-                {...register('next_review_due_date')}
-                style={{ display: 'block', width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
-                onBlur={(event) => {
-                  const value = formatMonthHint(event.target.value);
-                  if (value) {
-                    setValue('next_review_due_date', value, { shouldValidate: true, shouldDirty: true });
-                  }
-                }}
-              />
-              {errors.next_review_due_date && (
-                <span role="alert" style={{ color: '#dc2626', fontSize: '0.875rem', marginTop: '0.25rem', display: 'block' }}>
-                  {errors.next_review_due_date.message}
-                </span>
-              )}
-            </div>
 
             {!isDeptLocked ? (
               <div>
