@@ -11,9 +11,14 @@ import {
   AlertCircle,
   ArrowRight,
   Layers,
+  Globe,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useAuth } from '../../../shared/auth/auth-context';
 import { ApiClientError } from '../../../shared/api/api-client';
+import { useTheme } from '../../../shared/theme';
+import { useUiTranslation } from '../../../shared/i18n/ui-i18n';
 import './LoginPage.css';
 
 const loginSchema = z.object({
@@ -25,6 +30,8 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 export function LoginPage() {
   const { login, loginWithGoogle } = useAuth();
+  const { isDark, toggleTheme } = useTheme();
+  const { t, locale, changeLocale } = useUiTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname ?? '/';
@@ -62,9 +69,9 @@ export function LoginPage() {
       navigate(target, { replace: true });
     } catch (err) {
       if (err instanceof ApiClientError && err.statusCode === 401) {
-        setError('root', { message: err.message || 'Tài khoản hoặc mật khẩu không chính xác.' });
+        setError('root', { message: err.message || t('login.invalid_credentials', 'Tài khoản hoặc mật khẩu không chính xác.') });
       } else {
-        setError('root', { message: 'Không thể kết nối đến máy chủ hoặc đã xảy ra lỗi. Vui lòng thử lại.' });
+        setError('root', { message: t('login.network_error', 'Không thể kết nối đến máy chủ hoặc đã xảy ra lỗi. Vui lòng thử lại.') });
       }
     }
   });
@@ -72,7 +79,7 @@ export function LoginPage() {
   const handleGoogleSignIn = async () => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     if (!clientId) {
-      setError('root', { message: 'Đăng nhập Google chưa được cấu hình (thiếu VITE_GOOGLE_CLIENT_ID).' });
+      setError('root', { message: t('login.google_unconfigured', 'Đăng nhập Google chưa được cấu hình (thiếu VITE_GOOGLE_CLIENT_ID).') });
       return;
     }
     if (!window.google) {
@@ -106,6 +113,33 @@ export function LoginPage() {
 
   return (
     <main className="login-centered-page">
+      {/* Top right toolbar with language & theme toggles */}
+      <div className="login-top-toolbar">
+        <div className="login-toolbar-pill">
+          <Globe size={15} color={isDark ? '#94a3b8' : '#64748b'} />
+          <select
+            value={locale}
+            onChange={(e) => changeLocale(e.target.value as 'en' | 'vi')}
+            aria-label="Select interface language"
+            className="login-lang-select"
+          >
+            <option value="vi">VI - Tiếng Việt</option>
+            <option value="en">EN - English</option>
+          </select>
+        </div>
+
+        <div className="login-toolbar-pill">
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+            className="login-theme-btn"
+          >
+            {isDark ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+        </div>
+      </div>
+
       {/* Ambient background glows */}
       <div className="login-ambient-glow-top" />
       <div className="login-ambient-glow-bottom" />
@@ -117,10 +151,10 @@ export function LoginPage() {
           <div className="login-logo-badge">
             <Layers size={28} color="#FFFFFF" />
           </div>
-          <span className="login-brand-tag">CyberLogitec Vietnam</span>
-          <h1 className="login-card-title">KPI Performance System</h1>
+          <span className="login-brand-tag">{t('login.brand', 'CyberLogitec Vietnam')}</span>
+          <h1 className="login-card-title">{t('login.title', 'KPI Performance System')}</h1>
           <p className="login-card-subtitle">
-            Đăng nhập để truy cập chu kỳ đánh giá và bảng chỉ số của bạn
+            {t('login.subtitle', 'Đăng nhập để truy cập chu kỳ đánh giá và bảng chỉ số của bạn')}
           </p>
         </div>
 
@@ -132,12 +166,12 @@ export function LoginPage() {
               display: 'flex',
               alignItems: 'flex-start',
               gap: '10px',
-              backgroundColor: '#FEF2F2',
-              border: '1px solid #FEE2E2',
+              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2',
+              border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.3)' : '#FEE2E2'}`,
               borderRadius: '12px',
               padding: '12px 14px',
               marginBottom: '1.5rem',
-              color: '#B91C1C',
+              color: isDark ? '#fca5a5' : '#B91C1C',
               fontSize: '0.875rem',
               lineHeight: '1.4',
             }}
@@ -151,8 +185,8 @@ export function LoginPage() {
         <form onSubmit={onSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {/* Email field */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label htmlFor="login-email" style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1E293B' }}>
-              Email
+            <label htmlFor="login-email" className="login-field-label">
+              {t('login.email_label', 'Email')}
             </label>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <Mail size={18} color="#94A3B8" style={{ position: 'absolute', left: '14px', pointerEvents: 'none' }} />
@@ -160,7 +194,7 @@ export function LoginPage() {
                 id="login-email"
                 type="text"
                 aria-required="true"
-                placeholder="VD: ky.luong@cyberlogitec.com"
+                placeholder={t('login.email_placeholder', 'VD: ky.luong@cyberlogitec.com')}
                 aria-describedby={errors.email ? 'login-email-error' : undefined}
                 autoComplete="username"
                 {...register('email')}
@@ -172,15 +206,15 @@ export function LoginPage() {
             </div>
             {errors.email && (
               <span id="login-email-error" role="alert" style={{ fontSize: '0.8125rem', color: '#DC2626', marginTop: '2px' }}>
-                {errors.email.message}
+                {t('login.email_req', errors.email.message || 'Email is required')}
               </span>
             )}
           </div>
 
           {/* Password field */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label htmlFor="login-password" style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1E293B' }}>
-              Mật khẩu
+            <label htmlFor="login-password" className="login-field-label">
+              {t('login.password_label', 'Password')}
             </label>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <Lock size={18} color="#94A3B8" style={{ position: 'absolute', left: '14px', pointerEvents: 'none' }} />
@@ -188,7 +222,7 @@ export function LoginPage() {
                 id="login-password"
                 type={showPassword ? 'text' : 'password'}
                 aria-required="true"
-                placeholder="Nhập mật khẩu"
+                placeholder={t('login.password_placeholder', 'Enter your password')}
                 aria-describedby={errors.password ? 'login-password-error' : undefined}
                 autoComplete="current-password"
                 {...register('password')}
@@ -202,7 +236,7 @@ export function LoginPage() {
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 tabIndex={-1}
-                aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
                 style={{
                   position: 'absolute',
                   right: '12px',
@@ -220,7 +254,7 @@ export function LoginPage() {
             </div>
             {errors.password && (
               <span id="login-password-error" role="alert" style={{ fontSize: '0.8125rem', color: '#DC2626', marginTop: '2px' }}>
-                {errors.password.message}
+                {t('login.password_req', errors.password.message || 'Password is required')}
               </span>
             )}
           </div>
@@ -236,15 +270,15 @@ export function LoginPage() {
               marginTop: '0.25rem',
             }}
           >
-            <span>{isSubmitting ? 'Đang xác thực...' : 'Đăng nhập vào hệ thống'}</span>
+            <span>{isSubmitting ? t('login.submitting', 'Authenticating...') : t('login.submit_btn', 'Login to system')}</span>
             {!isSubmitting && <ArrowRight size={18} />}
           </button>
 
           {/* Divider */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '4px 0' }}>
-            <div style={{ flex: 1, height: '1px', backgroundColor: '#E2E8F0' }} />
-            <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#94A3B8', letterSpacing: '0.05em' }}>HOẶC</span>
-            <div style={{ flex: 1, height: '1px', backgroundColor: '#E2E8F0' }} />
+            <div className="login-divider-line" />
+            <span className="login-divider-text">{t('login.or_continue', 'OR')}</span>
+            <div className="login-divider-line" />
           </div>
 
           {/* Google SSO Button */}
@@ -271,7 +305,7 @@ export function LoginPage() {
                 d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
               />
             </svg>
-            <span>Đăng nhập qua Google công ty</span>
+            <span>{t('login.google_btn', 'Login with Google Company Workspace')}</span>
           </button>
         </form>
       </div>
@@ -279,12 +313,13 @@ export function LoginPage() {
       {/* Centered Page Footer */}
       <footer className="login-page-footer">
         <p style={{ margin: 0, fontSize: '0.8125rem', color: '#64748B' }}>
-          Được bảo mật & tuân thủ chính sách bảo mật CyberLogitec
+          {t('login.footer_security', 'Secured by Google Workspace & Compliant with CyberLogitec Security Policy')}
         </p>
         <p style={{ margin: 0, fontSize: '0.75rem', color: '#94A3B8' }}>
-          © 2026 CyberLogitec Vietnam. All rights reserved.
+          {t('login.footer_copyright', '© 2026 CyberLogitec Vietnam. All rights reserved.')}
         </p>
       </footer>
     </main>
   );
 }
+

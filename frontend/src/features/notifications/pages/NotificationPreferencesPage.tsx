@@ -101,7 +101,7 @@ export function NotificationPreferencesPage() {
   }
 
   return (
-    <div style={{ margin: '1.5rem auto', padding: 'clamp(1rem, 2vw, 2rem)', width: '100%', boxSizing: 'border-box' }}>
+    <div style={{ padding: 'clamp(1rem, 2vw, 2rem)', width: '100%', boxSizing: 'border-box' }}>
       <div
         style={{
           display: 'flex',

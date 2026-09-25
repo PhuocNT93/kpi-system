@@ -146,22 +146,21 @@ export const NotificationBell: React.FC = () => {
           width: '38px',
           height: '38px',
           borderRadius: RADII.lg,
-          border: `1px solid ${
-            hoveredToggle || isOpen
+          border: `1px solid ${hoveredToggle || isOpen
               ? isDark
                 ? '#4B5563'
                 : '#CBD5E1'
               : isDark
-              ? '#374151'
-              : '#E2E8F0'
-          }`,
+                ? '#374151'
+                : '#E2E8F0'
+            }`,
           backgroundColor: isDark
             ? hoveredToggle || isOpen
               ? '#374151'
               : '#1F2937'
             : hoveredToggle || isOpen
-            ? '#F1F5F9'
-            : '#FFFFFF',
+              ? '#F1F5F9'
+              : '#FFFFFF',
           color: isDark ? '#E5E7EB' : '#475569',
           display: 'flex',
           alignItems: 'center',
@@ -392,8 +391,8 @@ export const NotificationBell: React.FC = () => {
                       backgroundColor: isRead
                         ? 'transparent'
                         : isDark
-                        ? 'rgba(59, 130, 246, 0.08)'
-                        : 'rgba(59, 130, 246, 0.04)',
+                          ? 'rgba(59, 130, 246, 0.08)'
+                          : 'rgba(59, 130, 246, 0.04)',
                       display: 'flex',
                       alignItems: 'flex-start',
                       gap: '12px',
@@ -410,8 +409,8 @@ export const NotificationBell: React.FC = () => {
                       e.currentTarget.style.backgroundColor = isRead
                         ? 'transparent'
                         : isDark
-                        ? 'rgba(59, 130, 246, 0.08)'
-                        : 'rgba(59, 130, 246, 0.04)';
+                          ? 'rgba(59, 130, 246, 0.08)'
+                          : 'rgba(59, 130, 246, 0.04)';
                     }}
                   >
                     {/* Unread indicator dot */}

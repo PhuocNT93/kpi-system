@@ -49,7 +49,8 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
         justifyContent: 'space-between',
         alignItems: 'center',
         gap: '16px',
-        marginBottom: '24px',
+        marginTop: '16px',
+        marginBottom: '16px',
         paddingBottom: '20px',
         borderBottom: `1px solid ${isDark ? '#374151' : COLORS.neutral[200]}`,
       }}

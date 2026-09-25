@@ -59,6 +59,7 @@ import { RADII, TYPOGRAPHY, ThemeProvider, useTheme } from '@/shared/theme';
 import { LayoutTemplate } from 'lucide-react';
 
 import { useAuth } from './shared/auth/auth-context';
+import { useUiTranslation } from '@/shared/i18n/ui-i18n';
 import { LogOut } from 'lucide-react';
 
 const ADMIN_PAGE_TITLES: Record<string, string> = {
@@ -99,6 +100,7 @@ function ProtectedLayout() {
   const location = useLocation();
   const { user, logout } = useAuth();
   const { isDark } = useTheme();
+  const { t } = useUiTranslation();
 
   // Extract active menu from URL
   const pathParts = location.pathname.split('/');
@@ -109,7 +111,8 @@ function ProtectedLayout() {
     : pathParts.includes('ingestion') || pathParts.includes('collectors') || pathParts.includes('imports') || pathParts.includes('evaluation-data-imports')
     ? 'ingestion'
     : pathParts.length > 2 ? pathParts[2] : 'dashboard';
-  const pageTitle = ADMIN_PAGE_TITLES[activeMenu] ?? 'System Layout';
+  const defaultPageTitle = ADMIN_PAGE_TITLES[activeMenu] ?? 'System Layout';
+  const pageTitle = t(`title.${activeMenu.replace(/-/g, '_')}`, defaultPageTitle);
 
   const headerActions = (
     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -139,8 +142,8 @@ function ProtectedLayout() {
       <button
         type="button"
         onClick={logout}
-        title="Log out"
-        aria-label="Log out"
+        title={t('common.logout', 'Log out')}
+        aria-label={t('common.logout', 'Log out')}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -157,7 +160,7 @@ function ProtectedLayout() {
         }}
       >
         <LogOut size={16} />
-        <span className="hide-on-mobile">Log out</span>
+        <span className="hide-on-mobile">{t('common.logout', 'Log out')}</span>
       </button>
     </div>
   );

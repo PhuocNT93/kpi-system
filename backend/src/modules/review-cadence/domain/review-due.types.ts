@@ -15,18 +15,26 @@ export interface ReviewDueEffectiveCadence {
   code: string;
   name: string;
   interval_months: number;
+  source?: 'EMPLOYEE_OVERRIDE' | 'JOB_LEVEL' | 'SYSTEM_DEFAULT';
 }
 
 export interface ReviewDueItem {
   employee_id: string;
+  employee_code?: string;
   employee_name: string;
+  full_name?: string;
   team: ReviewDueTeam;
+  team_id?: string | null;
+  team_name?: string | null;
   job_level: ReviewDueJobLevel;
+  job_level_id?: string | null;
+  job_level_name?: string | null;
   effective_cadence: ReviewDueEffectiveCadence | null;
   last_evaluation_completed_at: string | null;
   next_review_due_date: string | null;
   status: ReviewDueStatus;
   days_overdue: number;
+  days_until_due?: number | null;
 }
 
 export interface ReviewDueQueryFilters {

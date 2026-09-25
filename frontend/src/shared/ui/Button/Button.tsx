@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { COLORS } from '@/lib/theme';
-import { RADII, TYPOGRAPHY } from '@/shared/theme';
+import { RADII, TYPOGRAPHY, useTheme } from '@/shared/theme';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'inverted' | 'outlined';
 export type ButtonSize = 'sm' | 'md' | 'lg';
@@ -24,6 +24,7 @@ export const Button: React.FC<ButtonProps> = ({
   ...rest
 }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const { isDark } = useTheme();
 
   const getVariantStyles = (): React.CSSProperties => {
     switch (variant) {
@@ -36,22 +37,30 @@ export const Button: React.FC<ButtonProps> = ({
         };
       case 'secondary':
         return {
-          backgroundColor: isHovered && !disabled ? COLORS.neutral[200] : COLORS.neutral[100],
-          color: COLORS.neutral.textPrimary,
-          border: '1px solid transparent'
+          backgroundColor: isHovered && !disabled
+            ? (isDark ? '#334155' : COLORS.neutral[200])
+            : (isDark ? '#1e293b' : COLORS.neutral[100]),
+          color: isDark ? '#f8fafc' : COLORS.neutral.textPrimary,
+          border: isDark ? '1px solid #334155' : '1px solid transparent'
         };
       case 'inverted':
         return {
-          backgroundColor: isHovered && !disabled ? COLORS.tertiary[800] : COLORS.tertiary[900],
-          color: COLORS.tertiary.foreground,
+          backgroundColor: isHovered && !disabled
+            ? (isDark ? '#e2e8f0' : COLORS.tertiary[800])
+            : (isDark ? '#f8fafc' : COLORS.tertiary[900]),
+          color: isDark ? '#0f172a' : COLORS.tertiary.foreground,
           border: '1px solid transparent',
-          boxShadow: isHovered && !disabled ? '0 4px 12px rgba(15, 23, 42, 0.25)' : 'none'
+          boxShadow: isHovered && !disabled
+            ? (isDark ? '0 4px 12px rgba(255, 255, 255, 0.15)' : '0 4px 12px rgba(15, 23, 42, 0.25)')
+            : 'none'
         };
       case 'outlined':
         return {
-          backgroundColor: isHovered && !disabled ? COLORS.neutral[100] : 'transparent',
-          color: COLORS.neutral.textPrimary,
-          border: `1.5px solid ${COLORS.neutral.border}`
+          backgroundColor: isHovered && !disabled
+            ? (isDark ? 'rgba(255, 255, 255, 0.08)' : COLORS.neutral[100])
+            : 'transparent',
+          color: isDark ? '#f8fafc' : COLORS.neutral.textPrimary,
+          border: `1.5px solid ${isDark ? '#475569' : COLORS.neutral.border}`
         };
     }
   };

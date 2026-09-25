@@ -1,786 +1,872 @@
 # Hệ thống Quản lý Đánh giá Hiệu suất Nhân viên
-# Hướng dẫn sử dụng
+## Hướng dẫn sử dụng chi tiết
+
+---
 
 ## 1. Giới thiệu
 
 ### 1.1 Mục đích
-
-Tài liệu này hướng dẫn cách sử dụng Hệ thống Quản lý Đánh giá Hiệu suất Nhân viên (Employee Performance Evaluation Management System) trên giao diện web thực tế của hệ thống. Nội dung mô tả đúng những gì người dùng nhìn thấy và có thể thao tác trên màn hình: menu nào đang có, nút nào bấm được, cần nhập/chọn gì, hệ thống phản hồi ra sao.
-
-Tài liệu **không** mô tả kiến trúc kỹ thuật, API, cơ sở dữ liệu hay mã nguồn.
+Tài liệu này hướng dẫn toàn diện cách sử dụng Hệ thống Quản lý Đánh giá Hiệu suất Nhân viên (Employee Performance Evaluation Management System) trên giao diện web thực tế. Nội dung mô tả chính xác những gì người dùng nhìn thấy và có thể thao tác: menu điều hướng, các nút chức năng, trường nhập liệu, quy tắc nghiệp vụ và phản hồi của hệ thống.
 
 ### 1.2 Đối tượng sử dụng
+- **Employee (Nhân viên):** Thực hiện tự đánh giá năng lực và hiệu suất cá nhân (Self-assessment), theo dõi hạn đánh giá định kỳ và xem kết quả sau khi được công bố.
+- **Manager (Quản lý):** Đánh giá hiệu suất nhân viên trực thuộc nhóm, nhận xét tiêu chí, phê duyệt (Approve) đánh giá, theo dõi hạn review nhóm và can thiệp ghi đè điểm KPI khi có lý do chính đáng.
+- **HR_ADMIN (Quản trị Nhân sự):** Quản lý cơ cấu tổ chức, chu kỳ review, thư viện tiêu chí, KPI, bộ mẫu đánh giá, điều phối các kỳ đánh giá, chủ trì phiên hiệu chỉnh điểm (Calibration) và công bố kết quả.
+- **SYSTEM_ADMIN (Quản trị Hệ thống):** Toàn quyền quản trị hệ thống, bao gồm phân quyền (IAM), kiểm tra nhật ký kiểm toán bất biến (Audit Log), cấu hình dịch vụ thu thập dữ liệu (Data Ingestion), thông báo email và dịch ngôn ngữ (I18n).
 
-- **Employee** (Nhân viên): thực hiện tự đánh giá hiệu suất theo từng kỳ.
-- **Manager** (Quản lý): đánh giá và duyệt kết quả của nhân viên trong nhóm mình quản lý.
-- **HR/Admin**: cấu hình tiêu chí, bộ mẫu đánh giá, kỳ đánh giá, quản lý tổ chức, nhập dữ liệu CSV, theo dõi nhật ký hệ thống.
-- **System Admin**: có quyền tương tự HR/Admin đối với dữ liệu nghiệp vụ, đồng thời có thể sử dụng các màn hình dành cho Employee (Mục 15 nêu chi tiết khác biệt).
+### 1.3 Cơ chế phân quyền
+Hệ thống có 4 vai trò chính: `EMPLOYEE`, `MANAGER`, `HR_ADMIN`, `SYSTEM_ADMIN`. Quyền hạn được máy chủ kiểm tra nghiêm ngặt tại mọi API endpoint. Giao diện frontend tự động hiển thị các menu tương ứng với vai trò của người dùng. Nếu người dùng cố truy cập đường dẫn trái phép, hệ thống sẽ chặn và hiển thị màn hình **403 — Access Denied**.
 
-### 1.3 Vai trò người dùng
+---
 
-Hệ thống có 4 vai trò: **Employee**, **Manager**, **HR_ADMIN**, **SYSTEM_ADMIN**. Vai trò của một tài khoản được xác định ngay khi đăng nhập và quyết định menu nào hiển thị trên thanh điều hướng bên trái, cũng như trang nào có thể truy cập.
+## 2. Quy trình tổng thể & Vòng đời Đánh giá
 
-> **Lưu ý:** Việc ẩn/hiện menu trên giao diện chỉ nhằm mục đích thuận tiện sử dụng. Việc phân quyền thật sự được máy chủ kiểm soát — nếu bạn cố truy cập một trang không được phép (kể cả qua đường dẫn trực tiếp), hệ thống sẽ hiển thị màn hình **403 — Access Denied**.
-
-## 2. Quy trình tổng thể
-
-### 2.1 Sơ đồ tổng quan
+### 2.1 Sơ đồ quy trình tổng quan
 
 ```mermaid
-flowchart LR
-    A[Đăng nhập] --> B{Vai trò?}
-    B -->|HR/Admin| C[Cấu hình: Tổ chức, Tiêu chí, KPI, Bộ mẫu]
-    C --> D[Tạo & Mở Kỳ đánh giá]
-    D --> E[Employee tự đánh giá]
-    E --> F[Manager đánh giá & duyệt]
-    F --> G{Cấu hình Calibration?}
-    G -->|Có| H[Trạng thái Calibration]
-    G -->|Không| I[Approved - Đã duyệt]
-    H --> I
-    I --> J[Publish - Công bố kết quả]
-    J --> K[Employee xem kết quả đã công bố]
-    K --> L[Lịch sử các kỳ đánh giá]
-    J --> M[Lock - Khóa kỳ đánh giá]
-    D --> N[Import Center: Tải mẫu CSV]
-    N --> O[Nhập dữ liệu qua CSV]
-    O --> P[Xem trước & kiểm tra lỗi]
-    P --> Q[Chọn Partial / Strict Import]
-    Q --> R[Xác nhận nhập liệu]
-    R --> S[Lịch sử nhập liệu]
+flowchart TD
+    A[Đăng nhập hệ thống] --> B{Phân quyền vai trò}
+    
+    B -->|HR/Admin| C[Cấu hình Tổ chức, Tiêu chí, KPI & Bộ mẫu]
+    C --> D[Thiết lập Chu kỳ Đánh giá: Tập trung hoặc Cá nhân]
+    D --> E[Thu thập dữ liệu tự động: Jira & Blueprint]
+    
+    B -->|Employee| F[My Evaluation: Tự đánh giá năng lực & hiệu suất]
+    F --> G[Nộp tự đánh giá - Chuyển chế độ chỉ đọc]
+    
+    B -->|Manager| H[Team Reviews: Đánh giá thành viên & Duyệt kết quả]
+    G --> H
+    E -.->|Gợi ý AI & Dữ liệu| H
+    
+    H --> I{Kỳ đánh giá có Calibration?}
+    I -->|Có| J[HR chủ trì Calibration: Cân đối Bell Curve & Chốt điểm]
+    I -->|Không| K[Trạng thái Đã duyệt - Approved]
+    J --> K
+    
+    K --> L[HR Công bố kết quả - Publish Results]
+    L --> M[Nhân viên xem kết quả chính thức]
+    L --> N[Khóa kết quả vĩnh viễn - Lock Cycle/Evaluation]
 ```
 
-### 2.2 Vòng đời một kỳ đánh giá
-
-Một kỳ đánh giá (Evaluation Cycle) đi qua các trạng thái theo thứ tự sau (chi tiết ý nghĩa từng trạng thái xem Mục 16):
-
+### 2.2 Vòng đời một kỳ đánh giá (Cycle Lifecycle)
+Một kỳ đánh giá tuần tự trải qua các trạng thái:
 `DRAFT` → `OPEN` → `IN_PROGRESS` → `SUBMITTED` → `REVIEWING` → `CALIBRATION` (tùy chọn) → `APPROVED` → `PUBLISHED` → `LOCKED`
 
-Trong khi đó, một bản đánh giá cá nhân (evaluation) của từng nhân viên có trạng thái riêng: **Chưa mở (Draft/Open)** → **Đã nộp / Chờ Manager (Submitted)** → **Đang Review (Manager Review)** → **Đã duyệt (Approved)** → **Đã công bố (Published)** → **Đã khóa (Locked)**.
+### 2.3 Vòng đời một bản đánh giá cá nhân (Evaluation Lifecycle)
+Mỗi bản đánh giá của từng nhân viên trải qua các trạng thái:
+`DRAFT` (Bản nháp) → `IN_PROGRESS` (Đang tự đánh giá) → `SUBMITTED` (Đã nộp, chờ Manager) → `IN_REVIEW` (Manager đang đánh giá) → `CALIBRATION` (Đang hiệu chỉnh) → `APPROVED` (Đã duyệt) → `PUBLISHED` (Đã công bố) → `LOCKED` (Đã khóa bất biến).
 
-### 2.3 Vai trò nào làm gì
+---
 
-| Giai đoạn | Người thực hiện |
+## 3. Đăng nhập & Xác thực (Sign In)
+
+### 3.1 Giao diện đăng nhập hiện đại
+Hệ thống sử dụng giao diện đăng nhập doanh nghiệp (Split-screen Enterprise UI):
+- **Cột trái:** Khung giới thiệu nhận diện thương hiệu hệ thống quản trị hiệu suất.
+- **Cột phải:** Khung đăng nhập tập trung, hỗ trợ hai phương thức xác thực an toàn:
+  1. **Đăng nhập Email & Mật khẩu:** Nhập Email công ty (`@cyberlogitec.com`) và Password, bấm **Sign in**.
+  2. **Đăng nhập Google Workspace:** Bấm **Sign in with company Google account** để xác thực một chạm qua tài khoản Google công ty.
+
+### 3.2 Các thông báo lỗi xác thực
+- **Tài khoản hoặc mật khẩu không chính xác:** "Invalid email or password."
+- **Chưa nhập thông tin bắt buộc:** "Email is required" / "Password is required".
+- **Lỗi tài khoản Google:** "Google sign-in failed. Please ensure your account belongs to @cyberlogitec.com."
+
+---
+
+## 4. Cấu trúc Điều hướng Hệ thống (Sidebar Navigation)
+
+Thanh menu điều hướng bên trái được tổ chức thành 4 nhóm nghiệp vụ chính:
+
+| Nhóm | Menu item | Đối tượng sử dụng | Mô tả chức năng |
+|---|---|---|---|
+| **Overview** | **Dashboard** | Tất cả vai trò | Bảng điều khiển phân quyền theo vai trò (Employee / Manager / HR). |
+| | **User Guide** | Tất cả vai trò | Xem tài liệu hướng dẫn sử dụng song ngữ (VI / EN). |
+| | **Email Notifications** | Tất cả vai trò | Tùy chọn bật/tắt nhận email thông báo cá nhân. |
+| **Performance** | **Employee Search** | Tất cả vai trò | Tra cứu danh bạ nhân sự, xem tóm tắt KPI và trạng thái. |
+| | **Team Reviews** | Manager, HR, Admin | Xem danh sách đánh giá của nhóm, chấm điểm và duyệt kết quả. |
+| | **Team Review Due** | Manager | Cảnh báo hạn đánh giá định kỳ của các thành viên trong nhóm. |
+| | **My Evaluation** | Employee, Manager, Admin | Thực hiện tự đánh giá cá nhân và xem kết quả công bố. |
+| **Reporting** | **Performance Reports** | Tất cả vai trò (theo scope) | Báo cáo hiệu suất hợp nhất, phổ điểm và tiến độ theo kỳ đánh giá. |
+| **Configuration** | **Individual Evaluation** | Manager, HR, Admin | Khởi tạo chu kỳ đánh giá riêng lẻ cho từng nhân sự. |
+| | **Organization** | HR, Admin | Quản lý Phòng ban, Nhóm, Nhân viên, Chức danh, Cấp bậc. |
+| | **Evaluation Cycles** | HR, Admin | Quản lý và vận hành kỳ đánh giá tập trung toàn công ty. |
+| | **Review Due** | HR, Admin | Bảng tổng hợp theo dõi hạn review của toàn bộ nhân viên. |
+| | **Review Cadences** | HR, Admin | Cấu hình các loại chu kỳ đánh giá định kỳ (1, 3, 6, 12 tháng). |
+| | **Calibration** | HR_ADMIN | Quản lý phiên hiệu chỉnh điểm số hội đồng theo đường cong Bell Curve. |
+| | **Criteria & Rules** | HR, Admin | Thư viện tiêu chí và quy tắc chấm điểm. |
+| | **KPI Library** | HR, Admin | Thư viện chỉ số KPI và sơ đồ quan hệ phụ thuộc. |
+| | **Template Builder** | HR, Admin | Xây dựng bộ mẫu đánh giá, cân bằng trọng số 100%, phát hành bất biến. |
+| | **Data Ingestion Hub** | HR, Admin | Trung tâm thu thập dữ liệu Jira/Blueprint, AI Evaluator, nhập CSV. |
+| | **I18n Translation** | HR, Admin | Quản lý bản dịch đa ngôn ngữ cho hệ thống. |
+| | **Email Templates** | HR, Admin | Quản lý các mẫu email thông báo tự động. |
+| | **Email Delivery Logs** | HR, Admin | Tra cứu nhật ký gửi email hệ thống. |
+| | **Identity & Access** | HR, Admin | Quản trị người dùng, vai trò và phân quyền (IAM). |
+| | **Audit Log** | HR, Admin | Nhật ký kiểm toán bất biến ghi lại mọi thay đổi trọng yếu. |
+
+---
+
+## 5. Bảng điều khiển Tổng quan (Dashboard)
+
+Giao diện Dashboard tự động điều chỉnh theo vai trò của người dùng đang đăng nhập:
+- **Employee View:** Hiển thị thẻ tóm tắt tiến độ tự đánh giá hiện tại, cảnh báo số ngày còn lại đến hạn nộp, điểm số chính thức của các kỳ trước và biểu đồ xu hướng.
+- **Manager View:** Tổng hợp tiến độ hoàn thành đánh giá của các thành viên trong nhóm, số lượng đánh giá cần duyệt (**Ready for Review**), cảnh báo nhân sự sắp đến hạn review theo chu kỳ.
+- **HR/Admin View:** Thống kê toàn cảnh tỷ lệ hoàn thành đánh giá trên toàn công ty, trạng thái các kỳ đánh giá đang mở, phân bổ điểm trung bình giữa các phòng ban.
+
+---
+
+## 6. Đánh giá của tôi (My Evaluation) — Dành cho Employee
+
+### 6.1 Tổng quan màn hình
+- **Thẻ Kỳ đánh giá hiện tại:** Tên kỳ, thời gian bắt đầu/kết thúc, badge trạng thái, thanh tiến độ số lượng tiêu chí đã hoàn thành và nút thao tác chính.
+- **Lịch sử các kỳ đánh giá:** Bảng tổng hợp các kỳ trước gồm tên kỳ, khoảng thời gian, trạng thái và điểm chính thức (**Final Score**).
+
+### 6.2 Các bước thực hiện tự đánh giá
+1. Bấm **Bắt đầu tự đánh giá** (nếu mới mở) hoặc **Tiếp tục đánh giá** (nếu đã lưu dở).
+2. Với từng tiêu chí:
+   - Chọn mức độ tự đánh giá (Rating Level) từ thang điểm được định nghĩa.
+   - Nhập **Ý kiến / Dẫn chứng tự đánh giá** (Self-assessment Comments): trình bày kết quả đạt được, dữ liệu thực tế chứng minh cho mức điểm đã chọn.
+3. Bấm **Lưu mục này** để lưu từng tiêu chí, hoặc bấm **Lưu nháp (Draft)** ở cuối trang để lưu toàn bộ phiếu đánh giá.
+4. Khi đã hoàn thành tất cả tiêu chí bắt buộc, bấm **Nộp tự đánh giá**.
+5. Hộp thoại xác nhận sẽ xuất hiện:
+   - Nếu còn tiêu chí bị bỏ sót: Hệ thống liệt kê chi tiết các tiêu chí chưa hoàn thành và chặn không cho nộp.
+   - Nếu đã đầy đủ: Cảnh báo *"Nộp tự đánh giá là bước workflow chính thức. Sau khi nộp, phiếu sẽ chuyển sang trạng thái Chờ Quản lý (Submitted) và chuyển sang chế độ Chỉ đọc."*
+   - Bấm **Xác nhận nộp** để hoàn tất.
+
+### 6.3 Xem kết quả đã công bố (Published Final Score)
+Khi kỳ đánh giá được Quản lý duyệt và HR công bố kết quả:
+- Phiếu chuyển sang trạng thái **Published**.
+- Hiển thị bảng tổng hợp so sánh: **Điểm Tự Đánh Giá (Self Score)**, **Điểm Quản Lý Đánh Giá (Manager Score)** và **Điểm Chính Thức (Final Score)** kèm nhận xét chi tiết của cấp trên.
+
+---
+
+## 7. Đánh giá Nhóm (Team Reviews) — Dành cho Manager
+
+### 7.1 Danh sách đánh giá nhóm
+Trang hiển thị danh sách nhân viên trực thuộc nhóm do bạn quản lý:
+- Bộ lọc theo trạng thái: **All Statuses**, **Ready for Review** (Đã nộp, sẵn sàng chấm), **In Progress** (Nhân viên đang tự đánh giá), **Approved** (Đã duyệt).
+- Nhấp vào thẻ nhân viên có badge **Ready for Review** để mở giao diện chấm điểm.
+
+### 7.2 Thao tác chấm điểm & Duyệt
+1. Xem thông tin tự đánh giá và dẫn chứng của nhân viên ở cột bên trái.
+2. Với từng tiêu chí ở cột Quản lý:
+   - Chọn mức đánh giá của Quản lý (**Manager Rating**).
+   - Nhập nhận xét đánh giá (**Manager Comments**).
+3. Bấm **Lưu thay đổi (Draft)** để lưu tạm thời tiến độ.
+4. Bấm **Duyệt đánh giá (Approve)** khi đã hoàn tất mọi tiêu chí. Hộp thoại xác nhận yêu cầu quản lý cam kết tính khách quan trước khi chốt kết quả chuyển lên cấp HR.
+
+### 7.3 Ghi đè điểm cấp độ KPI (KPI-Level Manual Override)
+Khi phát hiện điểm số tính toán tự động chưa phản ánh đúng tình hình thực tế:
+- Quản lý/HR bấm nút **Override Score** trên tiêu chí KPI tương ứng.
+- Nhập **Điểm mới (New Score: 0 - 100)**.
+- Bắt buộc nhập **Lý do giải trình (Rationale)** và **Bằng chứng đính kèm (Evidence)**.
+- Thao tác này được hệ thống ghi nhận nguyên tử vào **Audit Log** để phục vụ kiểm toán nội bộ.
+
+---
+
+## 8. Tra cứu Nhân sự (Employee Search & Directory)
+
+- Cho phép tìm kiếm nhanh nhân sự theo Họ tên, Mã nhân viên (`Employee Code`), Phòng ban hoặc Chức danh.
+- Hiển thị thẻ tóm tắt nhân sự: hình đại diện, email công ty, phòng ban, nhóm làm việc, chức vụ, chu kỳ đánh giá định kỳ (`Review Cadence`), và điểm số đánh giá kỳ gần nhất.
+
+---
+
+## 9. Theo dõi Hạn Đánh giá & Chu kỳ Review (Review Due & Cadences)
+
+### 9.1 Cơ chế Chu kỳ Review định kỳ (Review Cadence)
+Hệ thống hỗ trợ 4 chu kỳ đánh giá cá nhân hóa:
+- **Monthly (1 tháng):** Phù hợp nhân viên thử việc hoặc dự án ngắn hạn.
+- **Quarterly (3 tháng):** Đánh giá định kỳ hàng quý.
+- **Biannually / Semi-annual (6 tháng):** Đánh giá nửa năm.
+- **Annually (12 tháng):** Đánh giá thường niên.
+
+### 9.2 Tính toán ngày đến hạn tự động (Next Review Date)
+- Hệ thống tự động tính ngày review tiếp theo:  
+  > 💡 **Công thức:** `Next Review Date` = Ngày hoàn tất đánh giá gần nhất + Chu kỳ review (tháng)
+- Trên bảng theo dõi **Review Due**, hệ thống hiển thị badge trạng thái trực quan:
+  - 🔴 **Overdue (Quá hạn):** Đã vượt quá ngày đến hạn mà chưa hoàn tất đánh giá.
+  - 🟡 **Due in Nd / Due today (Sắp đến hạn):** Còn dưới 7 ngày hoặc đến hạn hôm nay.
+  - 🟢 **Nd left (Còn hạn):** Chưa đến hạn review.
+  - ⚪ **No schedule:** Nhân viên chưa được gán chu kỳ review.
+
+---
+
+## 10. Báo cáo Hiệu suất Hợp nhất (Unified Performance Reports)
+
+- **Bộ chọn Kỳ Đánh giá Nhất quán (CycleSelector):** Cho phép người dùng chuyển đổi nhanh giữa các kỳ đánh giá trên toàn bộ các biểu đồ phân tích.
+- **Biểu đồ Phân bổ Điểm số:** Trực quan hóa tỷ lệ nhân viên đạt các mức xếp loại (Xuất sắc, Tốt, Đạt, Cần cải thiện).
+- **So sánh Phòng ban:** Biểu đồ so sánh điểm trung bình và tiến độ hoàn thành giữa các bộ phận trong doanh nghiệp.
+
+---
+
+## 11. Chu kỳ Đánh giá Cá nhân (Individual Evaluation Creation)
+
+- Cho phép Quản lý và HR khởi tạo kỳ đánh giá linh hoạt cho **một nhân sự duy nhất** mà không cần mở kỳ đánh giá chung cho toàn công ty.
+- Thường áp dụng cho: Kết thúc thời gian thử việc (Probationary Review), xét tăng lương đột xuất, hoặc chuyển đổi vị trí công tác.
+- Giao diện hỗ trợ đầy đủ đa ngôn ngữ, chế độ giao diện sáng/tối và tương thích thiết bị di động.
+
+---
+
+## 12. Chu kỳ Đánh giá Doanh nghiệp (Evaluation Cycles)
+
+### 12.1 Khởi tạo Kỳ đánh giá mới
+1. Vào menu **Evaluation Cycles** → bấm **+ Create New**.
+2. Nhập **Cycle Code** (ví dụ: `2026-Q3-ENGINEERING`) và **Cycle Name**.
+3. Chọn **Published Template Version** (bộ mẫu đã được phát hành chính thức).
+4. Tùy chọn **Enable calibration**: Bật nếu kỳ đánh giá cần bước hội đồng hiệu chỉnh điểm.
+5. Cấu hình **Start Date**, **End Date**, và **Grace Period (days)** (số ngày gia hạn nộp trễ).
+6. Chọn phạm vi áp dụng (**Applicable Scope**): Toàn công ty, theo Phòng ban, Nhóm, Chức danh, hoặc chọn danh sách nhân viên cụ thể.
+7. Bấm **Save Draft**.
+
+### 12.2 Điều phối trạng thái Kỳ đánh giá
+Trên trang chi tiết kỳ đánh giá, người quản trị thực hiện các lệnh chuyển trạng thái tuần tự:
+- `DRAFT` → bấm **Open Cycle** để mở cho nhân viên tự đánh giá.
+- `OPEN` → bấm **Start In Progress** khi bắt đầu thu thập dữ liệu.
+- `IN_PROGRESS` → bấm **Submit All Evaluations** khi hết hạn tự đánh giá.
+- `SUBMITTED` → bấm **Start Reviewing** để chuyển sang giai đoạn Quản lý chấm điểm.
+- `REVIEWING` → bấm **Move to Calibration** (nếu có) hoặc **Approve Cycle**.
+- `APPROVED` → bấm **Publish Results** để công bố kết quả cho toàn bộ nhân viên.
+- **Khóa kỳ đánh giá (Lock Cycle):** Bấm **Lock Cycle** để đóng băng vĩnh viễn kỳ đánh giá. Toàn bộ dữ liệu điểm số trở thành bất biến và chỉ đọc (Read-only).
+
+---
+
+## 13. Phiên họp Hiệu chỉnh Điểm số (Calibration Session)
+
+*Tính năng dành riêng cho HR_ADMIN và Hội đồng Đánh giá.*
+
+- **Biểu đồ Phân bổ Chuẩn (Bell Curve Distribution):** Hiển thị trực quan tỷ lệ phân bổ điểm số của nhân viên so với hạn mức tỷ lệ mục tiêu (ví dụ: Xuất sắc ≤ 10%, Tốt ≤ 30%, Đạt 50%, Cần cải thiện 10%).
+- **Điều chỉnh điểm hàng loạt (Bulk Adjustments):** Hội đồng có thể tăng/giảm điểm của từng cá nhân hoặc nhóm nhân sự để đảm bảo sự công bằng giữa các phòng ban.
+- **Chốt phiên (Finalize Session):** Khi đạt được sự đồng thuận, HR bấm **Finalize Calibration Session** để tự động cập nhật điểm chính thức vào phiếu đánh giá của nhân viên.
+- **Kiểm soát đồng thời (Concurrency Security):** Hệ thống khóa phiên khi đang chốt điểm để ngăn chặn việc nhiều thành viên cùng chỉnh sửa gây sai lệch kết quả.
+
+---
+
+## 14. Tổ chức & Kiến trúc Công việc (Organization)
+
+### 14.1 Tab Org Structure (Cơ cấu Tổ chức)
+- **Phòng ban (Departments):** Tạo mới và quản lý mã phòng ban, tên phòng ban và trạng thái hoạt động.
+- **Nhóm (Teams):** Quản lý mã nhóm, tên nhóm, phòng ban trực thuộc. Khi Deactivate một nhóm, hệ thống kiểm tra và cảnh báo nếu nhóm vẫn còn nhân viên hoạt động.
+- **Nhân viên (Employees):** Quản lý danh sách nhân sự, thông tin liên hệ, phòng ban, nhóm, chức vụ, cấp bậc, trạng thái việc làm (`ACTIVE`, `INACTIVE`, `ON_LEAVE`, `TERMINATED`) và cấu hình **Review Cadence**.
+
+### 14.2 Tab Job Architecture (Kiến trúc Công việc)
+- **Job Roles (Chức danh):** Định nghĩa danh mục chức danh công việc (ví dụ: Software Engineer, QA Specialist, Product Owner).
+- **Job Levels (Cấp bậc):** Định nghĩa khung cấp bậc năng lực (ví dụ: Junior, Middle, Senior, Lead, Principal).
+
+---
+
+## 15. Thư viện Tiêu chí & Quy tắc (Criteria & Rules)
+
+- Quản lý các tiêu chí đánh giá đơn lẻ, phân loại theo 4 nhóm danh mục chính:
+  1. **Performance (Hiệu suất công việc):** Năng suất bàn giao, chất lượng code, độ đúng hạn.
+  2. **Capability (Năng lực chuyên môn):** Kỹ năng kỹ thuật, tư duy thiết kế hệ thống, giải quyết vấn đề.
+  3. **Contribution (Đóng góp tổ chức):** Đào tạo kèm cặp (mentoring), chia sẻ tri thức, cải tiến quy trình.
+  4. **Behavior (Thái độ & Kỷ luật):** Tinh thần đồng đội, tuân thủ nội quy lao động, tính chuyên cần.
+- Mỗi tiêu chí quản lý mã tiêu chí (`Criterion Code`), tên hiển thị, mô tả hướng dẫn và lịch sử phiên bản (`v1`, `v2`...).
+
+---
+
+## 16. Thư viện KPI & Bản đồ Phụ thuộc (KPI Library)
+
+- Quản lý các chỉ số KPI cấp cao, gộp nhiều tiêu chí thành phần.
+- **Tab KPI Library:** Thêm/sửa/xóa chỉ số KPI và liên kết các tiêu chí tương ứng vào từng thẻ KPI.
+- **Tab Dependency Map:** Thiết lập quan hệ phụ thuộc giữa các chỉ số KPI để phục vụ thuật toán tính điểm tổng hợp.
+
+---
+
+## 17. Bộ Mẫu Đánh giá (Template Builder)
+
+- **Cấu hình Trọng số 2 Cấp (2-Level Weighting Pipeline):**
+  - Cấp 1: Phân bổ tỷ trọng phần trăm giữa các nhóm KPI.
+  - Cấp 2: Phân bổ tỷ trọng phần trăm giữa các tiêu chí thành phần trong từng KPI.
+- **Thanh trạng thái Trọng số (Weight Status Bar):** Tự động kiểm tra và hiển thị tổng trọng số. Hệ thống yêu cầu tổng trọng số phải đạt chính xác **100%** mới cho phép phát hành.
+- **Validate Template:** Kiểm tra tính hợp lệ về logic, cấu trúc và ràng buộc trước khi lưu.
+- **Tính Bất biến khi Phát hành (Published Immutability):** Bộ mẫu đã **Publish** sẽ bị khóa cứng vĩnh viễn để bảo vệ tính nhất quán cho các kỳ đánh giá đang sử dụng. Muốn chỉnh sửa, người dùng phải bấm **Create New Draft Version** để tạo phiên bản nháp tiếp theo.
+- **Version Diff & Conflict Resolution:** So sánh sự khác biệt giữa hai phiên bản bộ mẫu và hỗ trợ giải quyết xung đột khi có nhiều quản trị viên cùng thao tác.
+
+---
+
+## 18. Trung tâm Thu thập Dữ liệu & Nhập liệu (Data Ingestion Hub)
+
+### 18.1 Tự động thu thập dữ liệu Jira & Blueprint
+- **Jira Tasks Crawler:** Tự động đồng bộ các task đã làm (`completedTasks`) và đang làm (`inProgressTasks`), số giờ log work, lỗi phát sinh (`bugs`). Cơ chế phân giải đa tài khoản tự động nhận diện đúng nhân sự qua mã nhân viên, username hoặc email prefix.
+- **Blueprint Attendance Crawler:** Tự động đồng bộ dữ liệu chấm công hàng ngày, giờ vào/ra, số ngày đi trễ và ngày nghỉ phép.
+- **Snapshot Caching theo Tháng (`collector_monthly_snapshot`):** Tự động lưu cache dữ liệu chấm công theo tháng, giúp tải nhanh chóng và tránh gửi request trùng lặp lên máy chủ nguồn.
+
+### 18.2 Động cơ Chấm điểm AI (Gemini AI Evaluator)
+- Tự động phân tích đóng góp công việc và gợi ý điểm số theo 3 chế độ nghiêm ngặt:
+  - **Mức 1 — Dễ (Easy):** Chấm nhanh, ưu tiên động viên khuyến khích.
+  - **Mức 2 — Vừa (Medium):** Tiêu chuẩn Tech Lead, cân đối giữa tiến độ và chất lượng.
+  - **Mức 3 — Khó (Hard):** Tiêu chuẩn Solution Architect khắt khe, chỉ các task kiến trúc hoặc độ phức tạp cao mới đạt điểm tối đa; phạt nặng task bàn giao trễ hạn.
+
+### 18.3 Nguyên tắc Tính điểm Vi phạm & Trần Vi phạm (Infraction Ceiling)
+- Xuất phát điểm ban đầu: 100 điểm.
+- Tự động trừ điểm kỷ luật: Đi trễ trừ điểm theo mức độ nghiêm ngặt, trừ điểm critical bugs và trễ deadline.
+- **Trần vi phạm (Infraction Ceiling):** Nếu nhân viên có vi phạm kỷ luật (đi trễ, nghỉ không phép), điểm chuyên cần tối đa chỉ đạt mức 9.0/10 (Mức 4 - Tốt). **Nhân viên có vi phạm kỷ luật không bao giờ được phép đạt Mức 5 (Xuất sắc) dù điểm công việc có cao đến đâu.**
+
+### 18.4 Trung tâm Nhập liệu CSV (CSV Import Center)
+- **Tải tệp mẫu (Download CSV Template):** Tải cấu trúc cột chuẩn tương thích với phiên bản hiện hành.
+- **Kiểm tra trước dữ liệu (Validation Preview):** Tải file lên để hệ thống rà soát lỗi từng dòng (hiển thị rõ số dòng, cột lỗi và thông báo chi tiết).
+- **Chế độ nhập liệu:**
+  - **Partial Import (Khuyên dùng):** Nhập các dòng hợp lệ, bỏ qua các dòng lỗi để sửa sau.
+  - **Strict Mode:** Toàn bộ file phải hợp lệ 100%; nếu có bất kỳ dòng nào sai, hệ thống từ chối toàn bộ đợt nhập.
+- **Lịch sử nhập liệu (Import History):** Tra cứu nhật ký các lần tải file, số dòng thành công, số dòng lỗi và chi tiết từng bản ghi.
+
+---
+
+## 19. Bản dịch Đa ngôn ngữ (I18n Translation)
+
+- Cung cấp giao diện quản trị bản dịch cho dữ liệu danh mục (Master Data) và các nhãn hiển thị trên giao diện (UI Strings).
+- Hỗ trợ hai ngôn ngữ cơ sở chính: **Tiếng Anh (en - Baseline)** và **Tiếng Việt (vi)**.
+- Cho phép tra cứu nhanh bản dịch qua ô Global Search hoặc lọc theo phân loại đối tượng (`Department`, `Job Role`, `KPI`, `Criterion`).
+
+---
+
+## 20. Hệ thống Thông báo Email (Email Notifications)
+
+- **Tùy chọn nhận Email (Notification Preferences):** Người dùng có thể chủ động bật/tắt nhận email cho từng nhóm sự kiện: Nhắc kỳ đánh giá mới, Cảnh báo sắp đến hạn review, Thông báo khi kết quả được công bố.
+- **Quản lý Mẫu Email (Email Templates):** Dành cho HR/Admin tùy biến tiêu đề và nội dung email thông báo gửi tự động qua hệ thống mã biến mẫu (Template Variables).
+- **Nhật ký Gửi Email (Delivery Logs):** Tra cứu lịch sử gửi email, trạng thái thành công/thất bại và nội dung phản hồi từ máy chủ SMTP/Resend/Gmail API.
+
+---
+
+## 21. Quản lý Định danh & Quyền truy cập (IAM)
+
+- **Quản lý Người dùng (Users):** Danh sách tài khoản, thêm người dùng mới, kích hoạt / vô hiệu hóa tài khoản, gán vai trò.
+- **Quản lý Vai trò (Roles):** Xem danh sách vai trò hệ thống (`EMPLOYEE`, `MANAGER`, `HR_ADMIN`, `SYSTEM_ADMIN`).
+- **Ma trận Quyền hạn (Permissions Matrix):** Bảng phân quyền chi tiết cho phép xem các quyền hạn thao tác (Read, Write, Delete, Approve, Publish, Lock) gắn với từng vai trò.
+
+---
+
+## 22. Nhật ký Kiểm toán Bất biến (Audit Log)
+
+- Mọi thao tác làm thay đổi dữ liệu quan trọng đều được ghi nhận tự động vào bảng nhật ký kiểm toán dạng **chỉ thêm mới (Append-only)**.
+- Giao diện cho phép lọc theo:
+  - **Entity ID:** Mã định danh của đối tượng bị thay đổi.
+  - **Entity Type:** Loại đối tượng (`EMPLOYEE`, `TEAM`, `KPI`, `EVALUATION`, `CYCLE`).
+  - **Action:** Hành động thực hiện (`CREATE`, `UPDATE`, `DELETE`, `OVERRIDE`, `PUBLISH`, `LOCK`).
+- Chi tiết hiển thị rõ: Người thực hiện (`Performed By`), Thời gian chính xác (`Timestamp`), Giá trị cũ → Giá trị mới (`Old Value` → `New Value`) và Lý do giải trình (`Reason`).
+
+---
+
+## 23. Cơ chế Khóa & Dữ liệu Chỉ đọc (Locked / Read-Only Guarantees)
+
+Hệ thống bảo vệ dữ liệu đánh giá thông qua 3 cấp độ khóa nghiêm ngặt:
+1. **Kỳ đánh giá đã khóa (Cycle LOCKED):** Biểu ngữ đen *"Cycle Status: LOCKED"* xuất hiện. Toàn bộ thông tin cấu hình, điểm số và các phiếu đánh giá bên trong kỳ này bị đóng băng vĩnh viễn.
+2. **Phiếu đánh giá ở chế độ chỉ đọc (Read-Only):**
+   - Khi nhân viên đã nộp: Chuyển sang chỉ đọc chờ quản lý chấm điểm.
+   - Khi quản lý đã duyệt: Chuyển sang chỉ đọc chờ HR hiệu chỉnh/công bố.
+   - Khi đã công bố hoặc khóa: Toàn bộ điểm số và nhận xét là cố định, không thể chỉnh sửa.
+3. **Bộ mẫu đánh giá đã phát hành (Published Template):** Biểu ngữ *"🔒 Published Version is Immutable"* cảnh báo cấu hình đã bị khóa cứng để bảo vệ tính toàn vẹn dữ liệu.
+
+---
+
+## 24. Bảng Tra cứu Trạng thái Toàn Hệ thống
+
+### Trạng thái Kỳ đánh giá (Cycle Status)
+| Trạng thái | Ý nghĩa nghiệp vụ |
 |---|---|
-| Cấu hình tổ chức, tiêu chí, bộ mẫu, kỳ đánh giá | HR/Admin, System Admin |
-| Mở kỳ đánh giá | HR/Admin, System Admin |
-| Tự đánh giá (Self-Assessment) | Employee (và Manager/System Admin khi tự đánh giá cho chính mình) |
-| Đánh giá & duyệt cho nhân viên (Manager Assessment / Approve) | Manager |
-| Công bố kết quả (Publish) | HR/Admin |
-| Khóa kỳ đánh giá / bản đánh giá (Lock) | HR/Admin |
-| Nhập dữ liệu CSV | HR/Admin, System Admin |
-| Xem nhật ký hệ thống | HR/Admin, System Admin |
+| `DRAFT` | Kỳ đánh giá đang được khởi tạo cấu hình, chưa mở cho người dùng. |
+| `OPEN` | Đã mở kỳ đánh giá, sẵn sàng bắt đầu tiến trình. |
+| `IN_PROGRESS` | Đang trong giai đoạn thu thập dữ liệu và nhân viên thực hiện tự đánh giá. |
+| `SUBMITTED` | Đã hết hạn tự đánh giá, toàn bộ phiếu nộp về hệ thống. |
+| `REVIEWING` | Quản lý đang thực hiện chấm điểm và nhận xét cho thành viên nhóm. |
+| `CALIBRATION` | Hội đồng đánh giá đang họp hiệu chỉnh điểm số theo phân bổ Bell Curve. |
+| `APPROVED` | Quá trình chấm điểm và hiệu chỉnh đã được phê duyệt chính thức. |
+| `PUBLISHED` | Kết quả đánh giá đã được công bố cho toàn bộ nhân viên xem. |
+| `LOCKED` | Kỳ đánh giá đã bị khóa vĩnh viễn, toàn bộ dữ liệu chỉ đọc. |
 
-## 3. Đăng nhập
-
-### 3.1 Mục đích
-
-Xác thực người dùng trước khi cho phép truy cập hệ thống.
-
-### 3.2 Cách đăng nhập
-
-Màn hình đăng nhập có tiêu đề **"KPI System — Sign in"** và cung cấp hai cách đăng nhập:
-
-**Cách 1 — Email và mật khẩu:**
-1. Nhập **Email**.
-2. Nhập **Password**.
-3. Bấm **Sign in**.
-4. Trong lúc xử lý, nút hiển thị **"Signing in…"**.
-
-**Cách 2 — Tài khoản Google của công ty:**
-1. Bấm **"Sign in with company Google account"**.
-2. Chọn tài khoản Google thuộc tên miền công ty (`cyberlogitec.com`).
-3. Hoàn tất xác thực với Google.
-4. Hệ thống tự động đưa bạn vào trang phù hợp với quyền của tài khoản.
-
-### 3.3 Các thông báo lỗi có thể gặp
-
-| Tình huống | Thông báo hiển thị |
+### Trạng thái Phiếu Đánh giá Cá nhân (Evaluation Status)
+| Trạng thái | Ý nghĩa nghiệp vụ |
 |---|---|
-| Email/mật khẩu sai (lỗi xác thực) | Thông báo lỗi do máy chủ trả về, hiển thị ngay trên form |
-| Lỗi không xác định khác khi đăng nhập | "An unexpected error occurred. Please try again." |
-| Sai định dạng email | "Invalid email format" |
-| Chưa nhập mật khẩu | "Password is required" |
-| Google Sign-In chưa được cấu hình trên máy chủ | "Google sign-in is not configured." |
-| Dịch vụ Google Identity không tải được | "Google Identity Services is unavailable." hoặc thông báo tải thất bại tương tự |
-| Đăng nhập Google thất bại | "Google sign-in failed. Please try again." |
+| `DRAFT` | Phiếu mới tạo, chưa bắt đầu tự đánh giá. |
+| `IN_PROGRESS` | Nhân viên đang thực hiện tự đánh giá năng lực. |
+| `SUBMITTED` | Nhân viên đã nộp bản tự đánh giá, đang chờ Quản lý xử lý. |
+| `IN_REVIEW` | Quản lý đang thực hiện đánh giá và ghi nhận xét. |
+| `CALIBRATION` | Đang trong phiên họp hiệu chỉnh điểm số của hội đồng. |
+| `APPROVED` | Quản lý và hội đồng đã phê duyệt kết quả đánh giá. |
+| `PUBLISHED` | Kết quả chính thức đã công bố, nhân viên xem được điểm cuối cùng. |
+| `LOCKED` | Phiếu đánh giá đã bị đóng băng vĩnh viễn. |
 
-## 4. Tổ chức (Organization)
+---
 
-### 4.1 Mục đích
+## 25. Ma trận Phân quyền Nghiệp vụ (RBAC Matrix)
 
-Quản lý cơ cấu tổ chức (phòng ban, nhóm, nhân viên) và kiến trúc công việc (chức danh, cấp bậc) dùng làm cơ sở cho việc đánh giá.
+| Chức năng hệ thống | Employee | Manager | HR_ADMIN | SYSTEM_ADMIN |
+|---|:---:|:---:|:---:|:---:|
+| **Xem Dashboard phân quyền** | ✓ | ✓ | ✓ | ✓ |
+| **Xem tài liệu hướng dẫn (User Guide)** | ✓ | ✓ | ✓ | ✓ |
+| **Tự đánh giá cá nhân (My Evaluation)** | ✓ | ✓ | — | ✓ |
+| **Đánh giá & Duyệt nhóm (Team Reviews)** | — | ✓ | ✓ | ✓ |
+| **Theo dõi hạn review nhóm (Team Review Due)** | — | ✓ | — | — |
+| **Ghi đè điểm có giải trình (Score Override)** | — | ✓ (nhóm) | ✓ (toàn quyền) | ✓ (toàn quyền) |
+| **Xem Báo cáo Hiệu suất (Performance Reports)** | Cá nhân | Nhóm | Toàn công ty | Toàn công ty |
+| **Tạo kỳ đánh giá cá nhân (Individual Cycle)** | — | ✓ (nhóm) | ✓ | ✓ |
+| **Quản lý Kỳ đánh giá Doanh nghiệp (Cycles)** | — | — | ✓ | ✓ |
+| **Chủ trì phiên hiệu chỉnh (Calibration)** | — | — | ✓ | — |
+| **Quản lý Tổ chức (Organization)** | — | — | ✓ | ✓ |
+| **Quản lý Tiêu chí & KPI (Criteria & KPIs)** | — | — | ✓ | ✓ |
+| **Thiết kế Bộ mẫu đánh giá (Template Builder)** | — | — | ✓ | ✓ |
+| **Trung tâm Data Ingestion & Nhập CSV** | — | — | ✓ | ✓ |
+| **Quản lý Bản dịch (I18n Translation)** | — | — | ✓ | ✓ |
+| **Quản lý Email Templates & Delivery Logs** | — | — | ✓ | ✓ |
+| **Quản lý Người dùng & Phân quyền (IAM)** | — | — | — | ✓ |
+| **Xem Nhật ký Kiểm toán (Audit Log)** | — | — | ✓ | ✓ |
 
-### 4.2 Ai được sử dụng
+---
 
-| Vai trò | Quyền truy cập |
+## 26. Xử lý Sự cố & Câu hỏi Thường gặp (Troubleshooting & FAQ)
+
+### Q1: Tại sao tôi không thể bấm nút "Nộp tự đánh giá"?
+- **Nguyên nhân:** Phiếu đánh giá của bạn còn tiêu chí bắt buộc chưa chọn mức điểm. Hãy kiểm tra thanh tiến độ và thông báo danh sách tiêu chí còn thiếu trong hộp thoại cảnh báo.
+
+### Q2: Tại sao tôi không thể chỉnh sửa điểm sau khi đã nộp?
+- **Giải thích:** Nộp tự đánh giá là thao tác workflow chính thức nhằm chuyển giao phiếu cho Quản lý chấm điểm. Để đảm bảo tính khách quan, phiếu tự động chuyển sang chế độ Chỉ đọc (Read-only). Nếu có sai sót nghiêm trọng, hãy báo với Quản lý trực tiếp để được hỗ trợ qua bước chấm điểm của Quản lý.
+
+### Q3: Vì sao nhân viên có điểm task cao nhưng không đạt Mức 5 (Xuất sắc)?
+- **Giải thích:** Hệ thống áp dụng **Quy chuẩn Trần Vi phạm (Infraction Ceiling)**. Nếu nhân viên có ngày đi trễ (late days > 0) hoặc vi phạm kỷ luật, điểm chuyên cần bị khống chế tối đa 9.0/10 (Mức 4 - Tốt) và không thể xếp loại Xuất sắc toàn diện.
+
+### Q4: Tôi không thấy các menu Cấu hình (Configuration) trên thanh điều hướng?
+- **Giải thích:** Nhóm menu Cấu hình chỉ dành cho tài khoản có vai trò `HR_ADMIN` hoặc `SYSTEM_ADMIN`. Tài khoản `EMPLOYEE` chỉ thấy các menu liên quan trực tiếp đến công việc của mình.
+
+### Q5: Khi tải file CSV nhập điểm báo lỗi thì phải xử lý thế nào?
+- **Khắc phục:** Xem bảng **Row Validation Errors**, đối chiếu số dòng (`Row`) và tên cột (`Field`) bị báo lỗi. Sửa lại tệp CSV đúng định dạng dữ liệu mẫu và tiến hành tải lên lại bằng chế độ **Partial Import**.
+
+---
+
+<!-- LANGUAGE_SPLIT -->
+
+# Employee Performance Evaluation Management System
+## Detailed User Guide
+
+---
+
+## 1. Introduction
+
+### 1.1 Purpose
+This document provides a comprehensive operational guide for the Employee Performance Evaluation Management System based on its live web application interface. It accurately details all visual components and interactions available to users: navigation menus, action buttons, input fields, business rules, and system responses.
+
+### 1.2 Target Audience
+- **Employee:** Conducts self-assessments, tracks periodic review schedules, and reviews published official evaluation results.
+- **Manager:** Evaluates team members' performance, writes qualitative feedback, approves appraisals, monitors review deadlines, and performs score overrides when justified.
+- **HR_ADMIN (Human Resources Admin):** Manages organizational structures, evaluation cycles, review cadences, criteria, KPI libraries, evaluation templates, conducts calibration sessions, and publishes results.
+- **SYSTEM_ADMIN (System Administrator):** Holds complete system governance, including identity and access management (IAM), append-only audit log inspection, data ingestion crawlers, email notifications, and internationalization (I18n).
+
+### 1.3 Role-Based Access Control
+The application defines 4 primary roles: `EMPLOYEE`, `MANAGER`, `HR_ADMIN`, and `SYSTEM_ADMIN`. Access rights are strictly enforced by the backend on every API request. The frontend UI dynamically renders available menu items according to the authenticated user's role. Attempting to access an unauthorized path displays the **403 — Access Denied** error page.
+
+---
+
+## 2. End-to-End Workflow & Evaluation Lifecycle
+
+### 2.1 Process Flowchart
+
+```mermaid
+flowchart TD
+    A[User Sign In] --> B{Determine User Role}
+    
+    B -->|HR/Admin| C[Configure Organization, Criteria, KPIs & Templates]
+    C --> D[Initialize Evaluation Cycles: Enterprise or Individual]
+    D --> E[Automated Data Ingestion: Jira Tasks & Blueprint Attendance]
+    
+    B -->|Employee| F[My Evaluation: Perform Self-Assessment]
+    F --> G[Submit Self-Assessment - Enters Read-Only Mode]
+    
+    B -->|Manager| H[Team Reviews: Assess Members & Approve Appraisals]
+    G --> H
+    E -.->|AI Suggestions & Raw Metrics| H
+    
+    H --> I{Cycle Requires Calibration?}
+    I -->|Yes| J[HR-led Calibration: Bell Curve Balancing & Finalization]
+    I -->|No| K[Cycle Approved Status]
+    J --> K
+    
+    K --> L[HR Publishes Results]
+    L --> M[Employees View Final Official Scores]
+    L --> N[Immutable Freeze - Lock Cycle / Evaluation]
+```
+
+### 2.2 Evaluation Cycle Lifecycle
+An evaluation cycle sequentially transitions through the following statuses:  
+`DRAFT` → `OPEN` → `IN_PROGRESS` → `SUBMITTED` → `REVIEWING` → `CALIBRATION` (optional) → `APPROVED` → `PUBLISHED` → `LOCKED`
+
+### 2.3 Individual Evaluation Lifecycle
+Each employee's appraisal record advances through:  
+`DRAFT` → `IN_PROGRESS` (Self-Assessment) → `SUBMITTED` (Pending Manager Review) → `IN_REVIEW` (Manager Assessing) → `CALIBRATION` (Session Ongoing) → `APPROVED` (Manager/HR Approved) → `PUBLISHED` (Official Score Public) → `LOCKED` (Immutable Read-Only).
+
+---
+
+## 3. Sign In & Authentication
+
+### 3.1 Modern Enterprise Login Interface
+The login screen features an enterprise split-screen layout:
+- **Left Panel:** Atmospheric branding section introducing the enterprise performance platform.
+- **Right Panel:** Centered authentication card offering two secure methods:
+  1. **Corporate Email & Password:** Enter your company email (`@cyberlogitec.com`) and password, then click **Sign in**.
+  2. **Google Workspace Single Sign-On:** Click **Sign in with company Google account** to authenticate via your corporate Google profile.
+
+### 3.2 Authentication Error Feedback
+- **Invalid credentials:** "Invalid email or password."
+- **Missing inputs:** "Email is required" / "Password is required".
+- **Google auth failure:** "Google sign-in failed. Please ensure your account belongs to @cyberlogitec.com."
+
+---
+
+## 4. System Navigation (Sidebar Navigation)
+
+The left sidebar navigation is organized into 4 functional groups:
+
+| Group | Nav Item | Accessible Roles | Description |
+|---|---|---|---|
+| **Overview** | **Dashboard** | All Roles | Role-customized dashboard overview. |
+| | **User Guide** | All Roles | Access this comprehensive bilingual documentation. |
+| | **Email Notifications** | All Roles | Manage personal email alert preferences. |
+| **Performance** | **Employee Search** | All Roles | Search corporate staff directory, view KPI summaries and statuses. |
+| | **Team Reviews** | Manager, HR, Admin | Review, score, and approve team members' appraisals. |
+| | **Team Review Due** | Manager | Monitor upcoming and overdue review deadlines for managed staff. |
+| | **My Evaluation** | Employee, Manager, Admin | Conduct personal self-appraisal and view published results. |
+| **Reporting** | **Performance Reports** | All Roles (scoped) | Unified performance reports, score distributions, and cycle trends. |
+| **Configuration** | **Individual Evaluation** | Manager, HR, Admin | Initiate flexible, tailored evaluation cycles for individual employees. |
+| | **Organization** | HR, Admin | Manage departments, teams, employees, job roles, and job levels. |
+| | **Evaluation Cycles** | HR, Admin | Configure and coordinate company-wide evaluation cycles. |
+| | **Review Due** | HR, Admin | Global scheduling dashboard tracking all upcoming review cadences. |
+| | **Review Cadences** | HR, Admin | Define review intervals (1, 3, 6, 12 months) and due date formulas. |
+| | **Calibration** | HR_ADMIN | Conduct committee score calibration sessions using Bell Curve models. |
+| | **Criteria & Rules** | HR, Admin | Maintain criterion library and scoring rule definitions. |
+| | **KPI Library** | HR, Admin | Manage high-level KPI indicators and dependency maps. |
+| | **Template Builder** | HR, Admin | Build evaluation rubrics, balance 100% weights, and publish versions. |
+| | **Data Ingestion Hub** | HR, Admin | Automated Jira & Blueprint crawlers, AI Evaluator, and CSV import. |
+| | **I18n Translation** | HR, Admin | Master data and UI string multilingual translation management. |
+| | **Email Templates** | HR, Admin | Configure automated notification email templates. |
+| | **Email Delivery Logs** | HR, Admin | Audit system email dispatch history and delivery status. |
+| | **Identity & Access** | HR, Admin | Manage user accounts, role definitions, and permission matrices. |
+| | **Audit Log** | HR, Admin | Append-only audit trail recording all critical system mutations. |
+
+---
+
+## 5. Role-Based Dashboard
+
+The dashboard dynamically adjusts based on the authenticated user's role:
+- **Employee View:** Displays current evaluation progress, days remaining until deadline, historical official scores, and personal trend charts.
+- **Manager View:** Summarizes team completion rates, count of appraisals awaiting review (**Ready for Review**), and review cadence due date alerts for team members.
+- **HR/Admin View:** Company-wide completion rates, active cycle health, and department-level score distributions.
+
+---
+
+## 6. My Evaluation — For Employees
+
+### 6.1 Screen Overview
+- **Active Cycle Card:** Displays cycle name, period, status badge, criteria completion progress bar, deadline countdown, and primary action button.
+- **Evaluation History:** Table summarizing past cycles, periods, statuses, and official **Final Scores**.
+
+### 6.2 Self-Assessment Step-by-Step
+1. Click **Start Self-Assessment** (new) or **Continue Evaluation** (in-progress).
+2. For each assigned criterion:
+   - Select your self-rating level (**Rating Level**).
+   - Enter **Self-assessment Comments / Evidence**: Describe accomplishments, deliverables, and factual rationale supporting your chosen rating.
+3. Click **Save this item** to save individually, or click **Save Draft** at the bottom to preserve all changes without submitting.
+4. Once all mandatory criteria are complete, click **Submit Self-Assessment**.
+5. Confirmation Dialog:
+   - If mandatory criteria remain incomplete: The system lists missing items and blocks submission.
+   - If complete: A warning states *"Submitting your evaluation is a formal workflow action. Your appraisal will transition to Submitted (Pending Manager Review) and enter Read-Only mode."*
+   - Click **Confirm Submission** to finalize.
+
+### 6.3 Viewing Published Results
+Once approved by your manager and published by HR:
+- The appraisal status updates to **Published**.
+- A summary breakdown compares: **Self Score**, **Manager Score**, and **Official Final Score** alongside managerial comments.
+
+---
+
+## 7. Team Reviews — For Managers
+
+### 7.1 Team Appraisal List
+Displays employees assigned to teams under your supervisory scope:
+- Filter by status: **All Statuses**, **Ready for Review**, **In Progress**, **Approved**.
+- Click an employee card marked **Ready for Review** to open the scoring interface.
+
+### 7.2 Scoring & Approval Workflow
+1. Review the employee's self-ratings and submitted evidence on the left panel.
+2. In the Manager section for each criterion:
+   - Select your **Manager Rating**.
+   - Provide qualitative **Manager Comments**.
+3. Click **Save Changes (Draft)** to save partial progress.
+4. Click **Approve Evaluation** once all criteria are evaluated. The confirmation dialog requires confirming objective review before submitting results to HR.
+
+### 7.3 KPI-Level Manual Override
+When automated scores do not fully capture actual circumstances:
+- Click **Override Score** on the target KPI.
+- Enter the **New Score (0 - 100)**.
+- **Mandatory fields:** Provide both **Rationale** and **Evidence**.
+- Overrides are atomically recorded in the **Audit Log** for governance compliance.
+
+---
+
+## 8. Employee Search & Directory
+
+- Quickly search staff by Full Name, Employee Code, Department, or Job Role.
+- Displays employee cards with profile photos, corporate email, team, position, review cadence, and recent performance score summary.
+
+---
+
+## 9. Review Due & Review Cadences
+
+### 9.1 Review Cadence Model
+The system supports 4 individualized review cadences:
+- **Monthly (1 month):** For probationary periods or short-term milestone tracking.
+- **Quarterly (3 months):** Standard quarterly evaluations.
+- **Biannually / Semi-annual (6 months):** Mid-year reviews.
+- **Annually (12 months):** Annual appraisals.
+
+### 9.2 Automated Next Review Date Calculation
+- The system calculates due dates automatically:  
+  > 💡 **Formula:** `Next Review Date` = Last Completed Evaluation Date + Cadence Duration (Months)
+- The **Review Due** dashboard displays visual alert badges:
+  - 🔴 **Overdue:** Past scheduled review due date.
+  - 🟡 **Due in Nd / Due today:** Due within 7 days or today.
+  - 🟢 **Nd left:** Active review window open.
+  - ⚪ **No schedule:** Cadence not configured.
+
+---
+
+## 10. Unified Performance Reports
+
+- **Consistent CycleSelector:** Seamlessly switch evaluation cycles across all analytical charts and summary widgets.
+- **Score Distribution Charts:** Visual breakdown of employee performance tiers (Excellent, Good, Satisfactory, Needs Improvement).
+- **Cross-Departmental Comparison:** Comparative benchmarks tracking completion velocity and average scores across business units.
+
+---
+
+## 11. Individual Evaluation Creation
+
+- Allows Managers and HR to launch standalone evaluation cycles for **a single employee** outside the global company schedule.
+- Ideal for probationary completions, promotion reviews, or role reassignments.
+- Fully responsive, multilingual, and supports dark/light themes.
+
+---
+
+## 12. Enterprise Evaluation Cycles
+
+### 12.1 Creating a New Cycle
+1. Navigate to **Evaluation Cycles** → click **+ Create New**.
+2. Enter **Cycle Code** (e.g., `2026-Q3-ENGINEERING`) and **Cycle Name**.
+3. Select an official **Published Template Version**.
+4. (Optional) Toggle **Enable calibration** if committee normalization is required.
+5. Set **Start Date**, **End Date**, and **Grace Period (days)**.
+6. Configure **Applicable Scope**: Company-wide, by Department, Team, Job Role, Job Level, or specific employee selection.
+7. Click **Save Draft**.
+
+### 12.2 Managing Cycle Transitions
+On the cycle detail view, administrators sequentially trigger status transitions:
+- `DRAFT` → Click **Open Cycle** to invite employee self-assessments.
+- `OPEN` → Click **Start In Progress** as data collection begins.
+- `IN_PROGRESS` → Click **Submit All Evaluations** when the submission window closes.
+- `SUBMITTED` → Click **Start Reviewing** to enable manager appraisals.
+- `REVIEWING` → Click **Move to Calibration** or **Approve Cycle**.
+- `APPROVED` → Click **Publish Results** to disclose scores to employees.
+- **Lock Cycle:** Click **Lock Cycle** to permanently freeze all scores, evaluations, and configurations into immutable read-only state.
+
+---
+
+## 13. Calibration Sessions
+
+*Exclusive to HR_ADMIN and the Performance Calibration Committee.*
+
+- **Bell Curve Distribution:** Visualizes employee score distributions against target quotas (e.g., Top Performers ≤ 10%, Above Average ≤ 30%, Satisfactory 50%, Improvement Needed 10%).
+- **Bulk Adjustments:** Committee members adjust individual or group scores to normalize cross-departmental rating strictness.
+- **Finalize Session:** Upon consensus, click **Finalize Calibration Session** to update official appraisal scores.
+- **Concurrency Security:** The session is locked during finalization to prevent conflicting edits.
+
+---
+
+## 14. Organization & Job Architecture
+
+### 14.1 Org Structure Tab
+- **Departments:** Create and maintain department codes, names, and active statuses.
+- **Teams:** Manage team codes, names, and department associations. Deactivating a team triggers a validation check if active members remain.
+- **Employees:** Manage employee profiles, contact emails, assignments, employment status (`ACTIVE`, `INACTIVE`, `ON_LEAVE`, `TERMINATED`), and **Review Cadence** settings.
+
+### 14.2 Job Architecture Tab
+- **Job Roles:** Define functional positions (e.g., Software Engineer, QA Specialist, Product Owner).
+- **Job Levels:** Define seniority levels (e.g., Junior, Middle, Senior, Lead, Principal).
+
+---
+
+## 15. Criteria & Rules Library
+
+- Manages modular performance criteria categorized across 4 pillars:
+  1. **Performance:** Delivery volume, code quality, deadline adherence.
+  2. **Capability:** Technical depth, system design, problem-solving skills.
+  3. **Contribution:** Mentoring, knowledge sharing, process improvements.
+  4. **Behavior:** Teamwork, discipline, company cultural values.
+- Tracks `Criterion Code`, display titles, scoring instructions, and revision history (`v1`, `v2`...).
+
+---
+
+## 16. KPI Library & Dependency Map
+
+- Manages composite Key Performance Indicators grouping multiple criteria.
+- **KPI Library Tab:** Create, edit, and delete KPIs and assign specific criteria to each indicator card.
+- **Dependency Map Tab:** Configure relational dependencies between KPIs for weighted composite computations.
+
+---
+
+## 17. Template Builder
+
+- **2-Level Weighting Pipeline:**
+  - Level 1: Weight distribution across top-level KPI categories.
+  - Level 2: Weight distribution across specific criteria within each KPI.
+- **Weight Status Bar:** Validates that total weight equals exactly **100%** before allowing publication.
+- **Validate Template:** Runs automated structural checks.
+- **Published Immutability:** Published templates are permanently locked to guarantee historical evaluation integrity. To make updates, click **Create New Draft Version**.
+- **Version Diff & Conflict Resolution:** Visual diff tools compare revisions and resolve concurrent edit conflicts (HTTP 409).
+
+---
+
+## 18. Data Ingestion Hub
+
+### 18.1 Automated Jira & Blueprint Crawlers
+- **Jira Tasks Crawler:** Automatically crawls completed tasks (`completedTasks`), in-progress tasks (`inProgressTasks`), worklogs, and critical bugs. Multi-account resolution matches employee IDs, Jira usernames, and email prefixes.
+- **Blueprint Attendance Crawler:** Synchronizes daily clock-in/out times, hours worked, late days, and leave records.
+- **Monthly Snapshot Caching (`collector_monthly_snapshot`):** Caches monthly attendance snapshots with incremental fetching to accelerate page loads.
+
+### 18.2 Gemini AI Evaluator
+- Analyzes work contributions and generates score recommendations across 3 strictness levels:
+  - **Easy:** Encouraging, recognizes effort.
+  - **Medium (Tech Lead Standard):** Balanced evaluation of velocity and quality.
+  - **Hard (Architect Level):** Strict criteria requiring architectural impact; heavily penalizes overdue deliverables.
+
+### 18.3 Penalty Scoring & Infraction Ceiling
+- Base starting score: 100 points.
+- Automatic penalty deductions for tardiness, critical bugs, and missed deadlines.
+- **Infraction Ceiling Principle:** Staff with attendance infractions (late days > 0) are capped at a maximum attendance score of 9.0/10 (Level 4 - Good). **Employees with disciplinary infractions cannot achieve Level 5 (Excellent) regardless of productivity.**
+
+### 18.4 CSV Import Center
+- **Download CSV Template:** Download structural CSV templates aligned with the active schema.
+- **Validation Preview:** Upload files to inspect pre-validation errors (row number, field name, error message).
+- **Import Modes:**
+  - **Partial Import (Recommended):** Imports valid rows and skips rows with errors.
+  - **Strict Mode:** Rejects the entire file if any error is encountered.
+- **Import History:** Audit past import jobs, success counts, and error logs.
+
+---
+
+## 19. I18n Translation Management
+
+- Manages multilingual translations for master data entities and UI labels.
+- Baseline language: **English (en - Baseline)** alongside **Vietnamese (vi)**.
+- Features global search and category filtering (`Department`, `Job Role`, `KPI`, `Criterion`).
+
+---
+
+## 20. Email Notification System
+
+- **Notification Preferences:** Users configure personal alerts for cycle openings, approaching deadlines, and result publications.
+- **Email Templates:** HR/Admin customize automated notification copy using template variables.
+- **Delivery Logs:** Audit email dispatch timestamps, recipients, and server delivery responses (SMTP / Resend / Gmail API).
+
+---
+
+## 21. Identity & Access Management (IAM)
+
+- **Users:** Create corporate accounts, toggle active/inactive status, and assign user roles.
+- **Roles:** Review system roles (`EMPLOYEE`, `MANAGER`, `HR_ADMIN`, `SYSTEM_ADMIN`).
+- **Permissions Matrix:** Inspect granular permissions (Read, Write, Delete, Approve, Publish, Lock) assigned to each role.
+
+---
+
+## 22. Append-Only Audit Log
+
+- Records all critical mutations to an append-only audit trail.
+- Filter by:
+  - **Entity ID:** Unique identifier of the modified record.
+  - **Entity Type:** `EMPLOYEE`, `TEAM`, `KPI`, `EVALUATION`, `CYCLE`.
+  - **Action:** `CREATE`, `UPDATE`, `DELETE`, `OVERRIDE`, `PUBLISH`, `LOCK`.
+- Displays actor (`Performed By`), exact `Timestamp`, changes (`Old Value` → `New Value`), and stated `Reason`.
+
+---
+
+## 23. Locked & Read-Only Guarantees
+
+The system protects performance data integrity through 3 locking levels:
+1. **Cycle LOCKED:** Banner *"Cycle Status: LOCKED"* appears. All configurations, evaluations, and scores are frozen permanently.
+2. **Evaluation Read-Only Mode:**
+   - Post-submission: Read-only pending manager appraisal.
+   - Post-approval: Read-only awaiting HR publication.
+   - Post-publication/lock: Scores and comments are completely immutable.
+3. **Published Template Immutability:** Banner *"🔒 Published Version is Immutable"* warns that published templates cannot be edited.
+
+---
+
+## 24. System Status Reference Guide
+
+### Cycle Statuses
+| Status | Definition |
 |---|---|
-| HR/Admin, System Admin | Xem và quản lý toàn bộ |
-| Manager, Employee | Không có menu này |
+| `DRAFT` | Initial cycle configuration, hidden from general users. |
+| `OPEN` | Cycle open, awaiting evaluation initiation. |
+| `IN_PROGRESS` | Data collection active; employees conducting self-assessments. |
+| `SUBMITTED` | Self-assessment window closed; appraisals submitted. |
+| `REVIEWING` | Managers conducting evaluations and appraisals. |
+| `CALIBRATION` | Committee reviewing score distributions on Bell Curve. |
+| `APPROVED` | All appraisals and calibration sessions approved. |
+| `PUBLISHED` | Official results published to all employees. |
+| `LOCKED` | Cycle permanently frozen in immutable read-only state. |
 
-### 4.3 Cách truy cập
-
-1. Đăng nhập.
-2. Trên thanh điều hướng, chọn **Organization** (trong nhóm **Configuration**).
-
-### 4.4 Màn hình tổng quan
-
-Trang **Organization** có 2 tab: **Org Structure** và **Job Architecture**.
-
-#### Tab Org Structure
-
-- Cây điều hướng bên trái: **All Organization** → **Departments** → **Teams** (mở rộng được).
-- Khi chưa chọn gì: hiển thị bảng **Departments** (danh sách phòng ban) và bảng **Employees** (toàn bộ nhân viên).
-- Khi chọn một phòng ban: hiển thị bảng **Teams** thuộc phòng ban đó và bảng **Employees** lọc theo phòng ban.
-- Khi chọn một nhóm (team): hiển thị bảng **Employees** là thành viên của nhóm đó.
-
-**Quản lý Phòng ban (Department):**
-1. Bấm nút tạo phòng ban, nhập **Department Code** (bắt buộc) và **Department Name** (bắt buộc).
-2. Bấm nút lưu để tạo mới.
-3. Để sửa: mở phòng ban cần sửa, cập nhật **Department Name**, có thể bật/tắt cờ **Active** (chỉ khi sửa), sau đó lưu.
-
-**Quản lý Nhóm (Team):**
-1. Bấm nút tạo nhóm, nhập **Team Code** (bắt buộc, tối đa 20 ký tự, chỉ khi tạo mới), **Team Name** (bắt buộc), chọn **Department** (bắt buộc), có thể nhập **Description** (tối đa 500 ký tự).
-2. Bấm nút lưu để tạo mới, hoặc **Save Changes** khi sửa (khi sửa không đổi được mã nhóm).
-3. **Deactivate Team**: hộp thoại xác nhận hiển thị "Are you sure you want to deactivate **{Tên nhóm}**?". Nếu nhóm còn nhân viên đang hoạt động (active member), hệ thống cảnh báo: "This team has **{n}** active employee(s). You must reassign them to a different team before deactivating this one." và khóa nút **Deactivate** cho đến khi đã chuyển hết nhân viên sang nhóm khác.
-
-**Quản lý Nhân viên (Employee):**
-1. Bấm **+ Add Employee**.
-2. Nhập/chọn các trường:
-   - **Employee Code** (không bắt buộc — để trống sẽ tự sinh mã).
-   - **Full Name** (bắt buộc).
-   - **Email** (không bắt buộc, phải đúng định dạng email nếu nhập).
-   - **Employment Status**: ACTIVE / INACTIVE / ON_LEAVE / TERMINATED.
-   - **Review Cadence** (chu kỳ đánh giá định kỳ của nhân viên): tùy chọn "-- No Cadence --", **Monthly**, **Quarterly**, **Biannually**, **Annually**.
-   - **Department** (bắt buộc), **Team** (không bắt buộc, phụ thuộc phòng ban đã chọn).
-   - **Job Role** (bắt buộc), **Job Level** (bắt buộc).
-3. Bấm **Add Employee** để tạo mới, hoặc **Edit** trên một dòng rồi bấm **Save Changes** để cập nhật (khi sửa không đổi được **Employee Code**).
-
-Bảng **Employees** hiển thị các cột: Code, Name, Role, Level, Email, **Review Cadence**, **Last Review Date**, **Next Review Date**, Status, và cột **Actions** (nút **Edit**) chỉ hiển thị với HR/Admin và System Admin.
-
-> **Về "kích hoạt lại tài khoản nhân viên":** hệ thống không có nút Activate/Deactivate riêng cho nhân viên — để đổi trạng thái hoạt động, mở **Edit** và chọn lại **Employment Status**.
-
-#### Tab Job Architecture
-
-Gồm 2 khối:
-- **Job Roles**: danh sách chức danh công việc, có thể tạo/sửa.
-- **Job Levels**: danh sách cấp bậc công việc, có thể tạo/sửa.
-
-### 4.5 Kết quả
-
-Sau khi lưu thành công, danh sách tương ứng (phòng ban/nhóm/nhân viên/chức danh/cấp bậc) được cập nhật ngay trên bảng.
-
-## 5. Kỳ đánh giá (Evaluation Cycles)
-
-### 5.1 Mục đích
-
-Tạo và điều phối các kỳ đánh giá hiệu suất: chọn bộ mẫu, phạm vi áp dụng, thời gian, và theo dõi tiến trình từ khi mở đến khi khóa.
-
-### 5.2 Ai được sử dụng
-
-| Vai trò | Quyền truy cập |
+### Evaluation Statuses
+| Status | Definition |
 |---|---|
-| HR/Admin, System Admin | Toàn quyền tạo, chỉnh sửa, vận hành |
-| Manager, Employee | Không có menu này |
-
-### 5.3 Cách truy cập
-
-Trên thanh điều hướng, chọn **Evaluation Cycles** (trong nhóm **Configuration**).
-
-### 5.4 Tạo kỳ đánh giá mới
-
-1. Bấm **+ Create New**.
-2. Nhập **Cycle Code \*** (ví dụ: `2026-ENG-EVAL`) và **Cycle Name \***.
-3. Chọn **Published Template Version \*** — chỉ các bộ mẫu đã **Publish** mới xuất hiện trong danh sách.
-4. (Tùy chọn) Bật **Enable calibration** nếu kỳ đánh giá này cần bước Calibration.
-5. Nhập **Start Date \***, **End Date \***, và **Grace Period (days)** (số ngày gia hạn, mặc định 7).
-6. Chọn **Applicable Scope**: theo **Department**, **Team**, **Job Role**, **Job Level**, hoặc chọn trực tiếp danh sách **Employee**.
-   - Khi chọn nhân viên, mỗi người hiển thị kèm badge trạng thái đến hạn đánh giá định kỳ: **Overdue** (quá hạn), **Due in Nd** / **Due today** (sắp đến hạn), **Nd left** (chưa đến hạn), hoặc **No schedule** (chưa cấu hình Review Cadence) — dựa trên **Review Cadence** đã cấu hình ở Mục 4.4.
-   - Nếu người dùng đang đăng nhập là **Manager**, phạm vi chỉ giới hạn trong các nhóm mà Manager đó quản lý (**Managed Teams**).
-7. Bấm **Save Draft** để lưu, hoặc **Cancel** để hủy.
-
-**Kiểm tra bắt buộc trước khi lưu:** Cycle Code, Cycle Name, Evaluation Template, Start Date, End Date là bắt buộc; End Date phải sau Start Date; Grace Period không được âm.
-
-### 5.5 Mở và vận hành kỳ đánh giá
-
-Trên trang chi tiết một kỳ đánh giá, các nút thao tác xuất hiện tùy theo trạng thái hiện tại:
-
-| Trạng thái hiện tại | Hành động khả dụng |
-|---|---|
-| DRAFT | **Edit Configuration**, **Open Cycle** (có hộp thoại xác nhận) |
-| OPEN | **Start In Progress** |
-| IN_PROGRESS | **Submit All Evaluations** |
-| SUBMITTED | **Start Reviewing** |
-| REVIEWING | **Move to Calibration**, **Approve Cycle** |
-| CALIBRATION | **Approve Cycle** |
-| APPROVED | **Publish Results** |
-| Bất kỳ trạng thái nào chưa khóa | **Lock Cycle** |
-
-Trang chi tiết còn hiển thị: badge trạng thái, dòng thời gian (**Cycle Timeline**), bản tóm tắt phạm vi (**Scope Preview**), và tóm tắt cấu hình (bao gồm dòng **Calibration: Enabled/Disabled**).
-
-### 5.6 Khóa kỳ đánh giá
-
-Bấm **Lock Cycle**. Hệ thống hiển thị cảnh báo xác nhận trước khi khóa, nêu rõ rằng toàn bộ đánh giá liên quan sẽ trở thành chỉ đọc vĩnh viễn. Sau khi khóa, một biểu ngữ (banner) đen với tiêu đề **"Cycle Status: LOCKED"** xuất hiện, giải thích rằng mọi cấu hình, bản đánh giá, điểm tiêu chí và chuyển trạng thái đã đóng băng.
-
-### 5.7 Kết quả
-
-Mỗi hành động (mở, chuyển trạng thái, khóa) cập nhật ngay badge trạng thái và các nút thao tác khả dụng trên trang chi tiết.
-
-## 6. Tiêu chí & Quy tắc (Criteria & Rules)
-
-### 6.1 Mục đích
-
-Quản lý danh sách tiêu chí (criterion) và quy tắc chấm điểm dùng để xây dựng bộ mẫu đánh giá.
-
-### 6.2 Ai được sử dụng
-
-| Vai trò | Quyền truy cập |
-|---|---|
-| HR/Admin, System Admin | Xem và tạo tiêu chí mới |
-| Manager, Employee | Không có menu này |
-
-### 6.3 Cách truy cập
-
-Chọn **Criteria & Rules** trên thanh điều hướng.
-
-### 6.4 Màn hình tổng quan
-
-Trang **Criteria & Rules Library** hiển thị bảng gồm các cột: **Code**, **Name**, **Category**, **Current Version** (phiên bản hiện hành, ví dụ `v1`), **Status**.
-
-### 6.5 Tạo tiêu chí mới
-
-1. Bấm **+ Create Criterion**.
-2. Nhập **Criterion Code \*** và **Criterion Name \*** (bắt buộc).
-3. Chọn **Category**: Performance, Capability, Contribution, hoặc Behavior.
-4. Nhập **Description** (tùy chọn).
-5. Bấm **Create**. Trong lúc xử lý, nút hiển thị **"Creating..."**.
-
-Nếu thiếu **Code** hoặc **Name**, hệ thống báo lỗi: "Code and Name are required."
-
-### 6.6 Tìm kiếm và lọc
-
-- Ô tìm kiếm **"Search by code or name..."**.
-- Bộ lọc **Category**: All Categories, Performance, Capability, Contribution, Behavior.
-
-### 6.7 Kết quả
-
-Tiêu chí mới xuất hiện ngay trong bảng. Danh sách hiển thị phiên bản hiện hành của từng tiêu chí; việc chỉnh sửa hoặc quản lý phiên bản chi tiết của một tiêu chí được thực hiện trong quá trình xây dựng bộ mẫu đánh giá (xem Mục 8).
-
-## 7. Thư viện KPI (KPI Library)
-
-### 7.1 Mục đích
-
-Quản lý các KPI (chỉ số đo lường) và mối quan hệ giữa KPI với tiêu chí, dùng trong bộ mẫu đánh giá.
-
-### 7.2 Ai được sử dụng
-
-| Vai trò | Quyền truy cập |
-|---|---|
-| HR/Admin, System Admin | Toàn quyền |
-| Manager, Employee | Không có menu này |
-
-### 7.3 Cách truy cập
-
-Chọn **KPI Library** trên thanh điều hướng.
-
-### 7.4 Màn hình tổng quan
-
-Trang có 2 tab: **KPI Library (n)** và **Dependency Map (n)**.
-
-**Tab KPI Library:**
-- Ô tìm kiếm để lọc theo tên/mã KPI.
-- Nút **+ Create KPI** để tạo mới.
-- Bảng KPI gồm Code, Name, Description và cột **Actions** với **Edit** và **Delete** (bấm Delete sẽ hiện xác nhận nội tuyến **"Delete?"** với hai lựa chọn **Yes**/**No**).
-- Bấm vào một dòng KPI sẽ mở bảng chi tiết tiêu chí liên kết với KPI đó bên dưới.
-
-**Tab Dependency Map:**
-- Hiển thị bảng quan hệ giữa các KPI.
-- Nút **Add Relationship** để thêm quan hệ mới.
-
-### 7.5 Kết quả
-
-Thay đổi (tạo/sửa/xóa KPI, thêm quan hệ) được phản ánh ngay trên bảng tương ứng.
-
-## 8. Bộ mẫu đánh giá (Template Builder)
-
-### 8.1 Mục đích
-
-Xây dựng bộ mẫu đánh giá (Evaluation Template): chọn KPI/tiêu chí, cấu hình trọng số, kiểm tra hợp lệ, và phát hành phiên bản chính thức để sử dụng trong kỳ đánh giá.
-
-### 8.2 Ai được sử dụng
-
-| Vai trò | Quyền truy cập |
-|---|---|
-| HR/Admin, System Admin | Toàn quyền |
-| Manager, Employee | Không có menu này |
-
-### 8.3 Cách truy cập
-
-Chọn **Template Builder** trên thanh điều hướng.
-
-### 8.4 Danh sách bộ mẫu
-
-Bảng hiển thị: Template Name/Code, Version, Status (badge), Criteria Count, Last Updated, Updated By.
-
-- Nếu bộ mẫu đã **PUBLISHED**: hàng có nút **View** và **Create New Version**.
-- Nếu chưa publish (DRAFT): hàng có nút **Edit Draft**.
-
-### 8.5 Tạo bộ mẫu mới
-
-1. Bấm **+ Create Template**.
-2. Nhập **Code \***, **Name \***, **Description** (tùy chọn).
-3. Xác nhận tạo — bộ mẫu mới ở trạng thái **DRAFT**, sẵn sàng để chỉnh sửa nội dung.
-
-### 8.6 Chỉnh sửa nội dung bộ mẫu (workspace)
-
-Màn hình xây dựng bộ mẫu gồm:
-- Breadcrumb, badge trạng thái, số phiên bản ("Version N").
-- Chỉ báo thay đổi chưa lưu: **"● Unsaved changes"** hoặc **"● All changes saved · Last saved {thời điểm}"**.
-- Thanh công cụ: **Version Diff**, **Validate Template**, và (chỉ khi chưa publish) **Save Draft**, **Publish Version**.
-- Hai cột nội dung: bên trái là tab **KPI Library** / **Criterion Library** để chọn; bên phải là khu vực cấu hình — thẻ KPI kèm điều khiển trọng số, kéo-thả tiêu chí, thanh trạng thái tổng trọng số (**Weight Status Bar**).
-- Bấm vào một tiêu chí sẽ mở khung cấu hình chi tiết (**Criterion Config**) dạng trượt từ cạnh phải màn hình.
-
-**Kiểm tra hợp lệ:** bấm **Validate Template** để mở hộp thoại kết quả kiểm tra (ví dụ: tổng trọng số chưa đủ/vượt 100%).
-
-**Phát hành:** bấm **Publish Version**, xác nhận trong hộp thoại **Publish Confirmation**.
-
-**Xem lịch sử phiên bản:** bấm **Version Diff** để so sánh giữa các phiên bản đã lưu.
-
-**Xử lý xung đột đồng thời:** nếu một người khác đã lưu thay đổi trước bạn (lỗi HTTP 409), hệ thống mở hộp thoại **Conflict Resolution** để bạn xử lý trước khi lưu tiếp.
-
-### 8.7 Phiên bản đã Publish là bất biến
-
-> **Vì sao không sửa được bộ mẫu đã Publish?**
-> Khi một phiên bản đã được **Publish**, nội dung trở thành cố định để đảm bảo các kỳ đánh giá đang dùng phiên bản đó không bị thay đổi ngầm. Màn hình hiển thị biểu ngữ: **"🔒 Published Version is Immutable. This configuration is locked and cannot be modified."** Để thay đổi, bấm **Create New Draft Version** để tạo một phiên bản nháp mới dựa trên phiên bản đã publish.
-
-Khi ở chế độ chỉ đọc này, các nút **Save Draft** và **Publish Version** không hiển thị.
-
-### 8.8 Kết quả
-
-Sau khi **Publish Version** thành công, bộ mẫu chuyển sang trạng thái **PUBLISHED** và có thể được chọn khi tạo Kỳ đánh giá (Mục 5.4).
-
-## 9. Trung tâm nhập liệu CSV (Import Center)
-
-### 9.1 Mục đích
-
-Nhập hàng loạt kết quả đánh giá (điểm số) vào một kỳ đánh giá thông qua tệp CSV, thay vì nhập tay từng mục.
-
-### 9.2 Ai được sử dụng
-
-| Vai trò | Quyền truy cập |
-|---|---|
-| HR/Admin, System Admin | Toàn quyền tải mẫu, tải lên, xem lịch sử |
-| Manager, Employee | Không có menu này |
-
-### 9.3 Cách truy cập
-
-Chọn **Import Center** trên thanh điều hướng — mở thẳng vào màn hình **Upload CSV**. Để xem lịch sử các lần nhập trước, vào đường dẫn **Import History** (xem Mục 9.9).
-
-### 9.4 Tải mẫu CSV (Download Template)
-
-Màn hình **Upload CSV** hiển thị **Template Details**: Code, Version, Status, Effective From, kèm bảng cột **Columns** (Order, Column, Type, Required, Validation). Bấm **Download CSV Template** để tải tệp mẫu CSV theo đúng cấu trúc cột đang hiệu lực.
-
-### 9.5 Tải lên và kiểm tra (Upload & Validate)
-
-1. Nhập **Evaluation Cycle ID** — mã của kỳ đánh giá cần nhập dữ liệu vào.
-2. Chọn tệp CSV ở ô **Select CSV File** (chỉ nhận tệp `.csv`).
-3. Bấm **Upload & Validate**. Trong lúc xử lý, nút hiển thị **"Uploading..."**.
-
-### 9.6 Xem trước kết quả kiểm tra (Preview)
-
-Sau khi tải lên, khu vực **Validation Preview** hiển thị 3 ô số liệu: **Total Rows**, **Valid Rows**, **Errors**.
-
-Nếu toàn bộ dòng hợp lệ, hệ thống hiển thị: "All rows passed validation successfully! You may proceed with the import."
-
-Nếu có lỗi, bảng **Row Validation Errors** liệt kê từng lỗi theo cột **Row** (số dòng), **Field** (trường dữ liệu), **Error Code** (mã lỗi), **Message** (nội dung lỗi). Bảng chỉ hiển thị tối đa 100 lỗi đầu tiên, kèm ghi chú "Showing first 100 errors." nếu còn nhiều hơn.
-
-**Cách xử lý lỗi:** mở lại tệp CSV, tìm đúng số dòng (Row) và cột (Field) được báo lỗi, sửa theo nội dung **Message**, sau đó tải lên lại từ đầu (Mục 9.5).
-
-### 9.7 Chọn chế độ nhập liệu
-
-Ở khu vực **Import Settings**, chọn một trong hai chế độ:
-
-- **Partial Import (Recommended)**: "Valid rows will be imported. Rows with errors will be skipped." — Các dòng hợp lệ được nhập, dòng lỗi bị bỏ qua.
-- **Strict Mode**: "All or nothing. If any row has an error, the entire import will be rejected." — Chỉ nhập khi toàn bộ tệp hợp lệ; nếu còn dòng lỗi, toàn bộ lần nhập bị từ chối. Nếu chọn Strict Mode khi vẫn còn lỗi, hệ thống hỏi xác nhận thêm trước khi tiếp tục.
-
-Bấm **Confirm and Import** để bắt đầu. Nút này bị vô hiệu hóa nếu chọn Strict Mode mà vẫn còn dòng lỗi.
-
-### 9.8 Theo dõi quá trình xử lý
-
-Sau khi xác nhận, khu vực trạng thái hiển thị **"Import Status: {trạng thái}"**, tự động cập nhật mỗi 2 giây trong khi đang xử lý. Ý nghĩa từng trạng thái xem Mục 16.
-
-Khi quá trình kết thúc (**Completed**, **Partially Completed**, hoặc **Failed**), bấm **View Import History** để chuyển sang màn hình lịch sử.
-
-### 9.9 Lịch sử nhập liệu (Import History)
-
-Bảng liệt kê các lần nhập: File, Status (badge — Completed/Partial/Failed/Importing...), Total Rows, Imported, Errors, Created At, Completed At. Danh sách tự làm mới mỗi 5 giây khi có lần nhập đang chạy. Bấm biểu tượng mắt trên một dòng để xem **chi tiết**.
-
-**Chi tiết một lần nhập:** hiển thị tóm tắt (Status, File, Total Rows, Successfully Imported, Errors/Skipped) và bảng **Row History** — từng dòng dữ liệu với trạng thái riêng: **Valid**, **Invalid**, **Imported**, **Skipped**, kèm Employee, Criterion·KPI, Value, Errors. Bảng chi tiết tự làm mới mỗi 3 giây khi lần nhập đang chạy.
-
-### 9.10 Kết quả
-
-Sau khi nhập thành công, kết quả (điểm số) được ghi nhận vào các bản đánh giá tương ứng trong kỳ đánh giá đã chọn; lần nhập được lưu lại trong **Import History** để tra cứu sau này.
-
-## 10. Bản dịch đa ngôn ngữ (I18n Translation)
-
-### 10.1 Mục đích
-
-Quản lý nội dung đa ngôn ngữ hiển thị trên hệ thống.
-
-### 10.2 Ai được sử dụng
-
-| Vai trò | Quyền truy cập |
-|---|---|
-| HR/Admin, System Admin | Toàn quyền |
-| Manager, Employee | Không có menu này |
-
-### 10.3 Cách truy cập
-
-Chọn **I18n Translation** trên thanh điều hướng.
-
-## 11. Quản lý Định danh & Quyền truy cập (Identity & Access)
-
-### 11.1 Mục đích
-
-Quản lý tài khoản người dùng hệ thống, vai trò (role) và quyền hạn (permission) gắn với từng vai trò.
-
-### 11.2 Ai được sử dụng
-
-| Vai trò | Quyền truy cập |
-|---|---|
-| HR/Admin, System Admin | Toàn quyền |
-| Manager, Employee | Không có menu này |
-
-### 11.3 Cách truy cập
-
-Chọn **Identity & Access** trên thanh điều hướng. Trang có 3 tab: **Users**, **Roles**, **Permissions**.
-
-### 11.4 Quản lý người dùng (Users)
-
-- Bảng: Name, Email, Role, Status.
-- **+ Create User**: nhập **Full Name \***, **Email \***, **Password \***, chọn **Role \***.
-- **Edit** trên một dòng: chỉnh **Full Name** và **Role** (không đổi được email/mật khẩu tại đây).
-- **Deactivate**/**Activate**: hộp thoại xác nhận với tiêu đề tương ứng **"Deactivate User"** hoặc **"Activate User"**.
-
-### 11.5 Quản lý vai trò (Roles)
-
-- Bảng: Code, Name, Description, số lượng Permissions, Actions.
-- **+ Create Role**: nhập **Code \*** (chữ hoa/gạch dưới, không đổi được khi sửa), **Name \***, **Description**.
-
-### 11.6 Quản lý quyền hạn (Permissions)
-
-Hiển thị ma trận quyền: các mã quyền (permission code) theo hàng, các vai trò theo cột, mỗi ô là một hộp kiểm để gán/gỡ quyền cho vai trò tương ứng.
-
-### 11.7 Kết quả
-
-Thay đổi tài khoản/vai trò/quyền có hiệu lực ngay cho lần đăng nhập tiếp theo của người dùng liên quan.
-
-## 12. Nhật ký hệ thống (Audit Log)
-
-### 12.1 Mục đích
-
-Cung cấp lịch sử các hành động quan trọng trong hệ thống để người có thẩm quyền biết ai đã thực hiện thao tác gì, vào lúc nào.
-
-### 12.2 Ai được sử dụng
-
-| Vai trò | Quyền truy cập |
-|---|---|
-| HR/Admin, System Admin | Xem toàn bộ nhật ký |
-| Manager, Employee | Không có menu này |
-
-### 12.3 Cách truy cập
-
-Chọn **Audit Log** trên thanh điều hướng.
-
-### 12.4 Màn hình tổng quan
-
-**Bộ lọc:** ô nhập **Entity ID**, chọn **Entity Type** (All / TEAM / EMPLOYEE / KPI), chọn **Action** (All / CREATE / UPDATE / DELETE).
-
-**Bảng nhật ký** gồm: Timestamp (thời điểm), Action (dạng huy hiệu màu), Entity Type, Entity ID, Performed By (người thực hiện), Details (trường dữ liệu thay đổi: giá trị cũ → giá trị mới, kèm Reason nếu có).
-
-**Phân trang:** nút **Previous**/**Next**, dòng chữ "Showing X results. Total: Y".
-
-### 12.5 Các trạng thái màn hình
-
-- Đang tải: hiển thị "Loading audit logs…".
-- Không tìm thấy dữ liệu phù hợp bộ lọc: "No audit logs found matching the criteria."
-- Lỗi tải dữ liệu: hiển thị thông báo lỗi kèm tùy chọn thử lại.
-
-## 13. Đánh giá nhóm (Team Reviews) — Dành cho Manager
-
-### 13.1 Mục đích
-
-Cho phép Manager xem, đánh giá và duyệt kết quả tự đánh giá của các nhân viên trong nhóm mình quản lý.
-
-### 13.2 Ai được sử dụng
-
-| Vai trò | Quyền truy cập |
-|---|---|
-| Manager | Xem và đánh giá nhân viên thuộc phạm vi quản lý của mình |
-| HR/Admin, System Admin | Có quyền truy cập tương tự (để hỗ trợ/giám sát) |
-| Employee | Không có menu này |
-
-### 13.3 Cách truy cập
-
-Chọn **Team Reviews** trên thanh điều hướng.
-
-### 13.4 Màn hình tổng quan
-
-Trang **Team Reviews** có ô tìm kiếm **"Search by employee name, code, or cycle..."** và bộ lọc trạng thái: **All Statuses**, **Ready for Review**, **In Progress (Employee)**, **Approved**.
-
-Danh sách được nhóm thành 3 khu vực:
-- **Currently in Review (n)** — gồm các trạng thái: "Self-Review In Progress", "Ready for Manager Review", "In Review".
-- **Completed Reviews (n)** — gồm: "Approved" và các trạng thái đã công bố/khóa.
-- **Upcoming Reviews (n)** — các trường hợp khác.
-
-Mỗi thẻ hiển thị tên nhân viên, mã nhân viên, chức danh, tên nhóm, badge trạng thái, tên kỳ đánh giá, ngày nộp (nếu có), và nút **"Review Now"** (khi sẵn sàng duyệt) hoặc **"View Details"**.
-
-### 13.5 Thực hiện đánh giá cho nhân viên
-
-1. Từ danh sách, bấm vào thẻ nhân viên cần đánh giá (badge **"Ready for Manager Review"**).
-2. Với từng tiêu chí: chọn **"Chọn mức đánh giá quản lý"** và nhập **"Nhận xét của quản lý"**.
-3. Có thể bấm **"Lưu mục này"** để lưu riêng một tiêu chí, hoặc **"Lưu thay đổi (Draft)"** để lưu toàn bộ.
-4. Khi hoàn tất, bấm **"Duyệt đánh giá"**.
-
-### 13.6 Xác nhận duyệt
-
-Hộp thoại xác nhận hiển thị:
-- Nếu còn tiêu chí chưa chọn mức đánh giá: tiêu đề **"Chưa hoàn thành đánh giá"**, liệt kê các tiêu chí còn thiếu, và không cho duyệt cho đến khi hoàn thành.
-- Nếu đã hoàn thành: tiêu đề **"Xác nhận duyệt đánh giá"**, cảnh báo "Duyệt đánh giá là bước workflow chính thức. Sau khi duyệt, đánh giá sẽ chuyển sang trạng thái đã duyệt và không còn chỉnh sửa được." Bấm **"Xác nhận duyệt"** để hoàn tất, hoặc **"Huỷ bỏ"** để đóng hộp thoại.
-
-### 13.7 Sau khi duyệt
-
-Hệ thống hiển thị thông báo "Đã duyệt đánh giá thành công." Bản đánh giá chuyển sang trạng thái **Đã duyệt (Approved)**.
-
-### 13.8 Các thao tác dành riêng cho HR/Admin trên trang chi tiết đánh giá
-
-- **Tính lại điểm** (khi đang ở trạng thái có thể sửa và chưa khóa).
-- **Override Score**: mở hộp thoại **"Override KPI Score"** để chỉnh tay điểm của một KPI cụ thể — phải chọn KPI, nhập **New Score (0-100)** và bắt buộc nhập **Reason for Override**, sau đó bấm **Apply Override**. Thao tác chỉ hiển thị khi đánh giá ở trạng thái **Approved** hoặc **Published** và chưa bị khóa.
-- **Publish Results** (khi đánh giá ở trạng thái Approved) và **Lock Evaluation** (khi ở trạng thái Approved hoặc Published).
-
-> **Lưu ý:** giao diện hiện tại không có chức năng "trả đánh giá về cho nhân viên sửa lại" (yêu cầu chỉnh sửa). Nếu cần điều chỉnh sau khi nhân viên đã nộp, Manager thực hiện đánh giá và duyệt như bình thường; việc chỉnh điểm sau khi đã duyệt/công bố chỉ thực hiện được qua **Override Score** (dành cho HR/Admin).
-
-## 14. Đánh giá của tôi (My Evaluation) — Dành cho Employee
-
-### 14.1 Mục đích
-
-Cho phép mỗi nhân viên tự đánh giá hiệu suất của mình theo từng kỳ đánh giá, theo dõi tiến độ, và xem kết quả chính thức sau khi được công bố.
-
-### 14.2 Ai được sử dụng
-
-| Vai trò | Quyền truy cập |
-|---|---|
-| Employee | Xem và thực hiện tự đánh giá của chính mình |
-| Manager, System Admin | Cũng có thể dùng để tự đánh giá cho chính bản thân |
-| HR_ADMIN | Không có menu này |
-
-### 14.3 Cách truy cập
-
-Chọn **My Evaluation** trên thanh điều hướng.
-
-### 14.4 Màn hình tổng quan
-
-Trang **My Evaluation** gồm:
-- Thẻ **"Kỳ đánh giá hiện tại"**: tên kỳ, thời gian, badge trạng thái, thanh tiến độ tự đánh giá, cảnh báo sắp/đã quá hạn (nếu còn ≤3 ngày hoặc đã trễ), nút hành động ở góc dưới bên phải.
-- Mục **"Lịch sử các kỳ đánh giá"**: bảng các kỳ đánh giá trước đó gồm Kỳ đánh giá, Thời gian, Trạng thái, Điểm chính thức.
-
-**Trạng thái trống:** nếu chưa được gán kỳ đánh giá nào, hiển thị "Chưa có kỳ đánh giá nào" kèm giải thích: "Hiện tại bạn chưa được gán kỳ đánh giá nào. Khi Phòng Nhân sự (HR) hoặc Quản lý mở kỳ đánh giá mới, thông tin sẽ xuất hiện tại đây."
-
-**Trạng thái lỗi:** "Không thể tải dữ liệu đánh giá" kèm nút **"Thử lại"**.
-
-### 14.5 Thực hiện tự đánh giá
-
-1. Ở thẻ kỳ đánh giá hiện tại, bấm nút hành động: **"Bắt đầu tự đánh giá"** (chưa làm gì) hoặc **"Tiếp tục đánh giá"** (đã làm dở).
-2. Với từng tiêu chí: chọn **"Chọn mức độ tự đánh giá"** (bắt buộc) và nhập **"Ý kiến / Giải trình tự đánh giá"** (mô tả kết quả công việc, dẫn chứng số liệu hoặc lý do chọn mức đánh giá).
-3. Có thể bấm **"Lưu mục này"** để lưu riêng từng tiêu chí, hoặc **"Lưu nháp (Draft)"** / **"Lưu thay đổi (Draft)"** để lưu toàn bộ mà chưa nộp chính thức.
-4. Một số tiêu chí có thể hiển thị nhãn **"Không áp dụng cho bạn"** — không cần thực hiện các tiêu chí này.
-5. Khi đã hoàn tất, bấm **"Nộp tự đánh giá"**.
-
-Thanh tiến độ trên đầu trang hiển thị "Tiến độ hoàn thành: {đã làm}/{tổng} tiêu chí" và cảnh báo "Còn {n} tiêu chí cần tự đánh giá" nếu chưa xong.
-
-### 14.6 Kiểm tra trước khi nộp
-
-- Nếu còn tiêu chí chưa chọn mức đánh giá, hộp thoại **"Chưa hoàn thành tự đánh giá"** liệt kê các tiêu chí còn thiếu (mã và tên) và yêu cầu hoàn thành trước khi nộp; bấm **"Đóng và tiếp tục đánh giá"** để quay lại.
-- Nếu đã hoàn tất, hộp thoại **"Xác nhận Nộp Tự Đánh Giá"** cảnh báo: "Nộp đánh giá là bước workflow chính thức. Sau khi gửi, bảng đánh giá sẽ chuyển sang trạng thái **Chờ Quản lý (Manager Review)** và bạn sẽ không thể chỉnh sửa điểm hay ý kiến giải trình của mình nữa." Bấm **"Xác nhận nộp"** để hoàn tất, hoặc **"Huỷ bỏ"**.
-
-### 14.7 Sau khi nộp
-
-Hệ thống hiển thị thông báo: "Đã nộp bản tự đánh giá thành công! Đánh giá đã chuyển sang trạng thái Chờ Quản lý." Đánh giá chuyển sang chế độ **chỉ đọc** với biểu ngữ **"STATUS: READ ONLY"**, giải thích: "Bạn đã gửi tự đánh giá thành công. Đánh giá hiện đang ở trạng thái Chờ Quản lý (Manager Review) và ở chế độ Chỉ đọc."
-
-### 14.8 Xem kết quả đã công bố (Published Result)
-
-Khi Manager đã duyệt và HR/Admin đã **Publish Results**, đánh giá chuyển sang trạng thái **Đã công bố (Published)**. Trang chi tiết hiển thị:
-- Biểu ngữ: "Đánh giá đã được công bố chính thức. Bạn có thể xem toàn bộ điểm số, nhận xét và kết quả cuối cùng bên dưới."
-- Bảng **"Tổng quan kết quả đánh giá"**: **Điểm Tự Đánh Giá (Self)**, **Điểm Quản Lý Đánh Giá**, **Điểm Chính Thức (Final)**.
-- Trên thẻ kỳ đánh giá ở trang danh sách: nhãn **"Kết quả chính thức"** kèm **"Final Score: {điểm}"**, và nút **"Xem kết quả đã công bố"**.
-
-> Hệ thống chỉ hiển thị điểm số và nhận xét của cá nhân bạn. Giao diện hiện tại không cung cấp thông tin xếp hạng cá nhân so với đồng nghiệp.
-
-### 14.9 Xem lịch sử các kỳ đánh giá trước
-
-Trong bảng **"Lịch sử các kỳ đánh giá"**, bấm vào một dòng để mở lại chi tiết kỳ đánh giá đó ở chế độ chỉ đọc — có thể xem lại toàn bộ tiêu chí, mức đánh giá và nhận xét đã ghi nhận, nhưng không chỉnh sửa được.
-
-## 15. Dữ liệu bị khóa / Chỉ đọc (Locked / Read-only)
-
-Hệ thống khóa dữ liệu ở ba cấp độ, mỗi cấp có biểu ngữ cảnh báo riêng:
-
-**Kỳ đánh giá bị khóa (Cycle LOCKED):** biểu ngữ "Cycle Status: LOCKED" — toàn bộ cấu hình, các bản đánh giá, điểm tiêu chí và việc chuyển trạng thái trong kỳ này vĩnh viễn không sửa được.
-
-**Bản đánh giá cá nhân ở trạng thái chỉ đọc:** tùy trạng thái, biểu ngữ hiển thị khác nhau:
-- **LOCKED**: "Kỳ đánh giá đã bị KHÓA. Toàn bộ thông tin điểm số và phản hồi là cố định và không thể chỉnh sửa."
-- **Đã nộp, chờ Manager (chỉ với chế độ tự đánh giá)**: "Bạn đã gửi tự đánh giá thành công... đang ở chế độ Chỉ đọc."
-- **APPROVED**: "Đánh giá đã được cấp quản lý phê duyệt. Kết quả sẽ được công bố chính thức theo lịch của công ty."
-- **PUBLISHED**: "Đánh giá đã được công bố chính thức. Bạn có thể xem toàn bộ điểm số, nhận xét và kết quả cuối cùng bên dưới."
-
-**Bộ mẫu đánh giá đã Publish:** biểu ngữ "🔒 Published Version is Immutable. This configuration is locked and cannot be modified." — phải tạo **New Draft Version** để chỉnh sửa tiếp.
-
-Khi ở bất kỳ trạng thái khóa/chỉ đọc nào ở trên, bạn **có thể**: xem thông tin, xem kết quả/điểm số, xem lịch sử. Bạn **không thể**: thay đổi điểm số, thay đổi mức đánh giá, chỉnh sửa nhận xét, hoặc thực hiện các thao tác yêu cầu chỉnh sửa.
-
-## 16. Bảng tra cứu trạng thái
-
-### Trạng thái Kỳ đánh giá (Cycle)
-
-| Trạng thái | Ý nghĩa |
-|---|---|
-| DRAFT | Kỳ đánh giá đang được cấu hình, chưa mở |
-| OPEN | Đã mở, đang chờ bắt đầu quá trình đánh giá |
-| IN_PROGRESS | Đang trong quá trình đánh giá |
-| SUBMITTED | Các bản đánh giá đã được nộp |
-| REVIEWING | Đang trong giai đoạn review |
-| CALIBRATION | Đang trong giai đoạn Calibration (nếu kỳ này bật Calibration) |
-| APPROVED | Đã được duyệt |
-| PUBLISHED | Kết quả đã được công bố |
-| LOCKED | Đã khóa, chỉ đọc vĩnh viễn |
-
-### Trạng thái bản đánh giá cá nhân (Evaluation)
-
-| Trạng thái | Ý nghĩa |
-|---|---|
-| Chưa mở (Draft) | Chưa đến giai đoạn tự đánh giá |
-| Đang tự đánh giá (Open) | Nhân viên đang thực hiện tự đánh giá |
-| Đã nộp / Chờ Manager (Submitted) | Đã nộp, đang chờ Manager đánh giá |
-| Đang Review (Manager Review) | Manager đang thực hiện đánh giá |
-| Đang Calibration | Đang trong giai đoạn Calibration |
-| Đã duyệt (Approved) | Manager đã duyệt |
-| Đã công bố (Published) | Kết quả chính thức đã công bố cho nhân viên |
-| Đã khóa (Locked) | Không thể chỉnh sửa |
-
-### Trạng thái bộ mẫu đánh giá (Template)
-
-| Trạng thái | Ý nghĩa |
-|---|---|
-| DRAFT | Đang soạn thảo, có thể chỉnh sửa |
-| PUBLISHED | Đã phát hành, bất biến, dùng được cho kỳ đánh giá |
-| ARCHIVED | Đã lưu trữ, không còn sử dụng |
-
-### Trạng thái lần nhập liệu CSV (Import Job)
-
-| Trạng thái | Ý nghĩa |
-|---|---|
-| UPLOADED / VALIDATING / IMPORTING / PREVIEW | Đang xử lý |
-| COMPLETED | Hoàn tất, toàn bộ dòng hợp lệ đã nhập |
-| PARTIALLY_COMPLETED | Hoàn tất một phần — một số dòng bị bỏ qua do lỗi |
-| FAILED | Thất bại |
-
-### Trạng thái từng dòng dữ liệu nhập (Import Row)
-
-| Trạng thái | Ý nghĩa |
-|---|---|
-| VALID | Dòng hợp lệ, sẵn sàng nhập |
-| INVALID | Dòng có lỗi |
-| IMPORTED | Đã nhập thành công |
-| SKIPPED | Bị bỏ qua (do lỗi, khi dùng Partial Import) |
-
-## 17. Ma trận phân quyền
-
-| Chức năng | Employee | Manager | HR/Admin | System Admin |
-|---|---:|---:|---:|---:|
-| Xem/thực hiện My Evaluation (tự đánh giá) | ✓ | ✓ | — | ✓ |
-| Xem/đánh giá Team Reviews | — | ✓ | ✓ | ✓ |
-| Organization (Employees/Teams/Departments/Roles/Levels) | — | — | ✓ | ✓ |
-| Evaluation Cycles | — | — | ✓ | ✓ |
-| Criteria & Rules | — | — | ✓ | ✓ |
-| KPI Library | — | — | ✓ | ✓ |
-| Template Builder | — | — | ✓ | ✓ |
-| Import Center | — | — | ✓ | ✓ |
-| I18n Translation | — | — | ✓ | ✓ |
-| Identity & Access (IAM) | — | — | ✓ | ✓ |
-| Audit Log | — | — | ✓ | ✓ |
-| Override Score / Publish / Lock (trên bản đánh giá) | — | — | ✓ | ✓* |
-
-`*` Cột System Admin dựa trên `isHrAdmin` (điều kiện `role === HR_ADMIN || role === SYSTEM_ADMIN`) trong giao diện chi tiết đánh giá.
-
-> Đây là quyền hiển thị/truy cập trên giao diện. Máy chủ là nơi thực sự kiểm soát quyền — giao diện chỉ ẩn/hiện để thuận tiện sử dụng.
-
-## 18. Xử lý sự cố thường gặp
-
-### Không nộp được tự đánh giá / không duyệt được đánh giá
-
-Nguyên nhân có thể:
-- Còn tiêu chí chưa chọn mức đánh giá — hộp thoại xác nhận sẽ liệt kê rõ các tiêu chí còn thiếu.
-- Đánh giá đang ở trạng thái chỉ đọc (đã nộp, đã duyệt, đã công bố, hoặc đã khóa) — không còn nút Nộp/Duyệt.
-
-### Không chỉnh sửa được đánh giá/kỳ đánh giá/bộ mẫu
-
-Nguyên nhân có thể:
-- Kỳ đánh giá hoặc bản đánh giá đã bị **Locked**.
-- Bộ mẫu đã ở trạng thái **PUBLISHED** (cần tạo **New Draft Version**).
-- Tài khoản không có quyền truy cập trang này — hệ thống hiển thị **"403 — Access Denied"**.
-- Có người khác đã lưu thay đổi trước bạn khi chỉnh sửa bộ mẫu (xung đột phiên bản) — hộp thoại **Conflict Resolution** sẽ xuất hiện để xử lý.
-
-### Đăng nhập không thành công
-
-Xem chi tiết các thông báo lỗi tại Mục 3.3. Nếu dùng tài khoản Google, đảm bảo tài khoản thuộc đúng tên miền công ty.
-
-### Nhập liệu CSV báo lỗi
-
-1. Mở lại khu vực **Validation Preview** sau khi tải tệp lên.
-2. Xem bảng **Row Validation Errors**, ghi lại số dòng (**Row**) và trường (**Field**) bị lỗi.
-3. Đọc nội dung **Message** để biết nguyên nhân cụ thể.
-4. Sửa lại tệp CSV theo đúng cấu trúc cột đã tải về ở Mục 9.4.
-5. Tải lên lại (Mục 9.5).
-
-Nếu chọn **Strict Mode** mà vẫn còn lỗi, toàn bộ lần nhập sẽ bị từ chối — hãy chuyển sang **Partial Import** nếu chỉ muốn nhập các dòng hợp lệ trước.
-
-## 19. Câu hỏi thường gặp
-
-**Tôi không thấy menu nào ngoài "Dashboard", "Team Reviews", "My Evaluation" — vì sao?**
-Nhóm menu **Configuration** (Organization, Evaluation Cycles, Criteria & Rules, KPI Library, Template Builder, Import Center, I18n Translation, Identity & Access, Audit Log) chỉ hiển thị cho tài khoản HR/Admin hoặc System Admin.
-
-**Tại sao tôi không thể sửa điểm sau khi đã nộp?**
-Sau khi nộp tự đánh giá, bản đánh giá chuyển sang trạng thái chỉ đọc để chờ Manager xử lý — đây là bước workflow chính thức, không thể tự ý sửa lại.
-
-**Kết quả đánh giá của tôi công bố khi nào?**
-Sau khi Manager duyệt và HR/Admin thực hiện **Publish Results**, bạn sẽ thấy kết quả tại **My Evaluation**.
-
-**Tôi có thể xem xếp hạng của mình so với đồng nghiệp không?**
-Không. Giao diện chỉ hiển thị kết quả cá nhân của bạn (điểm tự đánh giá, điểm quản lý, điểm chính thức), không có tính năng xếp hạng cá nhân.
-
-**Tôi nhập sai dữ liệu CSV, phải làm sao?**
-Sửa lại tệp theo hướng dẫn ở Mục 18 ("Nhập liệu CSV báo lỗi") và tải lên lại — quá trình nhập là độc lập cho từng lần tải lên.
-
-## 20. Tra cứu nhanh theo vai trò
-
-### Employee
-
-- Vào **My Evaluation** để xem kỳ đánh giá hiện tại và thực hiện tự đánh giá.
-- Bấm **"Bắt đầu tự đánh giá"**/**"Tiếp tục đánh giá"**, chọn mức cho từng tiêu chí, nhập giải trình, **"Lưu nháp (Draft)"** rồi **"Nộp tự đánh giá"**.
-- Xem lại kết quả và lịch sử tại **"Lịch sử các kỳ đánh giá"**.
-
-### Manager
-
-- Vào **Team Reviews** để xem danh sách nhân viên cần đánh giá.
-- Mở thẻ có badge **"Ready for Manager Review"**, nhập mức đánh giá và nhận xét cho từng tiêu chí, **"Duyệt đánh giá"**.
-- Cũng có thể tự đánh giá cho chính mình tại **My Evaluation**.
-
-### HR/Admin
-
-- Cấu hình nền tảng theo thứ tự: **Organization** → **Criteria & Rules** / **KPI Library** → **Template Builder** (Publish) → **Evaluation Cycles** (tạo, mở, theo dõi, khóa).
-- Dùng **Import Center** để nhập điểm hàng loạt qua CSV khi cần.
-- Theo dõi **Audit Log** để tra cứu lịch sử thao tác.
-- Quản lý tài khoản/vai trò tại **Identity & Access**.
-- Trên trang chi tiết đánh giá: **Publish Results**, **Lock Evaluation**, **Override Score** khi cần điều chỉnh điểm với lý do rõ ràng.
-
-### System Admin
-
-- Có quyền truy cập tương đương HR/Admin đối với toàn bộ dữ liệu nghiệp vụ.
-- Có thể tự đánh giá cho chính mình tại **My Evaluation** (khác với HR_ADMIN, vốn không có menu này).
+| `DRAFT` | Newly initialized evaluation. |
+| `IN_PROGRESS` | Employee self-assessment in progress. |
+| `SUBMITTED` | Self-assessment submitted, awaiting manager review. |
+| `IN_REVIEW` | Manager actively evaluating and commenting. |
+| `CALIBRATION` | Calibration committee reviewing scores. |
+| `APPROVED` | Appraisal approved by manager and HR. |
+| `PUBLISHED` | Official results disclosed to employee. |
+| `LOCKED` | Evaluation permanently locked. |
+
+---
+
+## 25. Role-Based Access Control (RBAC) Matrix
+
+| Functional Module | Employee | Manager | HR_ADMIN | SYSTEM_ADMIN |
+|---|:---:|:---:|:---:|:---:|
+| **Access Dashboard** | ✓ | ✓ | ✓ | ✓ |
+| **Access User Guide** | ✓ | ✓ | ✓ | ✓ |
+| **My Evaluation (Self-Assessment)** | ✓ | ✓ | — | ✓ |
+| **Team Reviews (Manager Appraisal)** | — | ✓ | ✓ | ✓ |
+| **Team Review Due Dashboard** | — | ✓ | — | — |
+| **Score Override (with Rationale)** | — | ✓ (team) | ✓ (global) | ✓ (global) |
+| **Performance Reports** | Personal | Team | Company | Company |
+| **Create Individual Evaluation Cycle** | — | ✓ (team) | ✓ | ✓ |
+| **Enterprise Evaluation Cycles** | — | — | ✓ | ✓ |
+| **Calibration Session Management** | — | — | ✓ | — |
+| **Organization Management** | — | — | ✓ | ✓ |
+| **Criteria & KPI Management** | — | — | ✓ | ✓ |
+| **Template Builder** | — | — | ✓ | ✓ |
+| **Data Ingestion Hub & CSV Import** | — | — | ✓ | ✓ |
+| **I18n Translation Management** | — | — | ✓ | ✓ |
+| **Email Templates & Delivery Logs** | — | — | ✓ | ✓ |
+| **Identity & Access Management (IAM)** | — | — | — | ✓ |
+| **Audit Log Inspection** | — | — | ✓ | ✓ |
+
+---
+
+## 26. Troubleshooting & FAQ
+
+### Q1: Why is the "Submit Self-Assessment" button disabled or blocked?
+- **Answer:** One or more mandatory criteria have not been assigned a rating level. Check the progress indicator and review the missing criteria listed in the validation dialog.
+
+### Q2: Why cannot I edit my ratings after submitting?
+- **Answer:** Submitting self-assessments is a formal workflow milestone transitioning the appraisal to your Manager. The appraisal enters read-only status to protect review integrity.
+
+### Q3: Why does a high-performing employee not qualify for Level 5 (Excellent)?
+- **Answer:** The system enforces an **Infraction Ceiling**. If an employee has recorded attendance infractions (tardiness > 0), their attendance score is capped at 9.0/10 (Level 4 - Good), which disqualifies them from receiving an overall Level 5 (Excellent) rating.
+
+### Q4: Why are Configuration menus not visible in my sidebar?
+- **Answer:** Configuration modules are restricted to `HR_ADMIN` and `SYSTEM_ADMIN` roles. Standard `EMPLOYEE` accounts only see operational menus.
+
+### Q5: How should I resolve CSV import errors?
+- **Answer:** Inspect the **Row Validation Errors** table to identify the exact line number (`Row`) and attribute (`Field`). Correct the CSV file per the downloadable template specifications and re-upload using **Partial Import**.
+
+---
+*Documentation updated in alignment with the active KPI System architecture and codebase.*

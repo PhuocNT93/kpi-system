@@ -633,14 +633,14 @@ export const ReviewDueDashboard: React.FC = () => {
                               flexShrink: 0,
                             }}
                           >
-                            {item.full_name.slice(0, 1).toUpperCase()}
+                            {(item.full_name || item.employee_code || 'U').slice(0, 1).toUpperCase()}
                           </div>
                           <div>
                             <div style={{ fontWeight: 600, color: isDark ? '#f8fafc' : '#0f172a', fontSize: '0.875rem' }}>
-                              {item.full_name}
+                              {item.full_name || '—'}
                             </div>
                             <div style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b' }}>
-                              {item.employee_code}
+                              {item.employee_code || '—'}
                             </div>
                           </div>
                         </div>
@@ -739,14 +739,14 @@ export const ReviewDueDashboard: React.FC = () => {
                           flexShrink: 0,
                         }}
                       >
-                        {item.full_name.slice(0, 1).toUpperCase()}
+                        {(item.full_name || item.employee_code || 'U').slice(0, 1).toUpperCase()}
                       </div>
                       <div>
                         <div style={{ fontWeight: 600, color: isDark ? '#f8fafc' : '#0f172a', fontSize: '0.9375rem' }}>
-                          {item.full_name}
+                          {item.full_name || '—'}
                         </div>
                         <div style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b' }}>
-                          {item.employee_code}
+                          {item.employee_code || '—'}
                         </div>
                       </div>
                     </div>

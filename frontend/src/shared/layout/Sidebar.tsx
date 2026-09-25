@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/shared/auth/auth-context';
 import { useTheme } from '@/shared/theme';
+import { useUiTranslation } from '@/shared/i18n/ui-i18n';
 import {
   LayoutDashboard,
   Users,
@@ -67,6 +68,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [isCollapsedUncontrolled, setIsCollapsedUncontrolled] = useState(defaultCollapsed);
   const { user } = useAuth();
   const { isDark } = useTheme();
+  const { t } = useUiTranslation();
 
   const canViewConfig = user?.role === 'SYSTEM_ADMIN' || user?.role === 'HR_ADMIN';
   const effectiveCollapsed = isMobileDrawer ? false : (collapsed !== undefined ? collapsed : isCollapsedUncontrolled);
@@ -96,63 +98,64 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navSections: NavSectionType[] = useMemo(() => [
     {
       key: 'overview',
+      title: t('nav.overview', 'Overview'),
       items: [
         {
           id: 'dashboard',
-          label: 'Dashboard',
+          label: t('nav.dashboard', 'Dashboard'),
           icon: <LayoutDashboard size={18} />,
         },
         {
           id: 'user-guide',
-          label: 'User Guide',
+          label: t('nav.user_guide', 'User Guide'),
           icon: <BookOpen size={18} />,
         },
         {
           id: 'notification-preferences',
-          label: 'Email Notifications',
+          label: t('nav.notification_preferences', 'Email Notifications'),
           icon: <Mail size={18} />,
         },
       ],
     },
     {
       key: 'performance',
-      title: 'Performance',
+      title: t('nav.performance', 'Performance'),
       collapsible: true,
       items: [
         {
           id: 'employee-search',
-          label: 'Employee Search',
+          label: t('nav.employee_search', 'Employee Search'),
           icon: <Users size={18} />,
         },
         {
           id: 'team-evaluations',
-          label: 'Team Reviews',
+          label: t('nav.team_evaluations', 'Team Reviews'),
           icon: <UserCheck size={18} />,
         },
         ...(user?.role === 'MANAGER' && !canViewConfig
           ? [
               {
                 id: 'review-due',
-                label: 'Team Review Due',
+                label: t('nav.review_due', 'Team Review Due'),
                 icon: <CalendarRange size={18} />,
               },
             ]
           : []),
         {
           id: 'my-evaluations',
-          label: 'My Evaluation',
+          label: t('nav.my_evaluations', 'My Evaluation'),
           icon: <ClipboardCheck size={18} />,
         },
       ],
     },
     {
       key: 'reporting',
-      title: 'Reporting',
+      title: t('nav.reporting', 'Reporting'),
       collapsible: true,
       items: [
         {
           id: 'reports',
-          label: 'Performance Reports',
+          label: t('nav.reports', 'Performance Reports'),
           icon: <Award size={18} />,
         },
       ],
@@ -161,92 +164,92 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ? [
           {
             key: 'configuration',
-            title: 'Configuration',
+            title: t('nav.configuration', 'Configuration'),
             collapsible: true,
             items: [
               {
                 id: 'individual-cycles',
-                label: 'Individual Evaluation',
+                label: t('nav.individual_cycles', 'Individual Evaluation'),
                 icon: <UserPlus size={18} />,
               },
               ...(canViewConfig
                 ? [
                     {
                       id: 'organization',
-                      label: 'Organization',
+                      label: t('nav.organization', 'Organization'),
                       icon: <Users size={18} />,
                     },
                     {
                       id: 'cycles',
-                      label: 'Evaluation Cycles',
+                      label: t('nav.cycles', 'Evaluation Cycles'),
                       icon: <CalendarRange size={18} />,
                     },
                     {
                       id: 'review-due',
-                      label: 'Review Due',
+                      label: t('nav.review_due', 'Review Due'),
                       icon: <CalendarRange size={18} />,
                     },
                     {
                       id: 'review-cadences',
-                      label: 'Review Cadences',
+                      label: t('nav.review_cadences', 'Review Cadences'),
                       icon: <CalendarRange size={18} />,
                     },
                     ...(user?.role === 'HR_ADMIN'
                       ? [
                           {
                             id: 'calibration',
-                            label: 'Calibration',
+                            label: t('nav.calibration', 'Calibration'),
                             icon: <SlidersHorizontal size={18} />,
                           },
                         ]
                       : []),
                     {
                       id: 'criteria',
-                      label: 'Criteria & Rules',
+                      label: t('nav.criteria', 'Criteria & Rules'),
                       icon: <SlidersHorizontal size={18} />,
                     },
                     {
                       id: 'kpis',
-                      label: 'KPI Library',
+                      label: t('nav.kpis', 'KPI Library'),
                       icon: <GitFork size={18} />,
                     },
                     {
                       id: 'templates',
-                      label: 'Template Builder',
+                      label: t('nav.templates', 'Template Builder'),
                       icon: <LayoutTemplate size={18} />,
                     },
                   ]
                 : []),
               {
                 id: 'ingestion',
-                label: 'Data Ingestion Hub',
+                label: t('nav.ingestion', 'Data Ingestion Hub'),
                 icon: <Activity size={18} />,
               },
               ...(canViewConfig
                 ? [
                     {
                       id: 'i18n',
-                      label: 'I18n Translation',
+                      label: t('nav.i18n', 'I18n Translation'),
                       icon: <SlidersHorizontal size={18} />,
                     },
                     {
                       id: 'notification-templates',
-                      label: 'Email Templates',
+                      label: t('nav.notification_templates', 'Email Templates'),
                       icon: <Mail size={18} />,
                     },
                     {
                       id: 'notification-logs',
-                      label: 'Email Delivery Logs',
+                      label: t('nav.notification_logs', 'Email Delivery Logs'),
                       icon: <Mail size={18} />,
                     },
                     {
                       id: 'iam',
-                      label: 'Identity & Access',
+                      label: t('nav.iam', 'Identity & Access'),
                       icon: <Shield size={18} />,
                     },
                     {
                       id: 'audit-logs',
-                      label: 'Audit Log',
+                      label: t('nav.audit_logs', 'Audit Log'),
                       icon: <ShieldCheck size={18} />,
                     },
                   ]
@@ -255,7 +258,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           },
         ]
       : []),
-  ], [canViewConfig, user?.role]);
+  ], [canViewConfig, user?.role, t]);
 
   // Auto-expand section if it contains the currently active item
   useEffect(() => {

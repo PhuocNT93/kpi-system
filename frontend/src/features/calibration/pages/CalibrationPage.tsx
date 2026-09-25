@@ -177,7 +177,7 @@ export function CalibrationPage() {
   };
 
   return (
-    <main style={{ padding: 'clamp(1rem, 2vw, 2rem)', maxWidth: '1440px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px', width: '100%', boxSizing: 'border-box' }}>
+    <main style={{ padding: 'clamp(1rem, 2vw, 1rem)', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px', width: '100%', boxSizing: 'border-box' }}>
       {/* Page Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -518,8 +518,8 @@ export function CalibrationPage() {
                               {row.finalScore != null
                                 ? row.finalScore.toFixed(2)
                                 : row.calculatedScore != null
-                                ? row.calculatedScore.toFixed(2)
-                                : '-'}
+                                  ? row.calculatedScore.toFixed(2)
+                                  : '-'}
                             </span>
                             {isAdjusted && (
                               <span

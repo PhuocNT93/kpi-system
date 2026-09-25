@@ -3,6 +3,7 @@ import { randomUUID } from '@/shared/utils/uuid';
 import type {
   ReviewDueFiltersDTO,
   ReviewDueResponseDTO,
+  ReviewDueItemDTO,
   CreateIndividualCyclesPayload,
   CreateIndividualCyclesResultDTO,
 } from '../types/review-due.types';
@@ -71,7 +72,63 @@ export const reviewDueApi = {
     }
 
     const queryString = params.toString() ? `?${params.toString()}` : '';
-    return getApi<ReviewDueResponseDTO>(`/api/reviews/due${queryString}`);
+    const res = await getApi<any>(`/api/reviews/due${queryString}`);
+    const rawItems: any[] = Array.isArray(res?.items) ? res.items : [];
+
+    const items: ReviewDueItemDTO[] = rawItems.map((item: any) => {
+      const fullName = item.full_name || item.employee_name || item.name || 'Unknown Employee';
+      const employeeCode = item.employee_code || (item.employee_id ? String(item.employee_id).slice(0, 8) : 'EMP');
+      const teamId = item.team_id ?? item.team?.id ?? null;
+      const teamName = item.team_name ?? item.team?.name ?? null;
+      const jobLevelId = item.job_level_id ?? item.job_level?.id ?? null;
+      const jobLevelName = item.job_level_name ?? item.job_level?.name ?? null;
+
+      const effectiveCadence = item.effective_cadence
+        ? {
+            id: item.effective_cadence.id || '',
+            code: item.effective_cadence.code || '',
+            name: item.effective_cadence.name || '',
+            interval_months: item.effective_cadence.interval_months || 0,
+            source: item.effective_cadence.source || 'SYSTEM_DEFAULT',
+          }
+        : null;
+
+      return {
+        employee_id: item.employee_id || '',
+        employee_code: employeeCode,
+        full_name: fullName,
+        team_id: teamId,
+        team_name: teamName,
+        job_level_id: jobLevelId,
+        job_level_name: jobLevelName,
+        last_evaluation_completed_at: item.last_evaluation_completed_at || null,
+        next_review_due_date: item.next_review_due_date || null,
+        status: item.status || 'NOT_DUE',
+        days_overdue: item.days_overdue ?? 0,
+        days_until_due: item.days_until_due ?? 0,
+        effective_cadence: effectiveCadence,
+      };
+    });
+
+    const overdueCount = items.filter((i) => i.status === 'OVERDUE').length;
+    const dueCount = items.filter((i) => i.status === 'DUE').length;
+    const upcomingCount = items.filter((i) => i.status === 'UPCOMING').length;
+
+    const counts = res?.meta?.counts || {
+      overdue: overdueCount,
+      due: dueCount,
+      upcoming: upcomingCount,
+      total_due_or_upcoming: overdueCount + dueCount + upcomingCount,
+    };
+
+    return {
+      items,
+      meta: {
+        total: res?.total ?? items.length,
+        lead_time_days: res?.meta?.lead_time_days ?? 30,
+        counts,
+      },
+    };
   },
 
   createIndividualCycles: async (

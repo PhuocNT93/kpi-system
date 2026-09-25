@@ -172,6 +172,8 @@ export class ReviewDueService {
     const sql = `
       SELECT
         e.employee_id,
+        e.employee_code,
+        e.full_name,
         e.full_name AS employee_name,
         e.last_evaluation_completed_at,
         e.next_review_due_date,
@@ -184,6 +186,11 @@ export class ReviewDueService {
         COALESCE(rc_override.code, rc_job.code, rc_sys.code) AS cadence_code,
         COALESCE(rc_override.name, rc_job.name, rc_sys.name) AS cadence_name,
         COALESCE(rc_override.interval_months, rc_job.interval_months, rc_sys.interval_months) AS cadence_interval_months,
+        CASE
+          WHEN rc_override.review_cadence_id IS NOT NULL THEN 'EMPLOYEE_OVERRIDE'
+          WHEN rc_job.review_cadence_id IS NOT NULL THEN 'JOB_LEVEL'
+          ELSE 'SYSTEM_DEFAULT'
+        END AS cadence_source,
         COUNT(*) OVER() AS full_count
       FROM employee e
       LEFT JOIN team t ON e.team_id = t.team_id
@@ -211,11 +218,17 @@ export class ReviewDueService {
 
       return {
         employee_id: row.employee_id,
-        employee_name: row.employee_name,
+        employee_code: row.employee_code ?? '',
+        employee_name: row.employee_name ?? row.full_name ?? '',
+        full_name: row.full_name ?? row.employee_name ?? '',
+        team_id: row.team_id ?? null,
+        team_name: row.team_name ?? null,
         team: {
           id: row.team_id ?? '',
           name: row.team_name ?? 'No Team',
         },
+        job_level_id: row.job_level_id ?? null,
+        job_level_name: row.job_level_name ?? null,
         job_level: {
           id: row.job_level_id ?? '',
           name: row.job_level_name ?? 'No Level',
@@ -226,6 +239,7 @@ export class ReviewDueService {
               code: row.cadence_code,
               name: row.cadence_name,
               interval_months: row.cadence_interval_months,
+              source: (row.cadence_source ?? 'SYSTEM_DEFAULT') as any,
             }
           : null,
         last_evaluation_completed_at: row.last_evaluation_completed_at
@@ -236,6 +250,7 @@ export class ReviewDueService {
           : null,
         status: calc.status as ReviewDueStatus,
         days_overdue: calc.daysOverdue,
+        days_until_due: calc.daysUntilDue ?? 0,
       };
     });
 

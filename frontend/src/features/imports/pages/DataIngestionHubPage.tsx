@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/shared/auth/auth-context';
-import { RADII, TYPOGRAPHY, SHADOWS } from '@/shared/theme';
+import { RADII, TYPOGRAPHY, SHADOWS, useTheme } from '@/shared/theme';
+import { useUiTranslation } from '@/shared/i18n/ui-i18n';
 import {
   Sparkles,
   FileSpreadsheet,
@@ -22,11 +23,15 @@ export type IngestionTabId = 'collectors' | 'csv';
 
 interface IngestionTabConfig {
   id: IngestionTabId;
-  label: string;
-  badge: string;
+  labelKey: string;
+  defaultLabel: string;
+  badgeKey: string;
+  defaultBadge: string;
   badgeColor: string;
   badgeBg: string;
-  description: string;
+  badgeBgDark: string;
+  descriptionKey: string;
+  defaultDescription: string;
   icon: React.ReactNode;
   allowedRoles: Array<'SYSTEM_ADMIN' | 'HR_ADMIN' | 'MANAGER'>;
 }
@@ -34,21 +39,29 @@ interface IngestionTabConfig {
 const INGESTION_TABS: IngestionTabConfig[] = [
   {
     id: 'collectors',
-    label: '1. Thu thập Tự động',
-    badge: 'Batch AI',
+    labelKey: 'ingestion.tab_collectors',
+    defaultLabel: '1. Thu thập Tự động',
+    badgeKey: 'ingestion.badge_batch_ai',
+    defaultBadge: 'Batch AI',
     badgeColor: '#2563eb',
     badgeBg: '#eff6ff',
-    description: 'Batch job Jira PIM + Gemini AI đánh giá từng task — Chạy tự động hàng ngày hoặc thủ công',
+    badgeBgDark: 'rgba(37, 99, 235, 0.2)',
+    descriptionKey: 'ingestion.desc_collectors',
+    defaultDescription: 'Batch job Jira PIM + Gemini AI đánh giá từng task — Chạy tự động hàng ngày hoặc thủ công',
     icon: <Sparkles size={18} />,
     allowedRoles: ['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER'],
   },
   {
     id: 'csv',
-    label: '2. Nhập file CSV / Excel',
-    badge: 'Batch File',
+    labelKey: 'ingestion.tab_csv',
+    defaultLabel: '2. Nhập file CSV / Excel',
+    badgeKey: 'ingestion.badge_batch_file',
+    defaultBadge: 'Batch File',
     badgeColor: '#059669',
     badgeBg: '#ecfdf5',
-    description: 'Tải mẫu chuẩn, nạp file CSV/Excel hàng loạt và tra cứu lịch sử các đợt nạp file',
+    badgeBgDark: 'rgba(5, 150, 105, 0.2)',
+    descriptionKey: 'ingestion.desc_csv',
+    defaultDescription: 'Tải mẫu chuẩn, nạp file CSV/Excel hàng loạt và tra cứu lịch sử các đợt nạp file',
     icon: <FileSpreadsheet size={18} />,
     allowedRoles: ['SYSTEM_ADMIN', 'HR_ADMIN'],
   },
@@ -56,6 +69,8 @@ const INGESTION_TABS: IngestionTabConfig[] = [
 
 export const DataIngestionHubPage: React.FC = () => {
   const { user } = useAuth();
+  const { isDark } = useTheme();
+  const { t } = useUiTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const userRole = (user?.role || 'EMPLOYEE') as 'SYSTEM_ADMIN' | 'HR_ADMIN' | 'MANAGER' | 'EMPLOYEE';
@@ -101,16 +116,17 @@ export const DataIngestionHubPage: React.FC = () => {
   const activeTabConfig = availableTabs.find((t) => t.id === activeTab);
 
   return (
-    <div style={{ width: '100%', padding: '0 0 40px 0' }}>
+    <div style={{ width: '100%', boxSizing: 'border-box', padding: '0 0 40px 0' }}>
       {/* Top Banner & Tab Navigation Hub */}
       <div
         style={{
-          backgroundColor: '#ffffff',
+          backgroundColor: isDark ? '#111827' : '#ffffff',
           borderRadius: RADII.xl,
-          border: '1px solid #e2e8f0',
+          border: `1px solid ${isDark ? '#1f2937' : '#e2e8f0'}`,
           boxShadow: SHADOWS.sm,
-          padding: '24px 28px 20px 28px',
+          padding: 'clamp(16px, 3vw, 24px) clamp(16px, 3.5vw, 28px)',
           marginBottom: '24px',
+          transition: 'background-color 0.2s ease, border-color 0.2s ease',
         }}
       >
         {/* Hub Header */}
@@ -125,17 +141,18 @@ export const DataIngestionHubPage: React.FC = () => {
           }}
         >
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div
                 style={{
-                  width: '38px',
-                  height: '38px',
+                  width: '40px',
+                  height: '40px',
                   borderRadius: RADII.lg,
-                  backgroundColor: '#eff6ff',
-                  color: '#2563eb',
+                  backgroundColor: isDark ? 'rgba(37, 99, 235, 0.2)' : '#eff6ff',
+                  color: isDark ? '#60a5fa' : '#2563eb',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  flexShrink: 0,
                 }}
               >
                 <Sparkles size={22} />
@@ -144,22 +161,22 @@ export const DataIngestionHubPage: React.FC = () => {
                 <h1
                   style={{
                     margin: 0,
-                    fontSize: '22px',
+                    fontSize: 'clamp(1.125rem, 2.5vw, 1.375rem)',
                     fontWeight: 800,
-                    color: '#0f172a',
+                    color: isDark ? '#f9fafb' : '#0f172a',
                     letterSpacing: '-0.02em',
                   }}
                 >
-                  Trung Tâm Thu Thập & Nhập Liệu KPI
+                  {t('ingestion.hub_title', 'Trung Tâm Thu Thập & Nhập Liệu KPI')}
                 </h1>
                 <p
                   style={{
                     margin: '3px 0 0 0',
                     fontSize: TYPOGRAPHY.fontSize.xs,
-                    color: '#64748b',
+                    color: isDark ? '#94a3b8' : '#64748b',
                   }}
                 >
-                  Batch AI tự động hàng ngày (Jira PIM + Gemini) và nhập file CSV/Excel
+                  {t('ingestion.hub_subtitle', 'Batch AI tự động hàng ngày (Jira PIM + Gemini) và nhập file CSV/Excel')}
                 </p>
               </div>
             </div>
@@ -173,15 +190,17 @@ export const DataIngestionHubPage: React.FC = () => {
               gap: '6px',
               padding: '6px 14px',
               borderRadius: RADII.full,
-              backgroundColor: isManagerOnly ? '#fef3c7' : '#f0fdf4',
-              border: `1px solid ${isManagerOnly ? '#fde68a' : '#bbf7d0'}`,
-              color: isManagerOnly ? '#b45309' : '#15803d',
+              backgroundColor: isManagerOnly
+                ? (isDark ? 'rgba(217, 119, 6, 0.2)' : '#fef3c7')
+                : (isDark ? 'rgba(16, 185, 129, 0.2)' : '#f0fdf4'),
+              border: `1px solid ${isManagerOnly ? (isDark ? '#78350f' : '#fde68a') : (isDark ? '#064e3b' : '#bbf7d0')}`,
+              color: isManagerOnly ? (isDark ? '#fbbf24' : '#b45309') : (isDark ? '#34d399' : '#15803d'),
               fontSize: TYPOGRAPHY.fontSize.xs,
               fontWeight: 700,
             }}
           >
-            <span>Quyền hạn: {userRole}</span>
-            {isManagerOnly && <span>(Phạm vi Đội nhóm)</span>}
+            <span>{t('ingestion.role_label', `Quyền hạn: ${userRole}`, { role: userRole })}</span>
+            {isManagerOnly && <span>{t('ingestion.team_scope', '(Phạm vi Đội nhóm)')}</span>}
           </div>
         </div>
 
@@ -190,7 +209,7 @@ export const DataIngestionHubPage: React.FC = () => {
           style={{
             display: 'flex',
             gap: '10px',
-            borderBottom: '1px solid #e2e8f0',
+            borderBottom: `1px solid ${isDark ? '#1f2937' : '#e2e8f0'}`,
             paddingBottom: '2px',
             overflowX: 'auto',
           }}
@@ -210,8 +229,8 @@ export const DataIngestionHubPage: React.FC = () => {
                   borderRadius: `${RADII.lg} ${RADII.lg} 0 0`,
                   border: 'none',
                   borderBottom: isActive ? '3px solid #2563eb' : '3px solid transparent',
-                  backgroundColor: isActive ? '#f8fafc' : 'transparent',
-                  color: isActive ? '#1e40af' : '#64748b',
+                  backgroundColor: isActive ? (isDark ? '#1e293b' : '#f8fafc') : 'transparent',
+                  color: isActive ? (isDark ? '#93c5fd' : '#1e40af') : (isDark ? '#94a3b8' : '#64748b'),
                   cursor: 'pointer',
                   fontSize: TYPOGRAPHY.fontSize.sm,
                   fontWeight: isActive ? 700 : 500,
@@ -219,19 +238,19 @@ export const DataIngestionHubPage: React.FC = () => {
                   whiteSpace: 'nowrap',
                 }}
               >
-                <span style={{ color: isActive ? '#2563eb' : '#94a3b8' }}>{tab.icon}</span>
-                <span>{tab.label}</span>
+                <span style={{ color: isActive ? '#3b82f6' : (isDark ? '#64748b' : '#94a3b8') }}>{tab.icon}</span>
+                <span>{t(tab.labelKey, tab.defaultLabel)}</span>
                 <span
                   style={{
                     fontSize: '10px',
                     fontWeight: 700,
                     padding: '2px 8px',
                     borderRadius: RADII.full,
-                    backgroundColor: tab.badgeBg,
-                    color: tab.badgeColor,
+                    backgroundColor: isDark ? tab.badgeBgDark : tab.badgeBg,
+                    color: isDark ? '#ffffff' : tab.badgeColor,
                   }}
                 >
-                  {tab.badge}
+                  {t(tab.badgeKey, tab.defaultBadge)}
                 </span>
               </button>
             );
@@ -247,10 +266,10 @@ export const DataIngestionHubPage: React.FC = () => {
               justifyContent: 'space-between',
               marginTop: '12px',
               fontSize: TYPOGRAPHY.fontSize.xs,
-              color: '#64748b',
+              color: isDark ? '#94a3b8' : '#64748b',
             }}
           >
-            <span>💡 {activeTabConfig.description}</span>
+            <span>💡 {t(activeTabConfig.descriptionKey, activeTabConfig.defaultDescription)}</span>
           </div>
         )}
       </div>
@@ -266,9 +285,11 @@ export const DataIngestionHubPage: React.FC = () => {
                 display: 'inline-flex',
                 gap: '8px',
                 padding: '6px',
-                backgroundColor: '#f1f5f9',
+                backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
                 borderRadius: RADII.lg,
                 alignSelf: 'flex-start',
+                flexWrap: 'wrap',
+                border: `1px solid ${isDark ? '#334155' : 'transparent'}`,
               }}
             >
               <button
@@ -281,8 +302,8 @@ export const DataIngestionHubPage: React.FC = () => {
                   padding: '8px 18px',
                   borderRadius: RADII.md,
                   border: 'none',
-                  backgroundColor: collectorSubTab === 'jira' ? '#ffffff' : 'transparent',
-                  color: collectorSubTab === 'jira' ? '#2563eb' : '#64748b',
+                  backgroundColor: collectorSubTab === 'jira' ? (isDark ? '#0f172a' : '#ffffff') : 'transparent',
+                  color: collectorSubTab === 'jira' ? (isDark ? '#60a5fa' : '#2563eb') : (isDark ? '#94a3b8' : '#64748b'),
                   fontWeight: collectorSubTab === 'jira' ? 700 : 500,
                   fontSize: TYPOGRAPHY.fontSize.sm,
                   cursor: 'pointer',
@@ -291,7 +312,7 @@ export const DataIngestionHubPage: React.FC = () => {
                 }}
               >
                 <Sparkles size={16} />
-                <span>🤖 Batch Scoring AI</span>
+                <span>🤖 {t('ingestion.subtab_jira', 'Batch Scoring AI')}</span>
               </button>
 
               <button
@@ -304,8 +325,8 @@ export const DataIngestionHubPage: React.FC = () => {
                   padding: '8px 18px',
                   borderRadius: RADII.md,
                   border: 'none',
-                  backgroundColor: collectorSubTab === 'blueprint' ? '#ffffff' : 'transparent',
-                  color: collectorSubTab === 'blueprint' ? '#2563eb' : '#64748b',
+                  backgroundColor: collectorSubTab === 'blueprint' ? (isDark ? '#0f172a' : '#ffffff') : 'transparent',
+                  color: collectorSubTab === 'blueprint' ? (isDark ? '#60a5fa' : '#2563eb') : (isDark ? '#94a3b8' : '#64748b'),
                   fontWeight: collectorSubTab === 'blueprint' ? 700 : 500,
                   fontSize: TYPOGRAPHY.fontSize.sm,
                   cursor: 'pointer',
@@ -314,7 +335,7 @@ export const DataIngestionHubPage: React.FC = () => {
                 }}
               >
                 <Activity size={16} />
-                <span>Blueprint CLV</span>
+                <span>{t('ingestion.subtab_blueprint', 'Blueprint CLV')}</span>
               </button>
 
               <button
@@ -327,8 +348,8 @@ export const DataIngestionHubPage: React.FC = () => {
                   padding: '8px 18px',
                   borderRadius: RADII.md,
                   border: 'none',
-                  backgroundColor: collectorSubTab === 'script' ? '#ffffff' : 'transparent',
-                  color: collectorSubTab === 'script' ? '#0284c7' : '#64748b',
+                  backgroundColor: collectorSubTab === 'script' ? (isDark ? '#0f172a' : '#ffffff') : 'transparent',
+                  color: collectorSubTab === 'script' ? (isDark ? '#38bdf8' : '#0284c7') : (isDark ? '#94a3b8' : '#64748b'),
                   fontWeight: collectorSubTab === 'script' ? 700 : 500,
                   fontSize: TYPOGRAPHY.fontSize.sm,
                   cursor: 'pointer',
@@ -337,7 +358,7 @@ export const DataIngestionHubPage: React.FC = () => {
                 }}
               >
                 <Code2 size={16} />
-                <span>⚙️ Cấu hình Script JQL</span>
+                <span>⚙️ {t('ingestion.subtab_script', 'Cấu hình Script JQL')}</span>
               </button>
             </div>
 
@@ -356,17 +377,17 @@ export const DataIngestionHubPage: React.FC = () => {
                 style={{
                   padding: '32px',
                   textAlign: 'center',
-                  backgroundColor: '#ffffff',
+                  backgroundColor: isDark ? '#111827' : '#ffffff',
                   borderRadius: RADII.xl,
-                  border: '1px solid #e2e8f0',
+                  border: `1px solid ${isDark ? '#1f2937' : '#e2e8f0'}`,
                 }}
               >
                 <ShieldAlert size={36} color="#d97706" style={{ margin: '0 auto 12px auto' }} />
-                <h3 style={{ margin: 0, fontSize: '16px', color: '#1e293b' }}>
-                  Không có quyền truy cập kênh nạp CSV
+                <h3 style={{ margin: 0, fontSize: '16px', color: isDark ? '#f9fafb' : '#1e293b' }}>
+                  {t('ingestion.no_csv_access', 'Không có quyền truy cập kênh nạp CSV')}
                 </h3>
-                <p style={{ margin: '6px 0 0 0', fontSize: TYPOGRAPHY.fontSize.sm, color: '#64748b' }}>
-                  Tính năng nhập file CSV hàng loạt dành cho HR Admin và System Admin.
+                <p style={{ margin: '6px 0 0 0', fontSize: TYPOGRAPHY.fontSize.sm, color: isDark ? '#94a3b8' : '#64748b' }}>
+                  {t('ingestion.csv_role_desc', 'Tính năng nhập file CSV hàng loạt dành cho HR Admin và System Admin.')}
                 </p>
               </div>
             ) : (
@@ -376,9 +397,11 @@ export const DataIngestionHubPage: React.FC = () => {
                     display: 'inline-flex',
                     gap: '8px',
                     padding: '6px',
-                    backgroundColor: '#f1f5f9',
+                    backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
                     borderRadius: RADII.lg,
                     alignSelf: 'flex-start',
+                    flexWrap: 'wrap',
+                    border: `1px solid ${isDark ? '#334155' : 'transparent'}`,
                   }}
                 >
                   <button
@@ -391,16 +414,17 @@ export const DataIngestionHubPage: React.FC = () => {
                       padding: '8px 18px',
                       borderRadius: RADII.md,
                       border: 'none',
-                      backgroundColor: csvSubTab === 'upload' ? '#ffffff' : 'transparent',
-                      color: csvSubTab === 'upload' ? '#059669' : '#64748b',
+                      backgroundColor: csvSubTab === 'upload' ? (isDark ? '#0f172a' : '#ffffff') : 'transparent',
+                      color: csvSubTab === 'upload' ? (isDark ? '#34d399' : '#059669') : (isDark ? '#94a3b8' : '#64748b'),
                       fontWeight: csvSubTab === 'upload' ? 700 : 500,
                       fontSize: TYPOGRAPHY.fontSize.sm,
                       cursor: 'pointer',
                       boxShadow: csvSubTab === 'upload' ? SHADOWS.sm : 'none',
+                      transition: 'all 0.15s ease',
                     }}
                   >
                     <UploadCloud size={16} />
-                    <span>Tải lên file CSV</span>
+                    <span>📥 {t('ingestion.subtab_upload', 'Tải lên File CSV / Excel')}</span>
                   </button>
 
                   <button
@@ -413,16 +437,17 @@ export const DataIngestionHubPage: React.FC = () => {
                       padding: '8px 18px',
                       borderRadius: RADII.md,
                       border: 'none',
-                      backgroundColor: csvSubTab === 'history' ? '#ffffff' : 'transparent',
-                      color: csvSubTab === 'history' ? '#059669' : '#64748b',
+                      backgroundColor: csvSubTab === 'history' ? (isDark ? '#0f172a' : '#ffffff') : 'transparent',
+                      color: csvSubTab === 'history' ? (isDark ? '#34d399' : '#059669') : (isDark ? '#94a3b8' : '#64748b'),
                       fontWeight: csvSubTab === 'history' ? 700 : 500,
                       fontSize: TYPOGRAPHY.fontSize.sm,
                       cursor: 'pointer',
                       boxShadow: csvSubTab === 'history' ? SHADOWS.sm : 'none',
+                      transition: 'all 0.15s ease',
                     }}
                   >
                     <History size={16} />
-                    <span>Lịch sử các đợt nạp file</span>
+                    <span>📋 {t('ingestion.subtab_history', 'Lịch sử & Kết quả Nạp file')}</span>
                   </button>
                 </div>
 
@@ -436,3 +461,5 @@ export const DataIngestionHubPage: React.FC = () => {
     </div>
   );
 };
+
+export default DataIngestionHubPage;

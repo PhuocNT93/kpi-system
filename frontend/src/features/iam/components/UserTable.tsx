@@ -480,6 +480,12 @@ export function UserTable() {
                             padding: '0.25rem 0.5rem',
                             fontSize: '0.75rem',
                             color: user.isActive ? (isDark ? '#f87171' : '#dc2626') : (isDark ? '#34d399' : '#059669'),
+                            backgroundColor: isDark
+                              ? (user.isActive ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)')
+                              : (user.isActive ? '#fef2f2' : '#ecfdf5'),
+                            border: isDark
+                              ? (user.isActive ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(16, 185, 129, 0.35)')
+                              : (user.isActive ? '1px solid #fecaca' : '1px solid #a7f3d0'),
                           }}
                         >
                           <Power size={12} />
@@ -589,6 +595,12 @@ export function UserTable() {
                         padding: '0.25rem 0.5rem',
                         fontSize: '0.75rem',
                         color: user.isActive ? (isDark ? '#f87171' : '#dc2626') : (isDark ? '#34d399' : '#059669'),
+                        backgroundColor: isDark
+                          ? (user.isActive ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)')
+                          : (user.isActive ? '#fef2f2' : '#ecfdf5'),
+                        border: isDark
+                          ? (user.isActive ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(16, 185, 129, 0.35)')
+                          : (user.isActive ? '1px solid #fecaca' : '1px solid #a7f3d0'),
                       }}
                     >
                       <Power size={12} />

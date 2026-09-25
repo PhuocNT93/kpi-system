@@ -21,4 +21,29 @@ describe('UserGuidePage', () => {
     const tables = screen.getAllByRole('table');
     expect(tables.length).toBeGreaterThan(0);
   });
+
+  it('switches documentation language when locale change event is fired', async () => {
+    const { act } = await import('@testing-library/react');
+    render(<UserGuidePage />);
+
+    // Initially renders Vietnamese
+    expect(screen.getByRole('heading', { level: 2, name: /Hướng dẫn sử dụng chi tiết/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: /Đối tượng sử dụng/i })).toBeInTheDocument();
+
+    // Switch to English via Header event
+    act(() => {
+      window.dispatchEvent(new CustomEvent('kpi_locale_changed', { detail: 'en' }));
+    });
+
+    expect(screen.getByRole('heading', { level: 2, name: /Detailed User Guide/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: /Target Audience/i })).toBeInTheDocument();
+
+    // Switch back to Vietnamese via Header event
+    act(() => {
+      window.dispatchEvent(new CustomEvent('kpi_locale_changed', { detail: 'vi' }));
+    });
+
+    expect(screen.getByRole('heading', { level: 2, name: /Hướng dẫn sử dụng chi tiết/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: /Đối tượng sử dụng/i })).toBeInTheDocument();
+  });
 });

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { COLORS } from '@/lib/theme';
-import { RADII } from '@/shared/theme';
+import { RADII, useTheme } from '@/shared/theme';
 
 export type IconButtonShape = 'square' | 'circle';
 export type IconButtonColor = 'primary' | 'secondary' | 'tertiary' | 'danger' | 'neutral';
@@ -27,6 +27,7 @@ export const IconButton: React.FC<IconButtonProps> = ({
   ...rest
 }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const { isDark } = useTheme();
 
   const getColorStyles = (): React.CSSProperties => {
     switch (colorVariant) {
@@ -52,8 +53,10 @@ export const IconButton: React.FC<IconButtonProps> = ({
         };
       case 'neutral':
         return {
-          backgroundColor: isHovered && !disabled ? COLORS.neutral[300] : COLORS.neutral[200],
-          color: COLORS.neutral.textPrimary
+          backgroundColor: isHovered && !disabled
+            ? (isDark ? '#334155' : COLORS.neutral[300])
+            : (isDark ? '#1e293b' : COLORS.neutral[200]),
+          color: isDark ? '#f8fafc' : COLORS.neutral.textPrimary
         };
     }
   };

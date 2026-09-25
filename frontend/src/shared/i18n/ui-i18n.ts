@@ -69,6 +69,19 @@ export async function fetchAndStoreUiTranslations(entityType?: string): Promise<
   return getUiTranslationsFromStorage();
 }
 
+export function setUiLocale(newLocale: UiLocale): void {
+  try {
+    localStorage.setItem(LOCALE_STORAGE_KEY, newLocale);
+    localStorage.setItem('preferred_locale', newLocale);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(LOCALE_CHANGE_EVENT, { detail: newLocale }));
+      window.dispatchEvent(new Event('storage'));
+    }
+  } catch {
+    // ignore
+  }
+}
+
 export function useUiTranslation(explicitLocale?: UiLocale) {
   const [translations, setTranslations] = useState<UiTranslationsMap>(() =>
     getUiTranslationsFromStorage()
@@ -111,6 +124,10 @@ export function useUiTranslation(explicitLocale?: UiLocale) {
     };
   }, [explicitLocale]);
 
+  const changeLocale = useCallback((newLocale: UiLocale) => {
+    setUiLocale(newLocale);
+  }, []);
+
   const t = useCallback(
     (key: string, fallback?: string, params?: Record<string, string | number>): string => {
       const activeDict = translations[currentLocale] || {};
@@ -147,7 +164,9 @@ export function useUiTranslation(explicitLocale?: UiLocale) {
   return {
     t,
     currentLocale,
+    locale: currentLocale,
     isEn: currentLocale === 'en',
+    changeLocale,
     reloadTranslations: fetchAndStoreUiTranslations,
   };
 }
@@ -158,4 +177,5 @@ export const useDashboardTranslation = useUiTranslation;
 export const useOrganizationTranslation = useUiTranslation;
 export const useReviewDueTranslation = useUiTranslation;
 export const getAuditLocale = getUiLocale;
+
 
