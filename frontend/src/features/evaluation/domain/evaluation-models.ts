@@ -42,6 +42,7 @@ export interface EvaluationItem {
   criterion_code_snapshot: string;
   criterion_name_snapshot: Record<string, string> | string | undefined;
   category?: CriterionCategory;
+  criterion_category_snapshot?: CriterionCategory;
   weight_snapshot: number;
   kpi_id_snapshot?: string;
   kpi_code_snapshot?: string;
@@ -277,7 +278,8 @@ export function percentToTenPointScore(value: number | string | null | undefined
   return (percentValue / 10).toFixed(percentValue % 10 === 0 ? 0 : 1);
 }
 
-export function getCriterionCategory(item: Pick<EvaluationItem, 'category' | 'criterion_code_snapshot' | 'criterion_name_snapshot' | 'kpi_code_snapshot' | 'kpi_name_snapshot'>): CriterionCategory {
+export function getCriterionCategory(item: Pick<EvaluationItem, 'category' | 'criterion_category_snapshot' | 'criterion_code_snapshot' | 'criterion_name_snapshot' | 'kpi_code_snapshot' | 'kpi_name_snapshot'>): CriterionCategory {
+  if (item.criterion_category_snapshot) return item.criterion_category_snapshot;
   if (item.category) return item.category;
   const code = [item.criterion_code_snapshot, item.kpi_code_snapshot].filter(Boolean).join(' ').toLowerCase();
   const name = [getCriterionName(item.criterion_name_snapshot, item.criterion_code_snapshot), item.kpi_name_snapshot].filter(Boolean).join(' ').toLowerCase();

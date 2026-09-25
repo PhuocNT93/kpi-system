@@ -109,8 +109,9 @@ export function percentToTenPointScore(value: number | string | null | undefined
 }
 
 export function getCriterionCategory(
-  item: Pick<EvaluationItem, 'category' | 'criterion_code_snapshot' | 'criterion_name_snapshot' | 'kpi_code_snapshot' | 'kpi_name_snapshot'>,
+  item: Pick<EvaluationItem, 'category' | 'criterion_category_snapshot' | 'criterion_code_snapshot' | 'criterion_name_snapshot' | 'kpi_code_snapshot' | 'kpi_name_snapshot'>,
 ): CriterionCategory {
+  if (item.criterion_category_snapshot) return item.criterion_category_snapshot;
   if (item.category) return item.category;
 
   const code = [item.criterion_code_snapshot, item.kpi_code_snapshot].filter(Boolean).join(' ').toLowerCase();
