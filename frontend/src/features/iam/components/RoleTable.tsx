@@ -64,6 +64,8 @@ const ROLE_BADGE_STYLES: Record<string, { bg: string; darkBg: string; text: stri
   },
 };
 
+const ALLOWED_CORE_ROLES: readonly string[] = ['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE'];
+
 interface RoleFormDialogProps {
   isOpen: boolean;
   role?: IamRole;
@@ -226,7 +228,6 @@ export function RoleTable() {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
 
-  const ALLOWED_CORE_ROLES = ['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE'];
   const allRoles = useMemo(() => {
     const roles = rolesQuery.data ?? [];
     return roles

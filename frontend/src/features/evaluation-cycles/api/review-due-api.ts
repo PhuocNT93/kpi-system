@@ -46,6 +46,41 @@ export function toReviewDueIndividualResult(raw: IndividualCycleCreateResponseWi
   };
 }
 
+interface RawReviewDueItemWire {
+  employee_id?: string;
+  employee_code?: string;
+  employee_name?: string;
+  full_name?: string;
+  name?: string;
+  team_id?: string | null;
+  team_name?: string | null;
+  team?: { id?: string; name?: string } | null;
+  job_level_id?: string | null;
+  job_level_name?: string | null;
+  job_level?: { id?: string; name?: string } | null;
+  effective_cadence?: {
+    id?: string;
+    code?: string;
+    name?: string;
+    interval_months?: number;
+    source?: 'EMPLOYEE_OVERRIDE' | 'JOB_LEVEL' | 'SYSTEM_DEFAULT';
+  } | null;
+  last_evaluation_completed_at?: string | null;
+  next_review_due_date?: string | null;
+  status?: ReviewDueItemDTO['status'];
+  days_overdue?: number;
+  days_until_due?: number;
+}
+
+interface RawReviewDueResponseWire {
+  items?: RawReviewDueItemWire[];
+  total?: number;
+  meta?: {
+    lead_time_days?: number;
+    counts?: ReviewDueResponseDTO['meta']['counts'];
+  };
+}
+
 export const reviewDueApi = {
   getReviewDue: async (filters?: ReviewDueFiltersDTO): Promise<ReviewDueResponseDTO> => {
     const params = new URLSearchParams();
@@ -72,10 +107,10 @@ export const reviewDueApi = {
     }
 
     const queryString = params.toString() ? `?${params.toString()}` : '';
-    const res = await getApi<any>(`/api/reviews/due${queryString}`);
-    const rawItems: any[] = Array.isArray(res?.items) ? res.items : [];
+    const res = await getApi<RawReviewDueResponseWire>(`/api/reviews/due${queryString}`);
+    const rawItems: RawReviewDueItemWire[] = Array.isArray(res?.items) ? res.items : [];
 
-    const items: ReviewDueItemDTO[] = rawItems.map((item: any) => {
+    const items: ReviewDueItemDTO[] = rawItems.map((item: RawReviewDueItemWire) => {
       const fullName = item.full_name || item.employee_name || item.name || 'Unknown Employee';
       const employeeCode = item.employee_code || (item.employee_id ? String(item.employee_id).slice(0, 8) : 'EMP');
       const teamId = item.team_id ?? item.team?.id ?? null;

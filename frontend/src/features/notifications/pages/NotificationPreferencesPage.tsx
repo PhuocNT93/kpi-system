@@ -53,21 +53,20 @@ export function NotificationPreferencesPage() {
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
-    loadPreferences();
-  }, []);
-
-  async function loadPreferences() {
-    try {
-      setLoading(true);
-      const data = await notificationApi.getUserPreferences();
-      setPreferences(Array.isArray(data) ? data : []);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : t('failed_load_notif_prefs', 'Không thể tải cài đặt thông báo.');
-      setToast({ type: 'error', message: msg });
-    } finally {
-      setLoading(false);
+    async function loadPreferences() {
+      try {
+        setLoading(true);
+        const data = await notificationApi.getUserPreferences();
+        setPreferences(Array.isArray(data) ? data : []);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : t('failed_load_notif_prefs', 'Không thể tải cài đặt thông báo.');
+        setToast({ type: 'error', message: msg });
+      } finally {
+        setLoading(false);
+      }
     }
-  }
+    loadPreferences();
+  }, [t]);
 
   function handleToggle(type: NotificationType) {
     setPreferences((prev) =>

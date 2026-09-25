@@ -239,7 +239,9 @@ export class ReviewDueService {
               code: row.cadence_code,
               name: row.cadence_name,
               interval_months: row.cadence_interval_months,
-              source: (row.cadence_source ?? 'SYSTEM_DEFAULT') as any,
+              source: row.cadence_source === 'EMPLOYEE_OVERRIDE' || row.cadence_source === 'JOB_LEVEL'
+                ? row.cadence_source
+                : 'SYSTEM_DEFAULT',
             }
           : null,
         last_evaluation_completed_at: row.last_evaluation_completed_at

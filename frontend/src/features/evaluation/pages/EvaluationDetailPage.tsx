@@ -137,7 +137,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
   });
 
   const { data: cyclesData } = useEvaluationCyclesQuery();
-  const cycles = Array.isArray(cyclesData) ? cyclesData : [];
+  const cycles = useMemo(() => (Array.isArray(cyclesData) ? cyclesData : []), [cyclesData]);
 
   // Sync draft state with server detail
   useEffect(() => {

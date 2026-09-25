@@ -32,7 +32,7 @@ import {
 } from '../api/jira-collector-api';
 import { SHADOWS } from '@/shared/theme';
 
-export interface SchedulePreset {
+interface SchedulePreset {
   id: string;
   title: string;
   badge: string;
@@ -42,7 +42,7 @@ export interface SchedulePreset {
   minute: string;
 }
 
-export const SCHEDULE_PRESETS: SchedulePreset[] = [
+const SCHEDULE_PRESETS: SchedulePreset[] = [
   {
     id: 'midnight',
     title: '🌙 00:00 Nửa đêm hàng ngày',
@@ -90,7 +90,7 @@ export const SCHEDULE_PRESETS: SchedulePreset[] = [
   },
 ];
 
-export function describeCron(cron: string): string {
+function describeCron(cron: string): string {
   const parts = cron.trim().split(/\s+/);
   if (parts.length === 5) {
     const [min, hour, dom, mon, dow] = parts;
