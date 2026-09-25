@@ -1,5 +1,4 @@
 import { getApi, putApi, postApi } from '@/shared/api/api-client';
-import { getCriterionCategory } from '../domain/evaluation-models';
 import type { MyEvaluation, TeamEvaluation, EvaluationDetail } from '../domain/evaluation-models';
 
 const EVALUATIONS_BASE = '/api/v1/evaluations';
@@ -14,15 +13,7 @@ export const evaluationApi = {
   },
 
   getEvaluationDetail: async (id: string): Promise<EvaluationDetail> => {
-    const detail = await getApi<EvaluationDetail>(`${EVALUATIONS_BASE}/${id}`);
-
-    return {
-      ...detail,
-      items: detail.items.map((item) => ({
-        ...item,
-        category: item.category ?? getCriterionCategory(item),
-      })),
-    };
+    return getApi<EvaluationDetail>(`${EVALUATIONS_BASE}/${id}`);
   },
 
   saveDraft: async (id: string, items: { id: string; resolved_level?: number; comment?: string }[]): Promise<void> => {

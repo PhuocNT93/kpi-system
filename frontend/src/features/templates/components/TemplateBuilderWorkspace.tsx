@@ -21,6 +21,7 @@ import { ConflictResolutionModal } from './ConflictResolutionModal';
 import { StatusBadge, LoadingSpinner, ErrorAlert } from '../../../shared/components/ui';
 import { Button } from '../../../shared/ui/Button/Button';
 import { fetchKpiCriteria } from '../../kpi/api/kpi-api';
+import { fetchCriterionById } from '../../criteria/api/criteria-api';
 import type { Kpi } from '../../kpi/api/kpi-api';
 import type { TemplateKpi } from '../domain/template-models';
 
@@ -94,6 +95,22 @@ export function TemplateBuilderWorkspace({
     '110%+ → 10',
   ];
 
+  const resolveCriterionCategory = async (criterionId: string): Promise<string> => {
+    const fromLibrary = libraryCriteria.find((criterion) => criterion.id === criterionId)?.category;
+    if (fromLibrary) return fromLibrary;
+
+    try {
+      const criterion = await fetchCriterionById(criterionId);
+      return criterion.category;
+    } catch {
+      return '';
+    }
+  };
+
+  type AutoMappedTemplateCriterion = TemplateCriterion & {
+    criterionVersionId: string;
+  };
+
   // Handlers
   const handleWeightChange = (id: string, newWeight: number) => {
     if (isReadOnly) return;
@@ -152,30 +169,32 @@ export function TemplateBuilderWorkspace({
       // Auto-populate with mapped criteria from global KPI library
       const mappedCriteria = await fetchKpiCriteria(kpi.kpiId);
       if (mappedCriteria && mappedCriteria.length > 0) {
-        const criterionById = new Map(libraryCriteria.map((criterion) => [criterion.id, criterion]));
-        const newTemplateCriteria: TemplateCriterion[] = mappedCriteria.map((mapping, idx) => ({
-          id: `tcrit-${Date.now()}-${idx}`,
-          templateVersionId: version.id,
-          templateKpiId: kpiId,
-          criterionVersionId: criterionById.get(mapping.criterionId)?.currentVersion?.id || '',
-          effectiveWeight: mapping.weight,
-          applicableRoleIds: [],
-          applicableTeamIds: [],
-          isDisabled: false,
-          isOptional: false,
-          displayOrder: criteria.length + idx + 1,
-          criterion: {
-            id: mapping.criterionId,
-            code: (mapping as { criterionCode?: string }).criterionCode || '',
-            name: (mapping as { criterionName?: string }).criterionName || 'Unknown Criterion',
-            category: 'PERFORMANCE',
-            status: 'ACTIVE' as const,
-            version: 1,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            currentVersion: criterionById.get(mapping.criterionId)?.currentVersion,
-          }
-        })).filter((criterion) => criterion.criterionVersionId);
+        const newTemplateCriteria = (await Promise.all(mappedCriteria.map(async (mapping, idx: number): Promise<AutoMappedTemplateCriterion> => {
+          const libraryCriterion = libraryCriteria.find((criterion) => criterion.id === mapping.criterionId);
+          const category = libraryCriterion?.category || await resolveCriterionCategory(mapping.criterionId);
+
+          return {
+            id: `tcrit-${Date.now()}-${idx}`,
+            templateVersionId: version.id,
+            templateKpiId: kpiId,
+            criterionVersionId: libraryCriterion?.currentVersion?.id || '',
+            effectiveWeight: mapping.weight,
+            applicableRoleIds: [],
+            applicableTeamIds: [],
+            isDisabled: false,
+            isOptional: false,
+            displayOrder: criteria.length + idx + 1,
+            criterion: {
+              id: mapping.criterionId,
+              code: (mapping as { criterionCode?: string }).criterionCode || '',
+              name: (mapping as { criterionName?: string }).criterionName || 'Unknown Criterion',
+              category,
+              status: 'ACTIVE' as const,
+              version: 1,
+              currentVersion: libraryCriterion?.currentVersion,
+            },
+          };
+        }))).filter((criterion): criterion is AutoMappedTemplateCriterion => Boolean(criterion.criterionVersionId));
         
         setCriteria((prev) => [...prev, ...newTemplateCriteria]);
       }
@@ -207,11 +226,18 @@ export function TemplateBuilderWorkspace({
   const handleSaveDraft = async () => {
     if (isReadOnly) return;
     try {
+      const normalizedCriteria = criteria.map((criterion) => ({
+        ...criterion,
+        criterion: {
+          ...criterion.criterion,
+          category: criterion.criterion.category,
+        },
+      }));
       const normalizedKpis = kpis.map((kpi) => ({
         ...kpi,
         parentCriterionId: kpi.parentCriterionId || selectedCriterionId || undefined,
       }));
-      await onSaveDraft(normalizedKpis, criteria, version.version);
+      await onSaveDraft(normalizedKpis, normalizedCriteria, version.version);
       setHasUnsavedChanges(false);
       setLastSavedTime(new Date().toLocaleTimeString());
     } catch {
