@@ -219,20 +219,38 @@ export function TeamEvaluationsPage() {
                           </div>
                         </div>
 
-                        <span style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          padding: '4px 8px',
-                          borderRadius: RADII.md,
-                          fontSize: TYPOGRAPHY.fontSize.xs,
-                          fontWeight: 600,
-                          backgroundColor: badge.bg,
-                          color: badge.text
-                        }}>
-                          {badge.icon}
-                          {badge.label}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {(item.evaluation.final_score != null || item.evaluation.manager_score != null) && (
+                            <span style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '4px 8px',
+                              borderRadius: RADII.md,
+                              fontSize: TYPOGRAPHY.fontSize.xs,
+                              fontWeight: 700,
+                              backgroundColor: '#EEF2FF',
+                              color: '#4F46E5',
+                              border: '1px solid #C7D2FE',
+                            }}>
+                              ⭐ {Number(item.evaluation.final_score ?? item.evaluation.manager_score).toFixed(1)}
+                            </span>
+                          )}
+                          <span style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '4px 8px',
+                            borderRadius: RADII.md,
+                            fontSize: TYPOGRAPHY.fontSize.xs,
+                            fontWeight: 600,
+                            backgroundColor: badge.bg,
+                            color: badge.text
+                          }}>
+                            {badge.icon}
+                            {badge.label}
+                          </span>
+                        </div>
                       </div>
 
                       <div style={{
@@ -307,20 +325,38 @@ export function TeamEvaluationsPage() {
                           </div>
                         </div>
 
-                        <span style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          padding: '4px 8px',
-                          borderRadius: RADII.md,
-                          fontSize: TYPOGRAPHY.fontSize.xs,
-                          fontWeight: 600,
-                          backgroundColor: badge.bg,
-                          color: badge.text
-                        }}>
-                          {badge.icon}
-                          {badge.label}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {(item.evaluation.final_score != null || item.evaluation.manager_score != null) && (
+                            <span style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '4px 8px',
+                              borderRadius: RADII.md,
+                              fontSize: TYPOGRAPHY.fontSize.xs,
+                              fontWeight: 700,
+                              backgroundColor: '#EEF2FF',
+                              color: '#4F46E5',
+                              border: '1px solid #C7D2FE',
+                            }}>
+                              ⭐ {Number(item.evaluation.final_score ?? item.evaluation.manager_score).toFixed(1)}
+                            </span>
+                          )}
+                          <span style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '4px 8px',
+                            borderRadius: RADII.md,
+                            fontSize: TYPOGRAPHY.fontSize.xs,
+                            fontWeight: 600,
+                            backgroundColor: badge.bg,
+                            color: badge.text
+                          }}>
+                            {badge.icon}
+                            {badge.label}
+                          </span>
+                        </div>
                       </div>
 
                       <div style={{

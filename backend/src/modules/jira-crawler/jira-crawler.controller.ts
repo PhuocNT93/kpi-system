@@ -397,11 +397,17 @@ export class JiraCrawlerController {
         cycleCode = 'H2-2026',
         records,
         markReviewed = true,
+        overallScore,
+        overallLevel,
+        scoringBreakdown,
       } = req.body as {
         employeeCode: string;
         cycleCode?: string;
         records: (EvaluatedKpiRecord & { blendingInfo?: { blueprintScore: number; blendedScore: number } })[];
         markReviewed?: boolean;
+        overallScore?: number;
+        overallLevel?: number;
+        scoringBreakdown?: Record<string, unknown>;
       };
 
       if (!employeeCode || !records || !Array.isArray(records) || records.length === 0) {
@@ -578,6 +584,37 @@ export class JiraCrawlerController {
                next_review_due_date = CURRENT_TIMESTAMP + (COALESCE(review_cadence_months, 6) || ' months')::INTERVAL
            WHERE employee_id = $1`,
           [employeeId]
+        );
+      }
+
+      // 6. Update parent evaluation record with official overall scores & status
+      const targetScore = typeof overallScore === 'number'
+        ? overallScore
+        : (records.length > 0
+            ? Math.round(
+                (records.reduce((sum, r) => sum + (typeof r.value === 'number' ? r.value : 0), 0) /
+                  records.length) *
+                  10
+              ) / 10
+            : null);
+
+      if (targetScore !== null) {
+        await client.query(
+          `UPDATE evaluation
+           SET manager_score = $1,
+               final_score = $1,
+               scoring_breakdown = $2,
+               status = CASE WHEN status = 'OPEN' THEN 'SUBMITTED' ELSE status END,
+               submitted_at = COALESCE(submitted_at, CURRENT_TIMESTAMP),
+               updated_at = CURRENT_TIMESTAMP
+           WHERE evaluation_id = $3`,
+          [
+            targetScore,
+            scoringBreakdown
+              ? JSON.stringify(scoringBreakdown)
+              : JSON.stringify({ overallScore: targetScore, overallLevel: overallLevel ?? 3 }),
+            evaluationId,
+          ]
         );
       }
 
@@ -821,6 +858,9 @@ export class JiraCrawlerController {
         cycleCode,
         records: memberResult.records,
         markReviewed,
+        overallScore: memberResult.overallScore,
+        overallLevel: memberResult.overallLevel,
+        scoringBreakdown: memberResult.scoringBreakdown,
       };
 
       // Reuse existing apply logic (it manages its own pool connection)

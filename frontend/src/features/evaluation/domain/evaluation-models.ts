@@ -270,6 +270,10 @@ export function percentToTenPointScore(value: number | string | null | undefined
     return 'N/A';
   }
 
+  if (numericValue >= 1 && numericValue <= 5) {
+    return String(numericValue);
+  }
+
   const percentValue = numericValue > 0 && numericValue <= 1 ? numericValue * 100 : numericValue;
   return (percentValue / 10).toFixed(percentValue % 10 === 0 ? 0 : 1);
 }
@@ -278,9 +282,9 @@ export function getCriterionCategory(item: Pick<EvaluationItem, 'criterion_code_
   const code = (item.criterion_code_snapshot || '').toLowerCase();
   const name = getCriterionName(item.criterion_name_snapshot, item.criterion_code_snapshot).toLowerCase();
 
-  if (code.startsWith('perf') || name.includes('performance')) return 'Performance';
-  if (code.startsWith('cap') || name.includes('capability') || name.includes('competency')) return 'Capability';
-  if (code.startsWith('con') || name.includes('contribution') || name.includes('collaboration')) return 'Contribution';
+  if (code.startsWith('perf') || name.includes('performance') || name.includes('quality') || name.includes('task')) return 'Performance';
+  if (code.startsWith('cap') || name.includes('capability') || name.includes('competency') || name.includes('ownership')) return 'Capability';
+  if (code.startsWith('con') || name.includes('contribution') || name.includes('collaboration') || name.includes('independence')) return 'Contribution';
   return 'Performance';
 }
 
@@ -288,6 +292,14 @@ function parsePercentValue(value: string): number {
   const numericValue = Number.parseFloat(value.replace('%', ''));
   return Number.isNaN(numericValue) ? 0 : numericValue;
 }
+
+const LEVEL_SCORE_PERCENT_MAP: Record<number, number> = {
+  1: 60,
+  2: 75,
+  3: 85,
+  4: 95,
+  5: 100,
+};
 
 export function buildEvaluationScoringSummary(evaluationDetail?: EvaluationDetail | null): EvaluationScoringSummary {
   const items = evaluationDetail?.items ?? [];
@@ -299,13 +311,17 @@ export function buildEvaluationScoringSummary(evaluationDetail?: EvaluationDetai
     const category = getCriterionCategory(item);
     const kpiLabel = item.kpi_name_snapshot || item.kpi_code_snapshot || 'KPI';
 
+    const rawLvl = item.resolved_level ?? 0;
+    const effectiveLevel = rawLvl > 5 ? (rawLvl >= 95 ? 5 : rawLvl >= 85 ? 4 : rawLvl >= 75 ? 3 : rawLvl >= 65 ? 2 : 1) : rawLvl;
+    const levelScore100 = LEVEL_SCORE_PERCENT_MAP[effectiveLevel] ?? (rawLvl > 5 ? rawLvl : effectiveLevel * 20);
+
     const criterionEntry = criterionMap.get(criterionKey) ?? {
       title: criterionTitle,
       category,
       score: 0,
-      scoreValue: percentToTenPointScore(item.resolved_level),
+      scoreValue: `${effectiveLevel}`,
       rawScore: 0,
-      rawScoreValue: percentToTenPointScore(item.resolved_level),
+      rawScoreValue: `${levelScore100.toFixed(1)}%`,
       weightedScore: 0,
       weightedScoreValue: '0.0',
       weight: 'of overall evaluation',
@@ -315,17 +331,20 @@ export function buildEvaluationScoringSummary(evaluationDetail?: EvaluationDetai
       kpis: [],
     };
 
+    const kpiWeight = normalizeStoredPercentValue(item.kpi_weight_snapshot) || 100;
+    const critWeight = normalizeStoredPercentValue(item.weight_snapshot) || 20;
+
     criterionEntry.kpis.push({
       label: kpiLabel,
-      rawScore: item.resolved_level ?? 0,
-      rawScoreValue: percentToTenPointScore(item.resolved_level ?? 0),
-      score: (item.resolved_level ?? 0) * normalizeStoredPercentValue(item.kpi_weight_snapshot) / 100,
-      scoreValue: percentToTenPointScore(item.resolved_level ?? 0),
-      weightPercent: normalizeStoredPercentValue(item.kpi_weight_snapshot),
+      rawScore: effectiveLevel,
+      rawScoreValue: `${effectiveLevel}`,
+      score: (effectiveLevel * kpiWeight) / 100,
+      scoreValue: `${effectiveLevel}`,
+      weightPercent: kpiWeight,
       previous: item.raw_score ?? 0,
       weight: 'of KPI',
-      weightValue: formatStoredPercent(item.kpi_weight_snapshot),
-      criterionWeight: normalizeStoredPercentValue(item.weight_snapshot),
+      weightValue: formatStoredPercent(item.kpi_weight_snapshot ?? item.weight_snapshot),
+      criterionWeight: critWeight,
     });
 
     const totalCriterionWeight = criterionEntry.kpis.reduce((sum, kpi) => sum + kpi.criterionWeight, 0);
@@ -333,8 +352,8 @@ export function buildEvaluationScoringSummary(evaluationDetail?: EvaluationDetai
 
     const childScores = criterionEntry.kpis.map((kpi) => kpi.score);
     criterionEntry.rawScore = childScores.length > 0 ? childScores.reduce((sum, value) => sum + value, 0) : 0;
-    criterionEntry.weightedScore = criterionEntry.rawScore * (totalCriterionWeight / 100) / 20;
-    criterionEntry.rawScoreValue = `${(criterionEntry.rawScore * (totalCriterionWeight / 100)).toFixed(2)}%`;
+    criterionEntry.weightedScore = criterionEntry.rawScore * (totalCriterionWeight / 100);
+    criterionEntry.rawScoreValue = `${levelScore100.toFixed(1)}%`;
     criterionEntry.weightedScoreValue = criterionEntry.weightedScore.toFixed(2);
     criterionEntry.score = criterionEntry.weightedScore;
     criterionEntry.scoreValue = criterionEntry.weightedScoreValue;
@@ -354,8 +373,20 @@ export function buildEvaluationScoringSummary(evaluationDetail?: EvaluationDetai
     };
   });
 
-  const totalScore = grouped.reduce((sum, group) => sum + (group.average ?? 0), 0);
-  const totalRawScoreValue = criteria.reduce((sum, criterion) => sum + parsePercentValue(criterion.rawScoreValue), 0);
+  const officialOverall = evaluationDetail?.official_score ?? evaluationDetail?.final_score ?? evaluationDetail?.manager_score;
+
+  let totalScore: number;
+  let totalRawScoreValue: number;
+
+  if (typeof officialOverall === 'number' && officialOverall > 0) {
+    totalRawScoreValue = officialOverall;
+    totalScore = officialOverall > 5 ? Math.round((officialOverall / 20) * 100) / 100 : officialOverall;
+  } else {
+    totalScore = grouped.reduce((sum, group) => sum + (group.average ?? 0), 0);
+    totalRawScoreValue = criteria.length > 0
+      ? criteria.reduce((sum, criterion) => sum + parsePercentValue(criterion.rawScoreValue), 0) / criteria.length
+      : 0;
+  }
 
   return { criteria, grouped, totalScore, totalRawScoreValue };
 }

@@ -68,10 +68,11 @@ const toLevelPercent = (level?: number | null): number | undefined => {
 
 const toDisplayLevel = (value?: number | null): number | null => {
   if (value === null || value === undefined) return null;
-  if (value >= 100) return 5;
-  if (value >= 90) return 4;
-  if (value >= 80) return 3;
-  if (value >= 70) return 2;
+  if (value >= 1 && value <= 5) return Math.round(value);
+  if (value >= 95) return 5;
+  if (value >= 85) return 4;
+  if (value >= 75) return 3;
+  if (value >= 65) return 2;
   return 1;
 };
 
@@ -532,7 +533,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
 
         return {
           ...item,
-          resolved_level: toLevelPercent(draft.resolved_level) ?? item.resolved_level,
+          resolved_level: draft.resolved_level ?? item.resolved_level,
           comment: draft.comment,
         };
       }),
