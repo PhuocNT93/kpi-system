@@ -1384,9 +1384,12 @@ export class EvaluationService {
     const evaluation = evalRes.rows[0];
 
     const itemsRes = await this.pool.query(
-      `SELECT ei.*, rev.full_name AS reviewer_name
+      `SELECT ei.*, c.category AS criterion_category, rev.full_name AS reviewer_name
        FROM evaluation_item ei
        LEFT JOIN employee rev ON ei.reviewer_id = rev.employee_id
+       LEFT JOIN template_criteria tc ON ei.template_criterion_id = tc.id
+       LEFT JOIN criterion_versions cv ON tc.criterion_version_id = cv.id
+       LEFT JOIN criteria c ON cv.criterion_id = c.id
        WHERE ei.evaluation_id = $1
        ORDER BY ei.created_at ASC, ei.criterion_code_snapshot ASC`,
       [evaluation.evaluation_id]
@@ -1425,6 +1428,7 @@ export class EvaluationService {
       evaluation_item_id: string;
       criterion_code_snapshot: string;
       criterion_name_snapshot: string;
+      criterion_category?: string;
       kpi_name_snapshot?: string;
       measurement_value?: string;
       raw_score?: string;
@@ -1465,7 +1469,8 @@ export class EvaluationService {
         evaluation_item_id: row.evaluation_item_id,
         criterion_code: row.criterion_code_snapshot,
         criterion_name: row.criterion_name_snapshot,
-        category,
+        category: (row.criterion_category as string | undefined) || category,
+        criterion_category_snapshot: (row.criterion_category as string | undefined) || category,
         weight,
         raw_score: rawScore,
         weighted_score: weightedScore,
