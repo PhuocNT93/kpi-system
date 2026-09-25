@@ -474,33 +474,6 @@ export async function executeBatchRun(
             });
           }
 
-          // 3. Recalculate overall score with blended KPI scores using dynamic weights
-          const perfRec = result.records.find((r) => r.kpi_code === 'PERF_01');
-          const qualRec = result.records.find((r) => r.kpi_code === 'CODE_QUALITY');
-          const volRec = result.records.find((r) => r.kpi_code === 'TASK_VOLUME');
-          const ownerRec = result.records.find((r) => r.kpi_code === 'OWNERSHIP_SCOPE');
-          const indepRec = result.records.find((r) => r.kpi_code === 'INDEPENDENCE');
-
-          const pScore = perfRec ? (perfRec.value <= 10 ? perfRec.value * 10 : perfRec.value) : 60;
-          const qScore = qualRec ? (qualRec.resolved_level ? (qualRec.resolved_level / 5) * 100 : 60) : 60;
-          const vScore = volRec ? (volRec.resolved_level ? (volRec.resolved_level / 5) * 100 : 60) : 60;
-          const oScore = ownerRec ? (ownerRec.resolved_level / 5) * 100 : 80;
-          const iScore = indepRec ? (indepRec.resolved_level / 5) * 100 : 80;
-
-          const weights = scriptConfig.scoringRubric?.weights || {
-            PERF_01: 0.25,
-            CODE_QUALITY: 0.20,
-            TASK_VOLUME: 0.15,
-            OWNERSHIP_SCOPE: 0.20,
-            INDEPENDENCE: 0.20,
-          };
-          const wP = weights.PERF_01 ?? 0.25;
-          const wQ = weights.CODE_QUALITY ?? 0.20;
-          const wV = weights.TASK_VOLUME ?? 0.15;
-          const wO = weights.OWNERSHIP_SCOPE ?? 0.20;
-          const wI = weights.INDEPENDENCE ?? 0.20;
-          const totalW = (wP + wQ + wV + wO + wI) || 1;
-
           if (bpSummary.attendance && result.penaltyBreakdown) {
             const strictness = engine.getStrictnessMode();
             const lateRate = strictness === 'HARD' ? 3 : strictness === 'EASY' ? 1 : 2;
