@@ -1,5 +1,4 @@
 import { getApi, putApi, postApi } from '@/shared/api/api-client';
-import { getCriterionCategory } from '../domain/evaluation-models';
 import type { MyEvaluation, TeamEvaluation, EvaluationDetail } from '../domain/evaluation-models';
 
 const EVALUATIONS_BASE = '/api/v1/evaluations';
