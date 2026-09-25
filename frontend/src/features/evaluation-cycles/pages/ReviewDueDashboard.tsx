@@ -1,4 +1,6 @@
 import React, { useState, useMemo } from 'react';
+import { formatCadenceLabel } from '../../organization/domain/review-schedule-display';
+import { formatTimestampAsLocalDate } from '../../../shared/utils/timestamp-display';
 import { useReviewDue } from '../hooks/useReviewDue';
 import { useReviewDueTranslation } from '../hooks/useReviewDueTranslation';
 import { useReviewCadences } from '@/features/organization/hooks/useReviewCadences';
@@ -16,10 +18,12 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import type {
-  ReviewDueItemDTO,
+  ReviewDueItem,
   ReviewDueStatus,
-  ReviewDueFiltersDTO,
-} from '../types/review-due.types';
+  ReviewDueFilters,
+} from '../domain/review-due-models';
+
+const REVIEW_DUE_PAGE_SIZE = 50;
 
 export const ReviewDueDashboard: React.FC = () => {
   const { isDark } = useTheme();
@@ -30,75 +34,83 @@ export const ReviewDueDashboard: React.FC = () => {
   const [search, setSearch] = useState('');
   const [teamId, setTeamId] = useState('');
   const [cadenceId, setCadenceId] = useState('');
-  const [leadTimeDays] = useState(30);
+  const [page, setPage] = useState(1);
 
   // Selection State
-  const [selectedEmployees, setSelectedEmployees] = useState<ReviewDueItemDTO[]>([]);
+  const [selectedEmployees, setSelectedEmployees] = useState<ReviewDueItem[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Queries
-  const filters: ReviewDueFiltersDTO = useMemo(
+  const filters: ReviewDueFilters = useMemo(
     () => ({
-      status: activeTab,
-      team_id: teamId || undefined,
-      cadence_id: cadenceId || undefined,
+      status: activeTab === 'ALL' ? undefined : activeTab,
+      teamId: teamId || undefined,
+      cadenceId: cadenceId || undefined,
       search: search.trim() || undefined,
-      lead_time_days: leadTimeDays,
-      limit: 100,
+      page,
+      pageSize: REVIEW_DUE_PAGE_SIZE,
     }),
-    [activeTab, teamId, cadenceId, search, leadTimeDays]
+    [activeTab, teamId, cadenceId, search, page]
   );
 
   const reviewDueQuery = useReviewDue(filters);
   const teamsQuery = useTeams();
   const cadencesQuery = useReviewCadences({ active: true });
 
-  const items = reviewDueQuery.data?.items ?? [];
-  const meta = reviewDueQuery.data?.meta;
-  const counts = meta?.counts ?? {
-    overdue: 0,
-    due: 0,
-    upcoming: 0,
-    total_due_or_upcoming: 0,
-  };
+  const items = useMemo(() => reviewDueQuery.data?.items ?? [], [reviewDueQuery.data]);
+  const total = reviewDueQuery.data?.total ?? 0;
+  const totalPages = reviewDueQuery.data?.totalPages ?? 1;
+  const currentPage = reviewDueQuery.data?.page ?? page;
+
+  // The backend returns no per-status counts; tiles summarise the items on the current page only.
+  const pageCounts = useMemo(
+    () => ({
+      overdue: items.filter((item) => item.status === 'OVERDUE').length,
+      due: items.filter((item) => item.status === 'DUE').length,
+      upcoming: items.filter((item) => item.status === 'UPCOMING').length,
+    }),
+    [items]
+  );
+
+  const resetToFirstPage = () => setPage(1);
 
   // Checkbox handlers
   const isAllSelected = items.length > 0 && items.every((item) =>
-    selectedEmployees.some((sel) => sel.employee_id === item.employee_id)
+    selectedEmployees.some((sel) => sel.employeeId === item.employeeId)
   );
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
       const merged = [...selectedEmployees];
       items.forEach((item) => {
-        if (!merged.some((m) => m.employee_id === item.employee_id)) {
+        if (!merged.some((m) => m.employeeId === item.employeeId)) {
           merged.push(item);
         }
       });
       setSelectedEmployees(merged);
     } else {
       setSelectedEmployees(
-        selectedEmployees.filter((sel) => !items.some((item) => item.employee_id === sel.employee_id))
+        selectedEmployees.filter((sel) => !items.some((item) => item.employeeId === sel.employeeId))
       );
     }
   };
 
-  const handleToggleSelect = (item: ReviewDueItemDTO) => {
-    const exists = selectedEmployees.some((sel) => sel.employee_id === item.employee_id);
+  const handleToggleSelect = (item: ReviewDueItem) => {
+    const exists = selectedEmployees.some((sel) => sel.employeeId === item.employeeId);
     if (exists) {
-      setSelectedEmployees(selectedEmployees.filter((sel) => sel.employee_id !== item.employee_id));
+      setSelectedEmployees(selectedEmployees.filter((sel) => sel.employeeId !== item.employeeId));
     } else {
       setSelectedEmployees([...selectedEmployees, item]);
     }
   };
 
-  const openEvaluationModalForSingle = (item: ReviewDueItemDTO) => {
+  const openEvaluationModalForSingle = (item: ReviewDueItem) => {
     setSelectedEmployees([item]);
     setIsModalOpen(true);
   };
 
   // Status badge styling
-  const renderStatusBadge = (status: ReviewDueStatus, daysOverdue: number, daysUntilDue: number) => {
+  const renderStatusBadge = (status: ReviewDueStatus, daysOverdue: number) => {
     if (status === 'OVERDUE') {
       return (
         <span
@@ -163,7 +175,30 @@ export const ReviewDueDashboard: React.FC = () => {
           }}
         >
           <Calendar size={12} />
-          {t('status_upcoming', 'Upcoming ({days} days)', { days: daysUntilDue })}
+          {t('status_upcoming_plain', 'Upcoming')}
+        </span>
+      );
+    }
+
+    if (status === 'NO_SCHEDULE') {
+      return (
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.25rem',
+            padding: '0.25rem 0.625rem',
+            borderRadius: '9999px',
+            fontSize: '0.75rem',
+            fontWeight: 500,
+            backgroundColor: isDark ? '#334155' : '#f8fafc',
+            color: isDark ? '#94a3b8' : '#64748b',
+            border: `1px dashed ${isDark ? '#475569' : '#cbd5e1'}`,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <Calendar size={12} />
+          {t('status_no_schedule', 'No Schedule')}
         </span>
       );
     }
@@ -190,8 +225,8 @@ export const ReviewDueDashboard: React.FC = () => {
   };
 
   // Cadence Source badge
-  const renderCadenceBadge = (item: ReviewDueItemDTO) => {
-    const cad = item.effective_cadence;
+  const renderCadenceBadge = (item: ReviewDueItem) => {
+    const cad = item.effectiveCadence;
     if (!cad) {
       return <span style={{ color: isDark ? '#64748b' : '#9ca3af', fontSize: '0.8125rem' }}>—</span>;
     }
@@ -204,7 +239,7 @@ export const ReviewDueDashboard: React.FC = () => {
       sourceLabel = t('source_override', 'Employee Override');
       badgeBg = isDark ? 'rgba(168, 85, 247, 0.2)' : '#f3e8ff';
       badgeColor = isDark ? '#c084fc' : '#7e22ce';
-    } else if (cad.source === 'JOB_LEVEL') {
+    } else if (cad.source === 'JOB_LEVEL_DEFAULT') {
       sourceLabel = t('source_job_level', 'By Job Level');
       badgeBg = isDark ? 'rgba(99, 102, 241, 0.2)' : '#e0e7ff';
       badgeColor = isDark ? '#818cf8' : '#4338ca';
@@ -213,7 +248,7 @@ export const ReviewDueDashboard: React.FC = () => {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
         <span style={{ fontWeight: 500, fontSize: '0.875rem' }}>
-          {cad.name} ({cad.interval_months} {t('months', 'months')})
+          {formatCadenceLabel(cad.name, cad.intervalMonths, t)}
         </span>
         <span
           style={{
@@ -295,10 +330,10 @@ export const ReviewDueDashboard: React.FC = () => {
             {t('card_overdue_title', 'Overdue Reviews')}
           </span>
           <span style={{ fontSize: '1.75rem', fontWeight: 700, color: isDark ? '#f87171' : '#dc2626' }}>
-            {counts.overdue}
+            {pageCounts.overdue}
           </span>
           <span style={{ fontSize: '0.75rem', color: isDark ? '#64748b' : '#9ca3af' }}>
-            {t('card_overdue_hint', 'Requires immediate cycle opening')}
+            {t('counts_current_page_hint', 'On the current page')}
           </span>
         </div>
 
@@ -307,10 +342,10 @@ export const ReviewDueDashboard: React.FC = () => {
             {t('card_due_title', 'Due Today')}
           </span>
           <span style={{ fontSize: '1.75rem', fontWeight: 700, color: isDark ? '#fbbf24' : '#d97706' }}>
-            {counts.due}
+            {pageCounts.due}
           </span>
           <span style={{ fontSize: '0.75rem', color: isDark ? '#64748b' : '#9ca3af' }}>
-            {t('card_due_hint', 'Exact scheduled milestone date')}
+            {t('counts_current_page_hint', 'On the current page')}
           </span>
         </div>
 
@@ -319,10 +354,10 @@ export const ReviewDueDashboard: React.FC = () => {
             {t('card_upcoming_title', 'Upcoming Reviews (<= 30 days)')}
           </span>
           <span style={{ fontSize: '1.75rem', fontWeight: 700, color: isDark ? '#60a5fa' : '#2563eb' }}>
-            {counts.upcoming}
+            {pageCounts.upcoming}
           </span>
           <span style={{ fontSize: '0.75rem', color: isDark ? '#64748b' : '#9ca3af' }}>
-            {t('card_upcoming_hint', 'Within lead time forecast')}
+            {t('counts_current_page_hint', 'On the current page')}
           </span>
         </div>
 
@@ -331,10 +366,10 @@ export const ReviewDueDashboard: React.FC = () => {
             {t('card_total_title', 'Total to Monitor')}
           </span>
           <span style={{ fontSize: '1.75rem', fontWeight: 700, color: isDark ? '#34d399' : '#059669' }}>
-            {counts.total_due_or_upcoming}
+            {total}
           </span>
           <span style={{ fontSize: '0.75rem', color: isDark ? '#64748b' : '#9ca3af' }}>
-            {t('card_total_hint', 'Overdue + Due + Upcoming')}
+            {t('card_total_hint_filtered', 'Employees matching the current filters')}
           </span>
         </div>
       </div>
@@ -355,17 +390,20 @@ export const ReviewDueDashboard: React.FC = () => {
         <div className="review-due-tabs-bar" style={{ borderBottom: `1px solid ${isDark ? '#334155' : '#e2e8f0'}` }}>
           {(
             [
-              { key: 'ALL', label: t('tab_all', 'All Needing Review'), count: counts.total_due_or_upcoming },
-              { key: 'OVERDUE', label: t('tab_overdue', 'Overdue'), count: counts.overdue },
-              { key: 'DUE', label: t('tab_due', 'Due Today'), count: counts.due },
-              { key: 'UPCOMING', label: t('tab_upcoming', 'Upcoming'), count: counts.upcoming },
+              { key: 'ALL', label: t('tab_all', 'All Needing Review') },
+              { key: 'OVERDUE', label: t('tab_overdue', 'Overdue') },
+              { key: 'DUE', label: t('tab_due', 'Due Today') },
+              { key: 'UPCOMING', label: t('tab_upcoming', 'Upcoming') },
             ] as const
           ).map((tab) => {
             const isActive = activeTab === tab.key;
             return (
               <button
                 key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => {
+                  setActiveTab(tab.key);
+                  resetToFirstPage();
+                }}
                 style={{
                   padding: '0.5rem 0.875rem',
                   borderRadius: '6px',
@@ -387,22 +425,24 @@ export const ReviewDueDashboard: React.FC = () => {
                 }}
               >
                 <span>{tab.label}</span>
-                <span
-                  style={{
-                    backgroundColor: isActive
-                      ? 'rgba(255, 255, 255, 0.2)'
-                      : isDark
-                        ? '#334155'
-                        : '#f1f5f9',
-                    color: isActive ? '#ffffff' : isDark ? '#cbd5e1' : '#475569',
-                    fontSize: '0.75rem',
-                    padding: '0.125rem 0.375rem',
-                    borderRadius: '9999px',
-                    fontWeight: 600,
-                  }}
-                >
-                  {tab.count}
-                </span>
+                {isActive && (
+                  <span
+                    style={{
+                      backgroundColor: isActive
+                        ? 'rgba(255, 255, 255, 0.2)'
+                        : isDark
+                          ? '#334155'
+                          : '#f1f5f9',
+                      color: isActive ? '#ffffff' : isDark ? '#cbd5e1' : '#475569',
+                      fontSize: '0.75rem',
+                      padding: '0.125rem 0.375rem',
+                      borderRadius: '9999px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {total}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -426,7 +466,10 @@ export const ReviewDueDashboard: React.FC = () => {
               type="text"
               placeholder={t('search_placeholder', 'Search by employee name or code...')}
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                resetToFirstPage();
+              }}
               style={{
                 width: '100%',
                 boxSizing: 'border-box',
@@ -444,7 +487,10 @@ export const ReviewDueDashboard: React.FC = () => {
           <div style={{ minWidth: '160px', flex: '1 1 180px' }}>
             <select
               value={teamId}
-              onChange={(e) => setTeamId(e.target.value)}
+              onChange={(e) => {
+                setTeamId(e.target.value);
+                resetToFirstPage();
+              }}
               style={{
                 width: '100%',
                 boxSizing: 'border-box',
@@ -469,7 +515,10 @@ export const ReviewDueDashboard: React.FC = () => {
           <div style={{ minWidth: '160px', flex: '1 1 180px' }}>
             <select
               value={cadenceId}
-              onChange={(e) => setCadenceId(e.target.value)}
+              onChange={(e) => {
+                setCadenceId(e.target.value);
+                resetToFirstPage();
+              }}
               style={{
                 width: '100%',
                 boxSizing: 'border-box',
@@ -484,7 +533,7 @@ export const ReviewDueDashboard: React.FC = () => {
               <option value="">{t('all_cadences', '-- All Review Cadences --')}</option>
               {(cadencesQuery.data ?? []).map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name} ({c.intervalMonths} {t('months', 'months')})
+                  {formatCadenceLabel(c.name, c.intervalMonths, t)}
                 </option>
               ))}
             </select>
@@ -498,6 +547,7 @@ export const ReviewDueDashboard: React.FC = () => {
                 setSearch('');
                 setTeamId('');
                 setCadenceId('');
+                resetToFirstPage();
               }}
             >
               {t('btn_clear_filters', 'Clear Filters')}
@@ -592,10 +642,10 @@ export const ReviewDueDashboard: React.FC = () => {
               </thead>
               <tbody>
                 {items.map((item) => {
-                  const isSelected = selectedEmployees.some((s) => s.employee_id === item.employee_id);
+                  const isSelected = selectedEmployees.some((s) => s.employeeId === item.employeeId);
                   return (
                     <tr
-                      key={item.employee_id}
+                      key={item.employeeId}
                       style={{
                         borderBottom: `1px solid ${isDark ? '#334155' : '#f1f5f9'}`,
                         backgroundColor: isSelected
@@ -611,7 +661,7 @@ export const ReviewDueDashboard: React.FC = () => {
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => handleToggleSelect(item)}
-                          aria-label={`Select ${item.full_name}`}
+                          aria-label={`Select ${item.employeeName}`}
                           style={{ cursor: 'pointer' }}
                         />
                       </td>
@@ -633,14 +683,14 @@ export const ReviewDueDashboard: React.FC = () => {
                               flexShrink: 0,
                             }}
                           >
-                            {(item.full_name || item.employee_code || 'U').slice(0, 1).toUpperCase()}
+                            {(item.employeeName || item.employeeCode || 'U').slice(0, 1).toUpperCase()}
                           </div>
                           <div>
                             <div style={{ fontWeight: 600, color: isDark ? '#f8fafc' : '#0f172a', fontSize: '0.875rem' }}>
-                              {item.full_name || '—'}
+                              {item.employeeName || '—'}
                             </div>
                             <div style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b' }}>
-                              {item.employee_code || '—'}
+                              {item.employeeCode || '—'}
                             </div>
                           </div>
                         </div>
@@ -649,10 +699,10 @@ export const ReviewDueDashboard: React.FC = () => {
                       <td style={{ padding: '0.75rem 1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                           <span style={{ fontSize: '0.875rem', color: isDark ? '#f8fafc' : '#0f172a' }}>
-                            {item.team_name || '—'}
+                            {item.teamName || '—'}
                           </span>
                           <span style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b' }}>
-                            {item.job_level_name || '—'}
+                            {item.jobLevelName || '—'}
                           </span>
                         </div>
                       </td>
@@ -660,8 +710,8 @@ export const ReviewDueDashboard: React.FC = () => {
                       <td style={{ padding: '0.75rem 1rem' }}>{renderCadenceBadge(item)}</td>
 
                       <td style={{ padding: '0.75rem 1rem', fontSize: '0.875rem', color: isDark ? '#cbd5e1' : '#334155' }}>
-                        {item.last_evaluation_completed_at ? (
-                          item.last_evaluation_completed_at.slice(0, 10)
+                        {item.lastEvaluationCompletedAt ? (
+                          formatTimestampAsLocalDate(item.lastEvaluationCompletedAt)
                         ) : (
                           <span style={{ color: isDark ? '#64748b' : '#9ca3af' }}>
                             {t('no_prior_cycle', 'No prior cycle')}
@@ -670,11 +720,11 @@ export const ReviewDueDashboard: React.FC = () => {
                       </td>
 
                       <td style={{ padding: '0.75rem 1rem', fontSize: '0.875rem', fontWeight: 600, color: isDark ? '#f8fafc' : '#0f172a' }}>
-                        {item.next_review_due_date ? item.next_review_due_date.slice(0, 10) : '—'}
+                        {item.nextReviewDueDate ?? '—'}
                       </td>
 
                       <td style={{ padding: '0.75rem 1rem' }}>
-                        {renderStatusBadge(item.status, item.days_overdue, item.days_until_due)}
+                        {renderStatusBadge(item.status, item.daysOverdue)}
                       </td>
 
                       <td style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>
@@ -692,10 +742,10 @@ export const ReviewDueDashboard: React.FC = () => {
           {/* Mobile Card View (< 768px) */}
           <div className="review-due-mobile-cards">
             {items.map((item) => {
-              const isSelected = selectedEmployees.some((s) => s.employee_id === item.employee_id);
+              const isSelected = selectedEmployees.some((s) => s.employeeId === item.employeeId);
               return (
                 <div
-                  key={item.employee_id}
+                  key={item.employeeId}
                   style={{
                     backgroundColor: isDark ? '#1e293b' : '#ffffff',
                     border: `1px solid ${isSelected
@@ -721,7 +771,7 @@ export const ReviewDueDashboard: React.FC = () => {
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => handleToggleSelect(item)}
-                        aria-label={`Select ${item.full_name}`}
+                        aria-label={`Select ${item.employeeName}`}
                         style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                       />
                       <div
@@ -739,19 +789,19 @@ export const ReviewDueDashboard: React.FC = () => {
                           flexShrink: 0,
                         }}
                       >
-                        {(item.full_name || item.employee_code || 'U').slice(0, 1).toUpperCase()}
+                        {(item.employeeName || item.employeeCode || 'U').slice(0, 1).toUpperCase()}
                       </div>
                       <div>
                         <div style={{ fontWeight: 600, color: isDark ? '#f8fafc' : '#0f172a', fontSize: '0.9375rem' }}>
-                          {item.full_name || '—'}
+                          {item.employeeName || '—'}
                         </div>
                         <div style={{ fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b' }}>
-                          {item.employee_code || '—'}
+                          {item.employeeCode || '—'}
                         </div>
                       </div>
                     </div>
 
-                    <div>{renderStatusBadge(item.status, item.days_overdue, item.days_until_due)}</div>
+                    <div>{renderStatusBadge(item.status, item.daysOverdue)}</div>
                   </div>
 
                   {/* Card Details Grid */}
@@ -771,10 +821,10 @@ export const ReviewDueDashboard: React.FC = () => {
                         {t('col_team_level', 'Team & Job Level')}
                       </div>
                       <div style={{ fontWeight: 500, color: isDark ? '#f8fafc' : '#0f172a', marginTop: '2px' }}>
-                        {item.team_name || '—'}
+                        {item.teamName || '—'}
                       </div>
                       <div style={{ color: isDark ? '#94a3b8' : '#64748b', fontSize: '0.75rem' }}>
-                        {item.job_level_name || '—'}
+                        {item.jobLevelName || '—'}
                       </div>
                     </div>
 
@@ -790,8 +840,8 @@ export const ReviewDueDashboard: React.FC = () => {
                         {t('col_last_completed', 'Last Completed')}
                       </div>
                       <div style={{ fontWeight: 500, color: isDark ? '#f8fafc' : '#0f172a', marginTop: '2px' }}>
-                        {item.last_evaluation_completed_at ? (
-                          item.last_evaluation_completed_at.slice(0, 10)
+                        {item.lastEvaluationCompletedAt ? (
+                          formatTimestampAsLocalDate(item.lastEvaluationCompletedAt)
                         ) : (
                           <span style={{ color: isDark ? '#64748b' : '#9ca3af' }}>
                             {t('no_prior_cycle', 'No prior cycle')}
@@ -805,7 +855,7 @@ export const ReviewDueDashboard: React.FC = () => {
                         {t('col_next_due', 'Next Due Date')}
                       </div>
                       <div style={{ fontWeight: 700, color: isDark ? '#60a5fa' : '#2563eb', marginTop: '2px' }}>
-                        {item.next_review_due_date ? item.next_review_due_date.slice(0, 10) : '—'}
+                        {item.nextReviewDueDate ?? '—'}
                       </div>
                     </div>
                   </div>
@@ -820,6 +870,33 @@ export const ReviewDueDashboard: React.FC = () => {
               );
             })}
           </div>
+
+          {totalPages > 1 && (
+            <nav
+              aria-label={t('pagination_label', 'Review due pagination')}
+              style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.75rem' }}
+            >
+              <Button
+                variant="outlined"
+                size="sm"
+                disabled={currentPage <= 1 || reviewDueQuery.isFetching}
+                onClick={() => setPage(Math.max(1, currentPage - 1))}
+              >
+                {t('btn_prev_page', 'Previous')}
+              </Button>
+              <span style={{ fontSize: '0.875rem', color: isDark ? '#cbd5e1' : '#475569' }}>
+                {t('page_of_total', 'Page {page} of {totalPages}', { page: currentPage, totalPages })}
+              </span>
+              <Button
+                variant="outlined"
+                size="sm"
+                disabled={currentPage >= totalPages || reviewDueQuery.isFetching}
+                onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
+              >
+                {t('btn_next_page', 'Next')}
+              </Button>
+            </nav>
+          )}
         </>
       )}
 

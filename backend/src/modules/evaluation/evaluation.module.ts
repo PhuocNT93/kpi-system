@@ -7,19 +7,17 @@ import { AuditService } from '../audit/application/audit.service.js';
 import { RuleEngine } from '../rule-engine/domain/rule-engine.js';
 
 import { NotificationService } from '../notification/application/notification.service.js';
-import { ReviewScheduleService } from '../review-cadence/application/review-schedule.service.js';
+import { EvaluationPublishedHandler } from '../employee/domain/review-schedule.port.js';
 
 export function createEvaluationModule(
   pool: Pool,
   auditService?: AuditService,
   ruleEngine?: RuleEngine,
   notificationService?: NotificationService,
-  reviewScheduleService?: ReviewScheduleService
+  evaluationPublishedHandler?: EvaluationPublishedHandler
 ) {
   const evaluationRepo = new PostgresEvaluationRepository(pool);
   const evaluationItemRepo = new PostgresEvaluationItemRepository(pool);
-  
-  const scheduleService = reviewScheduleService ?? (pool ? new ReviewScheduleService(pool, auditService) : undefined);
 
   const evaluationService = new EvaluationService(
     evaluationRepo,
@@ -29,7 +27,7 @@ export function createEvaluationModule(
     ruleEngine,
     undefined,
     notificationService,
-    scheduleService
+    evaluationPublishedHandler
   );
   
   const evaluationController = new EvaluationController(evaluationService);

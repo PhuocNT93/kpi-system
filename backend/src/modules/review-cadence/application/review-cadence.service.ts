@@ -22,6 +22,17 @@ import { ReviewCadenceRepository } from '../domain/review-cadence.repository.js'
 import { ReviewCadence, CreateReviewCadenceData, UpdateReviewCadenceData } from '../domain/review-cadence.types.js';
 import { AuditService } from '../../audit/application/audit.service.js';
 import { withAuditedTransaction } from '../../audit/application/audit-transaction.js';
+import { AppError } from '../../../api/app-error.js';
+import { TransactionClient } from '../../../shared/database/transaction.js';
+import { toQueryExecutor } from '../../../shared/database/query-executor.js';
+import {
+  PendingScheduleRecalculation,
+  ReviewCadenceChangeHandler,
+  ReviewCadenceChangeScope,
+} from '../domain/review-cadence-change-handler.js';
+
+/** Placeholder id used to scope the fallback group before a new cadence row exists. */
+const NEW_CADENCE_PLACEHOLDER_ID = '00000000-0000-0000-0000-000000000000';
 
 // ── RBAC guard ────────────────────────────────────────────────────────────────
 
@@ -37,8 +48,23 @@ export class ReviewCadenceService {
   constructor(
     private readonly cadenceRepo: ReviewCadenceRepository,
     private readonly auditService: AuditService,
-    private readonly pool: Pool
+    private readonly pool: Pool,
+    private readonly changeHandler?: ReviewCadenceChangeHandler
   ) {}
+
+  /**
+   * Captures (and locks) the employees whose effective cadence may change, before the cadence write.
+   * Recalculation is applied after the write, in the same transaction (LLD §14.1, Rule 9).
+   */
+  private async prepareScheduleRecalculation(
+    client: TransactionClient,
+    scope: ReviewCadenceChangeScope
+  ): Promise<PendingScheduleRecalculation> {
+    if (!this.changeHandler) {
+      throw new AppError(500, 'REVIEW_SCHEDULE_NOT_CONFIGURED', 'Review schedule handler is not configured.');
+    }
+    return this.changeHandler.prepareCadenceChange(client, scope);
+  }
 
   // ── Read ─────────────────────────────────────────────────────────────────
 
@@ -78,13 +104,23 @@ export class ReviewCadenceService {
       }
     }
 
+    const isNewActiveSystemDefault = (data.isSystemDefault ?? false) && (data.active ?? true);
+
     return withAuditedTransaction(this.pool, this.auditService, async (client, audit) => {
+      // A new active system default gives a cadence to employees that previously had none.
+      const pending = isNewActiveSystemDefault
+        ? await this.prepareScheduleRecalculation(client, {
+            cadenceId: NEW_CADENCE_PLACEHOLDER_ID,
+            affectsSystemDefaultFallback: true,
+          })
+        : null;
+
       const cadence = await this.cadenceRepo.create({
         id: '',
         ...data,
         isSystemDefault: data.isSystemDefault ?? false,
         active: data.active ?? true,
-      });
+      }, toQueryExecutor(client));
 
       audit.record({
         entityType: 'REVIEW_CADENCE',
@@ -93,6 +129,7 @@ export class ReviewCadenceService {
         newValue: JSON.stringify({ code: cadence.code, name: cadence.name, intervalMonths: cadence.intervalMonths }),
       });
 
+      await pending?.apply(actor.userId, `review_cadence_id=${cadence.id} created as system default`);
       return cadence;
     });
   }
@@ -128,8 +165,20 @@ export class ReviewCadenceService {
       active: data.active ?? existing.active,
     };
 
+    const isScheduleRelevant =
+      updated.intervalMonths !== existing.intervalMonths ||
+      updated.active !== existing.active ||
+      updated.isSystemDefault !== existing.isSystemDefault;
+
     return withAuditedTransaction(this.pool, this.auditService, async (client, audit) => {
-      const saved = await this.cadenceRepo.update(updated);
+      const pending = isScheduleRelevant
+        ? await this.prepareScheduleRecalculation(client, {
+            cadenceId: id,
+            affectsSystemDefaultFallback: existing.isSystemDefault || updated.isSystemDefault,
+          })
+        : null;
+
+      const saved = await this.cadenceRepo.update(updated, toQueryExecutor(client));
 
       audit.record({
         entityType: 'REVIEW_CADENCE',
@@ -139,6 +188,7 @@ export class ReviewCadenceService {
         newValue: JSON.stringify({ name: saved.name, intervalMonths: saved.intervalMonths, isSystemDefault: saved.isSystemDefault, active: saved.active }),
       });
 
+      await pending?.apply(actor.userId, `review_cadence_id=${saved.id} updated`);
       return saved;
     });
   }
@@ -168,7 +218,12 @@ export class ReviewCadenceService {
     }
 
     await withAuditedTransaction(this.pool, this.auditService, async (client, audit) => {
-      await this.cadenceRepo.delete(id);
+      // Only the system default can be depended upon without an FK reference (BR-7 blocks the rest).
+      const pending = existing.isSystemDefault
+        ? await this.prepareScheduleRecalculation(client, { cadenceId: id, affectsSystemDefaultFallback: true })
+        : null;
+
+      await this.cadenceRepo.delete(id, toQueryExecutor(client));
 
       audit.record({
         entityType: 'REVIEW_CADENCE',
@@ -176,6 +231,8 @@ export class ReviewCadenceService {
         action: 'DELETE',
         oldValue: JSON.stringify({ code: existing.code, name: existing.name }),
       });
+
+      await pending?.apply(actor.userId, `review_cadence_id=${id} deleted`);
     });
   }
 }

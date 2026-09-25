@@ -1,8 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  calculateReviewDueStatus,
-  calculateNextReviewDueDate,
-} from './review-due-calculator.js';
+import { calculateReviewDueStatus } from './review-due-calculator.js';
 
 describe('review-due-calculator', () => {
   describe('calculateReviewDueStatus', () => {
@@ -47,25 +44,6 @@ describe('review-due-calculator', () => {
     it('handles leadTimeDays = 0 correctly with no upcoming window (TC02)', () => {
       const res = calculateReviewDueStatus('2026-09-25T00:00:00Z', { referenceDate, leadTimeDays: 0 });
       expect(res.status).toBe('NOT_DUE');
-    });
-  });
-
-  describe('calculateNextReviewDueDate', () => {
-    it('adds interval months accurately preserving day of month', () => {
-      const base = '2026-03-15T09:00:00Z';
-      const next = calculateNextReviewDueDate(base, 6);
-      expect(next.toISOString().slice(0, 10)).toBe('2026-09-15');
-    });
-
-    it('handles month end clipping (e.g. Aug 31 + 6 months -> Feb 28 in non-leap year)', () => {
-      const base = '2026-08-31T10:00:00Z';
-      const next = calculateNextReviewDueDate(base, 6);
-      expect(next.toISOString().slice(0, 10)).toBe('2027-02-28');
-    });
-
-    it('throws error if intervalMonths <= 0', () => {
-      expect(() => calculateNextReviewDueDate('2026-01-01', 0)).toThrow();
-      expect(() => calculateNextReviewDueDate('2026-01-01', -1)).toThrow();
     });
   });
 });

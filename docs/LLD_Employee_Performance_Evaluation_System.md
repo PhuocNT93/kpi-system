@@ -354,8 +354,8 @@ erDiagram
 | employment_status | varchar(20) | N | ENUM ACTIVE/INACTIVE/ON_LEAVE/TERMINATED |
 | join_date | date | N | |
 | review_cadence_override_id | uuid | Y | **Mới** — FK → review_cadence; override cấp cá nhân, cao nhất trong precedence (mục 14.1) |
-| last_evaluation_completed_at | timestamptz | Y | **Mới** — cập nhật tự động khi 1 evaluation của employee này đạt PUBLISHED/LOCKED |
-| next_review_due_date | date | Y | **Mới** — tính tự động = `last_evaluation_completed_at + effective_cadence.interval_months`; null nếu chưa từng được đánh giá lần nào (coi như due ngay) |
+| last_evaluation_completed_at | timestamptz | Y | **Mới** — cập nhật tự động khi 1 evaluation của employee này đạt PUBLISHED (= `published_at`); **không** cập nhật lại khi PUBLISHED → LOCKED |
+| next_review_due_date | date *(cột vật lý hiện là `timestamptz`, lưu business date lúc 00:00 UTC)* | Y | **Mới** — tính tự động = business date (`BUSINESS_TIMEZONE`) của `last_evaluation_completed_at` + `effective_cadence.interval_months` tháng dương lịch; null nếu chưa từng được đánh giá lần nào (coi như due ngay) |
 
 Index: `(team_id)`, `(manager_id)`, `(employment_status)`, `(next_review_due_date)` — **mới**, phục vụ query "Review Due Dashboard" (mục 14.1).
 
@@ -806,7 +806,16 @@ next_review_due_date = last_evaluation_completed_at + effective_cadence.interval
 - Cập nhật **tự động** ngay khi 1 evaluation của employee đó đạt `PUBLISHED` (mục 14) — không đợi HR tính tay.
 - Nếu employee đổi `job_level` hoặc HR đổi `review_cadence_override_id` → `next_review_due_date` **tính lại ngay** theo cadence mới, dựa trên `last_evaluation_completed_at` cũ (không reset về hôm nay) — xem Open Question về "grandfathering".
 
-### Review Due Dashboard & trigger tạo evaluation
+### Triển khai (task next-review-due-date-auto-update) — đã chốt
+- **Owner duy nhất:** `ReviewScheduleService` (module `employee`) là nơi DUY NHẤT ghi `last_evaluation_completed_at` / `next_review_due_date` (qua `EmployeeScheduleRepository.saveSchedules`, 1 câu `UPDATE … FROM unnest(...)`). Công thức nằm duy nhất ở `employee/domain/review-schedule.ts`.
+- **Ngày nghiệp vụ:** `next_review_due_date = toBusinessDate(last_evaluation_completed_at, BUSINESS_TIMEZONE) + interval_months` tháng dương lịch, kẹp về ngày cuối tháng (31/01 + 1 → 28/29/02). Không dùng 30 ngày, không dùng timezone server/client. Cột vật lý là `timestamptz` → lưu business date lúc 00:00 UTC.
+- **Publish (EVAL-06):** mọi đường dẫn đạt `PUBLISHED` (`POST /evaluations/{id}/publish`, calibration finalize auto-publish) gọi port `EvaluationPublishedHandler` trong **cùng transaction**; lỗi ở bước schedule/audit → rollback cả publish. `PUBLISHED → LOCKED` không cập nhật. *(Ghi nhận: `approve` hiện chưa tự publish như mục 14 — nợ có sẵn, ngoài phạm vi task.)*
+- **Đổi cadence hiệu lực:** đổi override (`PATCH /employees/{id}/review-cadence-override`), đổi `job_level_id` (`PATCH /employees/{id}`, HR/Admin), đổi `default_review_cadence_id` (`PATCH /org/job-levels/{id}`, HR/Admin — chỉ employee không có override active), sửa `interval_months` / `active` / `is_system_default` hoặc xóa cadence system default (`/review-cadences`) → khóa employee bị ảnh hưởng (`FOR UPDATE`, `ORDER BY employee_id`) **trước** khi ghi, tính lại từ `last_evaluation_completed_at` hiện có **sau** khi ghi, cùng transaction. Review-cadence/organization gọi qua port `ReviewCadenceChangeHandler` / `JobLevelCadenceChangeHandler` (không query bảng `employee`).
+- **Cadence inactive** bị bỏ qua và rơi xuống tầng precedence tiếp theo; deactivate không bị chặn; xóa cadence đang được tham chiếu vẫn bị chặn (`CADENCE_IN_USE`).
+- **Audit:** `SCHEDULE_UPDATED` (publish, có `evaluation_id`) và `SCHEDULE_RECALC` (chỉ khi due date thực sự đổi); `old_value`/`new_value` JSON gồm `employee_id`, `trigger`, `last_evaluation_completed_at` (base), `next_review_due_date`, `effective_cadence {id, code, interval_months, source}`; kèm audit `EMPLOYEE/UPDATE` (`review_cadence_override_id`, `job_level_id`), `JOB_LEVEL/UPDATE` (`default_review_cadence_id`), `REVIEW_CADENCE/UPDATE`.
+- **API:** `effective_cadence.source` (`EMPLOYEE_OVERRIDE | JOB_LEVEL_DEFAULT | SYSTEM_DEFAULT`) có ở `GET /employees`, `GET /employees/{id}`, `PATCH …/review-cadence-override`, `GET /reviews/due`. `POST/PATCH /employees` **bỏ qua** `review_cadence`, `review_cadence_months`, `last_evaluation_completed_at`, `next_review_due_date` do client gửi; `PATCH /collector/jira/members/{code}/cadence` trả `422 REVIEW_SCHEDULE_READ_ONLY` cho các field lịch; Jira `markReviewed` không còn đổi lịch. Không có endpoint "recalculate".
+
+
 ```mermaid
 sequenceDiagram
     actor HR as HR/Admin hoặc Manager

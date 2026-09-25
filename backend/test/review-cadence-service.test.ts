@@ -54,7 +54,8 @@ describe('ReviewCadenceService', () => {
     service = new ReviewCadenceService(
       cadenceRepo as unknown as ReviewCadenceRepository,
       {} as unknown as AuditService,
-      {} as unknown as Pool
+      {} as unknown as Pool,
+      { prepareCadenceChange: vi.fn(async () => ({ apply: vi.fn(async () => undefined) })) }
     );
   });
 
@@ -200,7 +201,7 @@ describe('ReviewCadenceService', () => {
       cadenceRepo.delete.mockResolvedValue(undefined);
 
       await expect(service.deleteCadence(hrAdminActor, 'cadence-1')).resolves.toBeUndefined();
-      expect(cadenceRepo.delete).toHaveBeenCalledWith('cadence-1');
+      expect(cadenceRepo.delete).toHaveBeenCalledWith('cadence-1', expect.anything());
     });
   });
 });

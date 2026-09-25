@@ -58,6 +58,17 @@ export interface OrgReviewCadence {
   updatedAt: Date;
 }
 
+export type EffectiveCadenceSource = 'EMPLOYEE_OVERRIDE' | 'JOB_LEVEL_DEFAULT' | 'SYSTEM_DEFAULT';
+
+/** Server-resolved review cadence for an employee. Never derived on the client. */
+export interface EffectiveCadence {
+  id: string;
+  code: string;
+  name: string;
+  intervalMonths: number;
+  source: EffectiveCadenceSource;
+}
+
 export interface OrgEmployee {
   id: string;
   employeeCode: string;
@@ -71,10 +82,11 @@ export interface OrgEmployee {
   employmentStatus: string;
   joinDate: string;
   terminationDate: string | null;
-  reviewCadence: string | null;
   reviewCadenceOverrideId?: string | null;
   lastEvaluationCompletedAt: string | null;
+  /** Date-only string (YYYY-MM-DD) exactly as sent by the backend. */
   nextReviewDueDate: string | null;
+  effectiveCadence: EffectiveCadence | null;
   version: number;
   createdAt: Date;
   updatedAt: Date;

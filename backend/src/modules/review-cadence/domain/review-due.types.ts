@@ -1,3 +1,5 @@
+import type { ReviewCadenceSource } from './review-cadence.types.js';
+
 export type ReviewDueStatus = 'OVERDUE' | 'DUE' | 'UPCOMING' | 'NOT_DUE' | 'NO_SCHEDULE';
 
 export interface ReviewDueTeam {
@@ -15,12 +17,12 @@ export interface ReviewDueEffectiveCadence {
   code: string;
   name: string;
   interval_months: number;
-  source?: 'EMPLOYEE_OVERRIDE' | 'JOB_LEVEL' | 'SYSTEM_DEFAULT';
+  source: ReviewCadenceSource;
 }
 
 export interface ReviewDueItem {
   employee_id: string;
-  employee_code?: string;
+  employee_code: string;
   employee_name: string;
   full_name?: string;
   team: ReviewDueTeam;

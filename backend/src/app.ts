@@ -25,7 +25,7 @@ import {
   AuditWriter,
   IamController,
 } from './modules/iam/index.js';
-import { createEmployeeModule } from './modules/employee/employee.module.js';
+import { createEmployeeModule, createReviewScheduleService } from './modules/employee/employee.module.js';
 import { EmployeeController } from './modules/employee/api/employee.controller.js';
 import { createOrganizationModule } from './modules/organization/organization.module.js';
 import { createConfigurationModule } from './modules/configuration/configuration.module.js';
@@ -102,13 +102,15 @@ export function createApp(options: AppOptions = {}) {
         options.customSmtpSender
       )
     : undefined;
-  const evaluationModule = pool ? createEvaluationModule(pool, auditModule?.auditService, ruleEngineModule.engine, notificationModule?.notificationService) : undefined;
+  // Single owner of employee review schedules (LLD §14.1), shared by every module that can change them.
+  const reviewScheduleService = pool && auditModule ? createReviewScheduleService(auditModule.auditService) : undefined;
+  const evaluationModule = pool ? createEvaluationModule(pool, auditModule?.auditService, ruleEngineModule.engine, notificationModule?.notificationService, reviewScheduleService) : undefined;
   const evaluationController = evaluationModule?.evaluationController;
 
-  const employeeModule = pool && auditModule ? createEmployeeModule(pool, auditModule.auditService, evaluationModule?.evaluationService) : undefined;
+  const employeeModule = pool && auditModule ? createEmployeeModule(pool, auditModule.auditService, evaluationModule?.evaluationService, reviewScheduleService) : undefined;
   const employeeController = options.employeeController ?? employeeModule?.employeeController ?? new EmployeeController();
 
-  const organizationModule = pool ? createOrganizationModule(pool) : undefined;
+  const organizationModule = pool ? createOrganizationModule(pool, auditModule?.auditService, reviewScheduleService) : undefined;
   const organizationController = organizationModule?.organizationController;
 
   const configurationModule = pool ? createConfigurationModule(pool, auditModule?.auditService) : undefined;
@@ -131,11 +133,11 @@ export function createApp(options: AppOptions = {}) {
   const reportsModule = pool && evaluationModule ? createReportsModule(pool, evaluationModule.evaluationRepo, evaluationModule.evaluationItemRepo) : undefined;
   const reportsController = options.reportsController ?? reportsModule?.reportsController;
 
-  const calibrationModule = pool ? createCalibrationModule(pool, auditModule?.auditService, notificationModule?.notificationService) : undefined;
+  const calibrationModule = pool ? createCalibrationModule(pool, auditModule?.auditService, notificationModule?.notificationService, reviewScheduleService) : undefined;
   const calibrationController = options.calibrationController ?? calibrationModule?.calibrationController;
 
   const jiraCrawlerRouter = pool ? createJiraCrawlerRouter(pool, jwtMiddleware) : undefined;
-  const reviewCadenceModule = pool && auditModule ? createReviewCadenceModule(pool, auditModule.auditService) : undefined;
+  const reviewCadenceModule = pool && auditModule ? createReviewCadenceModule(pool, auditModule.auditService, reviewScheduleService) : undefined;
 
   // ── Global Middlewares ────────────────────────────────────────────────────
   app.use(requestIdMiddleware);

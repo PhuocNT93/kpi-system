@@ -1,16 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { reviewDueApi } from '../api/review-due-api';
-import type {
-  ReviewDueFiltersDTO,
-  CreateIndividualCyclesPayload,
-} from '../types/review-due.types';
+import { reviewDueKeys } from '../api/review-due-keys';
+import type { CreateIndividualCyclesPayload } from '../types/review-due.types';
+import type { ReviewDueFilters } from '../domain/review-due-models';
 
-export const reviewDueKeys = {
-  all: ['reviews', 'due'] as const,
-  list: (filters?: ReviewDueFiltersDTO) => ['reviews', 'due', filters] as const,
-};
+export { reviewDueKeys };
 
-export function useReviewDue(filters?: ReviewDueFiltersDTO) {
+export function useReviewDue(filters?: ReviewDueFilters) {
   return useQuery({
     queryKey: reviewDueKeys.list(filters),
     queryFn: () => reviewDueApi.getReviewDue(filters),

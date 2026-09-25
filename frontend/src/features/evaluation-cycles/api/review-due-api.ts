@@ -1,13 +1,13 @@
 import { getApi, postApi } from '@/shared/api/api-client';
 import { randomUUID } from '@/shared/utils/uuid';
 import type {
-  ReviewDueFiltersDTO,
   ReviewDueResponseDTO,
-  ReviewDueItemDTO,
   CreateIndividualCyclesPayload,
   CreateIndividualCyclesResultDTO,
 } from '../types/review-due.types';
 import type { IndividualCycleCreateResponseWire } from './cycle-api';
+import type { ReviewDueFilters, ReviewDuePage } from '../domain/review-due-models';
+import { mapReviewDueFiltersToWire, mapReviewDueResponseToDomain } from '../domain/review-due-mappers';
 
 /**
  * Adapts the POST /evaluation-cycles/individual response ({ created, skipped, warnings }) to the
@@ -46,124 +46,19 @@ export function toReviewDueIndividualResult(raw: IndividualCycleCreateResponseWi
   };
 }
 
-interface RawReviewDueItemWire {
-  employee_id?: string;
-  employee_code?: string;
-  employee_name?: string;
-  full_name?: string;
-  name?: string;
-  team_id?: string | null;
-  team_name?: string | null;
-  team?: { id?: string; name?: string } | null;
-  job_level_id?: string | null;
-  job_level_name?: string | null;
-  job_level?: { id?: string; name?: string } | null;
-  effective_cadence?: {
-    id?: string;
-    code?: string;
-    name?: string;
-    interval_months?: number;
-    source?: 'EMPLOYEE_OVERRIDE' | 'JOB_LEVEL' | 'SYSTEM_DEFAULT';
-  } | null;
-  last_evaluation_completed_at?: string | null;
-  next_review_due_date?: string | null;
-  status?: ReviewDueItemDTO['status'];
-  days_overdue?: number;
-  days_until_due?: number;
-}
-
-interface RawReviewDueResponseWire {
-  items?: RawReviewDueItemWire[];
-  total?: number;
-  meta?: {
-    lead_time_days?: number;
-    counts?: ReviewDueResponseDTO['meta']['counts'];
-  };
-}
-
 export const reviewDueApi = {
-  getReviewDue: async (filters?: ReviewDueFiltersDTO): Promise<ReviewDueResponseDTO> => {
+  getReviewDue: async (filters?: ReviewDueFilters): Promise<ReviewDuePage> => {
+    const wireFilters = mapReviewDueFiltersToWire(filters);
     const params = new URLSearchParams();
-    if (filters?.status && filters.status !== 'ALL') {
-      params.append('status', filters.status);
-    }
-    if (filters?.team_id) {
-      params.append('team_id', filters.team_id);
-    }
-    if (filters?.cadence_id) {
-      params.append('cadence_id', filters.cadence_id);
-    }
-    if (filters?.search) {
-      params.append('search', filters.search);
-    }
-    if (filters?.lead_time_days !== undefined) {
-      params.append('lead_time_days', String(filters.lead_time_days));
-    }
-    if (filters?.limit !== undefined) {
-      params.append('limit', String(filters.limit));
-    }
-    if (filters?.offset !== undefined) {
-      params.append('offset', String(filters.offset));
-    }
-
-    const queryString = params.toString() ? `?${params.toString()}` : '';
-    const res = await getApi<RawReviewDueResponseWire>(`/api/reviews/due${queryString}`);
-    const rawItems: RawReviewDueItemWire[] = Array.isArray(res?.items) ? res.items : [];
-
-    const items: ReviewDueItemDTO[] = rawItems.map((item: RawReviewDueItemWire) => {
-      const fullName = item.full_name || item.employee_name || item.name || 'Unknown Employee';
-      const employeeCode = item.employee_code || (item.employee_id ? String(item.employee_id).slice(0, 8) : 'EMP');
-      const teamId = item.team_id ?? item.team?.id ?? null;
-      const teamName = item.team_name ?? item.team?.name ?? null;
-      const jobLevelId = item.job_level_id ?? item.job_level?.id ?? null;
-      const jobLevelName = item.job_level_name ?? item.job_level?.name ?? null;
-
-      const effectiveCadence = item.effective_cadence
-        ? {
-            id: item.effective_cadence.id || '',
-            code: item.effective_cadence.code || '',
-            name: item.effective_cadence.name || '',
-            interval_months: item.effective_cadence.interval_months || 0,
-            source: item.effective_cadence.source || 'SYSTEM_DEFAULT',
-          }
-        : null;
-
-      return {
-        employee_id: item.employee_id || '',
-        employee_code: employeeCode,
-        full_name: fullName,
-        team_id: teamId,
-        team_name: teamName,
-        job_level_id: jobLevelId,
-        job_level_name: jobLevelName,
-        last_evaluation_completed_at: item.last_evaluation_completed_at || null,
-        next_review_due_date: item.next_review_due_date || null,
-        status: item.status || 'NOT_DUE',
-        days_overdue: item.days_overdue ?? 0,
-        days_until_due: item.days_until_due ?? 0,
-        effective_cadence: effectiveCadence,
-      };
+    Object.entries(wireFilters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, String(value));
+      }
     });
 
-    const overdueCount = items.filter((i) => i.status === 'OVERDUE').length;
-    const dueCount = items.filter((i) => i.status === 'DUE').length;
-    const upcomingCount = items.filter((i) => i.status === 'UPCOMING').length;
-
-    const counts = res?.meta?.counts || {
-      overdue: overdueCount,
-      due: dueCount,
-      upcoming: upcomingCount,
-      total_due_or_upcoming: overdueCount + dueCount + upcomingCount,
-    };
-
-    return {
-      items,
-      meta: {
-        total: res?.total ?? items.length,
-        lead_time_days: res?.meta?.lead_time_days ?? 30,
-        counts,
-      },
-    };
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    const data = await getApi<ReviewDueResponseDTO>(`/api/reviews/due${queryString}`);
+    return mapReviewDueResponseToDomain(data);
   },
 
   createIndividualCycles: async (

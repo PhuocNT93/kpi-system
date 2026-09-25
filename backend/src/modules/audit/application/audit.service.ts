@@ -27,6 +27,22 @@ export class AuditService {
     await this.auditRepo.insert(validParams, tx);
   }
 
+  /**
+   * Records several audit entries in the caller's transaction (e.g. one per employee whose review
+   * schedule was recalculated). Every entry is validated; any failure rolls back the caller's transaction.
+   */
+  async recordMany(tx: TransactionClient, params: AuditRecordParams[]): Promise<void> {
+    if (params.length === 0) return;
+    const validParams = params.map((entry) => AuditRecordParamsSchema.parse(entry));
+    if (this.auditRepo.insertMany) {
+      await this.auditRepo.insertMany(validParams, tx);
+      return;
+    }
+    for (const entry of validParams) {
+      await this.auditRepo.insert(entry, tx);
+    }
+  }
+
   async getLogs(query: Record<string, unknown>, actor?: Actor): Promise<PaginatedAuditLogs> {
     try {
       const validated = AuditLogQuerySchema.parse(query);

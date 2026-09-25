@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { ReviewCadenceService } from '../application/review-cadence.service.js';
 import { sendSuccess, sendCollection, sendDeleted } from '../../../api/http-response.js';
+import { toReviewCadenceResponse } from './review-cadence.dto.js';
 import { parsePaginationQuery } from '../../../api/pagination.js';
 import { ValidationError, Forbidden } from '../../../api/app-error.js';
 import { getActorFromContext } from '../../../shared/auth/actor-context.js';
@@ -15,7 +16,7 @@ export class ReviewCadenceController {
       const { limit, offset, buildPageMeta } = parsePaginationQuery(req.query as Record<string, unknown>);
       const activeFilter = req.query.active !== undefined ? req.query.active === 'true' : undefined;
       const [cadences, total] = await this.cadenceService.listCadences({ active: activeFilter }, offset, limit);
-      sendCollection(res, 'Review Cadences retrieved successfully', cadences, buildPageMeta(total));
+      sendCollection(res, 'Review Cadences retrieved successfully', cadences.map(toReviewCadenceResponse), buildPageMeta(total));
     } catch (err) {
       next(err);
     }
@@ -27,7 +28,7 @@ export class ReviewCadenceController {
     try {
       const id = req.params.id as string;
       const cadence = await this.cadenceService.getCadenceById(id);
-      sendSuccess(res, 200, 'Review Cadence retrieved successfully', cadence);
+      sendSuccess(res, 200, 'Review Cadence retrieved successfully', toReviewCadenceResponse(cadence));
     } catch (err) {
       next(err);
     }
@@ -60,7 +61,7 @@ export class ReviewCadenceController {
         active: active !== undefined ? active === true || active === 'true' : true,
       });
 
-      sendSuccess(res, 201, 'Review Cadence created successfully', cadence);
+      sendSuccess(res, 201, 'Review Cadence created successfully', toReviewCadenceResponse(cadence));
     } catch (err) {
       next(err);
     }
@@ -91,7 +92,7 @@ export class ReviewCadenceController {
       if (active !== undefined) data.active = active === true || active === 'true';
 
       const cadence = await this.cadenceService.updateCadence(actor, id, data);
-      sendSuccess(res, 200, 'Review Cadence updated successfully', cadence);
+      sendSuccess(res, 200, 'Review Cadence updated successfully', toReviewCadenceResponse(cadence));
     } catch (err) {
       next(err);
     }

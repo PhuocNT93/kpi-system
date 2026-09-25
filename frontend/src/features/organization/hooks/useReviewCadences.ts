@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { reviewCadenceApi } from '../api/review-cadence-api';
 import { organizationKeys } from '../api/organization-keys';
+import { reviewDueKeys } from '../../evaluation-cycles/api/review-due-keys';
 import type { CreateReviewCadenceRequest, UpdateReviewCadenceRequest } from '../api/organization-types';
 
 export function useReviewCadences(filters?: { active?: boolean }) {
@@ -24,6 +25,9 @@ export function useCreateReviewCadence() {
     mutationFn: (data: CreateReviewCadenceRequest) => reviewCadenceApi.createCadence(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.reviewCadences.all });
+      // Cadence changes shift employees' effective cadence / next due date server-side.
+      queryClient.invalidateQueries({ queryKey: organizationKeys.employees.all });
+      queryClient.invalidateQueries({ queryKey: reviewDueKeys.all });
     },
   });
 }
@@ -35,6 +39,9 @@ export function useUpdateReviewCadence() {
       reviewCadenceApi.updateCadence(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.reviewCadences.all });
+      // Cadence changes shift employees' effective cadence / next due date server-side.
+      queryClient.invalidateQueries({ queryKey: organizationKeys.employees.all });
+      queryClient.invalidateQueries({ queryKey: reviewDueKeys.all });
     },
   });
 }
@@ -45,6 +52,9 @@ export function useDeleteReviewCadence() {
     mutationFn: (id: string) => reviewCadenceApi.deleteCadence(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.reviewCadences.all });
+      // Cadence changes shift employees' effective cadence / next due date server-side.
+      queryClient.invalidateQueries({ queryKey: organizationKeys.employees.all });
+      queryClient.invalidateQueries({ queryKey: reviewDueKeys.all });
     },
   });
 }

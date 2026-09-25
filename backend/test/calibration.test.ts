@@ -193,13 +193,17 @@ describe('Calibration API & Service Integration Tests', () => {
           e.finalScore = score;
         }
       }),
-      transitionEvaluationsAndAutoPublish: vi.fn(async (ids) => {
+      transitionEvaluationsAndAutoPublish: vi.fn(async (ids: string[]) => {
+        const published: Array<{ evaluationId: string; employeeId: string; publishedAt: Date; previousStatus: string }> = [];
         for (const id of ids) {
           const e = evaluationsDb.get(id);
           if (e) {
+            const previousStatus = e.status;
             e.status = 'PUBLISHED';
+            published.push({ evaluationId: id, employeeId: e.employeeId, publishedAt: new Date(), previousStatus });
           }
         }
+        return published;
       }),
       getAdjustmentsBySession: vi.fn(async (id) => {
         return adjustmentsDb.filter((a) => a.calibrationSessionId === id);
@@ -214,7 +218,9 @@ describe('Calibration API & Service Integration Tests', () => {
       }),
     } as unknown as import('pg').Pool;
 
-    calibrationService = new CalibrationService(mockPool, mockCalibrationRepo);
+    calibrationService = new CalibrationService(mockPool, mockCalibrationRepo, undefined, undefined, {
+      onEvaluationsPublished: vi.fn(async () => undefined),
+    });
     calibrationController = new CalibrationController(calibrationService);
 
     // Setup Auth and App

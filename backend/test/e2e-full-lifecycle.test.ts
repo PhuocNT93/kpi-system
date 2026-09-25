@@ -254,7 +254,10 @@ describe('Full End-to-End Evaluation Lifecycle Integration Test', () => {
     mockEvaluationItemRepo,
     mockPool,
     mockAuditService as never,
-    ruleEngine
+    ruleEngine,
+    undefined,
+    undefined,
+    { onEvaluationsPublished: vi.fn(async () => undefined) }
   );
 
   const projectionService = new ReportingProjectionService(

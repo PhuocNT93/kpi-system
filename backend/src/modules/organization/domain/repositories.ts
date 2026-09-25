@@ -1,4 +1,5 @@
 import { Department, JobRole, JobLevel } from './types.js';
+import { QueryExecutor } from '../../../shared/database/query-executor.js';
 
 export interface DepartmentRepository {
   findById(id: string): Promise<Department | null>;
@@ -21,5 +22,6 @@ export interface JobLevelRepository {
   findByCode(code: string): Promise<JobLevel | null>;
   findAll(filters?: { active?: boolean }, skip?: number, limit?: number): Promise<[JobLevel[], number]>;
   create(level: JobLevel): Promise<JobLevel>;
-  update(level: JobLevel): Promise<JobLevel>;
+  /** `client` lets the write join the caller's transaction. */
+  update(level: JobLevel, client?: QueryExecutor): Promise<JobLevel>;
 }

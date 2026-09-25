@@ -31,6 +31,7 @@ export const organizationKeys = {
     list: (filters?: Record<string, unknown>) =>
       ['organization', 'employees', 'list', filters ?? {}] as const,
     detail: (id: string) => ['organization', 'employees', id] as const,
+    cadence: (id: string) => ['organization', 'employees', id, 'cadence'] as const,
   },
   reviewCadences: {
     all: ['organization', 'reviewCadences'] as const,

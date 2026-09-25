@@ -3,6 +3,7 @@ import { OrganizationService } from '../application/organization.service.js';
 import { sendSuccess, sendCollection } from '../../../api/http-response.js';
 import { parsePaginationQuery } from '../../../api/pagination.js';
 import { ValidationError, BadRequest } from '../../../api/app-error.js';
+import { getActorFromContext } from '../../../shared/auth/actor-context.js';
 
 export class OrganizationController {
   constructor(private readonly organizationService: OrganizationService) {}
@@ -213,7 +214,7 @@ export class OrganizationController {
         rank: parseInt(rank, 10),
         active: active !== undefined ? active : true,
         ...(cadenceId !== undefined ? { defaultReviewCadenceId: cadenceId } : {}),
-      });
+      }, getActorFromContext(req) ?? undefined);
       sendSuccess(res, 200, 'Job Level updated successfully', level);
     } catch (err) {
       next(err);

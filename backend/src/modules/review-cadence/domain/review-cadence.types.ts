@@ -15,3 +15,6 @@ export type CreateReviewCadenceData = Omit<ReviewCadence, 'id' | 'createdAt' | '
 };
 
 export type UpdateReviewCadenceData = Partial<Omit<ReviewCadence, 'id' | 'code' | 'createdAt' | 'updatedAt'>>;
+
+/** Which precedence tier produced an employee's effective cadence (LLD §14.1). */
+export type ReviewCadenceSource = 'EMPLOYEE_OVERRIDE' | 'JOB_LEVEL_DEFAULT' | 'SYSTEM_DEFAULT';

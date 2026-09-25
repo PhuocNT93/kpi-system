@@ -120,6 +120,16 @@ export interface UpdateReviewCadenceRequest {
   active?: boolean;
 }
 
+export type WireEffectiveCadenceSource = 'EMPLOYEE_OVERRIDE' | 'JOB_LEVEL_DEFAULT' | 'SYSTEM_DEFAULT';
+
+export interface WireEffectiveCadence {
+  id: string;
+  code: string;
+  name: string;
+  interval_months: number;
+  source: WireEffectiveCadenceSource;
+}
+
 export interface WireEmployee {
   id: string;
   employee_code: string;
@@ -139,6 +149,7 @@ export interface WireEmployee {
   next_review_date: string | null;
   last_evaluation_completed_at: string | null;
   next_review_due_date: string | null;
+  effective_cadence?: WireEffectiveCadence | null;
   version: number;
   created_at: string;
   updated_at: string;
@@ -154,10 +165,7 @@ export interface CreateEmployeeRequest {
   job_level_id: string;
   manager_id?: string;
   employment_status?: string;
-  review_cadence?: string;
   review_cadence_override_id?: string | null;
-  last_evaluation_completed_at?: string;
-  next_review_due_date?: string;
 }
 
 export interface UpdateEmployeeRequest {
@@ -170,10 +178,7 @@ export interface UpdateEmployeeRequest {
   manager_id?: string;
   employment_status?: string;
   termination_date?: string;
-  review_cadence?: string | null;
   review_cadence_override_id?: string | null;
-  last_evaluation_completed_at?: string | null;
-  next_review_due_date?: string | null;
 }
 
 export interface EmployeeCadenceInfoResponse {
@@ -188,11 +193,6 @@ export interface EmployeeCadenceOverrideResponse {
   review_cadence_override_id: string | null;
   last_evaluation_completed_at: string | null;
   next_review_due_date: string | null;
-  effective_cadence: {
-    id: string;
-    code: string;
-    name: string;
-    interval_months: number;
-  } | null;
+  effective_cadence: WireEffectiveCadence | null;
 }
 

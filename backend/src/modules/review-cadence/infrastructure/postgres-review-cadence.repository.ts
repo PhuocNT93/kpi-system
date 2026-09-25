@@ -1,6 +1,7 @@
 import { Pool } from 'pg';
 import { ReviewCadenceRepository } from '../domain/review-cadence.repository.js';
 import { ReviewCadence } from '../domain/review-cadence.types.js';
+import { QueryExecutor } from '../../../shared/database/query-executor.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
@@ -76,29 +77,36 @@ export class PostgresReviewCadenceRepository implements ReviewCadenceRepository 
     return [result.rows.map((r) => this.mapRow(r)), count];
   }
 
-  async create(cadence: ReviewCadence): Promise<ReviewCadence> {
-    const { rows } = await this.pool.query(
+  async create(cadence: ReviewCadence, client?: QueryExecutor): Promise<ReviewCadence> {
+    const executor: QueryExecutor = client ?? this.pool;
+    const { rows } = await executor.query<Row>(
       `INSERT INTO review_cadence (code, name, interval_months, is_system_default, active)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING review_cadence_id, code, name, interval_months, is_system_default, active, created_at, updated_at`,
       [cadence.code, cadence.name, cadence.intervalMonths, cadence.isSystemDefault, cadence.active]
     );
-    return this.mapRow(rows[0]);
+    const [row] = rows;
+    if (!row) throw new Error('REVIEW_CADENCE_INSERT_RETURNED_NO_ROW');
+    return this.mapRow(row);
   }
 
-  async update(cadence: ReviewCadence): Promise<ReviewCadence> {
-    const { rows } = await this.pool.query(
+  async update(cadence: ReviewCadence, client?: QueryExecutor): Promise<ReviewCadence> {
+    const executor: QueryExecutor = client ?? this.pool;
+    const { rows } = await executor.query<Row>(
       `UPDATE review_cadence
        SET name = $1, interval_months = $2, is_system_default = $3, active = $4
        WHERE review_cadence_id = $5
        RETURNING review_cadence_id, code, name, interval_months, is_system_default, active, created_at, updated_at`,
       [cadence.name, cadence.intervalMonths, cadence.isSystemDefault, cadence.active, cadence.id]
     );
-    return this.mapRow(rows[0]);
+    const [row] = rows;
+    if (!row) throw new Error('REVIEW_CADENCE_UPDATE_RETURNED_NO_ROW');
+    return this.mapRow(row);
   }
 
-  async delete(id: string): Promise<void> {
-    await this.pool.query(
+  async delete(id: string, client?: QueryExecutor): Promise<void> {
+    const executor: QueryExecutor = client ?? this.pool;
+    await executor.query(
       `DELETE FROM review_cadence WHERE review_cadence_id = $1`,
       [id]
     );

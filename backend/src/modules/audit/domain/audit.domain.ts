@@ -21,7 +21,9 @@ export const AuditActionSchema = z.enum([
   'CALIBRATION_ADJUST',
   'CALIBRATION_FINALIZE',
   'FINALIZE',
-  'INDIVIDUAL_CYCLE_CREATED'
+  'INDIVIDUAL_CYCLE_CREATED',
+  'SCHEDULE_UPDATED',
+  'SCHEDULE_RECALC'
 ]);
 
 export type AuditAction = z.infer<typeof AuditActionSchema>;

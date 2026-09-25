@@ -6,6 +6,14 @@ import {
   CreateCalibrationSessionInput,
 } from './calibration.domain.js';
 
+export interface PublishedEvaluationRow {
+  evaluationId: string;
+  employeeId: string;
+  publishedAt: Date;
+  /** Status read under row lock immediately before this transition. */
+  previousStatus: string;
+}
+
 export interface CalibrationRepository {
   createSession(
     input: CreateCalibrationSessionInput,
@@ -61,11 +69,12 @@ export interface CalibrationRepository {
     client: TransactionClient
   ): Promise<void>;
 
+  /** Moves the evaluations to PUBLISHED and returns the ones actually published. */
   transitionEvaluationsAndAutoPublish(
     evaluationIds: string[],
     updatedBy: string,
     client: TransactionClient
-  ): Promise<void>;
+  ): Promise<PublishedEvaluationRow[]>;
 
   getAdjustmentsBySession(sessionId: string, client?: TransactionClient): Promise<CalibrationAdjustment[]>;
 }

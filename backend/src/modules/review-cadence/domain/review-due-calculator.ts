@@ -86,36 +86,3 @@ export function calculateReviewDueStatus(
     daysUntilDue: diffDays,
   };
 }
-
-/**
- * Calculates next review due date strictly from baseline completion timestamp.
- * Avoids schedule drift: never uses today + interval.
- * Clamps days to end of month if necessary (e.g., Aug 31 + 6 months -> Feb 28).
- */
-export function calculateNextReviewDueDate(
-  lastCompletedAt: string | Date,
-  intervalMonths: number
-): Date {
-  if (intervalMonths <= 0) {
-    throw new Error('intervalMonths must be greater than 0');
-  }
-
-  const base = parseDate(lastCompletedAt);
-  if (!base) {
-    throw new Error('Invalid lastCompletedAt timestamp');
-  }
-
-  const year = base.getUTCFullYear();
-  const month = base.getUTCMonth();
-  const day = base.getUTCDate();
-
-  // Target year and month
-  const targetYear = year + Math.floor((month + intervalMonths) / 12);
-  const targetMonth = (month + intervalMonths) % 12;
-
-  // Find max days in target month
-  const daysInTargetMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
-  const targetDay = Math.min(day, daysInTargetMonth);
-
-  return new Date(Date.UTC(targetYear, targetMonth, targetDay, base.getUTCHours(), base.getUTCMinutes(), base.getUTCSeconds(), base.getUTCMilliseconds()));
-}

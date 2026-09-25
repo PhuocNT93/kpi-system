@@ -8,6 +8,12 @@ export interface AuditRepository {
    * with the associated business action.
    */
   insert(params: AuditRecordParams, client: TransactionClient): Promise<void>;
+
+  /**
+   * Insert several audit records with one statement, in the provided transaction.
+   * Optional: AuditService falls back to sequential `insert` calls when it is not implemented.
+   */
+  insertMany?(params: AuditRecordParams[], client: TransactionClient): Promise<void>;
   
   /**
    * Delete audit logs older than the specified cutoff date.

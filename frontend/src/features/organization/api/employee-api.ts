@@ -25,6 +25,11 @@ export const employeeApi = {
     return data.map(mapWireEmployeeToDomain);
   },
 
+  getEmployee: async (id: string): Promise<OrgEmployee> => {
+    const data = await getApi<WireEmployee>(`/api/employees/${id}`);
+    return mapWireEmployeeToDomain(data);
+  },
+
   createEmployee: async (body: CreateEmployeeRequest): Promise<OrgEmployee> => {
     const data = await postApi<WireEmployee>('/api/employees', body, randomUUID());
     return mapWireEmployeeToDomain(data);

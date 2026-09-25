@@ -1,15 +1,28 @@
 import { Pool } from 'pg';
 import { Actor } from '../../../shared/auth/types.js';
-import { Forbidden, NotFound } from '../../../api/app-error.js';
+import { toQueryExecutor } from '../../../shared/database/query-executor.js';
+import { Forbidden, NotFound, VersionMismatch } from '../../../api/app-error.js';
 import { AuditService } from '../../audit/application/audit.service.js';
 import { withAuditedTransaction } from '../../audit/application/audit-transaction.js';
-import { ReviewScheduleService, ResolvedEmployeeCadenceResult } from '../../review-cadence/application/review-schedule.service.js';
 import { ReviewCadenceRepository } from '../../review-cadence/domain/review-cadence.repository.js';
+import { ReviewCadence } from '../../review-cadence/domain/review-cadence.types.js';
 import { PostgresReviewCadenceRepository } from '../../review-cadence/infrastructure/postgres-review-cadence.repository.js';
+import { Employee } from '../domain/employee.domain.js';
+import { EmployeeRepository } from '../domain/employee.repository.js';
+import { EffectiveCadence } from '../domain/review-schedule.js';
+import { ReviewScheduleService, ScheduleSnapshot } from './review-schedule.service.js';
 
 export interface UpdateCadenceOverrideInput {
   review_cadence_override_id: string | null;
   reason?: string;
+}
+
+export interface EffectiveCadenceResponse {
+  id: string;
+  code: string;
+  name: string;
+  interval_months: number;
+  source: EffectiveCadence['source'];
 }
 
 export interface EmployeeCadenceOverrideResult {
@@ -17,143 +30,209 @@ export interface EmployeeCadenceOverrideResult {
   review_cadence_override_id: string | null;
   last_evaluation_completed_at: string | null;
   next_review_due_date: string | null;
-  effective_cadence: {
-    id: string;
-    code: string;
-    name: string;
-    interval_months: number;
-  } | null;
+  effective_cadence: EffectiveCadenceResponse | null;
 }
 
+/** Response of GET /employees/:id/review-cadence (camelCase, kept for backward compatibility). */
+export interface EmployeeCadenceInfo {
+  effectiveCadence: (EffectiveCadence & { isSystemDefault: boolean; active: boolean }) | null;
+  employeeOverride: ReviewCadence | null;
+  jobLevelDefault: ReviewCadence | null;
+  systemDefault: ReviewCadence | null;
+}
+
+export function toEffectiveCadenceResponse(cadence: EffectiveCadence | null | undefined): EffectiveCadenceResponse | null {
+  if (!cadence) return null;
+  return {
+    id: cadence.id,
+    code: cadence.code,
+    name: cadence.name,
+    interval_months: cadence.intervalMonths,
+    source: cadence.source,
+  };
+}
+
+function requireHrOrAdmin(actor: Actor, message: string): void {
+  if (actor.role !== 'HR_ADMIN' && actor.role !== 'SYSTEM_ADMIN') {
+    throw new Forbidden(message);
+  }
+}
+
+/**
+ * Employee-side use cases that change an employee's effective review cadence (personal override, job level).
+ * Each runs the business write, the schedule recalculation (ReviewScheduleService) and the audit entries
+ * in ONE transaction.
+ */
 export class EmployeeCadenceService {
-  private cadenceRepo: ReviewCadenceRepository;
+  private readonly cadenceRepo: ReviewCadenceRepository;
 
   constructor(
     private readonly pool: Pool,
     private readonly auditService: AuditService,
     private readonly reviewScheduleService: ReviewScheduleService,
+    private readonly employeeRepo: EmployeeRepository,
     cadenceRepo?: ReviewCadenceRepository
   ) {
     this.cadenceRepo = cadenceRepo ?? new PostgresReviewCadenceRepository(pool);
   }
 
-  private requireHrOrAdmin(actor: Actor): void {
-    if (actor.role !== 'HR_ADMIN' && actor.role !== 'SYSTEM_ADMIN') {
-      throw new Forbidden('Only HR Admin or System Admin can update employee review cadence overrides.');
-    }
-  }
-
   /**
-   * Updates an employee's cadence override, recalculates next_review_due_date from the
-   * existing completion baseline, and produces transactional audit logs.
+   * Sets or clears an employee's personal cadence override and recalculates next_review_due_date from the
+   * existing last_evaluation_completed_at (never from today).
    */
   async updateCadenceOverride(
     actor: Actor,
     employeeId: string,
     input: UpdateCadenceOverrideInput
   ): Promise<EmployeeCadenceOverrideResult> {
-    this.requireHrOrAdmin(actor);
+    requireHrOrAdmin(actor, 'Only HR Admin or System Admin can update employee review cadence overrides.');
 
-    // Verify employee exists
-    const empCheck = await this.pool.query(
-      `SELECT employee_id, review_cadence_override_id, last_evaluation_completed_at, next_review_due_date
-       FROM employee
-       WHERE employee_id = $1`,
-      [employeeId]
-    );
-
-    if (empCheck.rows.length === 0) {
-      throw new NotFound(`Employee with ID ${employeeId}`);
-    }
-
-    const currentEmp = empCheck.rows[0];
-    const oldOverrideId = currentEmp.review_cadence_override_id;
-
-    // If setting an override ID, verify it exists
-    if (input.review_cadence_override_id) {
-      const cadence = await this.cadenceRepo.findById(input.review_cadence_override_id);
+    const overrideId = input.review_cadence_override_id;
+    if (overrideId) {
+      const cadence = await this.cadenceRepo.findById(overrideId);
       if (!cadence || !cadence.active) {
-        throw new NotFound(`Review Cadence with ID ${input.review_cadence_override_id}`);
+        throw new NotFound(`Review Cadence with ID ${overrideId}`);
       }
     }
 
-    return withAuditedTransaction<EmployeeCadenceOverrideResult>(this.pool, this.auditService, async (client, audit) => {
-      // 1. Update review_cadence_override_id on employee
-      await client.query(
-        `UPDATE employee
-         SET review_cadence_override_id = $1,
-             updated_at = NOW(),
-             updated_by = $2
-         WHERE employee_id = $3`,
-        [input.review_cadence_override_id, actor.userId, employeeId]
-      );
+    return withAuditedTransaction<EmployeeCadenceOverrideResult>(
+      this.pool,
+      this.auditService,
+      async (client, audit) => {
+        const snapshot = await this.reviewScheduleService.captureEmployees(client, [employeeId]);
+        if (snapshot.states.length === 0) {
+          throw new NotFound(`Employee with ID ${employeeId}`);
+        }
 
-      // 2. Audit the override change
-      audit.record({
-        entityType: 'EMPLOYEE',
-        entityId: employeeId,
-        action: 'UPDATE',
-        fieldName: 'review_cadence_override_id',
-        oldValue: oldOverrideId ?? null,
-        newValue: input.review_cadence_override_id ?? null,
-        reason: input.reason ?? 'HR updated employee review cadence override',
-        performedBy: actor.userId,
-      });
+        const currentRes = await client.query(
+          'SELECT review_cadence_override_id FROM employee WHERE employee_id = $1',
+          [employeeId]
+        );
+        const currentOverrideRaw = currentRes.rows[0]?.['review_cadence_override_id'];
+        const currentOverrideId = typeof currentOverrideRaw === 'string' ? currentOverrideRaw : null;
 
-      // 3. Recalculate next_review_due_date from existing last_evaluation_completed_at
-      const recalc = await this.reviewScheduleService.recalculateEmployeeDueDate(
-        employeeId,
-        client,
-        actor.userId,
-        input.reason
-      );
+        if (currentOverrideId !== overrideId) {
+          await client.query(
+            `UPDATE employee
+             SET review_cadence_override_id = $1,
+                 updated_at = CURRENT_TIMESTAMP,
+                 updated_by = $2
+             WHERE employee_id = $3`,
+            [overrideId, actor.userId, employeeId]
+          );
+          audit.record({
+            entityType: 'EMPLOYEE',
+            entityId: employeeId,
+            action: 'UPDATE',
+            fieldName: 'review_cadence_override_id',
+            oldValue: currentOverrideId,
+            newValue: overrideId,
+            reason: input.reason ?? 'HR updated employee review cadence override',
+            performedBy: actor.userId,
+          });
+        }
 
-      // 4. Fetch updated employee record
-      const updatedRes = await client.query(
-        `SELECT employee_id, review_cadence_override_id, last_evaluation_completed_at, next_review_due_date
-         FROM employee
-         WHERE employee_id = $1`,
-        [employeeId]
-      );
+        const results = await this.reviewScheduleService.applyRecalculation(
+          client,
+          snapshot,
+          'EMPLOYEE_OVERRIDE_CHANGED',
+          actor.userId,
+          input.reason
+        );
+        const schedule = results.get(employeeId);
 
-      const updated = updatedRes.rows[0] as
-        | {
-            employee_id: string;
-            review_cadence_override_id: string | null;
-            last_evaluation_completed_at: string | Date | null;
-            next_review_due_date: string | Date | null;
-          }
-        | undefined;
-
-      if (!updated) {
-        throw new NotFound(`Employee with ID ${employeeId}`);
-      }
-
-      return {
-        employee_id: updated.employee_id,
-        review_cadence_override_id: updated.review_cadence_override_id,
-        last_evaluation_completed_at: updated.last_evaluation_completed_at
-          ? new Date(updated.last_evaluation_completed_at).toISOString()
-          : null,
-        next_review_due_date: updated.next_review_due_date
-          ? new Date(updated.next_review_due_date).toISOString().slice(0, 10)
-          : null,
-        effective_cadence: recalc.effectiveCadence
-          ? {
-              id: recalc.effectiveCadence.id,
-              code: recalc.effectiveCadence.code,
-              name: recalc.effectiveCadence.name,
-              interval_months: recalc.effectiveCadence.intervalMonths,
-            }
-          : null,
-      };
-    });
+        return {
+          employee_id: employeeId,
+          review_cadence_override_id: overrideId,
+          last_evaluation_completed_at: schedule?.lastEvaluationCompletedAt?.toISOString() ?? null,
+          next_review_due_date: schedule?.nextReviewDueDate ?? null,
+          effective_cadence: toEffectiveCadenceResponse(schedule?.effectiveCadence),
+        };
+      },
+      actor.userId
+    );
   }
 
   /**
-   * Resolves employee effective cadence info.
+   * Persists an employee update. When the job level changes, the caller must be HR/Admin (LLD §17), the change
+   * is audited (Rule 10) and next_review_due_date is recalculated from the existing base if the effective
+   * cadence changed — all in the same transaction as the update.
    */
-  async getEmployeeCadenceInfo(employeeId: string): Promise<ResolvedEmployeeCadenceResult> {
-    return this.reviewScheduleService.resolveEmployeeEffectiveCadence(employeeId);
+  async updateEmployeeWithSchedule(actor: Actor, existing: Employee, next: Employee): Promise<Employee> {
+    const isJobLevelChanged = next.jobLevelId !== existing.jobLevelId;
+    if (isJobLevelChanged) {
+      requireHrOrAdmin(actor, 'Only HR Admin or System Admin can change an employee job level.');
+    }
+
+    return withAuditedTransaction<Employee>(
+      this.pool,
+      this.auditService,
+      async (client, audit) => {
+        let snapshot: ScheduleSnapshot | null = null;
+        if (isJobLevelChanged) {
+          await this.reviewScheduleService.lockJobLevelsForShare(client, [existing.jobLevelId, next.jobLevelId]);
+          snapshot = await this.reviewScheduleService.captureEmployees(client, [existing.employeeId]);
+        }
+
+        let updated: Employee;
+        try {
+          updated = await this.employeeRepo.update(next, toQueryExecutor(client));
+        } catch (error) {
+          if (error instanceof Error && error.message === 'RESOURCE_VERSION_CONFLICT') {
+            throw new VersionMismatch('Employee');
+          }
+          throw error;
+        }
+
+        if (!snapshot) return updated;
+
+        audit.record({
+          entityType: 'EMPLOYEE',
+          entityId: existing.employeeId,
+          action: 'UPDATE',
+          fieldName: 'job_level_id',
+          oldValue: existing.jobLevelId,
+          newValue: next.jobLevelId,
+          reason: 'Employee job level changed',
+          performedBy: actor.userId,
+        });
+
+        const results = await this.reviewScheduleService.applyRecalculation(
+          client,
+          snapshot,
+          'EMPLOYEE_JOB_LEVEL_CHANGED',
+          actor.userId
+        );
+        const schedule = results.get(existing.employeeId);
+        return schedule ? { ...updated, nextReviewDueDate: schedule.nextReviewDueDate } : updated;
+      },
+      actor.userId
+    );
+  }
+
+  async getEmployeeCadenceInfo(employeeId: string): Promise<EmployeeCadenceInfo> {
+    const tiers = await this.reviewScheduleService.resolveCadenceTiers(this.pool, employeeId);
+    if (!tiers) {
+      throw new NotFound(`Employee with ID ${employeeId}`);
+    }
+    const effective = tiers.effectiveCadence;
+    const effectiveTier =
+      effective?.source === 'EMPLOYEE_OVERRIDE'
+        ? tiers.employeeOverride
+        : effective?.source === 'JOB_LEVEL_DEFAULT'
+          ? tiers.jobLevelDefault
+          : tiers.systemDefault;
+    return {
+      effectiveCadence: effective
+        ? { ...effective, isSystemDefault: effectiveTier?.isSystemDefault ?? false, active: true }
+        : null,
+      employeeOverride: tiers.employeeOverride,
+      jobLevelDefault: tiers.jobLevelDefault,
+      systemDefault: tiers.systemDefault,
+    };
+  }
+
+  async resolveEffectiveCadences(employeeIds: string[]): Promise<Map<string, EffectiveCadence | null>> {
+    return this.reviewScheduleService.resolveEffectiveCadences(this.pool, employeeIds);
   }
 }

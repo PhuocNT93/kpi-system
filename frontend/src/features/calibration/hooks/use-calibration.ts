@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { calibrationApi } from '../api/calibration-api';
 import type { CreateSessionDTO, CreateAdjustmentDTO } from '../types/calibration-types';
+import { reviewDueKeys } from '../../evaluation-cycles/api/review-due-keys';
+import { organizationKeys } from '../../organization/api/organization-keys';
 
 export const calibrationKeys = {
   all: ['calibration'] as const,
@@ -74,6 +76,9 @@ export function useFinalizeSessionMutation(sessionId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: calibrationKeys.detail(sessionId) });
       queryClient.invalidateQueries({ queryKey: calibrationKeys.all });
+      // Finalize auto-publishes evaluations, which moves the employees' review schedule on the server.
+      queryClient.invalidateQueries({ queryKey: reviewDueKeys.all });
+      queryClient.invalidateQueries({ queryKey: organizationKeys.employees.all });
     },
   });
 }
