@@ -1,45 +1,45 @@
-# HƯỚNG DẪN TOÀN DIỆN: CƠ CHẾ THU THẬP DỮ LIỆU JIRA & BLUEPRINT CLV VÀ THUẬT TOÁN TÍNH ĐIỂM KPI
+# HƯỚNG DẪN KỸ THUẬT: CƠ CHẾ THU THẬP DỮ LIỆU JIRA & BLUEPRINT CLV VÀ CÔNG THỨC TÍNH ĐIỂM KPI
 
 > **Tài liệu Kỹ thuật & Đặc tả Vận hành Hệ thống Đánh giá Hiệu suất Nhân sự (KPI System)**  
-> **Phiên bản:** 2.0 (Cập nhật Kiến trúc Khấu trừ Vi phạm & Phân cấp Nghiêm ngặt)  
-> **Áp dụng cho:** Team Lead, Manager, HR Admin, Ban Giám Đốc và Đội ngũ Phát triển.
+> **Phiên bản:** 3.0 (Cập nhật chuẩn hóa: Công thức Trọng số Rubric kết hợp Khống chế Trần Kỷ luật)  
+> **Phạm vi áp dụng:** Toàn bộ nhân sự, Team Lead, Manager, HR Admin và Ban Giám Đốc.
 
 ---
 
 ## MỤC LỤC
-1. [Tổng quan Kiến trúc Thu thập & Chấm điểm Tự động](#1-tổng-quan-kiến-trúc-thu-thập--chấm-điểm-tự-động)
-2. [Cơ chế Thu thập Dữ liệu từ Jira (Jira Crawler)](#2-cơ-chế-thu-thập-dữ-liệu-từ-jira-jira-crawler)
-   - 2.1. Xác định Khung thời gian Thu thập Cá nhân hóa
+1. [Tổng quan Kiến trúc Tích hợp Đa nguồn](#1-tổng-quan-kiến-trúc-tích-hợp-đa-nguồn)
+2. [Cơ chế Thu thập Dữ liệu từ Jira PIM (Jira Crawler)](#2-cơ-chế-thu-thập-dữ-liệu-từ-jira-pim-jira-crawler)
+   - 2.1. Cửa sổ Thời gian Review Cá nhân hóa (`dateFrom` $\to$ `dateTo`)
    - 2.2. Phân giải Đa tài khoản Định danh (Multi-Identifier Resolution)
    - 2.3. Cấu trúc Truy vấn JQL Động
-   - 2.4. Tổng hợp Chỉ số Hiệu suất (Metrics Aggregation)
-3. [Cơ chế Thu thập Dữ liệu từ Blueprint CLV](#3-cơ-chế-thu-thập-dữ-liệu-từ-blueprint-clv)
-   - 3.1. Dữ liệu Chuyên cần (UI_TAT_028) & Quản lý Đa Bộ phận (Multi-Part)
-   - 3.2. Thuật toán Khử trùng lặp Ngày công In-Memory
-   - 3.3. Dữ liệu Nhiệm vụ Hoàn thành (UI_PIM_001)
-   - 3.4. Quy đổi Điểm Chuyên cần Chuẩn hệ 10 & Khống chế Trần Vi phạm
-4. [Thuật toán & Cơ chế Tính điểm KPI (Scoring Engine)](#4-thuật-toán--cơ-chế-tính-điểm-kpi-scoring-engine)
-   - 4.1. Hệ thống 5 Tiêu chí Rubric Chuẩn
-   - 4.2. Mô hình Khấu trừ Vi phạm từ Mốc 100 điểm (Penalty-based Model)
-   - 4.3. Phân cấp 3 Mức độ Nghiêm ngặt AI (EASY, MEDIUM, HARD)
-   - 4.4. Nguyên tắc Trần Điểm Vi Phạm (Infraction Ceiling)
-   - 4.5. Điều kiện Bắt buộc Đạt Mức 5 (Xuất sắc)
-   - 4.6. Công thức Hòa trộn Dữ liệu (50% Jira + 50% Blueprint Blending)
-5. [Bảng Đối chiếu Tham số & Các Case Điển hình Thực tế](#5-bảng-đối-chiếu-tham-số--các-case-điển-hình-thực-tế)
+   - 2.4. Trích xuất và Phân loại Chỉ số Công việc
+3. [Cơ chế Thu thập Dữ liệu từ Cổng Blueprint CLV](#3-cơ-chế-thu-thập-dữ-liệu-từ-cổng-blueprint-clv)
+   - 3.1. Cơ chế Xác thực Keycloak SSO
+   - 3.2. Dữ liệu Chuyên cần Chấm công (`UI_TAT_028` & `UI_TAT_029`)
+   - 3.3. Thuật toán Khử trùng lặp Ngày công In-Memory (`seenEmpDates`)
+   - 3.4. Dữ liệu Quản trị Nhiệm vụ (`UI_PIM_001 Requirement`)
+   - 3.5. Caching Snapshot Hàng tháng (`collector_monthly_snapshot`)
+4. [Công thức & Thuật toán Tính điểm KPI (Scoring Engine)](#4-công-thức--thuật-toán-tính-điểm-kpi-scoring-engine)
+   - 4.1. Quy trình Tính điểm Tổng thể 5 Bước
+   - 4.2. Bảng Thang chuẩn Rubric 5 Tiêu chí & Quy đổi Level $\to$ Điểm
+   - 4.3. Công thức Tính Điểm Trung bình Có Trọng số (Weighted Score)
+   - 4.4. Vai trò Thực sự của AI Gemini và Prompt Presets
+   - 4.5. Tích hợp Dữ liệu Chuyên cần Blueprint (Trừ điểm Đi trễ)
+   - 4.6. Nguyên tắc Trần Vi phạm Kỷ luật (Infraction Ceiling)
+   - 4.7. Thang Quy chuẩn Xếp loại Mức 1 $\to$ Mức 5
+5. [Bảng Minh họa Tính điểm Các Trường hợp Thực tế](#5-bảng-minh-họa-tính-điểm-các-trường-hợp-thực-tế)
 
 ---
 
-## 1. TỔNG QUAN KIẾN TRÚC THU THẬP & CHẤM ĐIỂM TỰ ĐỘNG
+## 1. TỔNG QUAN KIẾN TRÚC TÍCH HỢP ĐA NGUỒN
 
-Hệ thống KPI tích hợp dữ liệu đa nguồn từ hai nền tảng tác nghiệp cốt lõi tại CyberLogitec:
-1. **Jira PIM (`pim.cyberlogitec.com`)**: Thu thập lịch sử công việc, tiến độ bàn giao, số lượng lỗi phát sinh, và thời gian log work thực tế.
-2. **Blueprint CLV (SSO Portal)**: Thu thập dữ liệu chuyên cần chấm công (từ Cổng `UI_TAT_028`) và khối lượng hoàn thành nhiệm vụ quản trị dự án (từ Cổng `UI_PIM_001`).
-
-Toàn bộ quy trình diễn ra theo đường ống (Pipeline) tự động khép kín:
+Hệ thống đánh giá hiệu suất nhân sự CyberLogitec kết hợp dữ liệu tự động từ hai nền tảng tác nghiệp chính:
+1. **Jira PIM (`pim.cyberlogitec.com`)**: Thu thập lịch sử công việc, tiến độ giao việc, phát sinh lỗi phần mềm và thời gian log work thực tế.
+2. **Cổng thông tin Blueprint CLV (`blueprint.cyberlogitec.com.vn`)**: Thu thập dữ liệu chuyên cần chấm công (từ Cổng `UI_TAT_028` & `UI_TAT_029`) và dữ liệu bàn giao nhiệm vụ dự án (`UI_PIM_001`).
 
 ```mermaid
 flowchart TD
-    A[Kích hoạt: Cron định kỳ / Bấm tay] --> B[Tải danh sách 19 nhân sự & Chu kỳ Review]
+    A[Kích hoạt: Cron hàng ngày / Chạy thủ công] --> B[Tải danh sách Nhân sự & Chu kỳ Review]
     B --> C[Xác định Khung ngày cá nhân hóa: dateFrom -> dateTo]
     
     subgraph Thu Thập Song Song
@@ -47,83 +47,84 @@ flowchart TD
         C --> D2[Blueprint Loader: Snapshot Chuyên cần & Tasks]
     end
     
-    D1 --> E1[Tổng hợp Metrics Jira: Task, Bug, LeadTime]
-    D2 --> E2[Khử trùng lặp Ngày công & Tính Punctuality Rate]
+    D1 --> E1[Metrics Jira: On-Time Rate, Critical Bugs, Task Volume]
+    D2 --> E2[Deduplicate Ngày công, Tính Số ngày Trễ & Punctuality]
     
-    E1 & E2 --> F[AI Scoring Engine & Heuristics]
-    F --> G[Áp dụng Mức độ Nghiêm ngặt: Dễ / Vừa / Khó]
-    G --> H[Khấu trừ Vi phạm từ mốc 100 điểm: Penalty Model]
-    H --> I[Áp dụng Infraction Ceiling & Khống chế Trần Mức 5]
-    I --> J[Hòa trộn Blending: 50% Jira + 50% Blueprint]
-    J --> K[(Lưu Phiên bản Batch vào Database)]
-    K --> L[Hiển thị Bảng điều khiển KPI Dashboard]
+    D1 --> E3[AI Gemini Task Thẩm định: Complexity & Contribution]
+    
+    E1 & E2 & E3 --> F[Quy đổi Level & Điểm số theo Rubric 5 Tiêu chí]
+    F --> G[Tính Điểm Trung bình Có Trọng số: 25% + 20% + 15% + 20% + 20%]
+    G --> H[Trừ điểm Đi trễ Chuyên cần Blueprint nếu có]
+    H --> I[Áp Trần Kỷ luật Infraction Ceiling & Chặn điều kiện Mức 5]
+    I --> J[(Lưu Phiên bản Batch vào Database)]
+    J --> K[Hiển thị Bảng điều khiển KPI Dashboard]
 ```
 
 ---
 
-## 2. CƠ CHẾ THU THẬP DỮ LIỆU TỪ JIRA (JIRA CRAWLER)
+## 2. CƠ CHẾ THU THẬP DỮ LIỆU TỪ JIRA PIM (JIRA CRAWLER)
 
-Mã nguồn triển khai: [`backend/src/modules/jira-crawler/jira-client.ts`](file:///c:/KPI%20System/kpi-system/backend/src/modules/jira-crawler/jira-client.ts)
+Mã nguồn triển khai: [`jira-client.ts`](file:///c:/KPI%20System/kpi-system/backend/src/modules/jira-crawler/jira-client.ts) và điều phối qua [`batch-job.scheduler.ts`](file:///c:/KPI%20System/kpi-system/backend/src/modules/jira-crawler/batch-job.scheduler.ts).
 
-### 2.1. Xác định Khung thời gian Thu thập Cá nhân hóa
-Trước đây, hệ thống thường cố định lấy dữ liệu lùi 180 ngày so với ngày hiện tại. Kiến trúc mới đã cá nhân hóa khung thời gian theo **Chu kỳ Review (Review Cadence)** của từng nhân viên cấu hình tại module Tổ chức (Organization):
-- **`dateFrom`**: Là ngày hoàn thành đợt review gần nhất (`employee.last_evaluation_completed_at`). Nếu nhân viên mới chưa có review, hệ thống tự động lùi `defaultFromDays` (mặc định 180 ngày).
-- **`dateTo`**: Là hạn đến đợt review tiếp theo (`employee.next_review_due_date`). Nếu chưa đến hạn, hệ thống lấy ngày hiện tại (`today`).
-- **Mục đích**: Đảm bảo đánh giá đúng phạm vi công việc trong chu kỳ đánh giá (3 tháng, 6 tháng hoặc 1 năm), không bị sót và không bị cộng dồn trùng lặp công việc của chu kỳ trước.
+### 2.1. Cửa sổ Thời gian Review Cá nhân hóa (`dateFrom` $\to$ `dateTo`)
+Hệ thống không dùng khung ngày cố định mà cá nhân hóa theo **Chu kỳ Review (Review Cadence)** của từng nhân viên cấu hình tại module Tổ chức (Organization):
+- **`dateFrom`**: Ngày hoàn thành đợt review gần nhất (`employee.last_evaluation_completed_at`). Nếu nhân viên chưa có review, hệ thống tự động lùi `defaultFromDays` (mặc định 180 ngày).
+- **`dateTo`**: Hạn đánh giá tiếp theo (`employee.next_review_due_date`) hoặc ngày hiện tại (`today`).
+- **Ý nghĩa**: Đảm bảo đánh giá đúng phạm vi công việc trong chu kỳ review hiện tại (3 tháng, 6 tháng hoặc 1 năm), không cộng dồn trùng lặp công việc của chu kỳ trước.
 
 ### 2.2. Phân giải Đa tài khoản Định danh (Multi-Identifier Resolution)
-Một vấn đề thực tế: Tên đăng nhập Jira của nhân sự thường không trùng khớp với mã nhân viên (Ví dụ: Nguyễn Quang Đức có mã `173232` nhưng username Jira là `duc.nguyen`). Để khắc phục triệt để lỗi "nhân viên có làm việc nhưng hệ thống trả về 0 task", hàm `fetchMemberIssues` tự động phân giải danh sách định danh gồm:
-1. `employeeCode`: Mã nhân viên (ví dụ: `173232`, `203701`).
-2. `jiraUsername`: Tên người dùng Jira (ví dụ: `duc.nguyen`, `khoa.dang`).
-3. `blueprintUsername`: Tên tài khoản Blueprint (ví dụ: `ducnguyen`, `khoadang`).
-4. `emailPrefix`: Tên tiền tố từ email công ty (ví dụ: `duc.nguyen` từ `duc.nguyen@cyberlogitec.com`).
+Tài khoản Jira của nhân sự thường không trùng khớp với mã nhân viên. Hệ thống tự động phân giải danh sách định danh gồm:
+1. `employeeCode`: Mã nhân viên (ví dụ: `203701`, `213844`).
+2. `jiraUsername`: Tên đăng nhập Jira (ví dụ: `nhat.mai`, `hy.le`).
+3. `blueprintUsername`: Tên tài khoản Blueprint (ví dụ: `nhatmai`, `hyle`).
+4. `emailPrefix`: Tiền tố email công ty (ví dụ: `nhat.mai` từ `nhat.mai@cyberlogitec.com`).
 
 ### 2.3. Cấu trúc Truy vấn JQL Động
-Hệ thống kết hợp các định danh thành danh sách duy nhất và xây dựng câu truy vấn JQL chuẩn:
+Hệ thống kết hợp các định danh thành danh sách duy nhất và xây dựng câu lệnh JQL tự động:
 ```sql
-project in (PROJECT_LIST) 
-AND (
-    assignee in ("173232", "duc.nguyen", "ducnguyen") 
-    OR cf[11902] in ("173232", "duc.nguyen", "ducnguyen") 
-    OR worklogAuthor in ("173232", "duc.nguyen", "ducnguyen")
+(
+    assignee in ("203701", "nhat.mai", "nhatmai") 
+    OR cf[11902] in ("203701", "nhat.mai", "nhatmai") 
+    OR worklogAuthor in ("203701", "nhat.mai", "nhatmai")
+    OR reporter in ("203701", "nhat.mai", "nhatmai")
 )
-AND updated >= "2026-07-01" AND updated <= "2026-09-30 23:59"
+AND updated >= "2026-07-15" AND updated <= "2026-10-15"
+ORDER BY updated DESC
 ```
 - **`assignee`**: Người được phân công thực hiện issue.
 - **`cf[11902]`**: Custom field *PIC (Person in Charge)* trên hệ thống Jira PIM CyberLogitec.
-- **`worklogAuthor`**: Bắt được cả các task mà nhân sự tham gia phối hợp xử lý và ghi nhận log work (dù không đứng tên assignee chính).
+- **`worklogAuthor`**: Ghi nhận cả các task mà nhân sự phối hợp xử lý và ghi nhận log work (dù không đứng tên Assignee chính).
 
-### 2.4. Tổng hợp Chỉ số Hiệu suất (Metrics Aggregation)
-Sau khi tải toàn bộ Issues qua Jira REST API, hàm `aggregateMemberMetrics` phân loại và tính toán:
-- **`totalTasks`**: Tổng số nhiệm vụ được giao.
-- **`completedTasks`**: Nhiệm vụ đã chuyển sang trạng thái hoàn thành (`Closed`, `Resolved`, `Done`, `Delivered`).
-- **`inProgressTasks`**: Nhiệm vụ đang triển khai trong kỳ.
-- **`delayedTasks`**: Nhiệm vụ bị trễ hạn (có `duedate < updated/resolvedDate` hoặc trễ hạn tại thời điểm hiện tại).
-- **`bugs` / `criticalBugs`**: Số lượng lỗi phát sinh, tách riêng các bug nghiêm trọng có priority `Critical`, `Blocker`, `High`.
-- **`leadTimeDays`**: Thời gian trung bình hoàn thành một task (từ ngày tạo/bắt đầu đến khi bàn giao).
+### 2.4. Trích xuất và Phân loại Chỉ số Công việc
+Từ danh sách Issues tải về qua Jira REST API, hàm `aggregateMemberMetrics` phân loại:
+- **Trạng thái Hoàn thành (`isCompleted`)**: Task có `statusCategory === 'Done'` hoặc thuộc các trạng thái cấu hình (`Closed`, `Resolved`, `Done`, `Complete`).
+- **Kiểm tra Đúng hạn (`isOnTime`)**:
+  - *Task đã hoàn thành*: So sánh `resolutiondate <= duedate (23:59:59)`. Nếu giải quyết trước hoặc đúng hạn, tính là `isOnTime = true`, ngược lại là `delayed`.
+  - *Task đang làm (In-Progress)*: Nếu ngày hiện tại vượt quá `duedate`, đánh dấu vi phạm tiến độ (`isOnTime = false`).
+- **Phân loại Bug & Critical Bug**:
+  - Lọc theo `issueType` chứa `Bug`, `Defect`, `Int_Bug Management` hoặc `Customer Bug`.
+  - Phân loại **Critical Bug** nếu Priority thuộc `['Critical', 'Highest', 'Blocker']`.
+- **Tổng giờ làm việc (`totalHoursSpent`)**: Quy đổi `timespent / 3600` từ giây ra số giờ thực tế.
 
 ---
 
-## 3. CƠ CHẾ THU THẬP DỮ LIỆU TỪ BLUEPRINT CLV
+## 3. CƠ CHẾ THU THẬP DỮ LIỆU TỪ CỔNG BLUEPRINT CLV
 
-Mã nguồn triển khai: [`backend/src/modules/jira-crawler/batch-job.scheduler.ts`](file:///c:/KPI%20System/kpi-system/backend/src/modules/jira-crawler/batch-job.scheduler.ts#L120-L260)
+Mã nguồn triển khai: [`blueprint.collector.ts`](file:///c:/KPI%20System/kpi-system/backend/src/modules/collector/plugins/blueprint.collector.ts) và [`collector.service.ts`](file:///c:/KPI%20System/kpi-system/backend/src/modules/collector/application/collector.service.ts).
 
-### 3.1. Dữ liệu Chuyên cần (UI_TAT_028) & Quản lý Đa Bộ phận (Multi-Part)
-Dữ liệu chấm công được đồng bộ định kỳ từ cổng SSO Blueprint `UI_TAT_028` và lưu trong bảng `collector_monthly_snapshot` với `source_type = 'TEAM_ATTENDANCE'`.
+### 3.1. Cơ chế Xác thực Keycloak SSO
+- Tự động đăng nhập vào Blueprint thông qua cổng **Keycloak SSO** (`auth.cyberlogitec.com.vn`), lưu cookie phiên làm việc in-memory và tự động đăng nhập lại khi phiên hết hạn.
 
-**Điểm lưu ý cốt lõi:** Dữ liệu nhân viên trong một Part thường được xuất và lưu thành nhiều snapshot theo từng bộ phận con (ví dụ: `Maritime Solutions Part` chứa 9 người và `ALLEGRO NX Part` chứa 12 người).
-- Để không làm mất dữ liệu của bất kỳ bộ phận nào, câu query bắt buộc phải gom nhóm theo cả tháng và tên bộ phận:
-```sql
-SELECT DISTINCT ON (year_month, target_member) year_month, target_member, data_json
-FROM collector_monthly_snapshot
-WHERE source_type = 'TEAM_ATTENDANCE'
-  AND year_month IN ('2026-07', '2026-08', '2026-09')
-ORDER BY year_month, target_member, created_at DESC
-```
+### 3.2. Dữ liệu Chuyên cần Chấm công (`UI_TAT_028` & `UI_TAT_029`)
+- Hệ thống gọi API `/api/dailyTeamStatusFace/searchAttendanceTime` và `/api/checkInOut/searchDailyAttendanceCheckInOut`.
+- **Quy tắc tính đi trễ**:
+  - Mốc bắt đầu làm việc quy chuẩn là **`08:30 AM`**.
+  - Nếu `checkIn > 08:30`: Ghi nhận `status = 'LATE'`, tính số phút trễ `lateMinutes = checkIn - 08:30`.
+  - Ngày nghỉ phép có đăng ký (`vacDesc`) được ghi nhận là `LEAVE`.
 
-### 3.2. Thuật toán Khử trùng lặp Ngày công In-Memory
-Khi tổng hợp dữ liệu từ nhiều snapshot hoặc do import lặp lại qua các lần chạy, một nhân viên có thể có nhiều bản ghi cho cùng một ngày làm việc.
-- Hệ thống áp dụng cơ chế băm khóa `seenEmpDates = new Set<string>()`:
+### 3.3. Thuật toán Khử trùng lặp Ngày công In-Memory (`seenEmpDates`)
+Một nhân viên có thể xuất hiện trong nhiều bản ghi snapshot theo từng bộ phận (ví dụ: `ALLEGRO NX Part` và `Maritime Solutions Part`).
+Hệ thống áp dụng cơ chế băm khóa `seenEmpDates = new Set<string>()`:
 ```typescript
 const dedupKey = `${empCode}#${dateStr}`;
 if (dateStr && seenEmpDates.has(dedupKey)) {
@@ -131,140 +132,114 @@ if (dateStr && seenEmpDates.has(dedupKey)) {
 }
 seenEmpDates.add(dedupKey);
 ```
-- **Kết quả:** Đảm bảo mỗi ngày làm việc chỉ được đếm duy nhất 1 lần. Khắc phục triệt để tình trạng nhân đôi số ngày làm việc (ví dụ 90 ngày xuống đúng 76 ngày thực tế) và loại bỏ các bản ghi đi trễ bị duplicate.
+Đảm bảo mỗi ngày công của một nhân viên chỉ được tính đúng 1 lần duy nhất, loại bỏ hoàn toàn tình trạng nhân đôi số ngày làm việc hoặc lặp số lần đi trễ.
 
-### 3.3. Dữ liệu Nhiệm vụ Hoàn thành (UI_PIM_001)
-Dữ liệu khối lượng công việc quản trị từ Cổng `UI_PIM_001` được lưu với `source_type = 'TASKS'`:
-- Hệ thống lấy điểm đánh giá task theo thang điểm 10 (`score10`) và tổng số bản ghi hoàn thành (`total_records`).
-- Liên kết với nhân viên dựa trên `blueprintUsername` (hoặc tiền tố email chuẩn hóa).
+### 3.4. Dữ liệu Quản trị Nhiệm vụ (`UI_PIM_001 Requirement`)
+- Quét task theo dự án: `ALLEGRO NX Part` (`PJT20190724000000001`) hoặc `Maritime Solutions Part` (`PJT20250417000000006`).
+- Thu thập cả vai trò Người tạo (`creUsrId`) và Người thực hiện (`assiUsrId`).
+- Căn cứ trường `delayProc`: `'N'` là đúng hạn, `'Y'` là trễ hạn.
 
-### 3.4. Quy đổi Điểm Chuyên cần Chuẩn hệ 10 & Khống chế Trần Vi phạm
-- **Tỷ lệ đúng giờ (Punctuality Rate)**:
-  $$\text{Punctuality Rate (\%)} = \left(\frac{\text{Số ngày đúng giờ}}{\text{Tổng ngày làm việc} - \text{Số ngày nghỉ phép}}\right) \times 100$$
-- **Quy đổi điểm hệ 10 (`attScore10`)**:
-  - Nếu **không có ngày đi trễ (`lateDays === 0`)**: Đạt tối đa **10.0 / 10 điểm** (Mức 5 - Xuất sắc).
-  - Nếu **có ngày đi trễ (`lateDays > 0`)**: Khống chế trần tối đa **9.0 / 10 điểm** (Mức 4 - Tốt).
-  $$\text{attScore10} = \min\left(9.0, \max\left(1.0, \frac{\text{Punctuality Rate}}{10} - \text{penalty}\right)\right)$$
-  *(Trong đó nếu trễ > 2 ngày, bị trừ thêm 0.5 điểm trực tiếp vào điểm hệ 10)*.
+### 3.5. Caching Snapshot Hàng tháng (`collector_monthly_snapshot`)
+- Dữ liệu thu thập định kỳ được lưu vào bảng `collector_monthly_snapshot` theo từng tháng (`2026-07`, `2026-08`, `2026-09`) với trạng thái `is_locked = true` cho các tháng đã qua. Nhờ đó, việc chạy batch cho cả kỳ chỉ mất vài giây đọc snapshot thay vì cào lại toàn bộ mạng nội bộ.
 
 ---
 
-## 4. THUẬT TOÁN & CƠ CHẾ TÍNH ĐIỂM KPI (SCORING ENGINE)
+## 4. CÔNG THỨC & THUẬT TOÁN TÍNH ĐIỂM KPI (SCORING ENGINE)
 
-Mã nguồn triển khai: [`backend/src/modules/jira-crawler/ai-evaluator.ts`](file:///c:/KPI%20System/kpi-system/backend/src/modules/jira-crawler/ai-evaluator.ts#L400-L550)
+Mã nguồn triển khai: [`ai-evaluator.ts`](file:///c:/KPI%20System/kpi-system/backend/src/modules/jira-crawler/ai-evaluator.ts) và [`batch-job.scheduler.ts`](file:///c:/KPI%20System/kpi-system/backend/src/modules/jira-crawler/batch-job.scheduler.ts).
 
-### 4.1. Hệ thống 5 Tiêu chí Rubric Chuẩn
-Điểm đánh giá được phân bổ trọng số qua 5 tiêu chí năng lực kỹ thuật:
-1. **`PERF_01` (25%)**: Tiến độ bàn giao nhiệm vụ (Delivery Timeliness).
-2. **`CODE_QUALITY` (20%)**: Chất lượng mã nguồn & Kiểm soát lỗi (Bug prevention).
-3. **`TASK_VOLUME` (15%)**: Khối lượng công việc & Năng suất (Task throughput).
-4. **`OWNERSHIP_SCOPE` (20%)**: Mức độ làm chủ & Phạm vi trách nhiệm (Ownership).
-5. **`INDEPENDENCE` (20%)**: Khả năng làm việc độc lập & Giải quyết vấn đề (Autonomy).
+### 4.1. Quy trình Tính điểm Tổng thể 5 Bước
 
-$$\text{Tổng điểm Rubric} = \sum (\text{Điểm tiêu chí}_i \times \text{Trọng số}_i)$$
-
-### 4.2. Mô hình Khấu trừ Vi phạm từ Mốc 100 điểm (Penalty-based Model)
-Thay vì chấm điểm cộng dồn dễ gây lạm phát điểm, hệ thống thiết lập mốc khởi điểm **100 điểm chuẩn**:
-
-$$\text{Raw Score} = 100 - \text{Deductions} + \text{Bonuses}$$
-
-Trong đó:
-- **`Deductions` (Khấu trừ vi phạm)**:
-  $$\text{Deductions} = (\text{criticalBugs} \times P_{\text{critBug}}) + (\text{minorBugs} \times P_{\text{minBug}}) + (\text{delayedTasks} \times P_{\text{delay}}) + (\text{lateDays} \times P_{\text{lateDay}})$$
-- **`Bonuses` (Thưởng năng suất)**:
-  Cộng thưởng khi hoàn thành khối lượng lớn công việc vượt mức (`volumeBonus`) hoặc giải quyết các task có độ phức tạp cao cấp độ Tech Lead / Architect (`complexityBonus`).
-
-### 4.3. Phân cấp 3 Mức độ Nghiêm ngặt AI (EASY, MEDIUM, HARD)
-Hệ thống tự động nhận diện chế độ đánh giá từ Prompt AI Preset được cấu hình:
-- **`EASY` (Mức 1: Dễ / Nhanh gọn)**: Thẩm định thông thoáng, khuyến khích năng suất, chế tài nhẹ.
-- **`MEDIUM` (Mức 2: Vừa / Chuẩn Tech Lead - Mặc định)**: Cân bằng giữa chất lượng và tiến độ.
-- **`HARD` (Mức 3: Khó / Khắt khe cấp Architect)**: Đòi hỏi tính chuẩn mực kỹ thuật cao, trừ nặng các lỗi vi phạm và trễ hạn.
-
-### 4.4. Nguyên tắc Trần Điểm Vi Phạm (Infraction Ceiling)
-> **Nguyên tắc cốt lõi:** *"Điểm thưởng năng suất KHÔNG BAO GIỜ được phép xóa sạch các vi phạm kỷ luật chuyên cần hoặc lỗi nghiêm trọng."*
-
-Nếu nhân viên có vi phạm chuyên cần (ví dụ đi trễ) hoặc tạo ra Critical Bug, hệ thống áp trần điểm tối đa (`Infraction Ceiling`):
-
-$$\text{disciplinePenalty} = \text{lateDays} \times P_{\text{lateDay}}$$
-$$\text{Ceiling} = 100 - \text{disciplinePenalty}$$
-$$\text{Final Score} = \min(\text{Ceiling}, \max(0, \text{Raw Score}))$$
-
-*Ví dụ:* Ở chế độ MEDIUM ($P_{\text{lateDay}} = 2$), nhân viên đi trễ 1 ngày thì $\text{disciplinePenalty} = 2$. Trần điểm tối đa của nhân viên đó là **98.0 điểm**. Dù nhân viên có hoàn thành xuất sắc 100 task và nhận bao nhiêu điểm thưởng, điểm số cuối cùng cũng không thể vượt quá 98.0 điểm.
-
-### 4.5. Điều kiện Bắt buộc Đạt Mức 5 (Xuất sắc)
-Quy định xếp loại hiệu suất chung:
-- **Mức 5 (Xuất sắc)**: Yêu cầu **`Final Score >= 95.0` VÀ `disciplinePenalty === 0`**.
-- **Mức 4 (Tốt)**: Điểm từ `80.0` đến `< 95.0` (Hoặc $\ge 95.0$ nhưng có vi phạm kỷ luật).
-- **Mức 3 (Khá / Đạt)**: Điểm từ `65.0` đến `< 80.0`.
-- **Mức 2 (Cần cải thiện)**: Điểm từ `50.0` đến `< 65.0`.
-- **Mức 1 (Không đạt)**: Điểm `< 50.0`.
-
-> Nhân sự có bất kỳ ngày đi trễ nào (`lateDays > 0`) sẽ **chỉ đạt tối đa Mức 4 (Tốt)**, không thể đạt Mức 5.
-
-### 4.6. Công thức Hòa trộn Dữ liệu (50% Jira + 50% Blueprint Blending)
-Khi thu thập thành công cả Jira và Blueprint, hệ thống tích hợp đa nguồn:
-1. **Tiêu chí Tiến độ (`PERF_01`)**:
-   $$\text{PERF\_01}_{\text{blended}} = \text{round}\left(\frac{\text{Điểm Jira Task (\%)} + (\text{Blueprint Task score10} \times 10)}{2}\right)$$
-2. **Cột hiển thị trạng thái Blueprint CLV trên giao diện**:
-   - Nếu có ít nhất dữ liệu chấm công hoặc task từ Blueprint: Hiển thị badge xanh **`🚢 Tích hợp`**.
-   - Nếu hoàn toàn không có dữ liệu Blueprint (do không tìm thấy bản ghi): Hiển thị **`Chỉ Jira`**.
+$$\text{Tổng điểm cuối cùng} = \min\Big(\text{Trần Kỷ Luật (Ceiling)}, \;\; \text{Điểm Trọng Số (Weighted Score)} - \text{Phạt Chuyên Cần}\Big)$$
 
 ---
 
-## 5. BẢNG ĐỐI CHIẾU THAM SỐ & CÁC CASE ĐIỂN HÌNH THỰC TẾ
+### 4.2. Bảng Thang chuẩn Rubric 5 Tiêu chí & Quy đổi Level $\to$ Điểm
 
-### 5.1. Bảng Tham số Cấu hình Theo 3 Cấp độ
+Hệ thống đánh giá hiệu suất thông qua 5 tiêu chí năng lực cốt lõi theo cấu hình [`collector-script.store.ts`](file:///c:/KPI%20System/kpi-system/backend/src/modules/jira-crawler/collector-script.store.ts#L49-L108):
 
-| Tham số Đánh giá | Dễ (EASY) | Vừa (MEDIUM) | Khó (HARD) |
-|---|:---:|:---:|:---:|
-| **Trừ Critical Bug** ($P_{\text{critBug}}$) | -5 điểm / bug | -15 điểm / bug | -20 điểm / bug |
-| **Trừ Minor Bug** ($P_{\text{minBug}}$) | -1 điểm / bug | -3 điểm / bug | -5 điểm / bug |
-| **Trừ Task Trễ Hạn** ($P_{\text{delay}}$) | -1 điểm / task | -2 điểm / task | -3 điểm / task |
-| **Phạt Kỷ luật Đi Trễ** ($P_{\text{lateDay}}$) | -1 điểm / ngày | -2 điểm / ngày | -3 điểm / ngày |
-| **Thưởng Khối lượng Task** (`volumeBonus`) | +7 điểm (khi $\ge 12$ task) | +5 điểm (khi $\ge 15$ task) | +3 điểm (khi $\ge 20$ task) |
-| **Thưởng Task Phức tạp** (`complexityBonus`) | +5 điểm (khi $\ge 3$ task L4+) | +5 điểm (khi $\ge 5$ task L4+) | +4 điểm (khi $\ge 6$ task L4+) |
-| **Yêu cầu Task Phức tạp L4/L5** | > 4 giờ | > 8 giờ | > 12 giờ / Kiến trúc |
+| Mã Tiêu chí | Tên Tiêu chí | Trọng số | Giá trị Đầu vào | Quy chuẩn Xác định Level |
+| :--- | :--- | :---: | :--- | :--- |
+| **`PERF_01`** | **Tiến độ đúng hạn** | **25%** | Tỷ lệ On-Time (`%`)<br>*(Nếu có Blueprint Task thì hòa trộn $50\% + 50\%$)* | - $\ge 95\% \to$ **L5**<br>- $90 - 94.9\% \to$ **L4**<br>- $80 - 89.9\% \to$ **L3**<br>- $70 - 79.9\% \to$ **L2**<br>- $< 70\% \to$ **L1** |
+| **`CODE_QUALITY`** | **Chất lượng code & Bug** | **20%** | Số lượng Critical Bug từ Jira (`Critical`, `Highest`, `Blocker`) | - $0$ bug $\to$ **L5**<br>- $1$ bug $\to$ **L4**<br>- $2 - 3$ bugs $\to$ **L3**<br>- $4 - 5$ bugs $\to$ **L2**<br>- $\ge 6$ bugs $\to$ **L1** |
+| **`TASK_VOLUME`** | **Khối lượng Task** | **15%** | Số lượng task hoàn thành trong kỳ review | - $\ge 30$ tasks $\to$ **L5**<br>- $20 - 29$ tasks $\to$ **L4**<br>- $10 - 19$ tasks $\to$ **L3**<br>- $5 - 9$ tasks $\to$ **L2**<br>- $< 5$ tasks $\to$ **L1** |
+| **`OWNERSHIP_SCOPE`** | **Độ khó kỹ thuật** | **20%** | Điểm độ khó trung bình (1-5) do AI thẩm định các task | - $\ge 4.5/5 \to$ **L5**<br>- $3.5 - 4.49 \to$ **L4**<br>- $2.5 - 3.49 \to$ **L3**<br>- $1.5 - 2.49 \to$ **L2**<br>- $< 1.5 \to$ **L1** |
+| **`INDEPENDENCE`** | **Tự chủ & Đóng góp** | **20%** | Điểm tự chủ trung bình (1-5) do AI thẩm định các task | - $\ge 4.5/5 \to$ **L5**<br>- $3.5 - 4.49 \to$ **L4**<br>- $2.5 - 3.49 \to$ **L3**<br>- $1.5 - 2.49 \to$ **L2**<br>- $< 1.5 \to$ **L1** |
+
+#### Bảng Quy đổi Level sang Điểm số (Rubric Score Map):
+- **Level 5 (L5)**: **100 điểm**
+- **Level 4 (L4)**: **95 điểm**
+- **Level 3 (L3)**: **85 điểm**
+- **Level 2 (L2)**: **75 điểm**
+- **Level 1 (L1)**: **60 điểm**
+
+---
+
+### 4.3. Công thức Tính Điểm Trung bình Có Trọng số (Weighted Score)
+
+$$\text{Weighted Score} = \text{Score}_{\text{PERF}} \times 0.25 + \text{Score}_{\text{CODE}} \times 0.20 + \text{Score}_{\text{VOL}} \times 0.15 + \text{Score}_{\text{OWNER}} \times 0.20 + \text{Score}_{\text{INDEP}} \times 0.20$$
+
+*Ví dụ:* Nhân viên có bộ điểm `L5, L5, L1, L5, L4`:
+$$\text{Weighted Score} = 100 \times 0.25 + 100 \times 0.20 + 60 \times 0.15 + 100 \times 0.20 + 95 \times 0.20 = 25 + 20 + 9 + 20 + 19 = \mathbf{93.0 \text{ điểm}}$$
 
 ---
 
-### 5.2. Các Case Tính điểm Điển hình Thực tế
+### 4.4. Vai trò Thực sự của AI Gemini và Prompt Presets
 
-#### Case A: Nhân sự Chuẩn mực, Năng suất cao, Không lỗi
-- **Dữ liệu**: 16 task hoàn thành đúng hạn, 0 bug, 0 ngày trễ, chấm công 100%.
-- **Chế độ**: `MEDIUM`
-- **Tính toán**:
-  - Gốc: $100$ điểm.
-  - Khấu trừ: $0$.
-  - Thưởng: $+5$ (volume) $+ 5$ (complexity) $= +10$ điểm.
-  - Raw Score: $100 + 10 = 110 \to$ clamp về $100.0$.
-  - Discipline Penalty: $0 \to$ Ceiling: $100.0$.
-- **Kết quả**: **100.0 điểm — Xếp loại: Mức 5 (Xuất sắc)**.
-
-#### Case B: Năng suất rất cao nhưng có Vi phạm Chuyên cần
-- **Dữ liệu**: 20 task hoàn thành đúng hạn, 0 bug, **1 ngày đi trễ (6 phút)**.
-- **Chế độ**: `MEDIUM`
-- **Tính toán**:
-  - Gốc: $100$ điểm.
-  - Phạt kỷ luật đi trễ: $1 \times (-2) = -2$ điểm.
-  - Thưởng năng suất: $+5$ (volume) $+ 5$ (complexity) $= +10$ điểm.
-  - Raw Score: $100 - 2 + 10 = 108 \to 100.0$.
-  - **Infraction Ceiling**: $100 - 2 = \mathbf{98.0}$ điểm.
-  - Final Score: $\min(98.0, 100.0) = \mathbf{98.0}$ điểm.
-  - Điều kiện Level 5: Có `disciplinePenalty > 0` nên không được xếp Level 5.
-- **Kết quả**: **98.0 điểm — Xếp loại: Mức 4 (Tốt)**.
-
-#### Case C: Phát sinh Critical Bug và Trễ hạn Bàn giao
-- **Dữ liệu**: 8 task hoàn thành, 2 task trễ hạn, 1 critical bug, 0 ngày trễ.
-- **Chế độ**: `HARD`
-- **Tính toán**:
-  - Gốc: $100$ điểm.
-  - Khấu trừ:
-    - 1 Critical Bug: $-20$ điểm.
-    - 2 Task trễ hạn: $2 \times (-3) = -6$ điểm.
-  - Thưởng năng suất: Không đạt ngưỡng ($< 20$ task).
-  - Raw Score: $100 - 20 - 6 = 74.0$ điểm.
-  - Final Score: $74.0$ điểm.
-- **Kết quả**: **74.0 điểm — Xếp loại: Mức 3 (Khá)**.
+> [!NOTE]
+> **Điểm mấu chốt**: AI Prompt Preset **hoàn toàn không tham gia tính điểm phạt bug hay deadline**.
+> - **Chỉ số Bug & On-Time Rate**: Được tính hoàn toàn bằng quy tắc xác định (deterministic rules) từ Jira API.
+> - **AI Gemini Prompt Template**: Chỉ dùng để phân tích mô tả task (Title, Description, Log work) nhằm thẩm định:
+>   1. `complexityScore` (1-5): Phân biệt task cấu hình cơ bản (1-2) với tối ưu hiệu năng/kiến trúc (4-5) $\to$ Dùng tính `OWNERSHIP_SCOPE`.
+>   2. `contributionScore` (1-5): Đánh giá tính chủ động và giải quyết vấn đề $\to$ Dùng tính `INDEPENDENCE`.
+>   3. Tự động viết văn bản nhận xét (`Comment`) và lập luận kỹ thuật (`Rationale`) đính kèm làm bằng chứng kiểm toán.
 
 ---
-*Tài liệu được ban hành chính thức cho toàn bộ dự án KPI System.*
+
+### 4.5. Tích hợp Dữ liệu Chuyên cần Blueprint (Trừ điểm Đi trễ)
+
+Đối với nhân sự có kết nối cổng chấm công Blueprint CLV (`UI_TAT_028`) và phát sinh ngày đi trễ (`lateDays > 0`):
+
+$$\text{Điểm phạt đi trễ} = \min\big(20, \;\; \text{lateDays} \times 2\text{ điểm}\big)$$
+$$\text{Điểm sau trừ chuyên cần} = \max\big(0, \;\; \text{Weighted Score} - \text{Điểm phạt đi trễ}\big)$$
+
+---
+
+### 4.6. Nguyên tắc Trần Vi phạm Kỷ luật (Infraction Ceiling)
+
+> [!IMPORTANT]
+> **Nguyên tắc**: Vi phạm kỷ luật chất lượng (Critical Bug) hoặc kỷ luật chuyên cần (Đi trễ) sẽ tạo ra mức trần điểm số tối đa mà nhân viên không thể vượt qua:
+
+$$\text{Discipline Penalty} = \text{Phạt Critical Bug (15đ/bug)} + \text{Phạt Đi trễ chuyên cần (2đ/ngày)}$$
+$$\text{Trần Kỷ Luật (Ceiling)} = 100 - \text{Discipline Penalty}$$
+$$\text{Tổng điểm cuối cùng} = \min\big(\text{Ceiling}, \;\; \text{Điểm sau trừ chuyên cần}\big)$$
+
+---
+
+### 4.7. Thang Quy chuẩn Xếp loại Mức 1 $\to$ Mức 5
+
+| Mức Xếp loại | Tên Danh hiệu | Điều kiện Điểm số | Điều kiện Kỷ luật Bắt buộc |
+| :---: | :--- | :---: | :--- |
+| **Mức 5** | **Xuất sắc (Outstanding)** | **$\ge 95.0$ điểm** | **0 điểm phạt kỷ luật** (`Discipline Penalty = 0`, không có Critical Bug và không có ngày đi trễ) |
+| **Mức 4** | **Tốt / Vượt chuẩn** | **$85.0 - 94.9$ điểm** | Không có vi phạm lớn |
+| **Mức 3** | **Đạt yêu cầu** | **$75.0 - 84.9$ điểm** | Đạt chỉ tiêu tiêu chuẩn |
+| **Mức 2** | **Dưới kỳ vọng** | **$65.0 - 74.9$ điểm** | Có nhiều vi phạm hoặc năng suất thấp |
+| **Mức 1** | **Cần cải thiện** | **$< 65.0$ điểm** | Không đạt tiêu chuẩn bàn giao |
+
+---
+
+## 5. BẢNG MINH HỌA TÍNH ĐIỂM CÁC TRƯỜNG HỢP THỰC TẾ
+
+Dưới đây là các ca thực tế trích xuất trực tiếp từ hệ thống:
+
+| Nhân viên | Dữ liệu đầu vào & Cấp độ KPI | Tính toán Weighted Score | Điểm Kỷ luật & Trần | Tổng điểm & Xếp loại |
+| :--- | :--- | :--- | :---: | :---: |
+| **Phạm Mai Nhật** | - On-Time: 100% (**L5** $\to$ 100đ)<br>- Critical Bug: 0 (**L5** $\to$ 100đ)<br>- Task Volume: 2 tasks (**L1** $\to$ 60đ)<br>- Ownership: 4.8/5 (**L5** $\to$ 100đ)<br>- Independence: 4.2/5 (**L4** $\to$ 95đ)<br>- Blueprint: Chỉ Jira | $100 \times 0.25 + 100 \times 0.20$<br>$+ 60 \times 0.15 + 100 \times 0.20$<br>$+ 95 \times 0.20 = \mathbf{93.0}$ | - Phạt chuyên cần: 0<br>- Discipline: 0<br>- Ceiling: 100 | **93.0**<br>**(Mức 4)** |
+| **Lê Minh Hy** | - On-Time: 100% (**L5** $\to$ 100đ)<br>- Critical Bug: 0 (**L5** $\to$ 100đ)<br>- Task Volume: 7 tasks (**L2** $\to$ 75đ)<br>- Ownership: 4.8/5 (**L5** $\to$ 100đ)<br>- Independence: 4.7/5 (**L5** $\to$ 100đ)<br>- Blueprint: Chỉ Jira | $100 \times 0.25 + 100 \times 0.20$<br>$+ 75 \times 0.15 + 100 \times 0.20$<br>$+ 100 \times 0.20 = \mathbf{96.3}$ | - Phạt chuyên cần: 0<br>- Discipline: 0<br>- Điểm $\ge 95$ & Sạch kỷ luật | **96.3**<br>**(Mức 5)** |
+| **Nguyễn Minh Quang** | - On-Time: 100% (**L5** $\to$ 100đ)<br>- Critical Bug: 0 (**L5** $\to$ 100đ)<br>- Task Volume: $\ge 30$ tasks (**L5** $\to$ 100đ)<br>- Ownership: 5.0/5 (**L5** $\to$ 100đ)<br>- Independence: 5.0/5 (**L5** $\to$ 100đ)<br>- Blueprint: Tích hợp, 0 ngày trễ | $100 \times 0.25 + 100 \times 0.20$<br>$+ 100 \times 0.15 + 100 \times 0.20$<br>$+ 100 \times 0.20 = \mathbf{100.0}$ | - Phạt chuyên cần: 0<br>- Discipline: 0<br>- Xuất sắc 5/5 tiêu chí | **100.0**<br>**(Mức 5)** |
+| **Nguyễn Quang Trung** | - Cấp độ công việc giống Nhật: `L5, L5, L1, L5, L4`<br>- Điểm Weighted ban đầu: **93.0**<br>- Blueprint: Tích hợp, **1 ngày đi trễ** | $\text{Weighted} = \mathbf{93.0}$<br>Trừ 1 ngày trễ: $-2.0$đ<br>$\to 93.0 - 2.0 = \mathbf{91.0}$ | - Phạt trễ: 2.0đ<br>- Discipline: 2.0<br>- Ceiling: 98.0<br>- Rớt Mức 5 | **91.0**<br>**(Mức 4)** |
+| **Nhân sự có Critical Bug** | - `L4, L2, L5, L4, L4`<br>- Weighted Score: 88.0<br>- Dính **1 Critical Bug** (CODE_QUALITY = L4: 95đ, Discipline = 15đ) | $\text{Weighted} = \mathbf{88.0}$ | - Discipline: 15.0<br>- Ceiling: $100 - 15 = 85.0$<br>- Điểm bị khống chế trần | **85.0**<br>**(Mức 4)** |
+
+---
+
+*Tài liệu kỹ thuật được cập nhật chính thức đồng bộ giữa Backend, Frontend và Database của Hệ thống KPI System.*
