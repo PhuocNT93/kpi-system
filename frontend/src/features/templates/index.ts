@@ -11,3 +11,4 @@ export * from './components/PublishConfirmationModal';
 export * from './components/VersionHistoryDiffModal';
 export * from './components/ConflictResolutionModal';
 export * from './pages/EvaluationTemplatesPage';
+export * from './pages/UnifiedKpiTemplateStudioPage';

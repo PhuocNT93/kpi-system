@@ -170,11 +170,13 @@ export const EvaluationCycleTable: React.FC<EvaluationCycleTableProps> = ({
 
       {/* Table Data Container */}
       <div
+        className="table-responsive-wrapper"
         style={{
           backgroundColor: COLORS.neutral.white,
           borderRadius: RADII.xl,
           border: `1px solid ${COLORS.neutral[200]}`,
-          overflow: 'hidden',
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch',
         }}
       >
         {filteredCycles.length === 0 ? (

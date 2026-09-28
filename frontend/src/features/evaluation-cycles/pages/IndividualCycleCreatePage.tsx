@@ -268,7 +268,7 @@ export const IndividualCycleCreatePage: React.FC = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '16px' : '20px' }}>
+    <div style={{ display: 'flex', marginTop: '8px', flexDirection: 'column', gap: isMobile ? '16px' : '20px' }}>
       <button
         type="button"
         onClick={() => navigate(backTarget)}

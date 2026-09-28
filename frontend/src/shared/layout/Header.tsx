@@ -60,7 +60,7 @@ export const Header: React.FC<HeaderProps> = ({
       }}
     >
       {/* Title, Mobile Hamburger & Subtitle Section */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1, overflow: 'hidden' }}>
         {onToggleMobileMenu && (
           <button
             type="button"
@@ -73,6 +73,7 @@ export const Header: React.FC<HeaderProps> = ({
               justifyContent: 'center',
               width: '36px',
               height: '36px',
+              flexShrink: 0,
               borderRadius: RADII.md,
               border: `1px solid ${isDark ? '#374151' : '#CBD5E1'}`,
               backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
@@ -85,16 +86,19 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        <div className="header-title-container" style={{ minWidth: 0, overflow: 'hidden' }}>
           <h1
+            className="header-title-text"
             style={{
               margin: 0,
               fontFamily: TYPOGRAPHY.fontFamily.headline,
-              fontSize: 'clamp(1.125rem, 3.2vw, 1.5rem)',
               fontWeight: TYPOGRAPHY.fontWeight.bold,
               color: isDark ? '#F9FAFB' : '#0F172A',
               letterSpacing: '-0.02em',
-              lineHeight: 1.2,
+              lineHeight: 1.25,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
               transition: 'color 0.2s ease',
             }}
           >
@@ -108,6 +112,9 @@ export const Header: React.FC<HeaderProps> = ({
                 fontFamily: TYPOGRAPHY.fontFamily.body,
                 fontSize: TYPOGRAPHY.fontSize.xs,
                 color: isDark ? '#9CA3AF' : '#64748B',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
                 transition: 'color 0.2s ease',
               }}
             >
@@ -118,16 +125,17 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Right-hand Controls: Language Switcher, Dark Mode Switch, Notification Bell & Page Actions */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
         {showNotificationBell && <NotificationBell />}
 
         {showLanguageSelector && (
           <div
+            className="header-language-selector"
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
-              height: '38px',
+              gap: '4px',
+              height: '36px',
               padding: '0 8px',
               borderRadius: RADII.lg,
               border: `1px solid ${isDark ? '#374151' : '#CBD5E1'}`,
@@ -136,12 +144,13 @@ export const Header: React.FC<HeaderProps> = ({
               transition: 'all 0.18s ease-in-out',
             }}
           >
-            <Languages size={16} style={{ color: isDark ? '#9CA3AF' : '#64748B', flexShrink: 0 }} />
+            <Languages size={15} style={{ color: isDark ? '#9CA3AF' : '#64748B', flexShrink: 0 }} />
             <select
               value={currentLocale}
               onChange={handleLocaleChange}
               aria-label="Select Language"
               data-testid="language-switcher"
+              className="header-language-select"
               style={{
                 background: 'transparent',
                 border: 'none',
@@ -154,10 +163,10 @@ export const Header: React.FC<HeaderProps> = ({
               }}
             >
               <option value="en" style={{ background: isDark ? '#1F2937' : '#FFFFFF', color: isDark ? '#F9FAFB' : '#0F172A' }}>
-                English (EN)
+                EN
               </option>
               <option value="vi" style={{ background: isDark ? '#1F2937' : '#FFFFFF', color: isDark ? '#F9FAFB' : '#0F172A' }}>
-                Tiếng Việt (VI)
+                VI
               </option>
             </select>
           </div>

@@ -16,6 +16,7 @@ export * from './pages/EvaluationCycleCreatePage';
 export * from './pages/EvaluationCycleDetailPage';
 export * from './pages/EvaluationCycleEditPage';
 export * from './pages/IndividualCycleCreatePage';
+export * from './pages/UnifiedEvaluationCyclesPage';
 export * from './components/IndividualEmployeePicker';
 export * from './components/IndividualCycleResultPanel';
 export * from './hooks/use-page-toast';

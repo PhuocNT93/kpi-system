@@ -121,7 +121,7 @@ export const UnifiedPerformanceReportsPage: React.FC = () => {
   const activeScopeConfig = availableScopes.find((s) => s.id === activeScope);
 
   return (
-    <div style={{ width: '100%', boxSizing: 'border-box', padding: '0 0 40px 0' }}>
+    <div style={{ width: '100%', boxSizing: 'border-box', padding: '0 0 40px 0', marginTop: '8px' }}>
       {/* Top Banner & Scope Switcher Hub */}
       <div
         style={{

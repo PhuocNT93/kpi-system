@@ -4,24 +4,18 @@ import { useTheme } from '@/shared/theme';
 import { useUiTranslation } from '@/shared/i18n/ui-i18n';
 import {
   LayoutDashboard,
-  Users,
   CalendarRange,
-  SlidersHorizontal,
   LayoutTemplate,
-  UserCheck,
   ClipboardCheck,
-  ShieldCheck,
   Shield,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
-  GitFork,
   Activity,
   BookOpen,
   Award,
-  Mail,
   X,
-  UserPlus,
+  Bell,
 } from 'lucide-react';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY, SHADOWS } from '@/shared/theme';
@@ -111,9 +105,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: <BookOpen size={18} />,
         },
         {
-          id: 'notification-preferences',
-          label: t('nav.notification_preferences', 'Email Notifications'),
-          icon: <Mail size={18} />,
+          id: 'notifications',
+          label: t('nav.notifications', 'Notifications & Email'),
+          icon: <Bell size={18} />,
         },
       ],
     },
@@ -123,27 +117,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       collapsible: true,
       items: [
         {
-          id: 'employee-search',
-          label: t('nav.employee_search', 'Employee Search'),
-          icon: <Users size={18} />,
-        },
-        {
-          id: 'team-evaluations',
-          label: t('nav.team_evaluations', 'Team Reviews'),
-          icon: <UserCheck size={18} />,
-        },
-        ...(user?.role === 'MANAGER' && !canViewConfig
-          ? [
-              {
-                id: 'review-due',
-                label: t('nav.review_due', 'Team Review Due'),
-                icon: <CalendarRange size={18} />,
-              },
-            ]
-          : []),
-        {
-          id: 'my-evaluations',
-          label: t('nav.my_evaluations', 'My Evaluation'),
+          id: 'evaluations',
+          label: t('nav.evaluations_hub', 'Evaluations Hub'),
           icon: <ClipboardCheck size={18} />,
         },
       ],
@@ -168,54 +143,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
             collapsible: true,
             items: [
               {
-                id: 'individual-cycles',
-                label: t('nav.individual_cycles', 'Individual Evaluation'),
-                icon: <UserPlus size={18} />,
+                id: 'cycles',
+                label: t('nav.cycles_hub', 'Evaluation Cycles Hub'),
+                icon: <CalendarRange size={18} />,
               },
               ...(canViewConfig
                 ? [
                     {
-                      id: 'organization',
-                      label: t('nav.organization', 'Organization'),
-                      icon: <Users size={18} />,
-                    },
-                    {
-                      id: 'cycles',
-                      label: t('nav.cycles', 'Evaluation Cycles'),
-                      icon: <CalendarRange size={18} />,
-                    },
-                    {
-                      id: 'review-due',
-                      label: t('nav.review_due', 'Review Due'),
-                      icon: <CalendarRange size={18} />,
-                    },
-                    {
-                      id: 'review-cadences',
-                      label: t('nav.review_cadences', 'Review Cadences'),
-                      icon: <CalendarRange size={18} />,
-                    },
-                    ...(user?.role === 'HR_ADMIN'
-                      ? [
-                          {
-                            id: 'calibration',
-                            label: t('nav.calibration', 'Calibration'),
-                            icon: <SlidersHorizontal size={18} />,
-                          },
-                        ]
-                      : []),
-                    {
-                      id: 'criteria',
-                      label: t('nav.criteria', 'Criteria & Rules'),
-                      icon: <SlidersHorizontal size={18} />,
-                    },
-                    {
-                      id: 'kpis',
-                      label: t('nav.kpis', 'KPI Library'),
-                      icon: <GitFork size={18} />,
-                    },
-                    {
                       id: 'templates',
-                      label: t('nav.templates', 'Template Builder'),
+                      label: t('nav.studio_hub', 'KPI & Templates Studio'),
                       icon: <LayoutTemplate size={18} />,
                     },
                   ]
@@ -228,29 +164,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               ...(canViewConfig
                 ? [
                     {
-                      id: 'i18n',
-                      label: t('nav.i18n', 'I18n Translation'),
-                      icon: <SlidersHorizontal size={18} />,
-                    },
-                    {
-                      id: 'notification-templates',
-                      label: t('nav.notification_templates', 'Email Templates'),
-                      icon: <Mail size={18} />,
-                    },
-                    {
-                      id: 'notification-logs',
-                      label: t('nav.notification_logs', 'Email Delivery Logs'),
-                      icon: <Mail size={18} />,
-                    },
-                    {
-                      id: 'iam',
-                      label: t('nav.iam', 'Identity & Access'),
+                      id: 'system-admin',
+                      label: t('nav.system_admin_hub', 'System & Security Hub'),
                       icon: <Shield size={18} />,
-                    },
-                    {
-                      id: 'audit-logs',
-                      label: t('nav.audit_logs', 'Audit Log'),
-                      icon: <ShieldCheck size={18} />,
                     },
                   ]
                 : []),

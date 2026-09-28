@@ -116,7 +116,7 @@ export function NotificationLogPage() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
-    <div style={{ maxWidth: 1200, margin: '1.5rem auto', padding: '0 1rem', boxSizing: 'border-box', width: '100%', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div style={{ margin: '1.5rem auto', padding: '0 1rem', boxSizing: 'border-box', width: '100%', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: isDark ? '#f8fafc' : '#0f172a', margin: '0 0 0.5rem 0' }}>

@@ -509,11 +509,11 @@ export const NotificationBell: React.FC = () => {
               Click item to toggle read/unread
             </span>
             <a
-              href="/notifications/preferences"
+              href="/admin/notifications?tab=preferences"
               onClick={(e) => {
                 e.preventDefault();
                 setIsOpen(false);
-                window.location.href = '/notifications/preferences';
+                window.location.href = '/admin/notifications?tab=preferences';
               }}
               style={{
                 color: '#3B82F6',

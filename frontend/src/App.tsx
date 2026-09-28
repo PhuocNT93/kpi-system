@@ -6,34 +6,19 @@ import { queryClient } from './app/query-client';
 import { AuthProvider } from './shared/auth/AuthProvider';
 import { ProtectedRoute } from './shared/auth/ProtectedRoute';
 import { LoginPage } from './features/auth/pages/LoginPage';
-import {
-  IamPage,
-  UsersPage,
-  RolesPage,
-  PermissionsPage,
-} from './features/iam/pages/IamPage';
-import { AuditLogPage } from './features/audit/pages/AuditLogPage';
-import { EvaluationTemplatesPage } from './features/templates/pages/EvaluationTemplatesPage';
-import { CriteriaPage } from './features/criteria/pages/CriteriaPage';
-import { OrganizationPage } from './features/organization/pages/OrganizationPage';
-import { EmployeeSearchPage } from './features/organization/pages/EmployeeSearchPage';
+import { UnifiedSystemAdminPage } from './features/organization/pages/UnifiedSystemAdminPage';
+import { UnifiedEvaluationsHubPage } from './features/evaluation/pages/UnifiedEvaluationsHubPage';
 import { EmployeeKpiSummaryPage } from './features/evaluation/pages/EmployeeKpiSummaryPage';
-import { I18nPage } from './features/i18n/pages/I18nPage';
 import { EvaluationDetailPage } from './features/evaluation/pages/EvaluationDetailPage';
 import { TeamEvaluationDetailPage } from './features/evaluation/pages/TeamEvaluationDetailPage';
-import { MyEvaluationPage } from './features/evaluation/pages/MyEvaluationPage';
-import { TeamEvaluationsPage } from './features/evaluation/pages/TeamEvaluationsPage';
 import {
-  EvaluationCycleListPage,
+  UnifiedEvaluationCyclesPage,
   EvaluationCycleCreatePage,
   EvaluationCycleDetailPage,
   EvaluationCycleEditPage,
-  IndividualCycleCreatePage,
 } from './features/evaluation-cycles';
-import { ReviewDueDashboard } from './features/evaluation-cycles/pages/ReviewDueDashboard';
-import { ReviewCadencesPage } from './features/organization/pages/ReviewCadencesPage';
+import { UnifiedKpiTemplateStudioPage } from './features/templates';
 import { AppLayout } from '@/shared/layout';
-import { KpiPage } from './features/kpi/pages/KpiPage';
 import { ImportDetailPage } from './features/imports/pages/ImportDetailPage';
 import { DataIngestionHubPage } from './features/imports/pages/DataIngestionHubPage';
 // Lazy-loaded: pulls in react-markdown/remark-gfm, kept out of the main bundle
@@ -42,17 +27,11 @@ const UserGuidePage = lazy(() =>
 );
 import { EmployeeReportPage } from './features/reports/pages/EmployeeReportPage';
 import { TeamReportPage } from './features/reports/pages/TeamReportPage';
-import { CalibrationPage } from './features/calibration/pages/CalibrationPage';
 import { KpiSummaryDashboardPage } from './features/reports/employee-kpi-summary/pages/KpiSummaryDashboardPage';
 import { UnifiedPerformanceReportsPage } from './features/reports/pages/UnifiedPerformanceReportsPage';
 import { DashboardPage } from './features/dashboard/pages/DashboardPage';
 import {
-
-
-
-  NotificationPreferencesPage,
-  NotificationTemplatesPage,
-  NotificationLogPage,
+  UnifiedNotificationsPage,
 } from './features/notifications';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY, ThemeProvider, useTheme } from '@/shared/theme';
@@ -64,6 +43,7 @@ import { LogOut } from 'lucide-react';
 
 const ADMIN_PAGE_TITLES: Record<string, string> = {
   dashboard: 'Dashboard',
+  'system-admin': 'System & Security Hub',
   iam: 'IAM Management',
   'audit-logs': 'Audit Logs',
   organization: 'Organization',
@@ -72,21 +52,23 @@ const ADMIN_PAGE_TITLES: Record<string, string> = {
   'kpi-summary': 'Performance Reports',
   reports: 'Performance Reports',
   ingestion: 'KPI Data Ingestion Hub',
-  templates: 'Evaluation Templates',
+  templates: 'KPI & Templates Studio',
   criteria: 'Criteria',
   i18n: 'Translation Settings',
   kpis: 'KPI Management',
   imports: 'KPI Data Ingestion Hub',
   'evaluation-data-imports': 'KPI Data Ingestion Hub',
   collectors: 'KPI Data Ingestion Hub',
-  cycles: 'Evaluation Cycles',
+  cycles: 'Evaluation Cycles Hub',
   'review-due': 'Review Due Dashboard',
   'review-cadences': 'Review Cadence Management',
   'individual-cycles': 'Individual Evaluation',
   calibration: 'Calibration Sessions & Adjustment',
+  evaluations: 'Evaluations Hub',
   'my-evaluations': 'My Evaluations',
   'team-evaluations': 'Team Evaluations',
   'user-guide': 'User Guide',
+  notifications: 'Notifications & Email Hub',
   'notification-preferences': 'Notification Preferences',
   'notification-templates': 'Email Templates',
   'notification-logs': 'Email Delivery Logs',
@@ -110,6 +92,16 @@ function ProtectedLayout() {
     ? 'reports'
     : pathParts.includes('ingestion') || pathParts.includes('collectors') || pathParts.includes('imports') || pathParts.includes('evaluation-data-imports')
     ? 'ingestion'
+    : pathParts.includes('notifications') || pathParts.includes('notification-preferences') || pathParts.includes('notification-templates') || pathParts.includes('notification-logs')
+    ? 'notifications'
+    : pathParts.includes('evaluations') || pathParts.includes('my-evaluations') || pathParts.includes('team-evaluations') || pathParts.includes('employee-search')
+    ? 'evaluations'
+    : pathParts.includes('cycles') || pathParts.includes('individual-cycles') || pathParts.includes('review-due') || pathParts.includes('review-cadences') || pathParts.includes('calibration')
+    ? 'cycles'
+    : pathParts.includes('templates') || pathParts.includes('kpis') || pathParts.includes('criteria')
+    ? 'templates'
+    : pathParts.includes('system-admin') || pathParts.includes('organization') || pathParts.includes('iam') || pathParts.includes('audit-logs') || pathParts.includes('i18n')
+    ? 'system-admin'
     : pathParts.length > 2 ? pathParts[2] : 'dashboard';
   const defaultPageTitle = ADMIN_PAGE_TITLES[activeMenu] ?? 'System Layout';
   const pageTitle = t(`title.${activeMenu.replace(/-/g, '_')}`, defaultPageTitle);
@@ -173,9 +165,14 @@ function ProtectedLayout() {
         else if (id === 'ingestion') navigate('/admin/ingestion');
         else if (id === 'jira-eval') navigate('/admin/ingestion?tab=jira');
         else if (id === 'reports') navigate('/admin/reports');
+        else if (id === 'notifications') navigate('/admin/notifications');
+        else if (id === 'evaluations') navigate('/admin/evaluations');
+        else if (id === 'cycles') navigate('/admin/cycles');
+        else if (id === 'templates') navigate('/admin/templates');
+        else if (id === 'system-admin') navigate('/admin/system-admin');
         else if (id === 'imports') navigate('/admin/ingestion?tab=csv');
         else if (id === 'collectors') navigate('/admin/ingestion?tab=blueprint');
-        else if (id === 'employee-search') navigate('/admin/employees/search');
+        else if (id === 'employee-search') navigate('/admin/evaluations?tab=search');
         else if (id === 'kpi-summary') navigate('/admin/reports?scope=summary');
         else navigate(`/admin/${id}`);
       }}
@@ -216,58 +213,79 @@ export default function App() {
                   <DashboardPage />
                 </ProtectedRoute>
               } />
-              <Route path="/admin/iam" element={
-
+              {/* System & Security Unified Hub & Redirects */}
+              <Route path="/admin/system-admin" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
-                  <IamPage />
-                </ProtectedRoute>
-              }>
-                <Route index element={<Navigate to="users" replace />} />
-                <Route path="users" element={<UsersPage />} />
-                <Route path="roles" element={<RolesPage />} />
-                <Route path="permissions" element={<PermissionsPage />} />
-              </Route>
-
-              <Route path="/admin/audit-logs" element={
-                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
-                  <AuditLogPage />
+                  <UnifiedSystemAdminPage />
                 </ProtectedRoute>
               } />
-              <Route path="/admin/organization" element={
-                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
-                  <OrganizationPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/employees/search" element={
+              <Route path="/admin/organization" element={<Navigate to="/admin/system-admin?tab=organization" replace />} />
+              <Route path="/admin/iam/*" element={<Navigate to="/admin/system-admin?tab=iam" replace />} />
+              <Route path="/admin/iam" element={<Navigate to="/admin/system-admin?tab=iam" replace />} />
+              <Route path="/admin/audit-logs" element={<Navigate to="/admin/system-admin?tab=audit" replace />} />
+              <Route path="/admin/i18n" element={<Navigate to="/admin/system-admin?tab=i18n" replace />} />
+
+              {/* Evaluations Unified Hub & Redirects */}
+              <Route path="/admin/evaluations" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
-                  <EmployeeSearchPage />
+                  <UnifiedEvaluationsHubPage />
                 </ProtectedRoute>
               } />
+              <Route path="/admin/my-evaluations" element={<Navigate to="/admin/evaluations?tab=my" replace />} />
+              <Route path="/admin/team-evaluations" element={<Navigate to="/admin/evaluations?tab=team" replace />} />
+              <Route path="/admin/employees/search" element={<Navigate to="/admin/evaluations?tab=search" replace />} />
               <Route path="/admin/employees/:id/kpi-summary" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
                   <EmployeeKpiSummaryPage />
                 </ProtectedRoute>
               } />
+              <Route path="/admin/my-evaluations/:id" element={
+                <ProtectedRoute allowedRoles={['EMPLOYEE', 'MANAGER', 'SYSTEM_ADMIN']}>
+                  <EvaluationDetailPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/team-evaluations/:id" element={
+                <ProtectedRoute allowedRoles={['MANAGER', 'HR_ADMIN', 'SYSTEM_ADMIN']}>
+                  <TeamEvaluationDetailPage />
+                </ProtectedRoute>
+              } />
+
+              {/* KPI & Templates Studio Hub & Redirects */}
               <Route path="/admin/templates" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
-                  <EvaluationTemplatesPage />
+                  <UnifiedKpiTemplateStudioPage />
                 </ProtectedRoute>
               } />
-              <Route path="/admin/criteria" element={
+              <Route path="/admin/criteria" element={<Navigate to="/admin/templates?tab=criteria" replace />} />
+              <Route path="/admin/kpis" element={<Navigate to="/admin/templates?tab=kpis" replace />} />
+
+              {/* Evaluation Cycles Unified Hub & Redirects */}
+              <Route path="/admin/cycles" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER']}>
+                  <UnifiedEvaluationCyclesPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/individual-cycles" element={<Navigate to="/admin/cycles?tab=individual" replace />} />
+              <Route path="/admin/review-due" element={<Navigate to="/admin/cycles?tab=review-due" replace />} />
+              <Route path="/admin/cycles/review-due" element={<Navigate to="/admin/cycles?tab=review-due" replace />} />
+              <Route path="/admin/review-cadences" element={<Navigate to="/admin/cycles?tab=cadences" replace />} />
+              <Route path="/admin/calibration" element={<Navigate to="/admin/cycles?tab=calibration" replace />} />
+              <Route path="/admin/cycles/new" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
-                  <CriteriaPage />
+                  <EvaluationCycleCreatePage />
                 </ProtectedRoute>
               } />
-              <Route path="/admin/i18n" element={
+              <Route path="/admin/cycles/:id" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
-                  <I18nPage />
+                  <EvaluationCycleDetailPage />
                 </ProtectedRoute>
               } />
-              <Route path="/admin/kpis" element={
+              <Route path="/admin/cycles/:id/edit" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
-                  <KpiPage />
+                  <EvaluationCycleEditPage />
                 </ProtectedRoute>
               } />
+              {/* Data Ingestion Hub & Redirects */}
               <Route path="/admin/ingestion" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER']}>
                   <DataIngestionHubPage />
@@ -285,67 +303,7 @@ export default function App() {
               <Route path="/admin/imports" element={<Navigate to="/admin/ingestion?tab=history" replace />} />
               <Route path="/admin/imports/upload" element={<Navigate to="/admin/ingestion?tab=csv" replace />} />
               <Route path="/admin/evaluation-data-imports" element={<Navigate to="/admin/ingestion?tab=api" replace />} />
-              <Route path="/admin/cycles" element={
-                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
-                  <EvaluationCycleListPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/review-due" element={
-                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER']}>
-                  <ReviewDueDashboard />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/cycles/review-due" element={<Navigate to="/admin/review-due" replace />} />
-              <Route path="/admin/review-cadences" element={
-                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
-                  <ReviewCadencesPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/calibration" element={
-                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
-                  <CalibrationPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/individual-cycles" element={
-                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER']}>
-                  <IndividualCycleCreatePage />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/cycles/new" element={
-                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
-                  <EvaluationCycleCreatePage />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/my-evaluations" element={
-                <ProtectedRoute allowedRoles={['EMPLOYEE', 'MANAGER', 'SYSTEM_ADMIN']}>
-                  <MyEvaluationPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/my-evaluations/:id" element={
-                <ProtectedRoute allowedRoles={['EMPLOYEE', 'MANAGER', 'SYSTEM_ADMIN']}>
-                  <EvaluationDetailPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/team-evaluations/:id" element={
-                <ProtectedRoute allowedRoles={['MANAGER', 'HR_ADMIN', 'SYSTEM_ADMIN']}>
-                  <TeamEvaluationDetailPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/team-evaluations" element={
-                <ProtectedRoute allowedRoles={['MANAGER', 'HR_ADMIN', 'SYSTEM_ADMIN']}>
-                  <TeamEvaluationsPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/cycles/:id" element={
-                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
-                  <EvaluationCycleDetailPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/cycles/:id/edit" element={
-                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
-                  <EvaluationCycleEditPage />
-                </ProtectedRoute>
-              } />
+
               <Route path="/admin/user-guide" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
                   <Suspense fallback={null}>
@@ -383,21 +341,16 @@ export default function App() {
                   <KpiSummaryDashboardPage />
                 </ProtectedRoute>
               } />
-              <Route path="/admin/notification-preferences" element={
+              <Route path="/admin/notifications" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE']}>
-                  <NotificationPreferencesPage />
+                  <UnifiedNotificationsPage />
                 </ProtectedRoute>
               } />
-              <Route path="/admin/notification-templates" element={
-                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
-                  <NotificationTemplatesPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/notification-logs" element={
-                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN']}>
-                  <NotificationLogPage />
-                </ProtectedRoute>
-              } />
+              <Route path="/admin/notification-preferences" element={<Navigate to="/admin/notifications?tab=preferences" replace />} />
+              <Route path="/admin/notification-templates" element={<Navigate to="/admin/notifications?tab=templates" replace />} />
+              <Route path="/admin/notification-logs" element={<Navigate to="/admin/notifications?tab=logs" replace />} />
+              <Route path="/notifications/preferences" element={<Navigate to="/admin/notifications?tab=preferences" replace />} />
+              <Route path="/notifications" element={<Navigate to="/admin/notifications" replace />} />
               <Route path="/draft" element={
                 <div
                   style={{
