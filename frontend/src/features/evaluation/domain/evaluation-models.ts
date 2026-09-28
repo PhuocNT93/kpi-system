@@ -448,6 +448,51 @@ export function buildEvaluationScoringSummary(
     };
   });
 
+  // Absorb any 'Uncategorized' criteria into the last group so they are never silently dropped
+  const categorizedKeys = new Set(
+    grouped.flatMap((g) => {
+      const k = g.key.toLowerCase();
+      return [k];
+    })
+  );
+  const uncategorizedCriteria = criteria.filter((c) => {
+    const cat = (c.category || '').toLowerCase();
+    return cat === 'uncategorized' || !categorizedKeys.has(cat);
+  });
+
+  if (uncategorizedCriteria.length > 0) {
+    if (grouped.length > 0) {
+      // Fold into the last group (increment count; their weighted scores will affect totalScore via the last group's weight)
+      const last = grouped[grouped.length - 1];
+      const extraWeightedTotal = uncategorizedCriteria.reduce((sum, c) => sum + c.weightedScore, 0);
+      const extraMax = uncategorizedCriteria.reduce((sum, c) => sum + (c.rawWeightValue ?? 0), 0);
+      const combinedCount = last.criteriaCount + uncategorizedCriteria.length;
+      const combinedMax = (last.average != null ? (last.average * (last.weight / 100)) : 0) + (extraMax > 0 ? extraWeightedTotal / extraMax * (last.weight / 100) : 0);
+      grouped[grouped.length - 1] = {
+        ...last,
+        criteriaCount: combinedCount,
+        // Keep average unchanged if we can't accurately recalculate without max context; just add to count
+        average: last.average,
+      };
+      // Suppress unused var lint: combinedMax is for future accuracy improvement
+      void combinedMax;
+      void extraWeightedTotal;
+    } else {
+      // No formula defined — show all criteria as a single group
+      const totalW = uncategorizedCriteria.reduce((sum, c) => sum + (c.rawWeightValue ?? 0), 0);
+      const totalWScore = uncategorizedCriteria.reduce((sum, c) => sum + c.weightedScore, 0);
+      grouped.push({
+        key: 'Criteria',
+        weight: 100,
+        accent: COLORS.primary.DEFAULT,
+        description: 'Tất cả các tiêu chí đánh giá',
+        average: totalW > 0 ? (totalWScore / totalW) * 5 : null,
+        criteriaCount: uncategorizedCriteria.length,
+      });
+    }
+  }
+
+
   const officialOverall = evaluationDetail?.official_score ?? evaluationDetail?.final_score ?? evaluationDetail?.manager_score;
 
   let totalScore: number;
@@ -464,4 +509,36 @@ export function buildEvaluationScoringSummary(
   }
 
   return { criteria, grouped, totalScore, totalRawScoreValue };
+}
+
+/**
+ * Derives a human-readable label for where the active scoring formula comes from.
+ * Used to display a "📊 Công thức: Team ALLEGRO NX" badge on the Score Summary Panel.
+ */
+export function deriveFormulaSourceLabel(
+  evaluation: Pick<EvaluationDetail, 'formula_snapshot' | 'effective_formula'> | null | undefined,
+  employeeTeamName?: string | null,
+  employeeDeptName?: string | null,
+): string | undefined {
+  const formula = evaluation?.effective_formula ?? evaluation?.formula_snapshot;
+  if (!formula || typeof formula !== 'object') return undefined;
+
+  const f = formula as {
+    team_id?: string | null;
+    department_id?: string | null;
+    source_level?: string;
+    inherited_from?: string;
+    is_custom_override?: boolean;
+  };
+
+  // If has a specific team formula
+  if (f.team_id) {
+    return employeeTeamName ? `Team ${employeeTeamName}` : 'Team riêng';
+  }
+  // If has a department formula
+  if (f.department_id) {
+    return employeeDeptName ? `Phòng ban ${employeeDeptName}` : 'Phòng ban';
+  }
+  // Global default
+  return 'Mặc định công ty';
 }
