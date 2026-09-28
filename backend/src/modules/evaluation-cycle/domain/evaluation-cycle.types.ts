@@ -84,6 +84,7 @@ export interface EvaluationItem {
   templateCriterionId: string;
   criterionCodeSnapshot: string;
   criterionNameSnapshot: string;
+  criterion_category_snapshot?: string;
   weightSnapshot: number;
   kpiIdSnapshot?: string;
   kpiCodeSnapshot?: string;

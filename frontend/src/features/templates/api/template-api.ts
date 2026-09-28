@@ -121,6 +121,7 @@ export async function saveTemplateCriteriaDraft(
       client_id: c.id,
       template_kpi_id: toUuidOrNull(c.templateKpiId),
       criterion_version_id: c.criterionVersionId,
+      criterion_category: c.criterion.category,
       effective_weight: c.effectiveWeight,
       applicable_role_ids: c.applicableRoleIds,
       applicable_team_ids: c.applicableTeamIds,

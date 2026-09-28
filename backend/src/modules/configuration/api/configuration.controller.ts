@@ -466,6 +466,7 @@ export class ConfigurationController {
       client_id?: string;
       template_kpi_id?: string;
       criterion_version_id: string;
+      criterion_category?: string;
       weight?: number;
       effective_weight?: number;
       display_order?: number;

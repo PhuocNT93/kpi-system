@@ -278,16 +278,22 @@ export function percentToTenPointScore(value: number | string | null | undefined
   return (percentValue / 10).toFixed(percentValue % 10 === 0 ? 0 : 1);
 }
 
-export function getCriterionCategory(item: Pick<EvaluationItem, 'category' | 'criterion_category_snapshot' | 'criterion_code_snapshot' | 'criterion_name_snapshot' | 'kpi_code_snapshot' | 'kpi_name_snapshot'>): CriterionCategory {
-  if (item.criterion_category_snapshot) return item.criterion_category_snapshot;
-  if (item.category) return item.category;
+export function getCriterionCategory(item: Pick<EvaluationItem, 'category' | 'criterion_category_snapshot' | 'criterion_code_snapshot' | 'criterion_name_snapshot' | 'kpi_code_snapshot' | 'kpi_name_snapshot'>): string {
+  const directCategory = [item.criterion_category_snapshot, item.category]
+    .find((value) => Boolean(value && ['performance', 'capability', 'contribution'].includes(value.trim().toLowerCase()))) as string | undefined;
+  if (directCategory) {
+    const normalized = directCategory.trim().toLowerCase();
+    if (normalized === 'performance') return 'Performance';
+    if (normalized === 'capability') return 'Capability';
+    if (normalized === 'contribution') return 'Contribution';
+  }
   const code = [item.criterion_code_snapshot, item.kpi_code_snapshot].filter(Boolean).join(' ').toLowerCase();
   const name = [getCriterionName(item.criterion_name_snapshot, item.criterion_code_snapshot), item.kpi_name_snapshot].filter(Boolean).join(' ').toLowerCase();
 
   if (code.includes('performance') || code.startsWith('perf') || name.includes('performance')) return 'Performance';
   if (code.includes('capability') || code.startsWith('cap') || name.includes('capability') || name.includes('competency') || name.includes('competence') || name.includes('skill')) return 'Capability';
   if (code.includes('contribution') || code.startsWith('con') || name.includes('contribution') || name.includes('collaboration') || name.includes('teamwork') || name.includes('support')) return 'Contribution';
-  return 'Performance';
+  return 'Uncategorized';
 }
 
 function parsePercentValue(value: string): number {
@@ -302,10 +308,10 @@ export function buildEvaluationScoringSummary(evaluationDetail?: EvaluationDetai
   items.forEach((item) => {
     const criterionKey = item.template_criterion_id || item.criterion_code_snapshot || getCriterionName(item.criterion_name_snapshot, item.criterion_code_snapshot);
     const criterionTitle = getCriterionName(item.criterion_name_snapshot, item.criterion_code_snapshot);
-    const category = getCriterionCategory(item);
+    const category = getCriterionCategory(item) as CriterionCategory;
     const kpiLabel = item.kpi_name_snapshot || item.kpi_code_snapshot || 'KPI';
 
-    const criterionEntry: ScoringCriterionSummary = criterionMap.get(criterionKey) ?? {
+    const criterionEntry = (criterionMap.get(criterionKey) ?? {
       title: criterionTitle,
       category,
       score: 0,
@@ -320,7 +326,7 @@ export function buildEvaluationScoringSummary(evaluationDetail?: EvaluationDetai
       accent: COLORS.primary.DEFAULT,
       kpis: [],
       rawWeightValue: item.weight_snapshot,
-    };
+    }) as ScoringCriterionSummary;
 
     criterionEntry.kpis.push({
       label: kpiLabel,
@@ -342,7 +348,7 @@ export function buildEvaluationScoringSummary(evaluationDetail?: EvaluationDetai
 
     const childScores = criterionEntry.kpis.map((kpi) => kpi.score);
     criterionEntry.rawScore = childScores.length > 0 ? childScores.reduce((sum, value) => sum + value, 0) : 0;
-    criterionEntry.weightedScore = (criterionEntry.rawScore * (totalCriterionWeight / 100));
+    criterionEntry.weightedScore = criterionEntry.rawScore * (totalCriterionWeight / 100);
     criterionEntry.rawScoreValue = `${(criterionEntry.rawScore * (totalCriterionWeight / 100)).toFixed(2)}%`;
     criterionEntry.weightedScoreValue = criterionEntry.weightedScore.toFixed(2);
     criterionEntry.score = criterionEntry.weightedScore;

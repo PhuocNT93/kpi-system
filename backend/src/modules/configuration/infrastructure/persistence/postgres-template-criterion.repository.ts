@@ -12,6 +12,7 @@ export class PostgresTemplateCriterionRepository implements ITemplateCriterionRe
       template_version_id: row.template_version_id as string,
       template_kpi_id: (row.template_kpi_id as string | null) ?? null,
       criterion_version_id: row.criterion_version_id as string,
+      criterion_category: (row.criterion_category as string | null) ?? null,
       weight: Number(row.weight),
       display_order: Number(row.display_order),
       required: Boolean(row.required),
@@ -104,13 +105,14 @@ export class PostgresTemplateCriterionRepository implements ITemplateCriterionRe
     const runner = client || this.pool;
     const res = await runner.query(
       `INSERT INTO template_criteria
-       (template_version_id, template_kpi_id, criterion_version_id, weight, display_order, required, enabled, applicability)
-       VALUES ($1, $2, $3, COALESCE($4, 0), COALESCE($5, 1), COALESCE($6, true), COALESCE($7, true), $8)
+       (template_version_id, template_kpi_id, criterion_version_id, criterion_category, weight, display_order, required, enabled, applicability)
+       VALUES ($1, $2, $3, $4, COALESCE($5, 0), COALESCE($6, 1), COALESCE($7, true), COALESCE($8, true), $9)
        RETURNING *`,
       [
         tc.template_version_id,
         tc.template_kpi_id ?? null,
         tc.criterion_version_id,
+        tc.criterion_category ?? null,
         tc.weight ?? 0,
         tc.display_order ?? 1,
         tc.required ?? true,
