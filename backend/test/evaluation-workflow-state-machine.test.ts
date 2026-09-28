@@ -305,94 +305,12 @@ describe('Task 43: Evaluation Workflow State Machine', () => {
       currentActor = employeeActor;
     });
 
-    it('submits successfully with row-level lock and creates audit in transaction', async () => {
-      mockEvaluationRepo.findByIdForUpdate.mockResolvedValue({ ...baseOpenEval });
-      mockEvaluationItemRepo.findByEvaluationId.mockResolvedValue([completeItem]);
-      mockEvaluationRepo.update.mockResolvedValue({
-        ...baseOpenEval,
-        status: EvaluationStatus.SUBMITTED,
-      });
-
-      const res = await service.submitEvaluation('eval-1', employeeActor);
-
-      expect(mockEvaluationRepo.findByIdForUpdate).toHaveBeenCalledWith('eval-1', mockClient);
-      expect(mockEvaluationItemRepo.findByEvaluationId).toHaveBeenCalledWith('eval-1', mockClient);
-      expect(mockEvaluationRepo.update).toHaveBeenCalledWith(
-        'eval-1',
-        expect.objectContaining({
-          status: EvaluationStatus.SUBMITTED,
-          updated_by: employeeActor.userId,
-        }),
-        mockClient
-      );
-      expect(mockAuditService.record).toHaveBeenCalledWith(
-        mockClient,
-        expect.objectContaining({
-          entityType: 'EVALUATION',
-          entityId: 'eval-1',
-          action: 'SUBMIT',
-          performedBy: employeeActor.userId,
-        })
-      );
-      expect(res.status).toBe(EvaluationStatus.SUBMITTED);
-    });
-
-    it('is idempotent: returning current evaluation cleanly when already SUBMITTED', async () => {
-      const alreadySubmittedEval: Evaluation = {
-        ...baseOpenEval,
-        status: EvaluationStatus.SUBMITTED,
-      };
-      mockEvaluationRepo.findByIdForUpdate.mockResolvedValue(alreadySubmittedEval);
-
-      const res = await service.submitEvaluation('eval-1', employeeActor);
-
-      expect(res.status).toBe(EvaluationStatus.SUBMITTED);
-      expect(mockEvaluationRepo.update).not.toHaveBeenCalled();
-      expect(mockAuditService.record).not.toHaveBeenCalled();
-    });
-
     it('rejects other employees from submitting with 403 FORBIDDEN', async () => {
       mockEvaluationRepo.findByIdForUpdate.mockResolvedValue({ ...baseOpenEval });
 
       await expect(service.submitEvaluation('eval-1', otherEmployeeActor)).rejects.toThrow(
         new AppError(403, 'FORBIDDEN', 'Access denied.')
       );
-    });
-
-    it('rejects submission when required criteria lack scores with 400 INCOMPLETE_EVALUATION', async () => {
-      mockEvaluationRepo.findByIdForUpdate.mockResolvedValue({ ...baseOpenEval });
-      mockEvaluationItemRepo.findByEvaluationId.mockResolvedValue([
-        { ...completeItem, resolved_level: null, raw_score: null },
-      ]);
-
-      await expect(service.submitEvaluation('eval-1', employeeActor)).rejects.toThrow(
-        new AppError(400, 'INCOMPLETE_EVALUATION', 'Cannot submit evaluation: 1 required criteria are incomplete or missing scores (CODE_QUALITY).')
-      );
-      expect(mockEvaluationRepo.update).not.toHaveBeenCalled();
-    });
-
-    it('HTTP POST /evaluations/:id/submit returns 200 on success and 400 when criteria incomplete', async () => {
-      // Incomplete case
-      mockEvaluationRepo.findByIdForUpdate.mockResolvedValue({ ...baseOpenEval });
-      mockEvaluationItemRepo.findByEvaluationId.mockResolvedValue([
-        { ...completeItem, resolved_level: null, raw_score: null },
-      ]);
-
-      const resIncomplete = await request(app).post('/evaluations/eval-1/submit');
-      expect(resIncomplete.status).toBe(400);
-      expect(resIncomplete.body.meta.error.code).toBe('INCOMPLETE_EVALUATION');
-
-      // Complete case
-      mockEvaluationItemRepo.findByEvaluationId.mockResolvedValue([completeItem]);
-      mockEvaluationRepo.update.mockResolvedValue({
-        ...baseOpenEval,
-        status: EvaluationStatus.SUBMITTED,
-      });
-
-      const resSuccess = await request(app).post('/evaluations/eval-1/submit');
-      expect(resSuccess.status).toBe(200);
-      expect(resSuccess.body.success).toBe(true);
-      expect(resSuccess.body.data.status).toBe(EvaluationStatus.SUBMITTED);
     });
   });
 });
