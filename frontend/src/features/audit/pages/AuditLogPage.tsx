@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useAuditLogs } from '../hooks/useAuditLogs';
-import { ErrorAlert, LoadingSpinner, EmptyState } from '../../../shared/components/ui';
+import { ErrorAlert, LoadingSpinner } from '../../../shared/components/ui';
 import { Button } from '../../../shared/ui/Button/Button';
 import { COLORS } from '../../../lib/theme';
 import { RADII, TYPOGRAPHY, useTheme } from '../../../shared/theme';
-import { ShieldAlert, Building2, ShieldCheck, ChevronLeft, ChevronRight, Lock } from 'lucide-react';
+import { ShieldAlert, Building2, ShieldCheck, ChevronLeft, ChevronRight, Lock, SearchX } from 'lucide-react';
 import { useAuth } from '../../../shared/auth/auth-context';
 import { AuditFilterBar } from '../components/AuditFilterBar';
 import { AuditTable } from '../components/AuditTable';
@@ -12,7 +12,12 @@ import { AuditDetailModal } from '../components/AuditDetailModal';
 import { useUiTranslation } from '../../../shared/i18n/ui-i18n';
 import type { WireAuditLog } from '../api/audit-types';
 
-export function AuditLogPage() {
+interface AuditLogPageProps {
+  // Set when rendered inside a hub that already shows its own title and role.
+  isEmbedded?: boolean;
+}
+
+export function AuditLogPage({ isEmbedded = false }: AuditLogPageProps) {
   const { user } = useAuth();
   const { isDark } = useTheme();
   const { t } = useUiTranslation();
@@ -22,6 +27,7 @@ export function AuditLogPage() {
   const [entityType, setEntityType] = useState('');
   const [action, setAction] = useState('');
   const [entityId, setEntityId] = useState('');
+  const [entityIdInput, setEntityIdInput] = useState('');
   const [selectedLog, setSelectedLog] = useState<WireAuditLog | null>(null);
 
   const isHrAdmin = user?.role === 'HR_ADMIN';
@@ -33,10 +39,23 @@ export function AuditLogPage() {
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
     const { name, value } = e.target;
-    setPage(1); // reset to page 1 on filter change
+    if (name === 'entityId') {
+      setEntityIdInput(value);
+      return;
+    }
+    setPage(1);
     if (name === 'entityType') setEntityType(value);
     if (name === 'action') setAction(value);
-    if (name === 'entityId') setEntityId(value);
+  };
+
+  const handleSearch = () => {
+    const trimmed = entityIdInput.trim();
+    if (page === 1 && trimmed === entityId) {
+      logsQuery.refetch();
+      return;
+    }
+    setPage(1);
+    setEntityId(trimmed);
   };
 
   const handleResetFilters = () => {
@@ -44,6 +63,7 @@ export function AuditLogPage() {
     setEntityType('');
     setAction('');
     setEntityId('');
+    setEntityIdInput('');
   };
 
   const handleNextPage = () => setPage((p) => p + 1);
@@ -57,95 +77,104 @@ export function AuditLogPage() {
   return (
     <main
       style={{
-        padding: '12px',
+        flex: 1,
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        padding: isEmbedded ? 0 : '12px',
         color: isDark ? '#f8fafc' : COLORS.neutral[900],
       }}
     >
       {/* Header & Role Scope Banner */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '40px',
-                height: '40px',
-                borderRadius: RADII.lg,
-                backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff',
-                color: isDark ? '#93c5fd' : COLORS.primary[600],
-              }}
-            >
-              <ShieldAlert size={24} />
-            </span>
-            <div>
-              <h1
+      {!isEmbedded && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <span
                 style={{
-                  margin: 0,
-                  fontSize: TYPOGRAPHY.fontSize.xl,
-                  fontWeight: TYPOGRAPHY.fontWeight.bold,
-                  color: isDark ? '#f8fafc' : COLORS.neutral[900],
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: RADII.lg,
+                  backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff',
+                  color: isDark ? '#93c5fd' : COLORS.primary[600],
                 }}
               >
-                {t('pageTitle')}
-              </h1>
-              <p
-                style={{
-                  margin: '3px 0 0 0',
-                  fontSize: TYPOGRAPHY.fontSize.sm,
-                  color: isDark ? '#94a3b8' : COLORS.neutral[500],
-                }}
-              >
-                {t('pageSubtitle')}
-              </p>
+                <ShieldAlert size={24} />
+              </span>
+              <div>
+                <h1
+                  style={{
+                    margin: 0,
+                    fontSize: TYPOGRAPHY.fontSize.xl,
+                    fontWeight: TYPOGRAPHY.fontWeight.bold,
+                    color: isDark ? '#f8fafc' : COLORS.neutral[900],
+                  }}
+                >
+                  {t('auditPageTitle', 'System Audit Logs')}
+                </h1>
+                <p
+                  style={{
+                    margin: '3px 0 0 0',
+                    fontSize: TYPOGRAPHY.fontSize.sm,
+                    color: isDark ? '#94a3b8' : COLORS.neutral[500],
+                  }}
+                >
+                  {t(
+                    'auditPageSubtitle',
+                    'Immutable history of business operations, configurations, and score calculations (Read-Only)'
+                  )}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Role Scope Tag */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          {isSystemAdmin && (
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '0.4rem 0.85rem',
-                borderRadius: RADII.full,
-                fontSize: TYPOGRAPHY.fontSize.xs,
-                fontWeight: 600,
-                backgroundColor: isDark ? 'rgba(124, 58, 237, 0.2)' : '#ede9fe',
-                color: isDark ? '#c4b5fd' : '#6d28d9',
-                border: isDark ? '1px solid rgba(124, 58, 237, 0.4)' : '1px solid #ddd6fe',
-              }}
-            >
-              <ShieldCheck size={16} />
-              <span>{t('roleSystemAdmin')}</span>
-            </div>
-          )}
+          {/* Role Scope Tag */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {isSystemAdmin && (
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '0.4rem 0.85rem',
+                  borderRadius: RADII.full,
+                  fontSize: TYPOGRAPHY.fontSize.xs,
+                  fontWeight: 600,
+                  backgroundColor: isDark ? 'rgba(124, 58, 237, 0.2)' : '#ede9fe',
+                  color: isDark ? '#c4b5fd' : '#6d28d9',
+                  border: isDark ? '1px solid rgba(124, 58, 237, 0.4)' : '1px solid #ddd6fe',
+                }}
+              >
+                <ShieldCheck size={16} />
+                <span>{t('auditRoleSystemAdmin', 'System Admin (Full Audit Access)')}</span>
+              </div>
+            )}
 
-          {isHrAdmin && (
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '0.4rem 0.85rem',
-                borderRadius: RADII.full,
-                fontSize: TYPOGRAPHY.fontSize.xs,
-                fontWeight: 600,
-                backgroundColor: isDark ? 'rgba(2, 132, 199, 0.2)' : '#e0f2fe',
-                color: isDark ? '#7dd3fc' : '#0369a1',
-                border: isDark ? '1px solid rgba(2, 132, 199, 0.4)' : '1px solid #bae6fd',
-              }}
-            >
-              <Building2 size={16} />
-              <span>{t('roleHrAdmin')}</span>
-            </div>
-          )}
+            {isHrAdmin && (
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '0.4rem 0.85rem',
+                  borderRadius: RADII.full,
+                  fontSize: TYPOGRAPHY.fontSize.xs,
+                  fontWeight: 600,
+                  backgroundColor: isDark ? 'rgba(2, 132, 199, 0.2)' : '#e0f2fe',
+                  color: isDark ? '#7dd3fc' : '#0369a1',
+                  border: isDark ? '1px solid rgba(2, 132, 199, 0.4)' : '1px solid #bae6fd',
+                }}
+              >
+                <Building2 size={16} />
+                <span>{t('auditRoleHrAdmin', 'HR Admin (Scoped to Business Entities)')}</span>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 403 Forbidden State */}
       {isForbidden ? (
@@ -198,10 +227,11 @@ export function AuditLogPage() {
           <AuditFilterBar
             entityType={entityType}
             action={action}
-            entityId={entityId}
+            entityId={entityIdInput}
             isHrAdmin={isHrAdmin}
             onFilterChange={handleFilterChange}
             onReset={handleResetFilters}
+            onSearch={handleSearch}
           />
 
           {/* Loading & Error States */}
@@ -212,7 +242,43 @@ export function AuditLogPage() {
           {logsQuery.isSuccess && (
             <>
               {logsQuery.data.logs.length === 0 ? (
-                <EmptyState message={t('emptyDesc')} />
+                <div
+                  role="status"
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '4rem 2rem',
+                    gap: '1rem',
+                    textAlign: 'center',
+                  }}
+                >
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '64px',
+                      height: '64px',
+                      borderRadius: '50%',
+                      backgroundColor: isDark ? 'rgba(148, 163, 184, 0.1)' : '#f1f5f9',
+                      color: isDark ? '#475569' : '#94a3b8',
+                    }}
+                  >
+                    <SearchX size={28} />
+                  </span>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontWeight: 600,
+                      fontSize: TYPOGRAPHY.fontSize.sm,
+                      color: isDark ? '#e2e8f0' : '#334155',
+                    }}
+                  >
+                    {t('emptyDesc')}
+                  </p>
+                </div>
               ) : (
                 <AuditTable logs={logsQuery.data.logs} onSelectLog={(log) => setSelectedLog(log)} />
               )}
