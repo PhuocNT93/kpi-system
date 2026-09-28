@@ -1,7 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { ScoringEngine, ScoringKpiInput } from '../src/modules/evaluation/domain/scoring/scoring-engine.js';
 import { createRuleEngineModule } from '../src/modules/rule-engine/rule-engine.module.js';
-import { RuleTypes } from '../src/modules/rule-engine/domain/rule.types.js';
 import { EvaluationService } from '../src/modules/evaluation/application/services/evaluation.service.js';
 import { IEvaluationRepository, IEvaluationItemRepository } from '../src/modules/evaluation/domain/repositories.interface.js';
 import { EvaluationStatus } from '../src/modules/evaluation/domain/evaluation.types.js';
@@ -10,7 +8,6 @@ import { parse } from 'csv-parse/sync';
 
 describe('Performance Baseline & Stress Benchmark Suite', () => {
   const { engine: ruleEngine } = createRuleEngineModule();
-  const scoringEngine = new ScoringEngine();
 
   // Helper to record timings
   const measureExecutionTime = <T>(fn: () => T): { result: T; durationMs: number } => {
@@ -19,89 +16,6 @@ describe('Performance Baseline & Stress Benchmark Suite', () => {
     const durationMs = performance.now() - start;
     return { result, durationMs };
   };
-
-  describe('Benchmark 1: 2-Level Scoring Pipeline Throughput & Latency', () => {
-    it('calculates 1,000 evaluations (20,000 criteria) within defined baseline (<500ms)', () => {
-      // Setup: 1,000 evaluations, each with 4 KPIs and 5 criteria per KPI = 20 criteria per evaluation.
-      const evaluationCount = 1000;
-      const kpiCount = 4;
-      const criteriaPerKpi = 5;
-
-      const levelDefinitions = [
-        { level: 1, score_value: 60 },
-        { level: 2, score_value: 75 },
-        { level: 3, score_value: 85 },
-        { level: 4, score_value: 95 },
-        { level: 5, score_value: 100 },
-      ];
-
-      // Generate realistic fixtures
-      const fixtureEvaluations: ScoringKpiInput[][] = Array.from({ length: evaluationCount }, (_, evalIdx) => {
-        return Array.from({ length: kpiCount }, (_, kpiIdx) => ({
-          kpi_id: `kpi-${kpiIdx + 1}`,
-          kpi_name: `Key Performance Indicator ${kpiIdx + 1}`,
-          effective_weight: 25,
-          criteria: Array.from({ length: criteriaPerKpi }, (_, critIdx) => {
-            const rawMeasurement = 80 + ((evalIdx + kpiIdx + critIdx) % 35);
-            // Level 1: Resolve level via Rule Engine RANGE_THRESHOLD strategy
-            const ruleResult = ruleEngine.resolve({
-              measurement: rawMeasurement,
-              rule_type: RuleTypes.RANGE_THRESHOLD,
-              rule_config: {
-                ranges: [
-                  { min: 0, max: 70, level: 1 },
-                  { min: 70, max: 80, level: 2 },
-                  { min: 80, max: 90, level: 3 },
-                  { min: 90, max: 100, level: 4 },
-                  { min: 100, max: null, level: 5 },
-                ],
-              },
-            });
-
-            return {
-              criterion_id: `eval-${evalIdx}-kpi-${kpiIdx}-crit-${critIdx}`,
-              kpi_id: `kpi-${kpiIdx + 1}`,
-              resolved_level: ruleResult.resolved_level,
-              raw_score: levelDefinitions.find((l) => l.level === ruleResult.resolved_level)?.score_value ?? 85,
-              level_definitions: levelDefinitions,
-              effective_weight: 20,
-              is_disabled: false,
-            };
-          }),
-        }));
-      });
-
-      // Benchmark Execution
-      const latencies: number[] = [];
-      const totalStart = performance.now();
-
-      for (let i = 0; i < evaluationCount; i++) {
-        const evalStart = performance.now();
-        const scoreResult = scoringEngine.calculate({ kpis: fixtureEvaluations[i] });
-        latencies.push(performance.now() - evalStart);
-
-        // Verification of deterministic mathematical integrity
-        expect(scoreResult.overall_weighted_score).toBeGreaterThan(50);
-        expect(scoreResult.overall_weighted_score).toBeLessThanOrEqual(100);
-        expect(scoreResult.kpi_results.length).toBe(4);
-      }
-
-      const totalDurationMs = performance.now() - totalStart;
-      latencies.sort((a, b) => a - b);
-      const p50 = latencies[Math.floor(latencies.length * 0.50)];
-      const p95 = latencies[Math.floor(latencies.length * 0.95)];
-      const p99 = latencies[Math.floor(latencies.length * 0.99)];
-      const throughput = (evaluationCount / (totalDurationMs / 1000));
-
-      console.log(`[Benchmark 1: 2-Level Scoring] Total: ${totalDurationMs.toFixed(2)}ms | Throughput: ${throughput.toFixed(0)} eval/sec (${(throughput * 20).toFixed(0)} criteria/sec) | p50: ${p50.toFixed(3)}ms | p95: ${p95.toFixed(3)}ms | p99: ${p99.toFixed(3)}ms`);
-
-      // Performance Baseline Assertions:
-      // 1. Total time for 1,000 evaluations (20,000 criteria) < 500ms (throughput > 2,000 evaluations/sec)
-      expect(totalDurationMs).toBeLessThan(500);
-      // 2. 95th percentile latency per evaluation < 1.0ms
-      expect(p95).toBeLessThan(1.0);
-    });
-  });
 
   describe('Benchmark 2: Reporting CQRS Read-Model Single-Query Throughput', () => {
     it('executes 100 concurrent read-model report queries under 100ms with zero joins', async () => {

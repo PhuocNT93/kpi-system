@@ -252,6 +252,7 @@ export interface TemplateCriterion {
   template_version_id: string;
   template_kpi_id?: string | null;
   criterion_version_id: string;
+  criterion_category?: string | null;
   weight: number;
   display_order: number;
   required: boolean;

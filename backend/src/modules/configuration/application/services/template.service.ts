@@ -351,6 +351,7 @@ export class TemplateService {
       client_id?: string;
       template_kpi_id?: string;
       criterion_version_id: string;
+      criterion_category?: string;
       weight?: number;
       effective_weight?: number;
       display_order?: number;
@@ -422,6 +423,7 @@ export class TemplateService {
           client_id: item.client_id,
           template_kpi_id: item.template_kpi_id || undefined,
           criterion_version_id: item.criterion_version_id,
+          criterion_category: item.criterion_category,
           weight: resolvedWeight,
           display_order: item.display_order ?? idx + 1,
           required: item.required ?? !(item.is_optional ?? false),
@@ -516,15 +518,8 @@ export class TemplateService {
     const result: ValidationResult = { valid: true, errors: [], warnings: [] };
     const criterionIds = new Set(criteria.map((criterion) => criterion.id));
 
-    // Validate KPI ownership and weights per criterion
-    if (kpis.length === 0) {
-      result.valid = false;
-      result.errors.push({
-        code: 'TEMPLATE_EMPTY',
-        path: 'kpis',
-        message: 'Template must contain at least one KPI.',
-      });
-    } else {
+    // Validate KPI ownership and weights per criterion when KPIs are configured.
+    if (kpis.length > 0) {
       const weightByCriterion = new Map<string, number>();
 
       for (const kpi of kpis) {
