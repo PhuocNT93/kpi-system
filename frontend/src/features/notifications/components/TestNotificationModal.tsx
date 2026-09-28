@@ -4,21 +4,23 @@ import { AuthContext } from '@/shared/auth/auth-context';
 import { Send, X, CheckCircle2, AlertCircle, Loader2, ExternalLink, Mail } from 'lucide-react';
 import { notificationApi } from '../api/notification-api';
 import type { NotificationType } from '../types/notification-types';
+import { useUiTranslation } from '@/shared/i18n/ui-i18n';
 
 const NOTIFICATION_OPTIONS: Array<{ value: NotificationType; labelVi: string; labelEn: string }> = [
-  { value: 'CYCLE_OPENED', labelVi: '1. Khởi động kỳ đánh giá (Cycle Opened)', labelEn: '1. Cycle Opened' },
-  { value: 'SELF_SUBMITTED', labelVi: '2. Nhân viên nộp tự đánh giá (Self-Assessment Submitted)', labelEn: '2. Self-Assessment Submitted' },
-  { value: 'MANAGER_SUBMITTED', labelVi: '3. Quản lý hoàn tất đánh giá (Manager Submitted)', labelEn: '3. Manager Submitted' },
-  { value: 'CORRECTION_REQUESTED', labelVi: '4. Yêu cầu hiệu chỉnh đánh giá (Revision Requested)', labelEn: '4. Revision Requested' },
-  { value: 'RESULT_PUBLISHED', labelVi: '5. Công bố kết quả chính thức (Result Published)', labelEn: '5. Result Published' },
-  { value: 'SCORE_ADJUSTED', labelVi: '6. Điều chỉnh sau phiên hiệu chuẩn (Score Adjusted)', labelEn: '6. Score Adjusted' },
-  { value: 'REVIEW_DUE_REMINDER', labelVi: '7. Nhắc nhở hạn đánh giá (Review Due Reminder)', labelEn: '7. Review Due Reminder' },
-  { value: 'IMPORT_COMPLETED', labelVi: '8. Hoàn tất nhập dữ liệu CSV (Import Completed)', labelEn: '8. Import Completed' },
-  { value: 'CYCLE_LOCKED', labelVi: '9. Khóa kỳ đánh giá (Cycle Locked)', labelEn: '9. Cycle Locked' },
+  { value: 'CYCLE_OPENED', labelVi: '1. Khởi động kỳ đánh giá', labelEn: '1. Cycle Opened' },
+  { value: 'SELF_SUBMITTED', labelVi: '2. Nhân viên nộp tự đánh giá', labelEn: '2. Self-Assessment Submitted' },
+  { value: 'MANAGER_SUBMITTED', labelVi: '3. Quản lý hoàn tất đánh giá', labelEn: '3. Manager Submitted' },
+  { value: 'CORRECTION_REQUESTED', labelVi: '4. Yêu cầu hiệu chỉnh đánh giá', labelEn: '4. Revision Requested' },
+  { value: 'RESULT_PUBLISHED', labelVi: '5. Công bố kết quả chính thức', labelEn: '5. Result Published' },
+  { value: 'SCORE_ADJUSTED', labelVi: '6. Điều chỉnh sau phiên hiệu chuẩn', labelEn: '6. Score Adjusted' },
+  { value: 'REVIEW_DUE_REMINDER', labelVi: '7. Nhắc nhở hạn đánh giá', labelEn: '7. Review Due Reminder' },
+  { value: 'IMPORT_COMPLETED', labelVi: '8. Hoàn tất nhập dữ liệu CSV', labelEn: '8. Import Completed' },
+  { value: 'CYCLE_LOCKED', labelVi: '9. Khóa kỳ đánh giá', labelEn: '9. Cycle Locked' },
 ];
 
 export const TestNotificationModal: React.FC = () => {
   const { isDark } = useTheme();
+  const { t, currentLocale } = useUiTranslation();
   const authContext = useContext(AuthContext);
   const user = authContext?.user;
 
@@ -98,6 +100,7 @@ export const TestNotificationModal: React.FC = () => {
         type="button"
         onClick={handleOpen}
         data-testid="test-notification-btn"
+        aria-label="Test Notification"
         title="Test Email & Google SMTP Relay"
         style={{
           display: 'inline-flex',
@@ -123,7 +126,7 @@ export const TestNotificationModal: React.FC = () => {
         }}
       >
         <Send size={14} />
-        Thử Nghiệm Gửi Email (Test Notification)
+        {t('notifications.preferences.test_btn', 'Thử Nghiệm Gửi Email (Test Notification)')}
       </button>
 
       {/* Popup Modal */}
@@ -186,7 +189,7 @@ export const TestNotificationModal: React.FC = () => {
                 </div>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: isDark ? '#F8FAFC' : '#0F172A' }}>
-                    Thử Nghiệm Gửi Thông Báo SMTP
+                    {t('notifications.test.modal_title', 'Thử Nghiệm Gửi Thông Báo SMTP')}
                   </h3>
                   <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: isDark ? '#94A3B8' : '#64748B' }}>
                     Google Workspace SMTP Relay Live Test
@@ -217,7 +220,7 @@ export const TestNotificationModal: React.FC = () => {
               {/* Recipient Email */}
               <div>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: isDark ? '#E2E8F0' : '#334155', marginBottom: '6px' }}>
-                  Email người nhận (Email To): <span style={{ color: '#EF4444' }}>*</span>
+                  {t('notifications.test.recipient_label', 'Email người nhận')}: <span style={{ color: '#EF4444' }}>*</span>
                 </label>
                 <input
                   type="email"
@@ -239,14 +242,14 @@ export const TestNotificationModal: React.FC = () => {
                   }}
                 />
                 <span style={{ display: 'block', fontSize: '11px', color: isDark ? '#94A3B8' : '#64748B', marginTop: '4px' }}>
-                  Nhập địa chỉ email bất kỳ bạn muốn nhận email kiểm tra để thử nghiệm Google Workspace SMTP Relay.
+                  {t('notifications.test.recipient_hint', 'Nhập địa chỉ email bất kỳ bạn muốn nhận email kiểm tra để thử nghiệm Google Workspace SMTP Relay.')}
                 </span>
               </div>
 
               {/* Notification Type Selector */}
               <div>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: isDark ? '#E2E8F0' : '#334155', marginBottom: '6px' }}>
-                  Loại thông báo / Biểu mẫu thử nghiệm:
+                  {t('notifications.test.type_label', 'Loại thông báo / Biểu mẫu thử nghiệm')}:
                 </label>
                 <select
                   value={selectedType}
@@ -266,7 +269,7 @@ export const TestNotificationModal: React.FC = () => {
                 >
                   {NOTIFICATION_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
-                      {locale === 'vi' ? opt.labelVi : opt.labelEn}
+                      {currentLocale === 'en' ? opt.labelEn : opt.labelVi}
                     </option>
                   ))}
                 </select>
@@ -415,7 +418,7 @@ export const TestNotificationModal: React.FC = () => {
                     cursor: 'pointer',
                   }}
                 >
-                  Đóng
+                  {t('notifications.test.close_btn', 'Đóng')}
                 </button>
 
                 <button
@@ -439,12 +442,12 @@ export const TestNotificationModal: React.FC = () => {
                   {loading ? (
                     <>
                       <Loader2 size={15} className="animate-spin" />
-                      Đang kết nối & gửi...
+                      {t('notifications.test.sending_btn', 'Đang kết nối & gửi...')}
                     </>
                   ) : (
                     <>
                       <Send size={15} />
-                      Gửi Test Email Ngay
+                      {t('notifications.test.send_btn', 'Gửi Test Email Ngay')}
                     </>
                   )}
                 </button>

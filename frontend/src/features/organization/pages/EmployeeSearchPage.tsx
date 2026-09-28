@@ -48,21 +48,25 @@ export function EmployeeSearchPage() {
     return () => clearTimeout(timer);
   }, [qInput]);
 
-  // Sync state changes back to URL search params
+  // Sync state changes back to URL search params while preserving tab and external parameters
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (qDebounced) params.set('q', qDebounced);
-    if (employeeId) params.set('employee_id', employeeId);
-    if (department) params.set('department', department);
-    if (team) params.set('team', team);
-    if (role) params.set('role', role);
-    if (jobLevel) params.set('job_level', jobLevel);
-    if (evaluationCycle) params.set('evaluation_cycle', evaluationCycle);
-    if (evaluationStatus) params.set('evaluation_status', evaluationStatus);
-    if (page > 1) params.set('page', String(page));
-    if (size !== 20) params.set('size', String(size));
-
-    setSearchParams(params, { replace: true });
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (qDebounced) next.set('q', qDebounced); else next.delete('q');
+        if (employeeId) next.set('employee_id', employeeId); else next.delete('employee_id');
+        if (department) next.set('department', department); else next.delete('department');
+        if (team) next.set('team', team); else next.delete('team');
+        if (role) next.set('role', role); else next.delete('role');
+        if (jobLevel) next.set('job_level', jobLevel); else next.delete('job_level');
+        if (evaluationCycle) next.set('evaluation_cycle', evaluationCycle); else next.delete('evaluation_cycle');
+        if (evaluationStatus) next.set('evaluation_status', evaluationStatus); else next.delete('evaluation_status');
+        if (page > 1) next.set('page', String(page)); else next.delete('page');
+        if (size !== 20) next.set('size', String(size)); else next.delete('size');
+        return next;
+      },
+      { replace: true }
+    );
   }, [qDebounced, employeeId, department, team, role, jobLevel, evaluationCycle, evaluationStatus, page, size, setSearchParams]);
 
   // Fetch dropdown reference data

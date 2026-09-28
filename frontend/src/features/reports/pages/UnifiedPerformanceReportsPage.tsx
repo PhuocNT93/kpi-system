@@ -37,7 +37,7 @@ const REPORT_SCOPES: ReportScopeConfig[] = [
   {
     id: 'my',
     labelKey: 'reports.scope.my',
-    defaultLabel: '1. Báo cáo của tôi',
+    defaultLabel: 'Báo cáo của tôi',
     badgeKey: 'reports.badge.personal',
     defaultBadge: 'Cá nhân',
     badgeColor: '#2563eb',
@@ -51,7 +51,7 @@ const REPORT_SCOPES: ReportScopeConfig[] = [
   {
     id: 'team',
     labelKey: 'reports.scope.team',
-    defaultLabel: '2. Báo cáo Đội nhóm',
+    defaultLabel: 'Báo cáo Đội nhóm',
     badgeKey: 'reports.badge.team',
     defaultBadge: 'Team & Phòng ban',
     badgeColor: '#059669',
@@ -65,7 +65,7 @@ const REPORT_SCOPES: ReportScopeConfig[] = [
   {
     id: 'org',
     labelKey: 'reports.scope.org',
-    defaultLabel: '3. Báo cáo Toàn công ty',
+    defaultLabel: 'Báo cáo Toàn công ty',
     badgeKey: 'reports.badge.org',
     defaultBadge: 'Toàn tổ chức',
     badgeColor: '#7c3aed',
@@ -79,7 +79,7 @@ const REPORT_SCOPES: ReportScopeConfig[] = [
   {
     id: 'summary',
     labelKey: 'reports.scope.summary',
-    defaultLabel: '4. Bảng tổng hợp KPI',
+    defaultLabel: 'Bảng tổng hợp KPI',
     badgeKey: 'reports.badge.summary',
     defaultBadge: 'Dashboard Thống kê',
     badgeColor: '#d97706',
@@ -124,29 +124,20 @@ export const UnifiedPerformanceReportsPage: React.FC = () => {
     <div style={{ width: '100%', boxSizing: 'border-box', padding: '0 0 40px 0', marginTop: '8px' }}>
       {/* Top Banner & Scope Switcher Hub */}
       <div
+        className="unified-hub-banner"
         style={{
           backgroundColor: isDark ? '#111827' : '#ffffff',
           borderRadius: RADII.xl,
           border: `1px solid ${isDark ? '#1f2937' : '#e2e8f0'}`,
           boxShadow: SHADOWS.sm,
-          padding: '24px 28px 20px 28px',
-          marginBottom: '24px',
         }}
       >
         {/* Hub Header */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            flexWrap: 'wrap',
-            gap: '16px',
-            marginBottom: '20px',
-          }}
-        >
+        <div className="unified-hub-header">
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div
+                className="unified-hub-icon"
                 style={{
                   width: '38px',
                   height: '38px',
@@ -156,23 +147,22 @@ export const UnifiedPerformanceReportsPage: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  flexShrink: 0,
                 }}
               >
                 <Sparkles size={22} />
               </div>
               <div>
                 <h1
+                  className="unified-hub-title"
                   style={{
-                    margin: 0,
-                    fontSize: '22px',
-                    fontWeight: 800,
                     color: isDark ? '#f8fafc' : '#0f172a',
-                    letterSpacing: '-0.02em',
                   }}
                 >
                   {t('reports.title', 'Trung Tâm Báo Cáo Hiệu Suất (Performance Reports)')}
                 </h1>
                 <p
+                  className="hide-on-mobile"
                   style={{
                     margin: '3px 0 0 0',
                     fontSize: TYPOGRAPHY.fontSize.xs,
@@ -187,6 +177,7 @@ export const UnifiedPerformanceReportsPage: React.FC = () => {
 
           {/* User Role Tag */}
           <div
+            className="unified-hub-role"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -206,13 +197,9 @@ export const UnifiedPerformanceReportsPage: React.FC = () => {
 
         {/* Scope Selection Bar */}
         <div
+          className="unified-hub-tabs"
           style={{
-            display: 'flex',
-            gap: '10px',
             borderBottom: `1px solid ${isDark ? '#1f2937' : '#e2e8f0'}`,
-            paddingBottom: '2px',
-            overflowX: 'auto',
-            WebkitOverflowScrolling: 'touch',
           }}
         >
           {availableScopes.map((scope) => {
@@ -222,21 +209,12 @@ export const UnifiedPerformanceReportsPage: React.FC = () => {
                 key={scope.id}
                 type="button"
                 onClick={() => handleScopeChange(scope.id)}
+                className="unified-hub-tab-btn"
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '10px 18px',
-                  borderRadius: `${RADII.lg} ${RADII.lg} 0 0`,
-                  border: 'none',
                   borderBottom: isActive ? `3px solid ${isDark ? '#a78bfa' : '#7c3aed'}` : '3px solid transparent',
                   backgroundColor: isActive ? (isDark ? '#1e293b' : '#f8fafc') : 'transparent',
                   color: isActive ? (isDark ? '#c4b5fd' : '#5b21b6') : (isDark ? '#94a3b8' : '#64748b'),
-                  cursor: 'pointer',
-                  fontSize: TYPOGRAPHY.fontSize.sm,
                   fontWeight: isActive ? 700 : 500,
-                  transition: 'all 0.15s ease',
-                  whiteSpace: 'nowrap',
                 }}
               >
                 <span style={{ color: isActive ? (isDark ? '#a78bfa' : '#7c3aed') : (isDark ? '#64748b' : '#94a3b8') }}>
@@ -244,11 +222,8 @@ export const UnifiedPerformanceReportsPage: React.FC = () => {
                 </span>
                 <span>{t(scope.labelKey, scope.defaultLabel)}</span>
                 <span
+                  className="unified-hub-tab-badge"
                   style={{
-                    fontSize: '10px',
-                    fontWeight: 700,
-                    padding: '2px 7px',
-                    borderRadius: RADII.full,
                     backgroundColor: isDark ? scope.badgeBgDark : scope.badgeBg,
                     color: isDark ? '#ffffff' : scope.badgeColor,
                   }}
@@ -263,6 +238,7 @@ export const UnifiedPerformanceReportsPage: React.FC = () => {
         {/* Active Scope Description Notice */}
         {activeScopeConfig && (
           <div
+            className="unified-hub-hint hide-on-mobile"
             style={{
               display: 'flex',
               alignItems: 'center',

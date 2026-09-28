@@ -5,42 +5,67 @@ import { TestNotificationModal } from '../components/TestNotificationModal';
 import { useTheme } from '@/shared/theme';
 import { useUiTranslation } from '@/shared/i18n/ui-i18n';
 
-const NOTIFICATION_LABELS: Record<NotificationType, { title: string; desc: string }> = {
+interface NotificationItemMeta {
+  titleKey: string;
+  defaultTitle: string;
+  descKey: string;
+  defaultDesc: string;
+}
+
+const NOTIFICATION_METAS: Record<NotificationType, NotificationItemMeta> = {
   RESULT_PUBLISHED: {
-    title: 'Kết quả đánh giá chính thức (Evaluation Result Published)',
-    desc: 'Nhận email khi điểm số và xếp loại KPI chính thức được công bố.',
+    titleKey: 'notifications.type.result_published.title',
+    defaultTitle: 'Kết quả đánh giá chính thức',
+    descKey: 'notifications.type.result_published.desc',
+    defaultDesc: 'Nhận email khi điểm số và xếp loại KPI chính thức được công bố.',
   },
   CYCLE_OPENED: {
-    title: 'Mở kỳ đánh giá KPI mới (Cycle Opened)',
-    desc: 'Nhận email thông báo khi công ty bắt đầu một chu kỳ đánh giá mới kèm hạn nộp.',
+    titleKey: 'notifications.type.cycle_opened.title',
+    defaultTitle: 'Mở kỳ đánh giá KPI mới',
+    descKey: 'notifications.type.cycle_opened.desc',
+    defaultDesc: 'Nhận email thông báo khi công ty bắt đầu một chu kỳ đánh giá mới kèm hạn nộp.',
   },
   SELF_SUBMITTED: {
-    title: 'Xác nhận nộp tự đánh giá (Self-Assessment Submitted)',
-    desc: 'Nhận email xác nhận khi bạn đã hoàn thành và nộp bảng tự đánh giá.',
+    titleKey: 'notifications.type.self_submitted.title',
+    defaultTitle: 'Xác nhận nộp tự đánh giá',
+    descKey: 'notifications.type.self_submitted.desc',
+    defaultDesc: 'Nhận email xác nhận khi bạn đã hoàn thành và nộp bảng tự đánh giá.',
   },
   MANAGER_SUBMITTED: {
-    title: 'Quản lý hoàn thành đánh giá (Manager Review Submitted)',
-    desc: 'Nhận thông báo khi quản lý trực tiếp đã hoàn thành đánh giá nhân viên.',
+    titleKey: 'notifications.type.manager_submitted.title',
+    defaultTitle: 'Quản lý hoàn thành đánh giá',
+    descKey: 'notifications.type.manager_submitted.desc',
+    defaultDesc: 'Nhận thông báo khi quản lý trực tiếp đã hoàn thành đánh giá nhân viên.',
   },
   CORRECTION_REQUESTED: {
-    title: 'Yêu cầu điều chỉnh đánh giá (Correction Requested)',
-    desc: 'Nhận thông báo kèm lý do khi bảng đánh giá bị từ chối hoặc cần điều chỉnh.',
+    titleKey: 'notifications.type.correction_requested.title',
+    defaultTitle: 'Yêu cầu điều chỉnh đánh giá',
+    descKey: 'notifications.type.correction_requested.desc',
+    defaultDesc: 'Nhận thông báo kèm lý do khi bảng đánh giá bị từ chối hoặc cần điều chỉnh.',
   },
   SCORE_ADJUSTED: {
-    title: 'Hiệu chuẩn điểm KPI (Score Adjusted in Calibration)',
-    desc: 'Nhận email thông báo khi điểm KPI được hội đồng hiệu chuẩn điều chỉnh.',
+    titleKey: 'notifications.type.score_adjusted.title',
+    defaultTitle: 'Hiệu chuẩn điểm KPI',
+    descKey: 'notifications.type.score_adjusted.desc',
+    defaultDesc: 'Nhận email thông báo khi điểm KPI được hội đồng hiệu chuẩn điều chỉnh.',
   },
   REVIEW_DUE_REMINDER: {
-    title: 'Nhắc nhở hạn chót đánh giá (Review Due Reminder)',
-    desc: 'Nhận email nhắc nhở khi sắp đến hạn chót hoàn thành đánh giá KPI.',
+    titleKey: 'notifications.type.review_due_reminder.title',
+    defaultTitle: 'Nhắc nhở hạn chót đánh giá',
+    descKey: 'notifications.type.review_due_reminder.desc',
+    defaultDesc: 'Nhận email nhắc nhở khi sắp đến hạn chót hoàn thành đánh giá KPI.',
   },
   IMPORT_COMPLETED: {
-    title: 'Nhập dữ liệu hoàn tất (Import Completed)',
-    desc: 'Nhận thông báo khi tác vụ import danh sách KPI/nhân viên hoàn tất.',
+    titleKey: 'notifications.type.import_completed.title',
+    defaultTitle: 'Nhập dữ liệu hoàn tất',
+    descKey: 'notifications.type.import_completed.desc',
+    defaultDesc: 'Nhận thông báo khi tác vụ import danh sách KPI/nhân viên hoàn tất.',
   },
   CYCLE_LOCKED: {
-    title: 'Khóa kỳ đánh giá (Cycle Locked)',
-    desc: 'Nhận thông báo khi kỳ đánh giá đã chính thức đóng và khóa toàn bộ dữ liệu.',
+    titleKey: 'notifications.type.cycle_locked.title',
+    defaultTitle: 'Khóa kỳ đánh giá',
+    descKey: 'notifications.type.cycle_locked.desc',
+    defaultDesc: 'Nhận thông báo khi kỳ đánh giá đã chính thức đóng và khóa toàn bộ dữ liệu.',
   },
 };
 
@@ -59,7 +84,7 @@ export function NotificationPreferencesPage() {
         const data = await notificationApi.getUserPreferences();
         setPreferences(Array.isArray(data) ? data : []);
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : t('failed_load_notif_prefs', 'Không thể tải cài đặt thông báo.');
+        const msg = err instanceof Error ? err.message : t('notifications.preferences.load_error', 'Không thể tải cài đặt thông báo.');
         setToast({ type: 'error', message: msg });
       } finally {
         setLoading(false);
@@ -90,9 +115,9 @@ export function NotificationPreferencesPage() {
           enabled: p.enabled,
         }))
       );
-      setToast({ type: 'success', message: t('saved_notif_prefs', 'Đã lưu tùy chọn thông báo thành công!') });
+      setToast({ type: 'success', message: t('notifications.preferences.save_success', 'Đã lưu tùy chọn thông báo thành công!') });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : t('failed_save_notif_prefs', 'Lỗi khi cập nhật cài đặt thông báo.');
+      const msg = err instanceof Error ? err.message : t('notifications.preferences.save_error', 'Lỗi khi cập nhật cài đặt thông báo.');
       setToast({ type: 'error', message: msg });
     } finally {
       setSaving(false);
@@ -113,10 +138,13 @@ export function NotificationPreferencesPage() {
       >
         <div style={{ flex: 1, minWidth: 280 }}>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: isDark ? '#f8fafc' : '#0f172a', margin: '0 0 0.5rem 0' }}>
-            {t('notif_prefs_title', 'Tùy chọn nhận thông báo qua Email (Notification Preferences)')}
+            {t('notifications.preferences.title', 'Tùy chọn nhận thông báo qua Email')}
           </h1>
           <p style={{ fontSize: '0.9375rem', color: isDark ? '#94a3b8' : '#64748b', margin: 0 }}>
-            {t('notif_prefs_desc', 'Quản lý các loại thông báo sự kiện bạn muốn nhận qua email cơ quan. Cấu hình sẽ được áp dụng ngay lập tức cho tài khoản của bạn.')}
+            {t(
+              'notifications.preferences.desc',
+              'Quản lý các loại thông báo sự kiện bạn muốn nhận qua email cơ quan. Cấu hình sẽ được áp dụng ngay lập tức cho tài khoản của bạn.'
+            )}
           </p>
         </div>
         <div>
@@ -152,21 +180,24 @@ export function NotificationPreferencesPage() {
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '3rem 0', color: isDark ? '#94a3b8' : '#64748b' }}>
-          {t('loading_notif_prefs', 'Đang tải tùy chọn thông báo...')}
+          {t('notifications.preferences.loading', 'Đang tải tùy chọn thông báo...')}
         </div>
       ) : (
         <div style={{ background: isDark ? '#111827' : '#ffffff', borderRadius: 12, border: `1px solid ${isDark ? '#1f2937' : '#e2e8f0'}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
           <div style={{ padding: '1rem 1.5rem', background: isDark ? '#1e293b' : '#f8fafc', borderBottom: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.875rem', fontWeight: 600, color: isDark ? '#cbd5e1' : '#475569' }}>{t('notif_col_type', 'LOẠI THÔNG BÁO')}</span>
-            <span style={{ fontSize: '0.875rem', fontWeight: 600, color: isDark ? '#cbd5e1' : '#475569' }}>{t('notif_col_status', 'TRẠNG THÁI')}</span>
+            <span style={{ fontSize: '0.875rem', fontWeight: 600, color: isDark ? '#cbd5e1' : '#475569' }}>
+              {t('notifications.preferences.col_type', 'LOẠI THÔNG BÁO')}
+            </span>
+            <span style={{ fontSize: '0.875rem', fontWeight: 600, color: isDark ? '#cbd5e1' : '#475569' }}>
+              {t('notifications.preferences.col_status', 'TRẠNG THÁI')}
+            </span>
           </div>
 
           <div>
             {(Array.isArray(preferences) ? preferences : []).map((item) => {
-              const labelInfo = NOTIFICATION_LABELS[item.notification_type] || {
-                title: item.notification_type,
-                desc: 'Thông báo sự kiện hệ thống',
-              };
+              const meta = NOTIFICATION_METAS[item.notification_type];
+              const title = meta ? t(meta.titleKey, meta.defaultTitle) : item.notification_type;
+              const desc = meta ? t(meta.descKey, meta.defaultDesc) : 'Thông báo sự kiện hệ thống';
 
               return (
                 <div
@@ -183,11 +214,11 @@ export function NotificationPreferencesPage() {
                   <div style={{ paddingRight: '2rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
                       <span style={{ fontSize: '0.9375rem', fontWeight: 600, color: isDark ? '#f8fafc' : '#1e293b' }}>
-                        {labelInfo.title}
+                        {title}
                       </span>
                       {item.is_mandatory && (
                         <span
-                          title={t('rule17_tooltip', 'Quy tắc bắt buộc Rule 17: Thông báo kết quả đánh giá không thể bị tắt')}
+                          title={t('notifications.preferences.rule17_tooltip', 'Quy tắc bắt buộc Rule 17: Thông báo kết quả đánh giá không thể bị tắt')}
                           style={{
                             fontSize: '0.75rem',
                             fontWeight: 600,
@@ -198,12 +229,12 @@ export function NotificationPreferencesPage() {
                             border: `1px solid ${isDark ? 'rgba(59, 130, 246, 0.4)' : '#bfdbfe'}`,
                           }}
                         >
-                          🔒 {t('rule17_mandatory', 'Bắt buộc (Rule 17)')}
+                          🔒 {t('notifications.preferences.rule17_mandatory', 'Bắt buộc (Rule 17)')}
                         </span>
                       )}
                     </div>
                     <p style={{ fontSize: '0.8125rem', color: isDark ? '#94a3b8' : '#64748b', margin: 0 }}>
-                      {labelInfo.desc}
+                      {desc}
                     </p>
                   </div>
 
@@ -217,7 +248,7 @@ export function NotificationPreferencesPage() {
                         cursor: item.is_mandatory ? 'not-allowed' : 'pointer',
                         opacity: item.is_mandatory ? 0.7 : 1,
                       }}
-                      title={item.is_mandatory ? 'Không thể tắt thông báo bắt buộc này (Rule 17)' : undefined}
+                      title={item.is_mandatory ? t('notifications.preferences.rule17_tooltip', 'Không thể tắt thông báo bắt buộc này (Rule 17)') : undefined}
                     >
                       <input
                         type="checkbox"
@@ -278,7 +309,7 @@ export function NotificationPreferencesPage() {
                 boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
               }}
             >
-              {saving ? t('saving', 'Đang lưu...') : t('save_settings', 'Lưu thay đổi')}
+              {saving ? t('notifications.preferences.saving', 'Đang lưu...') : t('notifications.preferences.save_btn', 'Lưu thay đổi')}
             </button>
           </div>
         </div>

@@ -178,7 +178,7 @@ export const UnifiedNotificationsPage: React.FC = () => {
               fontWeight: 700,
             }}
           >
-            <span>{t('notifications.role_label', 'Vai trò')}: {userRole}</span>
+            <span>{t('common.role', 'Vai trò')}: {userRole}</span>
           </div>
         </div>
 

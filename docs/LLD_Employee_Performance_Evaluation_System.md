@@ -1,6 +1,6 @@
 # LLD — Employee Performance Evaluation Management System
 
-> **Trạng thái tài liệu:** v1.9 — hợp nhất `evaluation_data_import` làm bảng staging duy nhất cho cả CSV Import và Automated Data Crawling; chốt permission Crawl Script chỉ System Admin, không auto-apply. Xem changelog cuối tài liệu.
+> **Trạng thái tài liệu:** v2.0 — Crawl Job đổi sang mô hình N-N: 1 job phủ nhiều Criterion, 1 Evaluation Cycle enable nhiều job, chỉ chạy cho Cycle đang `OPEN`. Xem changelog cuối tài liệu.
 > **18 tiêu chí hiện tại (Performance / Capability / Contribution) chỉ được coi là *seed data / sample configuration*.** Toàn bộ hệ thống được thiết kế theo hướng **Configurable, Rule-driven Evaluation Framework** — không hard-code criterion, weight, level, hay tool phụ thuộc vào application code.
 
 ---
@@ -258,7 +258,10 @@ erDiagram
     I18N_TRANSLATION }o--|| ROLE : "polymorphic — name"
     I18N_TRANSLATION }o--|| JOB_LEVEL : "polymorphic — name"
     I18N_TRANSLATION }o--|| REVIEW_CADENCE : "polymorphic — name"
-    CRITERION ||--o{ CRAWL_JOB_DEFINITION : "đăng ký job crawl theo criterion (mục 15.1)"
+    CRAWL_JOB_DEFINITION ||--o{ CRAWL_JOB_CRITERION : "phủ nhiều criterion (N-N, mục 15.1.2)"
+    CRITERION ||--o{ CRAWL_JOB_CRITERION : "được nhiều job phủ"
+    EVALUATION_CYCLE ||--o{ EVALUATION_CYCLE_CRAWL_JOB : "enable nhiều job"
+    CRAWL_JOB_DEFINITION ||--o{ EVALUATION_CYCLE_CRAWL_JOB : "dùng lại ở nhiều cycle"
     CRAWL_SCRIPT ||--o{ CRAWL_JOB_DEFINITION : "script đã publish"
     CONNECTOR_CREDENTIAL ||--o{ CRAWL_JOB_DEFINITION : "credential nguồn ngoài"
     CRAWL_JOB_DEFINITION ||--o{ EVALUATION_DATA_IMPORT : "mỗi lần chạy tạo 1 batch"
@@ -354,8 +357,8 @@ erDiagram
 | employment_status | varchar(20) | N | ENUM ACTIVE/INACTIVE/ON_LEAVE/TERMINATED |
 | join_date | date | N | |
 | review_cadence_override_id | uuid | Y | **Mới** — FK → review_cadence; override cấp cá nhân, cao nhất trong precedence (mục 14.1) |
-| last_evaluation_completed_at | timestamptz | Y | **Mới** — cập nhật tự động khi 1 evaluation của employee này đạt PUBLISHED (= `published_at`); **không** cập nhật lại khi PUBLISHED → LOCKED |
-| next_review_due_date | date *(cột vật lý hiện là `timestamptz`, lưu business date lúc 00:00 UTC)* | Y | **Mới** — tính tự động = business date (`BUSINESS_TIMEZONE`) của `last_evaluation_completed_at` + `effective_cadence.interval_months` tháng dương lịch; null nếu chưa từng được đánh giá lần nào (coi như due ngay) |
+| last_evaluation_completed_at | timestamptz | Y | **Mới** — cập nhật tự động khi 1 evaluation của employee này đạt PUBLISHED/LOCKED |
+| next_review_due_date | date | Y | **Mới** — tính tự động = `last_evaluation_completed_at + effective_cadence.interval_months`; null nếu chưa từng được đánh giá lần nào (coi như due ngay) |
 
 Index: `(team_id)`, `(manager_id)`, `(employment_status)`, `(next_review_due_date)` — **mới**, phục vụ query "Review Due Dashboard" (mục 14.1).
 
@@ -426,8 +429,6 @@ Unique: `(evaluation_template_id, version_no)`.
 
 **evaluation_cycle**
 | evaluation_cycle_id uuid PK | code varchar UNIQUE | name varchar | cycle_type varchar(20) — **mới**, ENUM `BATCH` (cycle đặt tên, mở hàng loạt như "2026 H2") / `INDIVIDUAL_SCHEDULED` (tự sinh cho đúng 1 employee theo review cadence, mục 14.1) | start_date date | end_date date | status varchar(20) — DRAFT/OPEN/IN_PROGRESS/SUBMITTED/REVIEWING/CALIBRATION/APPROVED/PUBLISHED/LOCKED | evaluation_template_version_id FK | applicable_team_ids uuid[] (null nếu `cycle_type=INDIVIDUAL_SCHEDULED`) | applicable_role_ids uuid[] (null nếu `cycle_type=INDIVIDUAL_SCHEDULED`) | triggered_by_employee_id uuid FK null — **mới**, chỉ set khi `cycle_type=INDIVIDUAL_SCHEDULED` | created_by uuid | approved_by uuid | locked_at timestamptz null |
-
-> **Triển khai (task individual-evaluation-cycle-creation):** migration `1791000000004` thêm `cycle_type varchar(20) NOT NULL DEFAULT 'BATCH'` (CHECK `BATCH`/`INDIVIDUAL_SCHEDULED`; dữ liệu cũ = `BATCH`) và `triggered_by_employee_id uuid NULL` FK → `employee`, CHECK: khác null **khi và chỉ khi** `cycle_type = INDIVIDUAL_SCHEDULED`. `triggered_by_employee_id` = **employee được đánh giá** (người thao tác nằm ở `created_by` + audit). Code map `applicable_team_ids`/`applicable_role_ids` null ↔ `[]`, nên cycle `INDIVIDUAL_SCHEDULED` lưu `applicable_team_ids = applicable_role_ids = []` và `applicable_employee_ids = [employee_id]` (đúng 1 employee).
 
 **evaluation** *(1 employee × 1 cycle)*
 | Column | Type | Note |
@@ -806,16 +807,7 @@ next_review_due_date = last_evaluation_completed_at + effective_cadence.interval
 - Cập nhật **tự động** ngay khi 1 evaluation của employee đó đạt `PUBLISHED` (mục 14) — không đợi HR tính tay.
 - Nếu employee đổi `job_level` hoặc HR đổi `review_cadence_override_id` → `next_review_due_date` **tính lại ngay** theo cadence mới, dựa trên `last_evaluation_completed_at` cũ (không reset về hôm nay) — xem Open Question về "grandfathering".
 
-### Triển khai (task next-review-due-date-auto-update) — đã chốt
-- **Owner duy nhất:** `ReviewScheduleService` (module `employee`) là nơi DUY NHẤT ghi `last_evaluation_completed_at` / `next_review_due_date` (qua `EmployeeScheduleRepository.saveSchedules`, 1 câu `UPDATE … FROM unnest(...)`). Công thức nằm duy nhất ở `employee/domain/review-schedule.ts`.
-- **Ngày nghiệp vụ:** `next_review_due_date = toBusinessDate(last_evaluation_completed_at, BUSINESS_TIMEZONE) + interval_months` tháng dương lịch, kẹp về ngày cuối tháng (31/01 + 1 → 28/29/02). Không dùng 30 ngày, không dùng timezone server/client. Cột vật lý là `timestamptz` → lưu business date lúc 00:00 UTC.
-- **Publish (EVAL-06):** mọi đường dẫn đạt `PUBLISHED` (`POST /evaluations/{id}/publish`, calibration finalize auto-publish) gọi port `EvaluationPublishedHandler` trong **cùng transaction**; lỗi ở bước schedule/audit → rollback cả publish. `PUBLISHED → LOCKED` không cập nhật. *(Ghi nhận: `approve` hiện chưa tự publish như mục 14 — nợ có sẵn, ngoài phạm vi task.)*
-- **Đổi cadence hiệu lực:** đổi override (`PATCH /employees/{id}/review-cadence-override`), đổi `job_level_id` (`PATCH /employees/{id}`, HR/Admin), đổi `default_review_cadence_id` (`PATCH /org/job-levels/{id}`, HR/Admin — chỉ employee không có override active), sửa `interval_months` / `active` / `is_system_default` hoặc xóa cadence system default (`/review-cadences`) → khóa employee bị ảnh hưởng (`FOR UPDATE`, `ORDER BY employee_id`) **trước** khi ghi, tính lại từ `last_evaluation_completed_at` hiện có **sau** khi ghi, cùng transaction. Review-cadence/organization gọi qua port `ReviewCadenceChangeHandler` / `JobLevelCadenceChangeHandler` (không query bảng `employee`).
-- **Cadence inactive** bị bỏ qua và rơi xuống tầng precedence tiếp theo; deactivate không bị chặn; xóa cadence đang được tham chiếu vẫn bị chặn (`CADENCE_IN_USE`).
-- **Audit:** `SCHEDULE_UPDATED` (publish, có `evaluation_id`) và `SCHEDULE_RECALC` (chỉ khi due date thực sự đổi); `old_value`/`new_value` JSON gồm `employee_id`, `trigger`, `last_evaluation_completed_at` (base), `next_review_due_date`, `effective_cadence {id, code, interval_months, source}`; kèm audit `EMPLOYEE/UPDATE` (`review_cadence_override_id`, `job_level_id`), `JOB_LEVEL/UPDATE` (`default_review_cadence_id`), `REVIEW_CADENCE/UPDATE`.
-- **API:** `effective_cadence.source` (`EMPLOYEE_OVERRIDE | JOB_LEVEL_DEFAULT | SYSTEM_DEFAULT`) có ở `GET /employees`, `GET /employees/{id}`, `PATCH …/review-cadence-override`, `GET /reviews/due`. `POST/PATCH /employees` **bỏ qua** `review_cadence`, `review_cadence_months`, `last_evaluation_completed_at`, `next_review_due_date` do client gửi; `PATCH /collector/jira/members/{code}/cadence` trả `422 REVIEW_SCHEDULE_READ_ONLY` cho các field lịch; Jira `markReviewed` không còn đổi lịch. Không có endpoint "recalculate".
-
-
+### Review Due Dashboard & trigger tạo evaluation
 ```mermaid
 sequenceDiagram
     actor HR as HR/Admin hoặc Manager
@@ -848,12 +840,6 @@ sequenceDiagram
 ### Chống trùng lặp (dedup) với Batch Cycle
 - Trước khi tạo `INDIVIDUAL_SCHEDULED` cycle cho 1 employee, hệ thống kiểm tra: **có Batch Cycle nào sắp mở (trong vòng N tuần tới, N configurable) đã bao gồm employee này không?** Nếu có → cảnh báo HR "Nhân viên này sẽ được đánh giá trong cycle {code} vào {ngày}, có chắc muốn tạo review riêng không?" thay vì tự động chặn — quyết định cuối vẫn thuộc HR.
 - Ràng buộc DB: `evaluation` unique theo `(evaluation_cycle_id, employee_id)` (đã có) — nhưng **không** ràng buộc unique toàn cục "1 employee chỉ có 1 evaluation đang mở tại 1 thời điểm" ở mức DB, vì có thể có nhu cầu hợp lệ hiếm gặp (vd vừa có review định kỳ vừa có review đột xuất do sự kiện đặc biệt) — validate ở service layer (soft warning), không chặn cứng bằng DB constraint.
-- **Triển khai (task individual-evaluation-cycle-creation) — đã chốt:**
-  - Contract: `POST /evaluation-cycles/individual` body `{ name?, evaluation_template_version_id? (alias template_version_id; mặc định = phiên bản PUBLISHED mới nhất), employee_ids[1..100], start_date, end_date }` (trùng `employee_ids` được dedup). Mỗi employee hợp lệ → 1 cycle `INDIVIDUAL_SCHEDULED` (status `OPEN`, `code` tự sinh `IND-{employee_code}-{yyyymmdd}-{6 hex}`, name `"{name|Individual Review} - {employee_code}"`) + 1 evaluation + evaluation_items, sinh bởi `EvaluationGenerationService` — **cùng** code với `POST /evaluation-cycles/{id}/open`. Review Due Dashboard (modal "Tạo đánh giá cá nhân") và trang `/admin/individual-cycles` dùng chung endpoint này. Toàn bộ request trong 1 transaction; audit `INDIVIDUAL_CYCLE_CREATED` mỗi cycle cùng transaction.
-  - "Evaluation đang active" = `status NOT IN (APPROVED, PUBLISHED, LOCKED, REJECTED)` AND `is_locked = false` AND cycle chứa nó ≠ `LOCKED`. Employee đang active → **bỏ qua** (trả trong `data.skipped`, reason `EVALUATION_ALREADY_OPEN`), các employee khác vẫn tạo (201). Nếu **tất cả** bị bỏ qua → `409 EVALUATION_ALREADY_OPEN` (`meta.error.details` liệt kê employee). Chặn cứng ở service layer, **không** thêm DB constraint; chống race bằng `SELECT … FROM employee … ORDER BY employee_id FOR UPDATE` trước khi kiểm tra.
-  - Employee không tồn tại → 404; không `ACTIVE` hoặc thiếu team/role → 422 `EMPLOYEE_NOT_ELIGIBLE`; Manager chỉ cho employee thuộc `managedTeamIds` (ngoài scope → 403 cả request).
-  - Cảnh báo dedup: "Batch Cycle sắp mở" = `cycle_type = BATCH`, `status = DRAFT`, `start_date ∈ [hôm nay, hôm nay + N tuần]` (theo `BUSINESS_TIMEZONE`), employee khớp cùng bộ lọc applicable như Open Cycle; **N = env `BATCH_CYCLE_LEAD_TIME_WEEKS`, mặc định 4**. Trả `data.warnings[]` (code `UPCOMING_BATCH_CYCLE`), 1 warning / (employee, batch cycle), không chặn.
-  - Rủi ro đã chấp nhận: Open batch cycle **không** khoá employee, nên batch open chạy đồng thời với individual create vẫn có thể sinh 2 evaluation active (Risk #11).
 
 ### API bổ sung (mục 16)
 | Method | Endpoint | Auth | Note |
@@ -1006,39 +992,65 @@ Index: `(import_id, status)`.
 | status | varchar(20) | N | ENUM `DRAFT` / `PUBLISHED` / `DEPRECATED` — **PUBLISHED bất biến**, sửa phải tạo version mới |
 | created_by, published_by, published_at | | | |
 
-**crawl_job_definition** — "đăng ký job" theo đúng yêu cầu, buộc 1 job = 1 criterion + 1 source + 1 script:
+**crawl_job_definition** — ✅ **cập nhật (v2.0):** "đăng ký job" **không còn gắn cứng 1-1 với Criterion**. 1 job = 1 script + 1 source, nhưng **có thể phủ nhiều Criterion/KPI cùng lúc** (vd 1 script fetch nguyên 1 report Jira chứa số liệu cho cả "On-time Completion" và "Bug & Rework" trong 1 lần gọi API):
 
 | Column | Type | Null | Note |
 |---|---|---|---|
 | crawl_job_definition_id | uuid | N | PK |
-| criterion_id | uuid | N | FK → criterion — **job luôn gắn với đúng 1 Criterion/KPI** |
+| code | varchar(100) | N | UNIQUE, tên gợi nhớ (vd `JIRA_ENGINEERING_METRICS`) |
 | source_system | varchar(20) | N | ENUM `BLUEPRINT` / `JIRA` / `GOOGLE_SHEET` |
 | crawl_script_id | uuid | N | FK → crawl_script (chỉ được trỏ tới version `PUBLISHED`) |
 | connector_credential_id | uuid | N | FK → connector_credential (mục 15.1.6) — **không** lưu token/secret trực tiếp ở đây |
 | source_config | jsonb | N | tham số không nhạy cảm (vd JQL query cho Jira, Sheet ID + range cho Google Sheet, endpoint path cho Blueprint) |
-| sequence_order | int | N | **thứ tự chạy tuần tự** trong 1 lần scheduler trigger — job có `sequence_order` nhỏ hơn chạy trước |
-| schedule_cron | varchar(50) | Y | cron expression (vd `0 2 * * *` = 2h sáng mỗi ngày); null = chỉ chạy thủ công |
-| active | boolean | N | |
+| default_schedule_cron | varchar(50) | Y | cron expression gợi ý mặc định (vd `0 2 * * *`); **thời điểm chạy thật sự còn phụ thuộc cycle đang OPEN hay không**, xem 15.1.3 |
+| active | boolean | N | kill-switch toàn cục — tắt job này ở **mọi** cycle cùng lúc, độc lập với `enabled` theo từng cycle (bảng dưới) |
 | created_by, created_at, updated_at | | | |
 
-Unique: `(criterion_id, source_system)` — mỗi Criterion chỉ có tối đa 1 job đăng ký cho mỗi loại nguồn (tránh 2 job cùng ghi đè dữ liệu cho cùng 1 criterion từ cùng 1 nguồn).
+**crawl_job_criterion** *(🆕 bảng N-N — "1 script gắn với 1 hoặc nhiều KPI")*
+| Column | Type | Null | Note |
+|---|---|---|---|
+| crawl_job_definition_id | uuid | N | FK, PK compound |
+| criterion_id | uuid | N | FK → criterion, PK compound |
 
-### 15.1.3 Thực thi tuần tự — Sequential Execution Queue
+Unique: `(crawl_job_definition_id, criterion_id)`. **Validate ở service layer** (không phải DB constraint, vì là kiểm tra chéo N-N): trong cùng 1 `evaluation_cycle`, không được có 2 job **cùng enabled** (bảng dưới) phủ trùng 1 Criterion — tránh 2 script cùng ghi đè dữ liệu cho cùng criterion từ 2 nguồn khác nhau gây xung đột không rõ nguồn nào đúng.
 
-**Quyết định:** dùng **cùng hạ tầng Job Queue đã có** (BullMQ — mục 27), nhưng tạo 1 **queue riêng `crawl-jobs` với `concurrency=1`** (chỉ 1 worker xử lý tại 1 thời điểm) — đây chính là cơ chế đảm bảo "chạy tuần tự", không cần tự viết scheduler riêng.
+**evaluation_cycle_crawl_job** *(🆕 bảng N-N — "Evaluation Cycle có thể gắn nhiều script đang enable")*
+| Column | Type | Null | Note |
+|---|---|---|---|
+| evaluation_cycle_id | uuid | N | FK, PK compound |
+| crawl_job_definition_id | uuid | N | FK, PK compound |
+| enabled | boolean | N | default true — HR/Admin bật/tắt job này **riêng cho từng cycle**, không ảnh hưởng cycle khác dùng chung job |
+| sequence_order | int | N | thứ tự chạy **trong phạm vi cycle này** (2 cycle có thể enable chung 1 job nhưng thứ tự chạy khác nhau) |
+| enabled_by, enabled_at | | | audit ai bật job cho cycle nào |
+
+> **Quan hệ tổng thể:** `crawl_script` (code) 1—N `crawl_job_definition` (đăng ký script+source) N—N `criterion` (qua `crawl_job_criterion`) và N—N `evaluation_cycle` (qua `evaluation_cycle_crawl_job`). 1 job đăng ký 1 lần có thể tái sử dụng ở nhiều cycle khác nhau (HR không phải đăng ký lại job mỗi kỳ, chỉ cần "enable" nó cho cycle mới).
+
+### 15.1.3 Thực thi tuần tự — Sequential Execution Queue, chỉ chạy cho Cycle đang `OPEN`
+
+**Quyết định:** dùng **cùng hạ tầng Job Queue đã có** (BullMQ — mục 27), tạo 1 **queue riêng `crawl-jobs` với `concurrency=1`** — cơ chế đảm bảo "chạy tuần tự". ✅ **Cập nhật (v2.0):** bổ sung điều kiện lọc theo trạng thái Cycle — **chỉ trigger crawl cho `evaluation_cycle.status = 'OPEN'`**, mọi status khác (DRAFT/IN_PROGRESS/REVIEWING/CALIBRATION/APPROVED/PUBLISHED/LOCKED) **đều bị bỏ qua**, kể cả khi job vẫn `enabled=true` cho cycle đó.
 
 ```
-Scheduler (cron trigger theo schedule_cron của từng crawl_job_definition)
-  → enqueue vào queue "crawl-jobs" theo đúng sequence_order
+Scheduler tick (theo default_schedule_cron của từng crawl_job_definition, hoặc 1 tick hệ thống chung — vd mỗi giờ):
+  for each evaluation_cycle WHERE status = 'OPEN':
+      for each evaluation_cycle_crawl_job
+            WHERE evaluation_cycle_id = cycle.id
+              AND enabled = true
+              AND crawl_job_definition.active = true          -- kill-switch toàn cục vẫn tôn trọng
+            ORDER BY sequence_order:
+          enqueue (cycle_id, crawl_job_definition_id) vào queue "crawl-jobs"
   → Worker (concurrency=1) lấy job kế tiếp, thực thi trong sandbox (mục 15.1.6)
-  → Ghi kết quả vào evaluation_data_import + evaluation_data_import_row
+  → Ghi kết quả vào evaluation_data_import (kèm evaluation_cycle_id) + evaluation_data_import_row
   → Job tiếp theo trong queue chỉ bắt đầu sau khi job hiện tại kết thúc (thành công/timeout/lỗi)
 ```
 
-**Why tuần tự (Decision → Why → Alternative → Trade-off):**
-**Why:** (1) tránh gọi đồng thời nhiều API bên ngoài (Jira/Google Sheets) gây vượt rate-limit của chính các dịch vụ đó; (2) đơn giản hóa mô hình concurrency cho execution sandbox (không cần pool nhiều sandbox instance cùng lúc); (3) nếu 2 job cùng lúc ghi vào `evaluation_data_import` cho cùng 1 employee ở 2 criterion khác nhau, tuần tự tránh race condition không cần thiết ở MVP.
-**Alternative:** chạy song song có giới hạn (vd concurrency=3).
-**Trade-off:** nếu có nhiều job đăng ký (vd 20 criterion × 3 nguồn = 60 job), tổng thời gian chạy hết 1 vòng sẽ dài hơn chạy song song — chấp nhận được vì đây là job nền ban đêm (theo cron), không ảnh hưởng trải nghiệm người dùng thời gian thực.
+**Why lọc theo `status=OPEN` (Decision → Why → Alternative → Trade-off):**
+**Why:** crawl dữ liệu cho 1 cycle không còn `OPEN` là vô nghĩa hoặc nguy hiểm — nếu cycle đã `LOCKED`, ghi thêm `evaluation_data_import` mới sẽ tạo dữ liệu "mồ côi" không bao giờ Apply được (evaluation đã khóa); nếu cycle đang `REVIEWING`/`APPROVED`, crawl thêm dữ liệu mới có thể gây hiểu lầm "sao điểm chưa cập nhật" trong khi thực ra employee đã submit xong.
+**Alternative:** cho phép crawl ở mọi trạng thái, chỉ chặn ở bước Apply.
+**Trade-off:** cách đã chọn có thể bỏ lỡ dữ liệu nếu Manager cố tình muốn bổ sung số liệu **sau khi** đã REVIEWING (vd phát hiện thiếu) — trường hợp này cần trigger **thủ công** qua `POST /crawl-job-definitions/{id}/trigger` (mục 15.1.7), endpoint này **vẫn tôn trọng cùng điều kiện `status=OPEN`** để nhất quán, trả lỗi `422 CYCLE_NOT_OPEN` nếu vi phạm — không có đường vòng nào bỏ qua rule này kể cả trigger thủ công.
+
+**Why tuần tự (không đổi so với v1.9):**
+(1) tránh gọi đồng thời nhiều API bên ngoài (Jira/Google Sheets) gây vượt rate-limit; (2) đơn giản hóa mô hình concurrency cho execution sandbox; (3) tránh race condition khi nhiều job cùng ghi `evaluation_data_import` cho cùng 1 cycle.
+**Trade-off:** nếu nhiều cycle `OPEN` cùng lúc, mỗi cycle nhiều job enabled, tổng thời gian 1 vòng quét sẽ dài — chấp nhận được vì đây là job nền, không ảnh hưởng trải nghiệm real-time.
 
 ### 15.1.4 Data flow & Status lifecycle
 
@@ -1050,21 +1062,31 @@ sequenceDiagram
     participant Source as BLUEPRINT/JIRA/GOOGLE_SHEET
     participant DB
 
-    Scheduler->>DB: đọc crawl_job_definition active, đến hạn theo schedule_cron
-    Scheduler->>Queue: enqueue theo thứ tự sequence_order
-    loop mỗi job trong queue (tuần tự)
-        Queue->>DB: tạo evaluation_data_import (status=DRAFT, source_system, crawl_job_definition_id)
-        Queue->>Sandbox: thực thi crawl_script.source_code (timeout N giây, network whitelist theo source_system)
-        Sandbox->>Source: gọi API (credential lấy qua connector_credential, KHÔNG lộ raw secret cho script)
-        Source-->>Sandbox: raw data
-        Sandbox-->>Queue: trả về mảng record đã chuẩn hóa (employee_code, criterion_code, measurement_value, measurement_unit)
-        Queue->>DB: lưu raw_payload (nguyên văn), status=VALIDATING
-        Queue->>DB: parse từng record → insert evaluation_data_import_row (PARSED/INVALID/CONFLICT)
-        Queue->>DB: sinh source_comment cho mỗi row (mục 15.1.5)
-        Queue->>DB: evaluation_data_import.status=PENDING_REVIEW, cập nhật record_count/success_count/error_count/conflict_count
+    Scheduler->>DB: đọc evaluation_cycle WHERE status='OPEN' (mọi status khác bị bỏ qua)
+    loop mỗi cycle OPEN
+        Scheduler->>DB: đọc evaluation_cycle_crawl_job WHERE enabled=true AND crawl_job_definition.active=true, ORDER BY sequence_order
+        Scheduler->>Queue: enqueue (cycle_id, crawl_job_definition_id) theo thứ tự
     end
-    Note over DB: Job kế tiếp trong queue chỉ bắt đầu sau khi job này ghi xong PENDING_REVIEW/FAILED
+    loop mỗi (cycle, job) trong queue (tuần tự)
+        Queue->>DB: re-check cycle.status='OPEN' (phòng cycle đổi trạng thái trong lúc chờ trong queue)
+        alt cycle không còn OPEN
+            Queue->>DB: bỏ qua job, ghi log SKIPPED_CYCLE_NOT_OPEN
+        else vẫn OPEN
+            Queue->>DB: tạo evaluation_data_import (status=DRAFT, source_system, crawl_job_definition_id, evaluation_cycle_id)
+            Queue->>Sandbox: thực thi crawl_script.source_code (timeout N giây, network whitelist theo source_system)
+            Sandbox->>Source: gọi API (credential lấy qua connector_credential, KHÔNG lộ raw secret cho script)
+            Source-->>Sandbox: raw data
+            Sandbox-->>Queue: trả về mảng record đã chuẩn hóa (employee_code, criterion_code, measurement_value, measurement_unit) — có thể chứa NHIỀU criterion_code khác nhau
+            Queue->>DB: lưu raw_payload (nguyên văn), status=VALIDATING
+            Queue->>DB: parse từng record; check criterion_code ∈ tập crawl_job_criterion của job (Rule 22) → PARSED/INVALID/CONFLICT
+            Queue->>DB: sinh source_comment cho mỗi row (mục 15.1.5)
+            Queue->>DB: evaluation_data_import.status=PENDING_REVIEW, cập nhật record_count/success_count/error_count/conflict_count
+        end
+    end
+    Note over DB: Job kế tiếp trong queue chỉ bắt đầu sau khi job này ghi xong PENDING_REVIEW/FAILED/SKIPPED
 ```
+
+> **Vì sao re-check `status='OPEN'` lần nữa ở Worker (không chỉ ở Scheduler):** giữa lúc job được enqueue và lúc worker thực sự lấy ra chạy có thể có độ trễ (queue tuần tự, có thể chờ nhiều job phía trước). Nếu trong khoảng đó cycle bị chuyển sang `LOCKED`/`REVIEWING`, chỉ check ở Scheduler sẽ để lọt job chạy cho cycle không còn hợp lệ. Check lại ngay trước khi thực thi đảm bảo Rule 25 đúng tuyệt đối (time-of-check vs time-of-use).
 
 Sau đó luồng **review & apply do con người thực hiện** (không tự động), xem mục 15.1.5.
 
@@ -1105,10 +1127,13 @@ Yêu cầu trước đó (`Import_Center_Feature_Definition.md`, Rule E1) bắt 
 |---|---|---|---|
 | GET/POST | `/crawl-scripts` | **System Admin only** | quản lý script (source_code, version) |
 | POST | `/crawl-scripts/{id}/versions/{v}/publish` | **System Admin only** | publish version, chốt checksum, immutable |
-| GET/POST | `/crawl-job-definitions` | HR/Admin | đăng ký job (chọn script đã publish + criterion + source + schedule) |
-| PATCH | `/crawl-job-definitions/{id}` | HR/Admin | sửa schedule/sequence_order/active |
-| POST | `/crawl-job-definitions/{id}/trigger` | HR/Admin | chạy thủ công ngay (bỏ qua cron), vẫn vào queue tuần tự |
-| GET | `/data-imports?source_system=` | HR/Admin | xem danh sách `evaluation_data_import`, filter theo status/source/criterion |
+| GET/POST | `/crawl-job-definitions` | HR/Admin | đăng ký job: chọn script đã publish + source + config + **danh sách `criterion_ids[]` (1 hoặc nhiều)** |
+| PATCH | `/crawl-job-definitions/{id}` | HR/Admin | sửa config/`default_schedule_cron`/`active` |
+| PUT | `/crawl-job-definitions/{id}/criteria` | HR/Admin | 🆕 thay toàn bộ danh sách Criterion mà job này phủ (`crawl_job_criterion`) |
+| GET | `/evaluation-cycles/{cycleId}/crawl-jobs` | HR/Admin | 🆕 xem danh sách job đang gắn với cycle + trạng thái `enabled` + `sequence_order` |
+| PUT | `/evaluation-cycles/{cycleId}/crawl-jobs/{jobId}` | HR/Admin | 🆕 bật/tắt `enabled` + đặt `sequence_order` cho 1 job trong 1 cycle; validate Rule 27 (không trùng criterion với job khác đang enabled) |
+| POST | `/crawl-job-definitions/{id}/trigger` | HR/Admin | chạy thủ công ngay (bỏ qua cron) cho **1 cycle cụ thể** (`body: { evaluation_cycle_id }`), vẫn vào queue tuần tự; trả `422 CYCLE_NOT_OPEN` nếu cycle không ở trạng thái `OPEN` (Rule 25) |
+| GET | `/data-imports?source_system=` | HR/Admin | xem danh sách `evaluation_data_import`, filter theo status/source/cycle |
 | GET | `/data-imports/{id}/rows` | HR/Admin, Manager (scope team liên quan) | xem chi tiết từng row để review |
 | PATCH | `/data-imports/{id}/rows/{rowId}` | HR/Admin, Manager | nhập `reviewer_comment`, resolve CONFLICT |
 | POST | `/data-imports/{id}/apply` | HR/Admin, Manager | apply các row đã `PENDING_REVIEW` có `reviewer_comment` → ghi vào `evaluation_criterion` |
@@ -1119,7 +1144,8 @@ Yêu cầu trước đó (`Import_Center_Feature_Definition.md`, Rule E1) bắt 
 | Screen | Purpose | Permission |
 |---|---|---|
 | **Crawl Script Management** *(mới)* | Viết/sửa/publish JavaScript, xem version history, checksum | **System Admin only** |
-| **Crawl Job Registration** *(mới)* | Đăng ký job: chọn Criterion, source_system, script (dropdown script đã publish), config, schedule, sequence_order | HR/Admin |
+| **Crawl Job Registration** *(mới, cập nhật v2.0)* | Đăng ký job: chọn script (dropdown script đã publish), source_system, config, **multi-select nhiều Criterion cùng lúc**, default schedule | HR/Admin |
+| **Cycle Crawl Configuration** *(🆕 v2.0)* | Trong màn hình chi tiết 1 Evaluation Cycle: danh sách job có thể gắn, toggle `enabled` từng job, kéo-thả sắp xếp `sequence_order`, cảnh báo ngay nếu 2 job enabled trùng Criterion (Rule 27); hiển thị rõ badge trạng thái cycle — nếu không phải `OPEN`, hiển thị "Crawl không chạy vì Cycle chưa/không còn ở trạng thái OPEN" | HR/Admin |
 | **Review Crawled Data** *(mới)* | Xem từng batch `evaluation_data_import`, duyệt từng row, nhập reviewer_comment, resolve conflict, bấm Apply | HR/Admin, Manager (team liên quan) |
 | **Connector Credentials** *(mới)* | Quản lý API token/key (nhập mới, xoay vòng, không hiển thị lại giá trị cũ) | **System Admin only** |
 
@@ -1131,7 +1157,10 @@ Yêu cầu trước đó (`Import_Center_Feature_Definition.md`, Rule E1) bắt 
 ### 15.1.10 Business rules bổ sung
 - **Rule 20:** `crawl_job_definition.crawl_script_id` chỉ được trỏ tới script ở trạng thái `PUBLISHED` — không cho gán script `DRAFT` vào job thật (tránh chạy code chưa review xong).
 - **Rule 21:** Row ở `evaluation_data_import_row` **không được** Apply nếu thiếu `reviewer_comment` (validate ≥20 ký tự, đồng nhất Rule E1 của Import Center) — kể cả khi `source_comment` đã có sẵn. **Ngoại lệ duy nhất:** CSV_UPLOAD với `source_comment` đã đạt chuẩn Rule E1 được tự động copy sang `reviewer_comment` lúc Validate (mục 15.1.1) — đây không phải bỏ qua rule, mà là người upload đã đóng vai trò reviewer ngay từ đầu.
-- **Rule 22:** Nếu criterion_code parse được từ payload **khác** với `crawl_job_definition.criterion_id` đã đăng ký → đánh dấu `INVALID`, không cho Apply — chặn trường hợp script lỗi/bị sửa sai vô tình ghi nhầm dữ liệu sang criterion khác.
+- **Rule 22 (✅ cập nhật v2.0):** Nếu `criterion_code` parse được từ payload **không nằm trong tập** Criterion đã đăng ký cho job đó (qua `crawl_job_criterion`) → đánh dấu `INVALID`, không cho Apply — chặn trường hợp script lỗi/bị sửa sai vô tình ghi nhầm dữ liệu sang criterion ngoài phạm vi đã khai báo. Vì 1 job giờ phủ **nhiều** criterion, check này là "thuộc tập hợp" thay vì "so khớp đúng 1 giá trị" như thiết kế cũ.
+- **Rule 25 (🆕):** Crawl **chỉ được trigger** (qua scheduler hoặc API `.../trigger` thủ công) khi `evaluation_cycle.status = 'OPEN'` — mọi trạng thái khác trả `422 CYCLE_NOT_OPEN`, không có đường vòng nào bỏ qua (mục 15.1.3).
+- **Rule 26 (🆕):** Bật/tắt `enabled` của 1 job cho 1 cycle cụ thể (`evaluation_cycle_crawl_job`) không ảnh hưởng cycle khác đang dùng chung job đó — mỗi cặp (cycle, job) độc lập.
+- **Rule 27 (🆕):** Không cho phép 2 job **cùng `enabled=true`** trong cùng 1 cycle phủ trùng 1 Criterion (validate ở service layer khi bật `enabled`, xem mục 15.1.2) — trả lỗi rõ ràng nêu tên job đang xung đột.
 - **Rule 23:** Timeout hoặc lỗi runtime trong sandbox → `evaluation_data_import.status=FAILED`, ghi `error_message`, **không** làm crash worker/queue — job tiếp theo trong hàng đợi vẫn chạy bình thường.
 - **Rule 24:** Xóa/deactivate 1 `connector_credential` đang được `crawl_job_definition` active sử dụng → cảnh báo trước, không cho xóa cứng (soft-delete + chặn job liên quan tự động `active=false`).
 
@@ -1254,7 +1283,8 @@ Yêu cầu trước đó (`Import_Center_Feature_Definition.md`, Rule E1) bắt 
 | Xem Review Due Dashboard | ❌ | ✅ (team mình) | ✅ (toàn org) | ❌ |
 | Tạo Individual Evaluation (từ dashboard) | ❌ | ✅ (team mình) | ✅ | ❌ |
 | **Viết/sửa/publish Crawl Script** *(mới)* | ❌ | ❌ | ❌ | ✅ **duy nhất** — rủi ro code execution cao (mục 15.1.6) |
-| **Đăng ký Crawl Job** (gán script có sẵn vào criterion) | ❌ | ❌ | ✅ | ❌ |
+| **Đăng ký Crawl Job** (gán script có sẵn vào 1+ criterion) | ❌ | ❌ | ✅ | ❌ |
+| **Bật/tắt Crawl Job cho từng Cycle** *(🆕 v2.0)* | ❌ | ❌ | ✅ | ❌ |
 | **Quản lý Connector Credential** *(mới)* | ❌ | ❌ | ❌ | ✅ **duy nhất** |
 | **Review & Apply dữ liệu crawl** *(mới)* | ❌ | ✅ (team mình) | ✅ | ❌ |
 | Xem report team | ❌ | ✅ (team mình) | ✅ | ✅ |
@@ -1722,7 +1752,8 @@ Chuẩn hóa response lỗi:
 - **Workflow test:** đảm bảo không thể skip state (vd submit thẳng LOCKED).
 - **Regression test:** snapshot evaluation cũ không đổi sau khi sửa criterion/template mới.
 - **Crawl Sandbox test** *(mới)*: script cố gắng truy cập filesystem/`process.env`/domain ngoài whitelist → phải bị chặn; script timeout → job FAILED, không crash worker, job kế tiếp trong queue vẫn chạy.
-- **Crawl data integrity test** *(mới)*: row có `criterion_code` không khớp `crawl_job_definition.criterion_id` → `INVALID`, không cho Apply (Rule 22); row thiếu `reviewer_comment` → chặn Apply (Rule 21).
+- **Crawl data integrity test** *(mới)*: row có `criterion_code` không thuộc tập `crawl_job_criterion` của job → `INVALID`, không cho Apply (Rule 22); row thiếu `reviewer_comment` → chặn Apply (Rule 21).
+- **Crawl cycle-status test** *(🆕 v2.0)*: cycle ở status ≠ `OPEN` (DRAFT/IN_PROGRESS/REVIEWING/APPROVED/PUBLISHED/LOCKED) → scheduler không enqueue, trigger thủ công trả `422 CYCLE_NOT_OPEN` (Rule 25); cycle đổi từ `OPEN` sang `LOCKED` **trong lúc job đang chờ trong queue** → worker re-check và bỏ qua (SKIPPED), không chạy; enable 2 job trùng Criterion trong cùng cycle → bị chặn (Rule 27).
 
 ---
 
@@ -1842,6 +1873,8 @@ flowchart LR
 18. ~~Ai được phép viết/sửa Crawl Script — chỉ System Admin, hay có thể nới cho HR/Admin có kỹ thuật?~~ **✅ Đã chốt: chỉ System Admin**, không nới lỏng (mục 15.1.6).
 19. ~~Dữ liệu crawl có bắt buộc luôn qua review thủ công (không auto-apply), hay có thể bật auto-apply cho nguồn đã tin tưởng sau 1 thời gian vận hành ổn định?~~ **✅ Đã chốt: luôn bắt buộc review thủ công**, kể cả về lâu dài — **không có kế hoạch bật auto-apply** (đã loại bỏ khỏi Phase 2, mục 5).
 20. ~~`evaluation_data_import` có nên hợp nhất với `import_job` (CSV thủ công) thành 1 bảng chung trong tương lai không?~~ **✅ Đã chốt: Có, hợp nhất ngay ở v1.9** — `import_job`/`import_row` đã bị loại bỏ, dùng chung `evaluation_data_import`/`evaluation_data_import_row` cho cả CSV và Crawl (mục 15.1.1).
+21. **[MỚI v2.0] Khi 1 job phủ nhiều Criterion, nếu script trả thiếu dữ liệu cho 1 số Criterion trong tập đã đăng ký thì xử lý thế nào?** — ✅ đề xuất mặc định: **không coi là lỗi** (script có thể hợp lệ chỉ có dữ liệu cho 1 phần), chỉ hiển thị cảnh báo mềm ở màn hình Review ("Criterion X được đăng ký nhưng không có dữ liệu trong batch này") để Manager biết — cần Product Owner xác nhận nếu muốn siết chặt thành lỗi bắt buộc.
+22. **[MỚI v2.0] Cycle rời khỏi trạng thái `OPEN` khi vẫn còn `evaluation_data_import` ở `PENDING_REVIEW` chưa Apply** — batch đó có còn được Apply không? ✅ đề xuất mặc định: **vẫn cho Apply** miễn evaluation tương ứng chưa `LOCKED` (crawl bị chặn ở bước lấy dữ liệu mới, nhưng dữ liệu đã lấy về từ trước vẫn có thể được review nốt) — cần HR xác nhận.
 
 ---
 
@@ -1870,6 +1903,8 @@ flowchart LR
 | 19 | Ai được viết/sửa Crawl Script? | **✅ Đã chốt: chỉ System Admin** | Tech Lead |
 | 20 | Dữ liệu crawl có luôn cần review thủ công không, hay cho auto-apply sau này? | **✅ Đã chốt: luôn cần review thủ công**, không có kế hoạch auto-apply | Product Owner |
 | 21 | Hợp nhất `evaluation_data_import` với `import_job` trong tương lai? | **✅ Đã chốt: Có** — đã hợp nhất ngay ở v1.9, `import_job`/`import_row` bị loại bỏ | Tech Lead |
+| 22 | **[MỚI v2.0]** Job phủ nhiều Criterion nhưng script chỉ trả dữ liệu cho một phần — có phải lỗi không? | Đề xuất tạm: không, chỉ cảnh báo mềm ở Review | Product Owner |
+| 23 | **[MỚI v2.0]** Batch `PENDING_REVIEW` còn dở khi Cycle rời khỏi `OPEN` — còn cho Apply không? | Đề xuất tạm: vẫn cho Apply nếu evaluation chưa `LOCKED` | HR |
 
 ---
 
@@ -2025,4 +2060,22 @@ Security review, performance test (import lớn, concurrent), UAT với 18 KPI m
 
 ---
 
-*Hết tài liệu — v1.9.*
+## Changelog v1.9 → v2.0
+
+| # | Thay đổi | Vị trí |
+|---|---|---|
+| 18 | **[ĐỔI MÔ HÌNH] Crawl Job từ 1-1 sang N-N với Criterion:** bỏ `criterion_id` khỏi `crawl_job_definition`, thêm bảng `crawl_job_criterion` — 1 script/job có thể phủ **nhiều** KPI/Criterion cùng lúc | 15.1.2, 9 (ERD), 15.1.7 (API `PUT /crawl-job-definitions/{id}/criteria`), 15.1.8 (UI multi-select) |
+| 19 | **[MỚI] Evaluation Cycle enable nhiều job:** thêm bảng `evaluation_cycle_crawl_job` (cycle × job, `enabled`, `sequence_order`) — `sequence_order`/enable chuyển từ cấp job sang cấp (cycle, job), 1 job đăng ký 1 lần tái dùng được nhiều cycle | 15.1.2, 15.1.7, 15.1.8 (màn hình Cycle Crawl Configuration mới), 17 (RBAC) |
+| 20 | **[MỚI] Crawl chỉ chạy cho Cycle `status = OPEN`** — mọi status khác bị bỏ qua, kể cả trigger thủ công (`422 CYCLE_NOT_OPEN`); Worker **re-check lại** ngay trước khi thực thi (chống time-of-check/time-of-use khi cycle đổi trạng thái lúc job đang chờ trong queue) | 15.1.3, 15.1.4 (sequence diagram viết lại), Rule 25 |
+| 21 | **Rule 22 đổi ngữ nghĩa** từ "khớp đúng 1 criterion" sang "thuộc tập criterion đã đăng ký qua `crawl_job_criterion`"; thêm Rule 25-27 | 15.1.10 |
+| 22 | Bảo toàn: `evaluation_data_import` **không đổi schema** so với v1.9 (vẫn có `crawl_job_definition_id`, `evaluation_cycle_id`) | 15.1.1 |
+
+**Thiết kế cốt lõi sau khi đổi (tóm tắt):**
+- **Quan hệ tổng thể:** `crawl_script` 1—N `crawl_job_definition` N—N `criterion` (qua `crawl_job_criterion`) và N—N `evaluation_cycle` (qua `evaluation_cycle_crawl_job`). Đăng ký job **1 lần**, dùng lại ở nhiều cycle — HR chỉ cần "enable" job cho cycle mới thay vì đăng ký lại mỗi kỳ.
+- **Scheduler lọc theo trạng thái cycle** thay vì chỉ theo cron: `for each cycle WHERE status='OPEN' → for each enabled job ORDER BY sequence_order → enqueue`. Vẫn dùng queue `concurrency=1` để đảm bảo chạy tuần tự.
+- **Chống trùng dữ liệu:** không cho 2 job cùng enabled trong 1 cycle phủ trùng 1 Criterion (Rule 27) — validate ở service layer vì đây là kiểm tra chéo N-N, không biểu diễn được bằng unique constraint đơn giản.
+- **2 câu hỏi mở mới cần chốt:** script trả thiếu dữ liệu cho 1 phần Criterion đã đăng ký có phải lỗi không (mục 30 #22), và batch còn dở khi cycle rời `OPEN` có còn Apply được không (mục 30 #23).
+
+---
+
+*Hết tài liệu — v2.0.*
