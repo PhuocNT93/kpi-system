@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useDepartments } from '../hooks/useDepartments';
 import { useTeams } from '../hooks/useTeams';
@@ -24,7 +24,7 @@ export function OrgStructureTab() {
   const { t } = useOrganizationTranslation();
 
   const [selection, setSelection] = useState<SelectionNode>({ type: 'root' });
-  const [expandedDepts, setExpandedDepts] = useState<Set<string>>(new Set(['d1000000-0000-4000-8000-000000000001']));
+  const [expandedDepts, setExpandedDepts] = useState<Set<string>>(new Set());
   const [deptSubTab, setDeptSubTab] = useState<'overview' | 'formula'>('overview');
   const [teamSubTab, setTeamSubTab] = useState<'members' | 'formula'>('members');
 
@@ -42,12 +42,28 @@ export function OrgStructureTab() {
     formulasSummary.filter((f) => f.is_custom_override && f.department_id && !f.team_id).map((f) => f.department_id as string)
   );
 
+  const departments = useMemo(() => departmentsQuery.data ?? [], [departmentsQuery.data]);
+  const teams = useMemo(() => teamsQuery.data ?? [], [teamsQuery.data]);
+
+  useEffect(() => {
+    if (departments.length > 0) {
+      const engDept = departments.find(
+        (d) => d.code === 'DEPT-ENG' || d.name.toLowerCase().includes('engineering')
+      );
+      if (engDept) {
+        setExpandedDepts((prev) => {
+          if (prev.has(engDept.id)) return prev;
+          const next = new Set(prev);
+          next.add(engDept.id);
+          return next;
+        });
+      }
+    }
+  }, [departments]);
+
   if (departmentsQuery.isPending || teamsQuery.isPending) return <LoadingSpinner />;
   if (departmentsQuery.isError) return <ErrorAlert error={departmentsQuery.error} onRetry={() => departmentsQuery.refetch()} />;
   if (teamsQuery.isError) return <ErrorAlert error={teamsQuery.error} onRetry={() => teamsQuery.refetch()} />;
-
-  const departments = departmentsQuery.data ?? [];
-  const teams = teamsQuery.data ?? [];
 
   const toggleDept = (deptId: string, e: React.MouseEvent) => {
     e.stopPropagation();
