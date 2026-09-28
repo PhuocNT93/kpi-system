@@ -10,11 +10,6 @@ interface CycleTimelineProps {
 const CYCLE_STEPS: { status: CycleStatus; label: string }[] = [
   { status: 'DRAFT', label: 'Draft' },
   { status: 'OPEN', label: 'Open' },
-  { status: 'IN_PROGRESS', label: 'In Progress' },
-  { status: 'SUBMITTED', label: 'Submitted' },
-  { status: 'REVIEWING', label: 'Reviewing' },
-  { status: 'CALIBRATION', label: 'Calibration' },
-  { status: 'APPROVED', label: 'Approved' },
   { status: 'PUBLISHED', label: 'Published' },
   { status: 'LOCKED', label: 'Locked' },
 ];

@@ -164,6 +164,18 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
     return Object.values(draftItems).some((item) => item.isDirty);
   }, [draftItems]);
 
+  const isDevelopmentPlanComplete = useMemo(() => {
+    if (!detail?.development_blocks || detail.development_blocks.length === 0) {
+      return false;
+    }
+
+    return detail.development_blocks.every((block) => String(block.value ?? '').trim().length > 0);
+  }, [detail?.development_blocks]);
+
+  const selfSubmitBlockedReason = !isDevelopmentPlanComplete
+    ? 'Hãy hoàn tất đầy đủ Personal Development Plan trước khi nộp tự đánh giá.'
+    : '';
+
   // Handle beforeunload warning
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -847,18 +859,25 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
         isSaving={saveBatchMutation.isPending}
         isSubmitting={submitMutation.isPending || approveMutation.isPending}
         hasUnsavedChanges={hasUnsavedChanges}
+        canSubmit={isManagerMode ? !(detail.status === EvaluationStatus.APPROVED || detail.status === EvaluationStatus.PUBLISHED) : isDevelopmentPlanComplete}
+        submitDisabledReason={selfSubmitBlockedReason}
         onSaveDraft={handleSaveAll}
         onSubmit={handleOpenSubmit}
         backPath={isManagerMode ? '/admin/team-evaluations' : '/admin/my-evaluations'}
         backLabel={isManagerMode ? 'Team Evaluations' : 'My Evaluations'}
         isHrAdmin={isHrAdmin}
         onPublish={handlePublish}
-        onLock={handleLock}
         onRequestCorrection={() => setReviewActionType('REQUEST_CORRECTION')}
         onReject={() => setReviewActionType('REJECT')}
         submitLabel={isManagerMode ? 'Duyệt đánh giá' : 'Nộp tự đánh giá'}
         submittingLabel={isManagerMode ? 'Đang duyệt...' : 'Đang gửi...'}
       />
+
+      {!isManagerMode && selfSubmitBlockedReason && (
+        <section style={{ ...panelStyle, borderColor: '#fde68a', backgroundColor: '#fffbeb', color: '#92400e' }}>
+          {selfSubmitBlockedReason}
+        </section>
+      )}
 
       <EvaluationOverviewPanel
         score={scoreFormula.totalRawScoreValue}
@@ -961,7 +980,11 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
         isSaving={saveDevelopmentBlocksMutation.isPending}
         isSaved={!saveDevelopmentBlocksMutation.isPending}
         canSave={!!id}
+        canSubmit={isManagerMode || isDevelopmentPlanComplete}
+        submitLabel={isManagerMode ? 'Phê duyệt' : 'Nộp tự đánh giá'}
+        submitDisabledReason={selfSubmitBlockedReason}
         onSave={() => saveDevelopmentBlocksMutation.mutate()}
+        onSubmit={handleOpenSubmit}
         onChangeBlock={updateDevelopmentBlock}
       />
 
