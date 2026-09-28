@@ -1,7 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { ScoringEngine, ScoringKpiInput } from '../src/modules/evaluation/domain/scoring/scoring-engine.js';
 import { createRuleEngineModule } from '../src/modules/rule-engine/rule-engine.module.js';
-import { RuleTypes } from '../src/modules/rule-engine/domain/rule.types.js';
 import { EvaluationService } from '../src/modules/evaluation/application/services/evaluation.service.js';
 import { IEvaluationRepository, IEvaluationItemRepository } from '../src/modules/evaluation/domain/repositories.interface.js';
 import { EvaluationStatus } from '../src/modules/evaluation/domain/evaluation.types.js';
@@ -10,7 +8,6 @@ import { parse } from 'csv-parse/sync';
 
 describe('Performance Baseline & Stress Benchmark Suite', () => {
   const { engine: ruleEngine } = createRuleEngineModule();
-  const scoringEngine = new ScoringEngine();
 
   // Helper to record timings
   const measureExecutionTime = <T>(fn: () => T): { result: T; durationMs: number } => {
