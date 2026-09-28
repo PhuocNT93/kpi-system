@@ -35,7 +35,7 @@ const NOTIFICATION_TABS: NotificationTabConfig[] = [
   {
     id: 'preferences',
     labelKey: 'notifications.tab.preferences',
-    defaultLabel: 'Tùy chọn nhận tin',
+    defaultLabel: 'Tùy chọn thông báo',
     badgeKey: 'notifications.badge.personal',
     defaultBadge: 'Cá nhân',
     badgeColor: '#2563eb',
@@ -49,7 +49,7 @@ const NOTIFICATION_TABS: NotificationTabConfig[] = [
   {
     id: 'templates',
     labelKey: 'notifications.tab.templates',
-    defaultLabel: 'Mẫu thông báo',
+    defaultLabel: 'Mẫu Email',
     badgeKey: 'notifications.badge.admin',
     defaultBadge: 'Quản trị',
     badgeColor: '#7c3aed',
@@ -143,7 +143,7 @@ export const UnifiedNotificationsPage: React.FC = () => {
                     color: isDark ? '#f8fafc' : '#0f172a',
                   }}
                 >
-                  {t('notifications.hub_title', 'Trung Tâm Thông Báo & Email')}
+                  {t('notifications.hub_title', 'Trung Tâm Thông Báo & Email (Notifications Hub)')}
                 </h1>
                 <p
                   className="hide-on-mobile"
@@ -155,7 +155,7 @@ export const UnifiedNotificationsPage: React.FC = () => {
                 >
                   {t(
                     'notifications.hub_subtitle',
-                    'Cấu hình tùy chọn nhận tin cá nhân, quản lý mẫu email thông báo và theo dõi lịch sử gửi theo phân quyền'
+                    'Cấu hình tùy chọn nhận tin cá nhân, quản lý thông báo và theo dõi lịch sử gửi theo phân quyền'
                   )}
                 </p>
               </div>
