@@ -110,50 +110,81 @@ async function main() {
 
     console.log('✅ Mock data cleaned');
 
-    // ── Step 2: Upsert real teams ──────────────────────────────────────────
-    console.log('🏢 Step 2: Creating teams...');
+    // ── Step 2: Ensure DEPT-ENG and upsert real teams ──────────────────────────
+    console.log('🏢 Step 2: Creating teams under Engineering (DEPT-ENG)...');
 
-    // Get or create department (use first available or create one)
-    let deptRes = await client.query(`SELECT department_id FROM department LIMIT 1`);
+    // Get or create Engineering department (DEPT-ENG)
+    let deptRes = await client.query(`SELECT department_id FROM department WHERE code = 'DEPT-ENG' LIMIT 1`);
     let departmentId;
     if (deptRes.rows.length === 0) {
       const nd = await client.query(
-        `INSERT INTO department (code) VALUES ('CLV-DEPT') RETURNING department_id`
+        `INSERT INTO department (code, name, active) VALUES ('DEPT-ENG', 'Engineering', true) RETURNING department_id`
       );
       departmentId = nd.rows[0].department_id;
-      console.log('  Created department CLV-DEPT');
+      console.log('  Created department DEPT-ENG');
     } else {
       departmentId = deptRes.rows[0].department_id;
+      await client.query(`UPDATE department SET name = 'Engineering', active = true WHERE department_id = $1`, [departmentId]);
+      console.log('  Department DEPT-ENG exists');
     }
 
-    // ALLEGRO NX Part team
+    // Clean up obsolete departments (e.g. Solutions / DEPT-6610)
+    // Remap any foreign keys first before deleting
+    await client.query(`
+      UPDATE employee
+      SET department_id = $1
+      WHERE department_id IN (
+        SELECT department_id FROM department WHERE code NOT IN ('DEPT-BOD', 'DEPT-EXEC', 'DEPT-ENG', 'DEPT-PROD', 'DEPT-FIN', 'DEPT-HR', 'DEPT-OPS', 'DEPT-SM')
+      )
+    `, [departmentId]);
+    await client.query(`
+      UPDATE employee_assignment
+      SET department_id = $1
+      WHERE department_id IN (
+        SELECT department_id FROM department WHERE code NOT IN ('DEPT-BOD', 'DEPT-EXEC', 'DEPT-ENG', 'DEPT-PROD', 'DEPT-FIN', 'DEPT-HR', 'DEPT-OPS', 'DEPT-SM')
+      )
+    `, [departmentId]);
+    await client.query(`
+      DELETE FROM department
+      WHERE code NOT IN ('DEPT-BOD', 'DEPT-EXEC', 'DEPT-ENG', 'DEPT-PROD', 'DEPT-FIN', 'DEPT-HR', 'DEPT-OPS', 'DEPT-SM')
+    `);
+
+    // ALLEGRO NX team
     let allegroRes = await client.query(`SELECT team_id FROM team WHERE code = 'ALLEGRO-NX'`);
     let allegroTeamId;
     if (allegroRes.rows.length === 0) {
       const t = await client.query(
-        `INSERT INTO team (code, name, department_id) VALUES ('ALLEGRO-NX', 'ALLEGRO NX Part', $1) RETURNING team_id`,
+        `INSERT INTO team (code, name, department_id, active) VALUES ('ALLEGRO-NX', 'ALLEGRO NX', $1, true) RETURNING team_id`,
         [departmentId]
       );
       allegroTeamId = t.rows[0].team_id;
       console.log('  Created team ALLEGRO-NX');
     } else {
       allegroTeamId = allegroRes.rows[0].team_id;
-      console.log('  Team ALLEGRO-NX already exists');
+      await client.query(
+        `UPDATE team SET name = 'ALLEGRO NX', department_id = $1, active = true WHERE team_id = $2`,
+        [departmentId, allegroTeamId]
+      );
+      console.log('  Updated team ALLEGRO-NX under DEPT-ENG');
     }
 
-    // Maritime Solutions Part team
+    // Maritime Solutions team
     let maritimeRes = await client.query(`SELECT team_id FROM team WHERE code = 'MARITIME-SOL'`);
     let maritimeTeamId;
     if (maritimeRes.rows.length === 0) {
       const t = await client.query(
-        `INSERT INTO team (code, name, department_id) VALUES ('MARITIME-SOL', 'Maritime Solutions Part', $1) RETURNING team_id`,
+        `INSERT INTO team (code, name, department_id, active) VALUES ('MARITIME-SOL', 'Maritime Solutions', $1, true) RETURNING team_id`,
         [departmentId]
       );
       maritimeTeamId = t.rows[0].team_id;
       console.log('  Created team MARITIME-SOL');
     } else {
       maritimeTeamId = maritimeRes.rows[0].team_id;
-      console.log('  Team MARITIME-SOL already exists');
+      await client.query(
+        `UPDATE team SET name = 'Maritime Solutions', department_id = $1, active = true WHERE team_id = $2`,
+        [departmentId, maritimeTeamId]
+      );
+      console.log('  Updated team MARITIME-SOL under DEPT-ENG');
     }
 
     // ── Step 3: Upsert manager employee record ────────────────────────────
@@ -166,20 +197,20 @@ async function main() {
     let managerEmployeeId;
     if (managerEmpRes.rows.length === 0) {
       const r = await client.query(`
-        INSERT INTO employee (employee_code, full_name, email, team_id, employment_status, join_date, role_id, job_level_id, version)
-        SELECT $1, $2, $3, $4, 'ACTIVE', CURRENT_DATE,
+        INSERT INTO employee (employee_code, full_name, email, department_id, team_id, employment_status, join_date, role_id, job_level_id, version)
+        SELECT $1, $2, $3, $4, $5, 'ACTIVE', CURRENT_DATE,
           (SELECT role_id FROM role LIMIT 1),
           (SELECT job_level_id FROM job_level LIMIT 1),
           1
         RETURNING employee_id
-      `, [MANAGER.code, MANAGER.name, MANAGER.email, allegroTeamId]);
+      `, [MANAGER.code, MANAGER.name, MANAGER.email, departmentId, allegroTeamId]);
       managerEmployeeId = r.rows[0].employee_id;
       console.log(`  Created manager employee: ${MANAGER.name}`);
     } else {
       managerEmployeeId = managerEmpRes.rows[0].employee_id;
       await client.query(
-        `UPDATE employee SET full_name = $1, email = $2, team_id = $3 WHERE employee_id = $4`,
-        [MANAGER.name, MANAGER.email, allegroTeamId, managerEmployeeId]
+        `UPDATE employee SET full_name = $1, email = $2, department_id = $3, team_id = $4 WHERE employee_id = $5`,
+        [MANAGER.name, MANAGER.email, departmentId, allegroTeamId, managerEmployeeId]
       );
       console.log(`  Updated manager employee: ${MANAGER.name}`);
     }
@@ -223,24 +254,24 @@ async function main() {
       const defaultJobLevelId = defaultJobLevelRes.rows[0]?.job_level_id;
 
       // ── Step 5: Seed ALLEGRO members ──────────────────────────────────────
-      console.log('👥 Step 4: Seeding ALLEGRO NX Part members...');
+      console.log('👥 Step 4: Seeding ALLEGRO NX members...');
       const allegroEmployeeIds = [];
       for (const m of ALLEGRO_MEMBERS) {
         let empRes = await client.query(`SELECT employee_id FROM employee WHERE employee_code = $1`, [m.code]);
         let empId;
         if (empRes.rows.length === 0) {
           const r = await client.query(`
-            INSERT INTO employee (employee_code, full_name, email, team_id, manager_id, employment_status, join_date, role_id, job_level_id, version)
-            VALUES ($1, $2, $3, $4, $5, 'ACTIVE', CURRENT_DATE, $6, $7, 1)
+            INSERT INTO employee (employee_code, full_name, email, department_id, team_id, manager_id, employment_status, join_date, role_id, job_level_id, version)
+            VALUES ($1, $2, $3, $4, $5, $6, 'ACTIVE', CURRENT_DATE, $7, $8, 1)
             RETURNING employee_id
-          `, [m.code, m.name, m.email, allegroTeamId, managerEmployeeId, defaultRoleId, defaultJobLevelId]);
+          `, [m.code, m.name, m.email, departmentId, allegroTeamId, managerEmployeeId, defaultRoleId, defaultJobLevelId]);
           empId = r.rows[0].employee_id;
           console.log(`  Created: ${m.name} (${m.code})`);
         } else {
           empId = empRes.rows[0].employee_id;
           await client.query(
-            `UPDATE employee SET manager_id = $1, team_id = $2, full_name = $3, email = $4 WHERE employee_id = $5`,
-            [managerEmployeeId, allegroTeamId, m.name, m.email, empId]
+            `UPDATE employee SET manager_id = $1, department_id = $2, team_id = $3, full_name = $4, email = $5 WHERE employee_id = $6`,
+            [managerEmployeeId, departmentId, allegroTeamId, m.name, m.email, empId]
           );
           console.log(`  Updated: ${m.name} (${m.code})`);
         }
@@ -248,24 +279,24 @@ async function main() {
       }
 
       // ── Step 6: Seed MARITIME members ─────────────────────────────────────
-      console.log('👥 Step 5: Seeding Maritime Solutions Part members...');
+      console.log('👥 Step 5: Seeding Maritime Solutions members...');
       const maritimeEmployeeIds = [];
       for (const m of MARITIME_MEMBERS) {
         let empRes = await client.query(`SELECT employee_id FROM employee WHERE employee_code = $1`, [m.code]);
         let empId;
         if (empRes.rows.length === 0) {
           const r = await client.query(`
-            INSERT INTO employee (employee_code, full_name, email, team_id, manager_id, employment_status, join_date, role_id, job_level_id, version)
-            VALUES ($1, $2, $3, $4, $5, 'ACTIVE', CURRENT_DATE, $6, $7, 1)
+            INSERT INTO employee (employee_code, full_name, email, department_id, team_id, manager_id, employment_status, join_date, role_id, job_level_id, version)
+            VALUES ($1, $2, $3, $4, $5, $6, 'ACTIVE', CURRENT_DATE, $7, $8, 1)
             RETURNING employee_id
-          `, [m.code, m.name, m.email, maritimeTeamId, managerEmployeeId, defaultRoleId, defaultJobLevelId]);
+          `, [m.code, m.name, m.email, departmentId, maritimeTeamId, managerEmployeeId, defaultRoleId, defaultJobLevelId]);
           empId = r.rows[0].employee_id;
           console.log(`  Created: ${m.name} (${m.code})`);
         } else {
           empId = empRes.rows[0].employee_id;
           await client.query(
-            `UPDATE employee SET manager_id = $1, team_id = $2, full_name = $3, email = $4 WHERE employee_id = $5`,
-            [managerEmployeeId, maritimeTeamId, m.name, m.email, empId]
+            `UPDATE employee SET manager_id = $1, department_id = $2, team_id = $3, full_name = $4, email = $5 WHERE employee_id = $6`,
+            [managerEmployeeId, departmentId, maritimeTeamId, m.name, m.email, empId]
           );
           console.log(`  Updated: ${m.name} (${m.code})`);
         }
@@ -450,6 +481,95 @@ async function main() {
       }
 
       console.log(`  Created evaluation for: ${m.name} → ${evaluationId} (${enrichedCriteria.length} items)`);
+    }
+
+    // ── Step 8: Seed custom evaluation formula for ALLEGRO NX team ─────────
+    console.log('📐 Step 8: Seeding custom evaluation formula for ALLEGRO NX...');
+    const allegroFormulaComponents = [
+      {
+        code: 'Con.1',
+        name: 'Performance (Kết quả công việc - Định lượng)',
+        weight: 60,
+        scale_max: 5,
+        description: 'Dựa trên KPI, Jira, tỷ lệ hoàn thành task',
+        source_type: 'JIRA_COLLECTOR'
+      },
+      {
+        code: 'Con.2',
+        name: 'Capability (Năng lực kỹ thuật - Định tính)',
+        weight: 5,
+        scale_max: 5,
+        description: 'Dựa trên bài kiểm tra hoặc code review',
+        source_type: 'MANUAL_RATING'
+      },
+      {
+        code: 'Con.3',
+        name: 'Contribution & Culture (Đóng góp tổ chức - Định tính)',
+        weight: 15,
+        scale_max: 5,
+        description: 'Dựa trên thái độ, khả năng mentor/support, tham gia event',
+        source_type: 'MANUAL_RATING',
+        sub_criteria: [
+          { code: 'ATTITUDE', name: 'Attitude & Phối hợp', weight: 5 },
+          { code: 'MENTOR', name: 'Mentor & Hỗ trợ', weight: 5 },
+          { code: 'CULTURE', name: 'Culture & Events', weight: 5 }
+        ]
+      },
+      {
+        code: 'BEHAVIOR',
+        name: 'Behavior',
+        weight: 20,
+        scale_max: 5,
+        description: 'Hành vi làm việc, tác phong chuyên nghiệp và tuân thủ văn hóa công ty.',
+        source_type: 'MANUAL_RATING'
+      }
+    ];
+
+    const allegroRankMatrix = {
+      S: {
+        max: 5, min: 4.5,
+        label: 'Exceed Expectation',
+        description: 'Chỉ những người thực sự xuất sắc (>4.5)',
+        raise_rates: { '<30m': [10, 15], '30m-50m': [10, 15], '>=50m': [10, 15] },
+        ceiling_note: 'Lương sẽ bị đóng băng nếu chạm mức trần. Xem xét one-time bonus cho member đạt loại S.',
+        ceiling_action: 'ONE_TIME_BONUS'
+      },
+      A: {
+        max: 4.49, min: 3,
+        label: 'Meet Expectation',
+        description: 'Đại đa số nhân viên hoàn thành tốt công việc (3.0 - 4.4)',
+        raise_rates: { '<30m': [4, 8], '30m-50m': [4, 8], '>=50m': [4, 8] },
+        ceiling_note: 'Lương sẽ bị đóng băng nếu lương của member chạm mức trần.',
+        ceiling_action: 'FREEZE'
+      },
+      B: {
+        max: 2.99, min: 0,
+        label: 'Need Improvement',
+        description: 'Nhân viên mới cần thời gian catch up hoặc nhân viên cũ chưa đạt yêu cầu với Level (<3)',
+        raise_rates: { '<30m': [0, 2], '30m-50m': [0, 2], '>=50m': [0, 0] },
+        ceiling_note: 'Tăng từ 0 - 2% hoặc không tăng.',
+        ceiling_action: 'FREEZE'
+      }
+    };
+
+    const existingFormulaRes = await client.query(
+      `SELECT id FROM team_evaluation_formula WHERE team_id = $1`,
+      [allegroTeamId]
+    );
+    if (existingFormulaRes.rows.length === 0) {
+      await client.query(`
+        INSERT INTO team_evaluation_formula (
+          team_id, department_id, is_custom_override, scale_max, components, rank_matrix, version
+        ) VALUES ($1, NULL, true, 5.0, $2, $3, 1)
+      `, [allegroTeamId, JSON.stringify(allegroFormulaComponents), JSON.stringify(allegroRankMatrix)]);
+      console.log('  Created custom formula for ALLEGRO NX team');
+    } else {
+      await client.query(`
+        UPDATE team_evaluation_formula
+        SET is_custom_override = true, scale_max = 5.0, components = $1, rank_matrix = $2, updated_at = NOW()
+        WHERE team_id = $3
+      `, [JSON.stringify(allegroFormulaComponents), JSON.stringify(allegroRankMatrix), allegroTeamId]);
+      console.log('  Updated custom formula for ALLEGRO NX team');
     }
 
     await client.query('COMMIT');
