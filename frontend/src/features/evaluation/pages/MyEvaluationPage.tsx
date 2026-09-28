@@ -11,7 +11,7 @@ import {
   Search,
 } from 'lucide-react';
 import { useAuth } from '@/shared/auth/auth-context';
-import { type TeamEvaluation, buildEvaluationScoringSummary } from '../domain/evaluation-models';
+import { type TeamEvaluation, buildEvaluationScoringSummary, deriveFormulaSourceLabel } from '../domain/evaluation-models';
 import type { EmployeeSearchResult } from '@/features/organization/api/employee-search.api';
 import { EvaluationOverviewPanel } from '../components/EvaluationOverviewPanel';
 import { EvaluationScoreSummaryPanel } from '../components/EvaluationScoreSummaryPanel';
@@ -196,6 +196,7 @@ export function MyEvaluationPage() {
   const scoreFormula = useMemo(() => buildEvaluationScoringSummary(evaluationDetail), [evaluationDetail]);
   const criteria = scoreFormula.criteria;
 
+
   const currentRank = useMemo(() => {
     if (scoreFormula.totalScore > 4.5) {
       return 'S';
@@ -264,6 +265,14 @@ export function MyEvaluationPage() {
   };
   const selectedEvaluation = isHrAdmin ? selectedTeamEvaluation?.evaluation : selfEvaluation;
   const officialScore = evaluationDetail?.official_score ?? scoreFormula.totalScore;
+
+  // Derive which formula level is being applied (Team / Dept / Global) — must come after enrichedEmployee
+  const formulaSourceLabel = useMemo(() => {
+    if (!evaluationDetail) return undefined;
+    const teamName = enrichedEmployee?.team_name ?? null;
+    return deriveFormulaSourceLabel(evaluationDetail, teamName);
+  }, [evaluationDetail, enrichedEmployee?.team_name]);
+
   const profileFacts = [
     ['Joined', formatDisplayDate(enrichedEmployee.join_date ?? enrichedEmployee.created_at)],
     ['Previous Review', formatDisplayDate(selectedEvaluation?.approved_at ?? selectedEvaluation?.submitted_at)],
@@ -422,7 +431,7 @@ export function MyEvaluationPage() {
             <EvaluationOverviewPanel score={officialScore} cycleProgress={cycleProgress} />
           </div>
 
-          <EvaluationScoreSummaryPanel score={officialScore} grouped={scoreFormula.grouped} />
+          <EvaluationScoreSummaryPanel score={officialScore} grouped={scoreFormula.grouped} formulaSource={formulaSourceLabel} />
         </section>
       
         <section>

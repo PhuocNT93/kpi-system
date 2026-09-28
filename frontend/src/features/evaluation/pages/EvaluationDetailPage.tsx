@@ -18,7 +18,7 @@ import { useAuth } from '@/shared/auth/auth-context';
 import { OverrideScoreModal } from '../components/OverrideScoreModal';
 import { invalidateAfterEvaluationPublish } from '../hooks/evaluation-publish-invalidation';
 import { ReviewActionModal, type ReviewActionType } from '../components/ReviewActionModal';
-import { buildEvaluationScoringSummary, getLocalizedText, type EvaluationItem, type ScoringKpiResult } from '../domain/evaluation-models';
+import { buildEvaluationScoringSummary, getLocalizedText, deriveFormulaSourceLabel, type EvaluationItem, type ScoringKpiResult } from '../domain/evaluation-models';
 
 type EvaluationDetailMode = 'self' | 'manager';
 
@@ -542,6 +542,14 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
   }, [detail, draftItems]);
 
   const scoreFormula = useMemo(() => buildEvaluationScoringSummary(detailForScoring), [detailForScoring]);
+
+  // Derive which formula is being applied for display
+  const formulaSourceLabel = useMemo(() => {
+    if (!detail) return undefined;
+    // employee team_name from items context or from the evaluation itself
+    const teamName = (detail as unknown as { employee?: { team_name?: string } }).employee?.team_name ?? undefined;
+    return deriveFormulaSourceLabel(detail, teamName ?? null);
+  }, [detail]);
   const currentRank = useMemo(() => {
     if (scoreFormula.totalScore > 4.5) {
       return 'S';
@@ -860,6 +868,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
       <EvaluationScoreSummaryPanel
         score={scoreFormula.totalScore}
         grouped={scoreFormula.grouped}
+        formulaSource={formulaSourceLabel}
       />
 
       <section>

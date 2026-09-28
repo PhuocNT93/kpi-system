@@ -100,6 +100,8 @@ export function CreateCriterionModal({
       setCategory(cleaned);
       setNewCategoryInput('');
       setIsCategoryModalOpen(false);
+      // Notify other components (e.g. TeamFormulaBuilderTab) to refresh their category lists
+      window.dispatchEvent(new CustomEvent('category-created', { detail: { code: cleaned } }));
     } catch (err: unknown) {
       setCategoryModalError(err instanceof Error ? err.message : 'Không thể tạo danh mục mới');
     } finally {

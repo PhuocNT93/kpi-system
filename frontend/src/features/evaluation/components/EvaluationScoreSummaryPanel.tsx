@@ -15,9 +15,10 @@ export type EvaluationScoreSummaryPanelProps = {
   score: number;
   grouped: ScoreGroup[];
   formulaText?: string;
+  formulaSource?: string; // e.g. 'Team ALLEGRO NX' | 'Phòng ban Engineering' | 'Mặc định công ty'
 };
 
-export function EvaluationScoreSummaryPanel({ score, grouped, formulaText }: EvaluationScoreSummaryPanelProps) {
+export function EvaluationScoreSummaryPanel({ score, grouped, formulaText, formulaSource }: EvaluationScoreSummaryPanelProps) {
   const dynamicFormulaText = useMemo(() => {
     if (formulaText) return formulaText;
     if (!grouped || grouped.length === 0) {
@@ -44,6 +45,11 @@ export function EvaluationScoreSummaryPanel({ score, grouped, formulaText }: Eva
             <div style={{ marginTop: '8px', fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary, fontFamily: 'monospace' }}>
               {dynamicFormulaText}
             </div>
+            {formulaSource && (
+              <div style={{ marginTop: '10px', display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 10px', borderRadius: '999px', fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: TYPOGRAPHY.fontWeight.semibold, backgroundColor: 'rgba(99,102,241,0.10)', border: '1px solid rgba(99,102,241,0.25)', color: COLORS.primary.DEFAULT }}>
+                📊 Công thức: {formulaSource}
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>

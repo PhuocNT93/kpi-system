@@ -97,6 +97,17 @@ export const TeamFormulaBuilderTab: React.FC<Props> = ({
     fetchFormula();
   }, [fetchFormula]);
 
+  // Refresh category list when a new category is created elsewhere (e.g. Criteria Studio)
+  useEffect(() => {
+    const handleCategoryCreated = () => {
+      formulaApi.getCategories().then((cats) => {
+        if (cats) setAllCategories(cats);
+      }).catch(() => {/* silently ignore */});
+    };
+    window.addEventListener('category-created', handleCategoryCreated);
+    return () => window.removeEventListener('category-created', handleCategoryCreated);
+  }, []);
+
   // Helper: Match component with category
   const matchCategoryWithComponent = useCallback((cat: CriterionCategoryEntity, comp: FormulaComponent): boolean => {
     const catCode = (cat.code || '').toUpperCase();
@@ -132,12 +143,33 @@ export const TeamFormulaBuilderTab: React.FC<Props> = ({
 
   const isWeightValid = Math.abs(totalWeight - 100) < 0.01;
 
+  // Auto-balance: distribute 100% evenly across active (non-inactive) components
+  const handleAutoBalance = () => {
+    if (!isCustomMode || components.length === 0) return;
+    const activeCount = components.length;
+    const equalShare = Math.floor((100 / activeCount) * 10) / 10;
+    const remainder = Number((100 - equalShare * activeCount).toFixed(1));
+    setComponents((prev) =>
+      prev.map((comp, idx) => ({
+        ...comp,
+        weight: idx === prev.length - 1 ? equalShare + remainder : equalShare,
+      }))
+    );
+    setFeedback({
+      type: 'success',
+      message: `Đã phân bổ đều trọng số: mỗi thành phần ~${equalShare}%, tổng = 100%.`,
+    });
+  };
+
   // Handle adding an unassigned category to components
   const handleAddComponent = (cat: CriterionCategoryEntity) => {
-    if (!isCustomMode) return;
     if (cat.status === 'INACTIVE') {
       alert(`Danh mục "${cat.name}" đang bị vô hiệu hóa trong hệ thống, không thể thêm vào công thức.`);
       return;
+    }
+    // Auto-enable custom mode if not already active
+    if (!isCustomMode) {
+      setIsCustomMode(true);
     }
     const newComp: FormulaComponent = {
       code: cat.code,
@@ -151,7 +183,7 @@ export const TeamFormulaBuilderTab: React.FC<Props> = ({
     setSimScores((prev) => ({ ...prev, [cat.code]: 4.0 }));
     setFeedback({
       type: 'success',
-      message: `Đã thêm danh mục "${cat.name}" vào công thức với trọng số khởi tạo 0%. Hãy điều chỉnh các thanh trượt để tổng trọng số đạt 100%.`,
+      message: `Đã thêm danh mục "${cat.name}" vào công thức với trọng số khởi tạo 0%. Nhấn "Phân bổ đều" hoặc điều chỉnh thanh trượt để tổng trọng số đạt 100%.`,
     });
   };
 
@@ -665,19 +697,45 @@ export const TeamFormulaBuilderTab: React.FC<Props> = ({
           boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
           <span style={{ fontSize: '0.875rem', fontWeight: 600, color: textColor }}>
             Tổng Trọng Số Cấu Hình Cho {displayName}
           </span>
-          <span
-            style={{
-              fontSize: '0.875rem',
-              fontWeight: 700,
-              color: isWeightValid ? '#16a34a' : totalWeight > 100 ? '#dc2626' : '#ea580c',
-            }}
-          >
-            {totalWeight}% / 100% {isWeightValid ? '✅ (Hợp lệ)' : '⚠️ (Cần đúng 100%)'}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {isCustomMode && !isWeightValid && components.length > 0 && (
+              <button
+                type="button"
+                onClick={handleAutoBalance}
+                title="Phân bổ đều 100% cho tất cả thành phần"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '4px 12px',
+                  borderRadius: RADII.md,
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  backgroundColor: isDark ? 'rgba(234,88,12,0.18)' : '#fff7ed',
+                  border: `1px solid ${isDark ? '#ea580c' : '#fed7aa'}`,
+                  color: isDark ? '#fb923c' : '#c2410c',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <Calculator size={13} />
+                Phân bổ đều (÷{components.length})
+              </button>
+            )}
+            <span
+              style={{
+                fontSize: '0.875rem',
+                fontWeight: 700,
+                color: isWeightValid ? '#16a34a' : totalWeight > 100 ? '#dc2626' : '#ea580c',
+              }}
+            >
+              {totalWeight}% / 100% {isWeightValid ? '✅ (Hợp lệ)' : '⚠️ (Cần đúng 100%)'}
+            </span>
+          </div>
         </div>
 
         <div style={{ width: '100%', height: '10px', backgroundColor: isDark ? '#334155' : '#e2e8f0', borderRadius: '5px', overflow: 'hidden' }}>
@@ -690,6 +748,11 @@ export const TeamFormulaBuilderTab: React.FC<Props> = ({
             }}
           />
         </div>
+        {isCustomMode && !isWeightValid && (
+          <div style={{ marginTop: '6px', fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#64748b' }}>
+            💡 Tip: Nhấn <strong>"Phân bổ đều"</strong> để chia đều {(100 / (components.length || 1)).toFixed(1)}% cho mỗi thành phần, hoặc kéo thanh trượt thủ công.
+          </div>
+        )}
       </div>
 
       {/* ── Section 4: Component Cards (Con.1, Con.2, Con.3) ─────────────────── */}
@@ -1013,7 +1076,7 @@ export const TeamFormulaBuilderTab: React.FC<Props> = ({
 
                     <button
                       type="button"
-                      disabled={!isCustomMode || isInactive}
+                      disabled={isInactive}
                       onClick={() => handleAddComponent(cat)}
                       style={{
                         display: 'inline-flex',
@@ -1024,16 +1087,16 @@ export const TeamFormulaBuilderTab: React.FC<Props> = ({
                         borderRadius: RADII.md,
                         fontSize: '0.8125rem',
                         fontWeight: 600,
-                        backgroundColor: isCustomMode && !isInactive ? (isDark ? '#2563eb' : '#3b82f6') : (isDark ? '#334155' : '#e2e8f0'),
-                        color: isCustomMode && !isInactive ? '#fff' : (isDark ? '#64748b' : '#94a3b8'),
+                        backgroundColor: !isInactive ? (isDark ? '#2563eb' : '#3b82f6') : (isDark ? '#334155' : '#e2e8f0'),
+                        color: !isInactive ? '#fff' : (isDark ? '#64748b' : '#94a3b8'),
                         border: 'none',
-                        cursor: isCustomMode && !isInactive ? 'pointer' : 'not-allowed',
+                        cursor: !isInactive ? 'pointer' : 'not-allowed',
                         transition: 'all 0.15s ease',
                       }}
-                      title={!isCustomMode ? 'Cần bật chế độ tạo công thức riêng ở trên trước' : isInactive ? 'Danh mục đã bị vô hiệu hóa' : 'Thêm vào công thức'}
+                      title={isInactive ? 'Danh mục đã bị vô hiệu hóa, không thể thêm' : !isCustomMode ? 'Nhấn để tự động bật chế độ tạo công thức riêng và thêm danh mục này' : 'Thêm vào công thức'}
                     >
                       <Plus size={14} />
-                      + Thêm vào công thức
+                      {!isCustomMode ? '+ Thêm (tự bật custom)' : '+ Thêm vào công thức'}
                     </button>
                   </div>
                 );
