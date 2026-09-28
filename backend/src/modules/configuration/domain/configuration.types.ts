@@ -5,6 +5,16 @@ export enum CriterionCategory {
   CUSTOM = 'CUSTOM',
 }
 
+export interface CriterionCategoryEntity {
+  code: string;
+  name: string;
+  description?: string;
+  is_system: boolean;
+  status: 'ACTIVE' | 'INACTIVE';
+  created_at?: Date;
+  updated_at?: Date;
+}
+
 export enum CriterionStatus {
   ACTIVE = 'ACTIVE',
   INACTIVE = 'INACTIVE',

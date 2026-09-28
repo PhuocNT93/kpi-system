@@ -119,7 +119,22 @@ export class TeamFormulaService {
       }
     }
 
+    // Validate that no component belongs to an inactive category if weight > 0
+    const inactiveCategories = await this.repo.getInactiveCategoryCodes();
+    for (const comp of params.components) {
+      const compCode = (comp.code || '').toUpperCase();
+      const compName = (comp.name || '').toUpperCase();
+      const isInactive = inactiveCategories.some(cat => compCode.includes(cat) || compName.includes(cat));
+      if (isInactive && Number(comp.weight || 0) > 0) {
+        throw new Error(`Danh mục '${comp.name}' đã bị vô hiệu hóa trong hệ thống, không thể gán trọng số lớn hơn 0%. Vui lòng phân bổ lại trọng số sang các danh mục khác.`);
+      }
+    }
+
     return this.repo.upsertFormula(params);
+  }
+
+  async getCategories(status?: 'ACTIVE' | 'INACTIVE') {
+    return this.repo.getCategories(status);
   }
 
   async resetTeamFormula(teamId: string): Promise<EffectiveFormulaResult> {

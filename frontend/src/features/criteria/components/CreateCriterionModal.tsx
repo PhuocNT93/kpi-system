@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../../../shared/ui/Button/Button';
 import type { CreateCriterionDto } from '../domain/criteria-models';
 import { AutoCodeButton } from '../../../shared/components/AutoCodeButton';
 import { generateCode } from '../../../shared/utils/code-generator';
+import { formulaApi } from '../../organization/api/formula-api';
 
 const DEFAULT_CATEGORIES = ['PERFORMANCE', 'CAPABILITY', 'CONTRIBUTION', 'BEHAVIOR'];
 
@@ -30,6 +31,21 @@ export function CreateCriterionModal({
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [newCategoryInput, setNewCategoryInput] = useState('');
   const [categoryModalError, setCategoryModalError] = useState<string | null>(null);
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      formulaApi.getCategories('ACTIVE').then((cats) => {
+        if (cats && cats.length > 0) {
+          const codes = cats.map(c => c.code);
+          setCategories(codes);
+          setCategory((prev) => (codes.includes(prev) ? prev : (codes[0] || 'PERFORMANCE')));
+        }
+      }).catch(() => {
+        // Fallback to default categories
+      });
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -58,7 +74,7 @@ export function CreateCriterionModal({
     }
   };
 
-  const handleCreateCategory = (e: React.FormEvent) => {
+  const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     setCategoryModalError(null);
     const cleaned = newCategoryInput
@@ -72,12 +88,23 @@ export function CreateCriterionModal({
       return;
     }
 
-    if (!categories.includes(cleaned)) {
-      setCategories((prev) => [...prev, cleaned]);
+    setIsCreatingCategory(true);
+    try {
+      await formulaApi.createCategory({
+        code: cleaned,
+        name: newCategoryInput.trim(),
+      });
+      if (!categories.includes(cleaned)) {
+        setCategories((prev) => [...prev, cleaned]);
+      }
+      setCategory(cleaned);
+      setNewCategoryInput('');
+      setIsCategoryModalOpen(false);
+    } catch (err: unknown) {
+      setCategoryModalError(err instanceof Error ? err.message : 'Không thể tạo danh mục mới');
+    } finally {
+      setIsCreatingCategory(false);
     }
-    setCategory(cleaned);
-    setNewCategoryInput('');
-    setIsCategoryModalOpen(false);
   };
 
   return (
@@ -373,8 +400,8 @@ export function CreateCriterionModal({
                 >
                   Cancel
                 </Button>
-                <Button type="submit" variant="primary">
-                  Add Category
+                <Button type="submit" variant="primary" disabled={isCreatingCategory}>
+                  {isCreatingCategory ? 'Adding...' : 'Add Category'}
                 </Button>
               </div>
             </form>

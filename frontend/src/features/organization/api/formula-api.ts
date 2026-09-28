@@ -91,7 +91,32 @@ export interface FormulaSummaryItem {
   updated_at?: string;
 }
 
+export interface CriterionCategoryEntity {
+  code: string;
+  name: string;
+  description?: string;
+  is_system: boolean;
+  status: 'ACTIVE' | 'INACTIVE';
+}
+
 export const formulaApi = {
+  getCategories: async (status?: 'ACTIVE' | 'INACTIVE'): Promise<CriterionCategoryEntity[]> => {
+    const qs = status ? `?status=${status}` : '';
+    return getApi<CriterionCategoryEntity[]>(`/api/org/formula/categories${qs}`);
+  },
+
+  createCategory: async (data: { code: string; name: string; description?: string }): Promise<CriterionCategoryEntity> => {
+    return postApi<CriterionCategoryEntity>('/api/v1/configuration/categories', data);
+  },
+
+  activateCategory: async (code: string): Promise<CriterionCategoryEntity> => {
+    return postApi<CriterionCategoryEntity>(`/api/v1/configuration/categories/${code}/activate`, {});
+  },
+
+  deactivateCategory: async (code: string): Promise<CriterionCategoryEntity> => {
+    return postApi<CriterionCategoryEntity>(`/api/v1/configuration/categories/${code}/deactivate`, {});
+  },
+
   getGlobalFormula: async (): Promise<FormulaResponse> => {
     return getApi<FormulaResponse>('/api/org/formula');
   },

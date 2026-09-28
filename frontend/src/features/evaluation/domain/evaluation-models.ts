@@ -148,7 +148,9 @@ export interface EvaluationDetail {
   manager_score?: number;
   final_score?: number;
   official_score?: number | null;
+  team_id_snapshot?: string;
   formula_snapshot?: Record<string, unknown>;
+  effective_formula?: Record<string, unknown>;
   calculated_rank?: string;
   salary_recommendation?: Record<string, unknown>;
   scoring_breakdown?: EvaluationScoringBreakdown;
@@ -212,7 +214,7 @@ export interface ScoringCriterionKpi {
 
 export interface ScoringCriterionSummary {
   title: string;
-  category: CriterionCategory;
+  category: string;
   score: number;
   scoreValue: string;
   rawScore: number;
@@ -228,7 +230,7 @@ export interface ScoringCriterionSummary {
 }
 
 export interface ScoringGroupSummary {
-  key: CriterionCategory;
+  key: string;
   weight: number;
   accent: string;
   description: string;
@@ -289,13 +291,10 @@ export function percentToTenPointScore(value: number | string | null | undefined
 }
 
 export function getCriterionCategory(item: Pick<EvaluationItem, 'category' | 'criterion_category_snapshot' | 'criterion_code_snapshot' | 'criterion_name_snapshot' | 'kpi_code_snapshot' | 'kpi_name_snapshot'>): string {
-  const directCategory = [item.criterion_category_snapshot, item.category]
-    .find((value) => Boolean(value && ['performance', 'capability', 'contribution'].includes(value.trim().toLowerCase()))) as string | undefined;
-  if (directCategory) {
-    const normalized = directCategory.trim().toLowerCase();
-    if (normalized === 'performance') return 'Performance';
-    if (normalized === 'capability') return 'Capability';
-    if (normalized === 'contribution') return 'Contribution';
+  const directCategory = [item.criterion_category_snapshot, item.category].find(Boolean) as string | undefined;
+  if (directCategory && directCategory.trim()) {
+    const trimmed = directCategory.trim();
+    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
   }
   const code = [item.criterion_code_snapshot, item.kpi_code_snapshot].filter(Boolean).join(' ').toLowerCase();
   const name = [getCriterionName(item.criterion_name_snapshot, item.criterion_code_snapshot), item.kpi_name_snapshot].filter(Boolean).join(' ').toLowerCase();
@@ -303,6 +302,7 @@ export function getCriterionCategory(item: Pick<EvaluationItem, 'category' | 'cr
   if (code.includes('performance') || code.startsWith('perf') || name.includes('performance') || name.includes('quality') || name.includes('task')) return 'Performance';
   if (code.includes('capability') || code.startsWith('cap') || name.includes('capability') || name.includes('competency') || name.includes('competence') || name.includes('skill') || name.includes('ownership')) return 'Capability';
   if (code.includes('contribution') || code.startsWith('con') || name.includes('contribution') || name.includes('collaboration') || name.includes('teamwork') || name.includes('support') || name.includes('independence')) return 'Contribution';
+  if (code.includes('behavior') || code.startsWith('beh') || name.includes('behavior') || name.includes('hành vi')) return 'Behavior';
   return 'Uncategorized';
 }
 
@@ -319,7 +319,10 @@ const LEVEL_SCORE_PERCENT_MAP: Record<number, number> = {
   5: 100,
 };
 
-export function buildEvaluationScoringSummary(evaluationDetail?: EvaluationDetail | null): EvaluationScoringSummary {
+export function buildEvaluationScoringSummary(
+  evaluationDetail?: EvaluationDetail | null,
+  customFormula?: Record<string, unknown> | null
+): EvaluationScoringSummary {
   const items = evaluationDetail?.items ?? [];
   const criterionMap = new Map<string, ScoringCriterionSummary>();
 
@@ -382,14 +385,64 @@ export function buildEvaluationScoringSummary(evaluationDetail?: EvaluationDetai
   });
 
   const criteria = Array.from(criterionMap.values());
-  const grouped = criterionCategoryConfig.map((config) => {
-    const groupCriteria = criteria.filter((criterion) => criterion.category === config.key);
+
+  // Resolve formula components dynamically from formula_snapshot, effective_formula, or customFormula
+  const activeFormula = customFormula || evaluationDetail?.effective_formula || evaluationDetail?.formula_snapshot;
+  const rawComponents = activeFormula && typeof activeFormula === 'object' && Array.isArray((activeFormula as { components?: unknown[] }).components)
+    ? (activeFormula as { components: Array<{ code?: string; name?: string; weight?: number; description?: string }> }).components
+    : null;
+
+  const ACCENT_COLORS = [
+    COLORS.primary.DEFAULT,
+    COLORS.semantic.success.DEFAULT,
+    COLORS.semantic.warning.DEFAULT,
+    '#8b5cf6',
+    '#0ea5e9',
+    '#ec4899',
+  ];
+
+  const effectiveConfigs = (rawComponents && rawComponents.length > 0)
+    ? rawComponents.map((comp, idx) => {
+        const rawName = String(comp.name || comp.code || '').trim();
+        let key = rawName.split(/[\s(]/)[0];
+        if (!key) key = comp.code || `Thành phần ${idx + 1}`;
+        key = key.charAt(0).toUpperCase() + key.slice(1).toLowerCase();
+
+        return {
+          key,
+          code: String(comp.code || '').toUpperCase(),
+          rawName: comp.name || key,
+          weight: Number(comp.weight || 0),
+          accent: ACCENT_COLORS[idx % ACCENT_COLORS.length],
+          description: comp.description || '',
+        };
+      })
+    : criterionCategoryConfig.map((cfg) => ({
+        key: cfg.key,
+        code: cfg.key.toUpperCase(),
+        rawName: cfg.key,
+        weight: cfg.weight,
+        accent: cfg.accent,
+        description: cfg.description,
+      }));
+
+  const grouped = effectiveConfigs.map((config) => {
+    const groupCriteria = criteria.filter((criterion) => {
+      const cat = (criterion.category || '').toLowerCase();
+      const cfgKey = config.key.toLowerCase();
+      const cfgCode = config.code.toLowerCase();
+      const cfgRaw = config.rawName.toLowerCase();
+      return cat === cfgKey || cat === cfgCode || cfgRaw.includes(cat) || cat.includes(cfgKey);
+    });
     const max = groupCriteria.reduce((sum, criterion) => sum + (criterion.rawWeightValue ?? 0), 0);
     const weightedScoreTotal = groupCriteria.reduce((sum, criterion) => sum + criterion.weightedScore, 0);
     const average = max > 0 ? (weightedScoreTotal / max) * 5 : null;
 
     return {
-      ...config,
+      key: config.key,
+      weight: config.weight,
+      accent: config.accent,
+      description: config.description,
       average,
       criteriaCount: groupCriteria.length,
     };

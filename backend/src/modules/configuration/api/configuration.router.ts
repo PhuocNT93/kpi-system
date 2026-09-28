@@ -33,6 +33,12 @@ export function createConfigurationRouter(
 
   router.use(jwtMiddleware);
 
+  // ── Criterion Categories Routes ───────────────────────────────────────────
+  router.get('/categories', requirePermission('CONFIGURATION_READ'), controller.getCategories);
+  router.post('/categories', requirePermission('CONFIGURATION_CREATE'), controller.createCategory);
+  router.post('/categories/:code/activate', requirePermission('CONFIGURATION_UPDATE'), controller.activateCategory);
+  router.post('/categories/:code/deactivate', requirePermission('CONFIGURATION_UPDATE'), controller.deactivateCategory);
+
   // ── Criteria Routes ─────────────────────────────────────────────────────────
   router.get('/criteria', requirePermission('CONFIGURATION_READ'), controller.getCriteria);
   router.post('/criteria', requirePermission('CONFIGURATION_CREATE'), controller.createCriterion);

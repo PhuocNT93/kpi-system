@@ -12,11 +12,15 @@ import {
   Unlock,
   Building,
   Users,
+  Plus,
+  Trash2,
+  Tag,
 } from 'lucide-react';
 import {
   formulaApi,
   type FormulaComponent,
   type FormulaSimulationResult,
+  type CriterionCategoryEntity,
 } from '../api/formula-api';
 import { useTheme, RADII } from '../../../shared/theme';
 
@@ -50,6 +54,7 @@ export const TeamFormulaBuilderTab: React.FC<Props> = ({
   const [parentDeptName, setParentDeptName] = useState<string | null>(departmentName || null);
   const [isCustomMode, setIsCustomMode] = useState<boolean>(false);
   const [components, setComponents] = useState<FormulaComponent[]>([]);
+  const [allCategories, setAllCategories] = useState<CriterionCategoryEntity[]>([]);
 
   // Simulator State
   const [simScores, setSimScores] = useState<Record<string, number>>({
@@ -60,25 +65,26 @@ export const TeamFormulaBuilderTab: React.FC<Props> = ({
   const [simSalary, setSimSalary] = useState<number>(35_000_000);
   const [simResult, setSimResult] = useState<FormulaSimulationResult | null>(null);
 
-  // Fetch initial formula
+  // Fetch initial formula and categories
   const fetchFormula = useCallback(async () => {
     setLoading(true);
     setFeedback(null);
     try {
-      let res;
-      if (teamId) {
-        res = await formulaApi.getTeamFormula(teamId);
-      } else if (departmentId) {
-        res = await formulaApi.getDepartmentFormula(departmentId);
-      } else {
-        res = await formulaApi.getGlobalFormula();
-      }
+      const [formulaRes, catRes] = await Promise.all([
+        teamId
+          ? formulaApi.getTeamFormula(teamId)
+          : departmentId
+          ? formulaApi.getDepartmentFormula(departmentId)
+          : formulaApi.getGlobalFormula(),
+        formulaApi.getCategories(),
+      ]);
 
-      setIsInherited(res.isInherited);
-      setInheritedFrom(res.inheritedFrom || (res.isInherited ? 'GLOBAL' : null));
-      if (res.departmentName) setParentDeptName(res.departmentName);
-      setIsCustomMode(!res.isInherited);
-      setComponents(res.formula.components || []);
+      setIsInherited(formulaRes.isInherited);
+      setInheritedFrom(formulaRes.inheritedFrom || (formulaRes.isInherited ? 'GLOBAL' : null));
+      if (formulaRes.departmentName) setParentDeptName(formulaRes.departmentName);
+      setIsCustomMode(!formulaRes.isInherited);
+      setComponents(formulaRes.formula.components || []);
+      setAllCategories(catRes || []);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Không thể tải cấu hình công thức';
       setFeedback({ type: 'error', message });
@@ -91,12 +97,75 @@ export const TeamFormulaBuilderTab: React.FC<Props> = ({
     fetchFormula();
   }, [fetchFormula]);
 
+  // Helper: Match component with category
+  const matchCategoryWithComponent = useCallback((cat: CriterionCategoryEntity, comp: FormulaComponent): boolean => {
+    const catCode = (cat.code || '').toUpperCase();
+    const compCode = (comp.code || '').toUpperCase();
+    const compName = (comp.name || '').toUpperCase();
+    const catName = (cat.name || '').toUpperCase();
+
+    if (catCode === compCode) return true;
+    if (compName.includes(catCode) || catName.includes(compCode)) return true;
+
+    if (catCode === 'PERFORMANCE' && (compCode === 'CON.1' || compName.includes('PERFORMANCE'))) return true;
+    if (catCode === 'CAPABILITY' && (compCode === 'CON.2' || compName.includes('CAPABILITY'))) return true;
+    if (catCode === 'CONTRIBUTION' && (compCode === 'CON.3' || compName.includes('CONTRIBUTION'))) return true;
+
+    return false;
+  }, []);
+
+  const findCategoryForComponent = useCallback((comp: FormulaComponent) => {
+    return allCategories.find((cat) => matchCategoryWithComponent(cat, comp));
+  }, [allCategories, matchCategoryWithComponent]);
+
+  // Unassigned categories (created in studio or system, not yet in formula)
+  const unassignedCategories = useMemo(() => {
+    return allCategories.filter((cat) => {
+      return !components.some((comp) => matchCategoryWithComponent(cat, comp));
+    });
+  }, [allCategories, components, matchCategoryWithComponent]);
+
   // Total weight calculation & validation
   const totalWeight = useMemo(() => {
     return components.reduce((sum, c) => sum + Number(c.weight || 0), 0);
   }, [components]);
 
   const isWeightValid = Math.abs(totalWeight - 100) < 0.01;
+
+  // Handle adding an unassigned category to components
+  const handleAddComponent = (cat: CriterionCategoryEntity) => {
+    if (!isCustomMode) return;
+    if (cat.status === 'INACTIVE') {
+      alert(`Danh mục "${cat.name}" đang bị vô hiệu hóa trong hệ thống, không thể thêm vào công thức.`);
+      return;
+    }
+    const newComp: FormulaComponent = {
+      code: cat.code,
+      name: cat.name,
+      weight: 0,
+      source_type: 'MANUAL_RATING',
+      scale_max: 5.0,
+      description: cat.description || `Đánh giá theo danh mục ${cat.name}`,
+    };
+    setComponents((prev) => [...prev, newComp]);
+    setSimScores((prev) => ({ ...prev, [cat.code]: 4.0 }));
+    setFeedback({
+      type: 'success',
+      message: `Đã thêm danh mục "${cat.name}" vào công thức với trọng số khởi tạo 0%. Hãy điều chỉnh các thanh trượt để tổng trọng số đạt 100%.`,
+    });
+  };
+
+  // Handle removing a non-system component
+  const handleRemoveComponent = (compIndex: number) => {
+    if (!isCustomMode) return;
+    const comp = components[compIndex];
+    const cat = findCategoryForComponent(comp);
+    if (cat?.is_system) {
+      alert('Không thể xóa danh mục cốt lõi của hệ thống (System Category). Bạn có thể đặt trọng số về 0% nếu không muốn tính điểm.');
+      return;
+    }
+    setComponents((prev) => prev.filter((_, idx) => idx !== compIndex));
+  };
 
   // Handle weight change for a component
   const handleWeightChange = (index: number, newWeight: number) => {
@@ -191,6 +260,18 @@ export const TeamFormulaBuilderTab: React.FC<Props> = ({
     if (!isWeightValid) {
       setFeedback({ type: 'error', message: 'Tổng trọng số phải đúng 100% trước khi lưu.' });
       return;
+    }
+
+    // Validate that no component belongs to an inactive category if weight > 0
+    for (const comp of components) {
+      const cat = findCategoryForComponent(comp);
+      if (cat?.status === 'INACTIVE' && Number(comp.weight || 0) > 0) {
+        setFeedback({
+          type: 'error',
+          message: `Danh mục "${comp.name}" đã bị vô hiệu hóa trong hệ thống. Vui lòng chuyển trọng số về 0% hoặc xóa khỏi công thức trước khi lưu.`,
+        });
+        return;
+      }
     }
 
     setSaving(true);
@@ -625,150 +706,341 @@ export const TeamFormulaBuilderTab: React.FC<Props> = ({
           )}
         </div>
 
-        {components.map((comp, idx) => (
+        {components.map((comp, idx) => {
+          const cat = findCategoryForComponent(comp);
+          const isCatInactive = cat?.status === 'INACTIVE';
+          const isSystemCat = Boolean(cat?.is_system);
+
+          return (
+            <div
+              key={comp.code}
+              style={{
+                backgroundColor: cardBg,
+                border: isCatInactive
+                  ? `1px solid ${isDark ? '#ef4444' : '#f87171'}`
+                  : `1px solid ${borderColor}`,
+                borderRadius: RADII.xl,
+                padding: '20px 24px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '16px',
+                opacity: isCustomMode ? 1 : 0.85,
+              }}
+            >
+              {/* Inactive Category Warning Banner */}
+              {isCatInactive && (
+                <div
+                  style={{
+                    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#fef2f2',
+                    border: '1px solid #ef4444',
+                    borderRadius: RADII.md,
+                    padding: '10px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    color: isDark ? '#fca5a5' : '#b91c1c',
+                    fontSize: '0.8125rem',
+                    fontWeight: 600,
+                  }}
+                >
+                  <AlertTriangle size={18} color="#ef4444" />
+                  <span>
+                    ⚠️ Danh mục <strong>{comp.name}</strong> đã bị <strong>VÔ HIỆU HÓA</strong> trong hệ thống. Để lưu công thức, bạn phải chuyển trọng số về <strong>0%</strong> hoặc gỡ khỏi công thức.
+                  </span>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <span
+                      style={{
+                        fontFamily: 'monospace',
+                        fontWeight: 800,
+                        fontSize: '0.875rem',
+                        padding: '3px 8px',
+                        borderRadius: RADII.sm,
+                        backgroundColor: isCatInactive ? '#fee2e2' : idx === 0 ? '#eff6ff' : idx === 1 ? '#f5f3ff' : '#ecfdf5',
+                        color: isCatInactive ? '#dc2626' : idx === 0 ? '#1d4ed8' : idx === 1 ? '#6d28d9' : '#047857',
+                        border: `1px solid ${isCatInactive ? '#fca5a5' : idx === 0 ? '#bfdbfe' : idx === 1 ? '#ddd6fe' : '#a7f3d0'}`,
+                      }}
+                    >
+                      {comp.code}
+                    </span>
+                    <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: textColor }}>
+                      {comp.name}
+                    </h4>
+                    {isCatInactive && (
+                      <span
+                        style={{
+                          fontSize: '0.6875rem',
+                          fontWeight: 800,
+                          color: '#dc2626',
+                          backgroundColor: isDark ? 'rgba(220, 38, 38, 0.2)' : '#fee2e2',
+                          border: '1px solid #f87171',
+                          padding: '2px 8px',
+                          borderRadius: RADII.sm,
+                        }}
+                      >
+                        ĐÃ BỊ VÔ HIỆU HÓA
+                      </span>
+                    )}
+                  </div>
+                  {comp.description && (
+                    <p style={{ margin: '6px 0 0', fontSize: '0.8125rem', color: subTextColor }}>
+                      {comp.description}
+                    </p>
+                  )}
+                </div>
+
+                {/* Right controls: Weight Controller & Optional Remove */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '0.875rem', fontWeight: 600, color: textColor }}>
+                      Trọng số:
+                    </span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="5"
+                      value={comp.weight}
+                      disabled={!isCustomMode}
+                      onChange={(e) => handleWeightChange(idx, Number(e.target.value))}
+                      style={{ width: '130px', cursor: isCustomMode ? 'pointer' : 'not-allowed' }}
+                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={comp.weight}
+                        disabled={!isCustomMode}
+                        onChange={(e) => handleWeightChange(idx, Number(e.target.value))}
+                        style={{
+                          width: '60px',
+                          padding: '6px 8px',
+                          borderRadius: RADII.md,
+                          border: `1px solid ${borderColor}`,
+                          backgroundColor: isDark ? '#0f172a' : '#fff',
+                          color: textColor,
+                          fontWeight: 700,
+                          textAlign: 'center',
+                          cursor: isCustomMode ? 'text' : 'not-allowed',
+                        }}
+                      />
+                      <span style={{ fontWeight: 700, color: subTextColor }}>%</span>
+                    </div>
+                  </div>
+
+                  {/* Remove button for non-system custom categories */}
+                  {!isSystemCat && isCustomMode && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveComponent(idx)}
+                      title="Gỡ danh mục khỏi công thức"
+                      style={{
+                        background: 'transparent',
+                        border: `1px solid ${borderColor}`,
+                        cursor: 'pointer',
+                        color: isDark ? '#94a3b8' : '#64748b',
+                        padding: '6px 12px',
+                        borderRadius: RADII.md,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontSize: '0.8125rem',
+                        fontWeight: 600,
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = '#ef4444';
+                        e.currentTarget.style.borderColor = '#ef4444';
+                        e.currentTarget.style.backgroundColor = isDark ? 'rgba(239, 68, 68, 0.15)' : '#fee2e2';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = isDark ? '#94a3b8' : '#64748b';
+                        e.currentTarget.style.borderColor = borderColor;
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      <Trash2 size={15} />
+                      <span>Gỡ</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Sub-criteria for Con.3 if present */}
+              {comp.sub_criteria && comp.sub_criteria.length > 0 && (
+                <div
+                  style={{
+                    marginTop: '4px',
+                    padding: '14px 18px',
+                    borderRadius: RADII.lg,
+                    backgroundColor: isDark ? '#0f172a' : '#f8fafc',
+                    border: `1px solid ${isDark ? '#334155' : '#f1f5f9'}`,
+                  }}
+                >
+                  <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: textColor, marginBottom: '10px' }}>
+                    Tiêu chí con (Sub-criteria) bên trong {comp.code}:
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
+                    {comp.sub_criteria.map((sub, subIdx) => (
+                      <div
+                        key={sub.code}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '8px 12px',
+                          borderRadius: RADII.md,
+                          backgroundColor: cardBg,
+                          border: `1px solid ${borderColor}`,
+                        }}
+                      >
+                        <span style={{ fontSize: '0.8125rem', color: textColor, fontWeight: 500 }}>
+                          {sub.name}
+                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="1"
+                            value={sub.weight}
+                            disabled={!isCustomMode}
+                            onChange={(e) => handleSubWeightChange(idx, subIdx, Number(e.target.value))}
+                            style={{
+                              width: '50px',
+                              padding: '4px 6px',
+                              borderRadius: RADII.sm,
+                              border: `1px solid ${borderColor}`,
+                              backgroundColor: isDark ? '#0f172a' : '#fff',
+                              color: textColor,
+                              fontWeight: 700,
+                              textAlign: 'center',
+                              fontSize: '0.8125rem',
+                              cursor: isCustomMode ? 'text' : 'not-allowed',
+                            }}
+                          />
+                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: subTextColor }}>%</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* ── Section: Available Categories from System (Sync) ── */}
+        {unassignedCategories.length > 0 && (
           <div
-            key={comp.code}
             style={{
               backgroundColor: cardBg,
-              border: `1px solid ${borderColor}`,
+              border: `1px dashed ${borderColor}`,
               borderRadius: RADII.xl,
               padding: '20px 24px',
               display: 'flex',
               flexDirection: 'column',
-              gap: '16px',
-              opacity: isCustomMode ? 1 : 0.85,
+              gap: '14px',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Tag size={18} color={isDark ? '#38bdf8' : '#0284c7'} />
+                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: textColor }}>
+                  Danh Mục Khả Dụng Trong Hệ Thống (Đồng Bộ Từ Studio)
+                </h4>
+              </div>
+              <span style={{ fontSize: '0.75rem', color: subTextColor }}>
+                {unassignedCategories.length} danh mục chưa được thêm vào công thức
+              </span>
+            </div>
+            <p style={{ margin: 0, fontSize: '0.8125rem', color: subTextColor }}>
+              Các danh mục này đã được định nghĩa trong hệ thống nhưng chưa nằm trong công thức của {displayName}. Khi thêm vào, trọng số khởi tạo sẽ là 0% để không làm thay đổi kết quả các công thức hiện tại.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+              {unassignedCategories.map((cat) => {
+                const isInactive = cat.status === 'INACTIVE';
+                return (
+                  <div
+                    key={cat.code}
                     style={{
-                      fontFamily: 'monospace',
-                      fontWeight: 800,
-                      fontSize: '0.875rem',
-                      padding: '3px 8px',
-                      borderRadius: RADII.sm,
-                      backgroundColor: idx === 0 ? '#eff6ff' : idx === 1 ? '#f5f3ff' : '#ecfdf5',
-                      color: idx === 0 ? '#1d4ed8' : idx === 1 ? '#6d28d9' : '#047857',
-                      border: `1px solid ${idx === 0 ? '#bfdbfe' : idx === 1 ? '#ddd6fe' : '#a7f3d0'}`,
+                      padding: '14px 16px',
+                      borderRadius: RADII.lg,
+                      border: `1px solid ${isInactive ? (isDark ? '#7f1d1d' : '#fecaca') : borderColor}`,
+                      backgroundColor: isInactive ? (isDark ? 'rgba(127, 29, 29, 0.1)' : '#fff5f5') : (isDark ? '#0f172a' : '#f8fafc'),
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: '12px',
                     }}
                   >
-                    {comp.code}
-                  </span>
-                  <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: textColor }}>
-                    {comp.name}
-                  </h4>
-                </div>
-                {comp.description && (
-                  <p style={{ margin: '6px 0 0', fontSize: '0.8125rem', color: subTextColor }}>
-                    {comp.description}
-                  </p>
-                )}
-              </div>
-
-              {/* Weight Controller */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: textColor }}>
-                  Trọng số:
-                </span>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  step="5"
-                  value={comp.weight}
-                  disabled={!isCustomMode}
-                  onChange={(e) => handleWeightChange(idx, Number(e.target.value))}
-                  style={{ width: '130px', cursor: isCustomMode ? 'pointer' : 'not-allowed' }}
-                />
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={comp.weight}
-                    disabled={!isCustomMode}
-                    onChange={(e) => handleWeightChange(idx, Number(e.target.value))}
-                    style={{
-                      width: '60px',
-                      padding: '6px 8px',
-                      borderRadius: RADII.md,
-                      border: `1px solid ${borderColor}`,
-                      backgroundColor: isDark ? '#0f172a' : '#fff',
-                      color: textColor,
-                      fontWeight: 700,
-                      textAlign: 'center',
-                      cursor: isCustomMode ? 'text' : 'not-allowed',
-                    }}
-                  />
-                  <span style={{ fontWeight: 700, color: subTextColor }}>%</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Sub-criteria for Con.3 if present */}
-            {comp.sub_criteria && comp.sub_criteria.length > 0 && (
-              <div
-                style={{
-                  marginTop: '4px',
-                  padding: '14px 18px',
-                  borderRadius: RADII.lg,
-                  backgroundColor: isDark ? '#0f172a' : '#f8fafc',
-                  border: `1px solid ${isDark ? '#334155' : '#f1f5f9'}`,
-                }}
-              >
-                <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: textColor, marginBottom: '10px' }}>
-                  Tiêu chí con (Sub-criteria) bên trong {comp.code}:
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
-                  {comp.sub_criteria.map((sub, subIdx) => (
-                    <div
-                      key={sub.code}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '8px 12px',
-                        borderRadius: RADII.md,
-                        backgroundColor: cardBg,
-                        border: `1px solid ${borderColor}`,
-                      }}
-                    >
-                      <span style={{ fontSize: '0.8125rem', color: textColor, fontWeight: 500 }}>
-                        {sub.name}
-                      </span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="1"
-                          value={sub.weight}
-                          disabled={!isCustomMode}
-                          onChange={(e) => handleSubWeightChange(idx, subIdx, Number(e.target.value))}
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                        <span
                           style={{
-                            width: '50px',
-                            padding: '4px 6px',
+                            fontFamily: 'monospace',
+                            fontWeight: 800,
+                            fontSize: '0.75rem',
+                            padding: '2px 6px',
                             borderRadius: RADII.sm,
-                            border: `1px solid ${borderColor}`,
-                            backgroundColor: isDark ? '#0f172a' : '#fff',
-                            color: textColor,
-                            fontWeight: 700,
-                            textAlign: 'center',
-                            fontSize: '0.8125rem',
-                            cursor: isCustomMode ? 'text' : 'not-allowed',
+                            backgroundColor: isInactive ? '#fee2e2' : (isDark ? '#1e293b' : '#e2e8f0'),
+                            color: isInactive ? '#dc2626' : (isDark ? '#94a3b8' : '#475569'),
                           }}
-                        />
-                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: subTextColor }}>%</span>
+                        >
+                          {cat.code}
+                        </span>
+                        {isInactive && (
+                          <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#dc2626' }}>
+                            VÔ HIỆU HÓA
+                          </span>
+                        )}
                       </div>
+                      <div style={{ fontWeight: 700, fontSize: '0.875rem', color: textColor, marginTop: '8px' }}>
+                        {cat.name}
+                      </div>
+                      {cat.description && (
+                        <div style={{ fontSize: '0.75rem', color: subTextColor, marginTop: '4px', lineHeight: 1.4 }}>
+                          {cat.description}
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
+
+                    <button
+                      type="button"
+                      disabled={!isCustomMode || isInactive}
+                      onClick={() => handleAddComponent(cat)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        padding: '8px 14px',
+                        borderRadius: RADII.md,
+                        fontSize: '0.8125rem',
+                        fontWeight: 600,
+                        backgroundColor: isCustomMode && !isInactive ? (isDark ? '#2563eb' : '#3b82f6') : (isDark ? '#334155' : '#e2e8f0'),
+                        color: isCustomMode && !isInactive ? '#fff' : (isDark ? '#64748b' : '#94a3b8'),
+                        border: 'none',
+                        cursor: isCustomMode && !isInactive ? 'pointer' : 'not-allowed',
+                        transition: 'all 0.15s ease',
+                      }}
+                      title={!isCustomMode ? 'Cần bật chế độ tạo công thức riêng ở trên trước' : isInactive ? 'Danh mục đã bị vô hiệu hóa' : 'Thêm vào công thức'}
+                    >
+                      <Plus size={14} />
+                      + Thêm vào công thức
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        ))}
+        )}
       </div>
 
       {/* ── Section 5: Live Interactive Simulator ─────────────────────────────── */}

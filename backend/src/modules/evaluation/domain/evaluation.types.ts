@@ -30,6 +30,7 @@ export interface Evaluation {
   scoring_breakdown?: Record<string, unknown>;
   development_blocks?: Array<Record<string, unknown>>;
   formula_snapshot?: Record<string, unknown>;
+  effective_formula?: Record<string, unknown>;
   calculated_rank?: string;
   salary_recommendation?: Record<string, unknown>;
   submitted_at?: Date;

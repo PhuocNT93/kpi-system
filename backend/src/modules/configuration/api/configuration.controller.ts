@@ -12,6 +12,7 @@ import { ConfigurationCloneService } from '../application/services/configuration
 import { ConfigurationSnapshotService } from '../application/services/configuration-snapshot.service.js';
 import { WorkflowConfigurationService } from '../application/services/workflow-configuration.service.js';
 import { ConfigurationAuditService } from '../application/services/configuration-audit.service.js';
+import { CriterionCategoryService } from '../application/services/criterion-category.service.js';
 import { CriterionStatus, VersionStatus, ScoringRuleType, TemplateStatus, ApplicabilityRule } from '../domain/configuration.types.js';
 import { getActorFromContext } from '../../../shared/auth/index.js';
 
@@ -27,7 +28,8 @@ export class ConfigurationController {
     private cloneService: ConfigurationCloneService,
     private snapshotService: ConfigurationSnapshotService,
     private workflowService: WorkflowConfigurationService,
-    private auditService: ConfigurationAuditService
+    private auditService: ConfigurationAuditService,
+    private categoryService?: CriterionCategoryService
   ) {}
 
   private getActorId(req: Request): string | undefined {
@@ -748,5 +750,52 @@ export class ConfigurationController {
     const id = req.params.id as string;
     const log = await this.auditService.getAuditLogById(id);
     sendSuccess(res, 200, 'Audit log retrieved successfully.', log);
+  };
+
+  // ── Criterion Categories ──────────────────────────────────────────────────
+
+  getCategories = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { status } = req.query;
+      const categories = this.categoryService
+        ? await this.categoryService.getCategories(status as 'ACTIVE' | 'INACTIVE' | undefined)
+        : [];
+      sendSuccess(res, 200, 'Categories retrieved successfully.', categories);
+    } catch (e) { next(e); }
+  };
+
+  createCategory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!this.categoryService) {
+        res.status(500).json({ success: false, message: 'Category service not initialized' });
+        return;
+      }
+      const category = await this.categoryService.createCategory(req.body);
+      sendSuccess(res, 201, 'Category created successfully.', category);
+    } catch (e) { next(e); }
+  };
+
+  activateCategory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!this.categoryService) {
+        res.status(500).json({ success: false, message: 'Category service not initialized' });
+        return;
+      }
+      const code = req.params.code as string;
+      const updated = await this.categoryService.activateCategory(code);
+      sendSuccess(res, 200, `Category '${code}' activated successfully.`, updated);
+    } catch (e) { next(e); }
+  };
+
+  deactivateCategory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!this.categoryService) {
+        res.status(500).json({ success: false, message: 'Category service not initialized' });
+        return;
+      }
+      const code = req.params.code as string;
+      const updated = await this.categoryService.deactivateCategory(code);
+      sendSuccess(res, 200, `Category '${code}' deactivated successfully.`, updated);
+    } catch (e) { next(e); }
   };
 }

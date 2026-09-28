@@ -34,6 +34,8 @@ export function createOrganizationRouter(
 
   // ── Team & Department Evaluation Formula Routes ────────────────────────────
   if (formulaController) {
+    router.get('/formula/categories', formulaController.getCategories);
+    router.get('/categories', formulaController.getCategories);
     router.get('/formula/summary', formulaController.getAllFormulasSummary);
     router.get('/formula', formulaController.getGlobalFormula);
     router.put('/formula', formulaController.saveGlobalFormula);

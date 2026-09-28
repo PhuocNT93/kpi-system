@@ -167,4 +167,33 @@ export class PostgresFormulaRepository {
       updated_at: r.updated_at ? new Date(r.updated_at) : undefined,
     }));
   }
+
+  async getCategories(status?: 'ACTIVE' | 'INACTIVE'): Promise<Array<{
+    code: string;
+    name: string;
+    description?: string;
+    is_system: boolean;
+    status: 'ACTIVE' | 'INACTIVE';
+  }>> {
+    let query = 'SELECT code, name, description, is_system, status FROM criterion_category';
+    const params: unknown[] = [];
+    if (status) {
+      query += ' WHERE status = $1';
+      params.push(status);
+    }
+    query += ' ORDER BY is_system DESC, code ASC';
+    const res = await this.pool.query(query, params);
+    return res.rows.map(r => ({
+      code: r.code as string,
+      name: r.name as string,
+      description: (r.description as string | null) ?? undefined,
+      is_system: Boolean(r.is_system),
+      status: r.status as 'ACTIVE' | 'INACTIVE',
+    }));
+  }
+
+  async getInactiveCategoryCodes(): Promise<string[]> {
+    const res = await this.pool.query("SELECT code FROM criterion_category WHERE status = 'INACTIVE'");
+    return res.rows.map(r => String(r.code).toUpperCase());
+  }
 }

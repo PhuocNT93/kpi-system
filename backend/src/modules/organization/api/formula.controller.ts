@@ -195,4 +195,17 @@ export class TeamFormulaController {
       res.status(500).json({ success: false, message: getErrorMessage(err) });
     }
   };
+
+  getCategories = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { status } = req.query;
+      const categories = await this.service.getCategories(status as 'ACTIVE' | 'INACTIVE' | undefined);
+      res.json({
+        success: true,
+        data: categories,
+      });
+    } catch (err: unknown) {
+      res.status(500).json({ success: false, message: getErrorMessage(err) });
+    }
+  };
 }

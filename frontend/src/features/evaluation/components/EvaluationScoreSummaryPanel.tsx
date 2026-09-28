@@ -1,8 +1,9 @@
 import type React from 'react';
+import { useMemo } from 'react';
 import { COLORS } from '@/lib/theme';
 import { RADII, SHADOWS, TYPOGRAPHY } from '@/shared/theme';
 
-type ScoreGroup = {
+export type ScoreGroup = {
   key: string;
   accent: string;
   criteriaCount: number;
@@ -10,12 +11,27 @@ type ScoreGroup = {
   weight: number;
 };
 
-type EvaluationScoreSummaryPanelProps = {
+export type EvaluationScoreSummaryPanelProps = {
   score: number;
   grouped: ScoreGroup[];
+  formulaText?: string;
 };
 
-export function EvaluationScoreSummaryPanel({ score, grouped }: EvaluationScoreSummaryPanelProps) {
+export function EvaluationScoreSummaryPanel({ score, grouped, formulaText }: EvaluationScoreSummaryPanelProps) {
+  const dynamicFormulaText = useMemo(() => {
+    if (formulaText) return formulaText;
+    if (!grouped || grouped.length === 0) {
+      return '(Performance × 0.4) + (Capability × 0.3) + (Contribution × 0.3)';
+    }
+    return grouped
+      .map((g) => {
+        const ratio = g.weight / 100;
+        const ratioStr = ratio % 1 === 0 ? ratio.toString() : ratio.toFixed(2).replace(/0$/, '');
+        return `(${g.key} × ${ratioStr})`;
+      })
+      .join(' + ');
+  }, [grouped, formulaText]);
+
   return (
     <div style={{ display: 'grid', gap: '16px' }}>
       <div style={{ ...panelStyle, padding: '22px' }}>
@@ -25,8 +41,8 @@ export function EvaluationScoreSummaryPanel({ score, grouped }: EvaluationScoreS
             <div style={{ marginTop: '10px', fontSize: 'clamp(3rem, 6vw, 5rem)', lineHeight: 1, fontWeight: TYPOGRAPHY.fontWeight.extrabold, color: COLORS.primary.DEFAULT }}>
               {score.toFixed(2)}
             </div>
-            <div style={{ marginTop: '8px', fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary }}>
-              (Performance × 0.4) + (Capability × 0.3) + (Contribution × 0.3)
+            <div style={{ marginTop: '8px', fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary, fontFamily: 'monospace' }}>
+              {dynamicFormulaText}
             </div>
           </div>
 
@@ -34,10 +50,10 @@ export function EvaluationScoreSummaryPanel({ score, grouped }: EvaluationScoreS
             {grouped.map((group) => (
               <div key={group.key} style={{ background: COLORS.neutral.white, borderRadius: RADII.xl, padding: '14px', border: `1px solid ${COLORS.neutral[200]}` }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center' }}>
-                  <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>{group.key}</div>
+                  <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, fontWeight: TYPOGRAPHY.fontWeight.semibold }}>{group.key}</div>
                   <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: group.accent, fontWeight: TYPOGRAPHY.fontWeight.semibold }}>{group.criteriaCount} criteria</div>
                 </div>
-                <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>Trung bình {group.key}</div>
+                <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, marginTop: '2px' }}>Trung bình {group.key}</div>
                 <div style={{ marginTop: '8px', fontSize: TYPOGRAPHY.fontSize['2xl'], fontWeight: TYPOGRAPHY.fontWeight.extrabold, color: group.accent }}>
                   {group.average != null ? group.average.toFixed(2) : '0.0'}
                 </div>

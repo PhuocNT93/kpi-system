@@ -247,9 +247,62 @@ export class EvaluationService {
         }));
 
 
+    let effectiveFormula = evaluation.formula_snapshot;
+    if (!effectiveFormula) {
+      try {
+        let formulaRow: Record<string, unknown> | null = null;
+        let targetTeamId = evaluation.team_id_snapshot;
+        if (!targetTeamId && evaluation.employee_id) {
+          const empRes = await this.pool.query('SELECT team_id FROM employee WHERE employee_id = $1 LIMIT 1', [evaluation.employee_id]);
+          if (empRes.rows.length > 0 && empRes.rows[0].team_id) {
+            targetTeamId = empRes.rows[0].team_id;
+          }
+        }
+        if (targetTeamId) {
+          const teamRes = await this.pool.query(
+            `SELECT * FROM team_evaluation_formula WHERE team_id = $1 AND is_custom_override = TRUE LIMIT 1`,
+            [targetTeamId]
+          );
+          if (teamRes.rows.length > 0) {
+            formulaRow = teamRes.rows[0];
+          } else {
+            const deptRes = await this.pool.query(
+              `SELECT f.*
+               FROM team t
+               JOIN team_evaluation_formula f ON t.department_id = f.department_id AND f.team_id IS NULL AND f.is_custom_override = TRUE
+               WHERE t.team_id = $1 LIMIT 1`,
+              [targetTeamId]
+            );
+            if (deptRes.rows.length > 0) formulaRow = deptRes.rows[0];
+          }
+        }
+        if (!formulaRow) {
+          const globalRes = await this.pool.query(
+            `SELECT * FROM team_evaluation_formula WHERE team_id IS NULL AND department_id IS NULL LIMIT 1`
+          );
+          if (globalRes.rows.length > 0) formulaRow = globalRes.rows[0];
+        }
+        if (formulaRow) {
+          effectiveFormula = {
+            id: formulaRow.id,
+            team_id: formulaRow.team_id,
+            department_id: formulaRow.department_id,
+            is_custom_override: Boolean(formulaRow.is_custom_override),
+            scale_max: Number(formulaRow.scale_max ?? 5.0),
+            components: typeof formulaRow.components === 'string' ? JSON.parse(formulaRow.components as string) : formulaRow.components,
+            rank_matrix: typeof formulaRow.rank_matrix === 'string' ? JSON.parse(formulaRow.rank_matrix as string) : formulaRow.rank_matrix,
+          };
+        }
+      } catch {
+        // Fallback silently
+      }
+    }
+
     return {
       ...evaluation,
       items,
+      formula_snapshot: effectiveFormula,
+      effective_formula: effectiveFormula,
       official_score: canSeeScores
         ? ((typeof evaluation.scoring_breakdown?.official_score === 'number' ? evaluation.scoring_breakdown.official_score : null) ?? evaluation.manager_score ?? null)
         : null,
