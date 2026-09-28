@@ -474,20 +474,6 @@ export class EvaluationService {
 
       await this.checkCycleNotLocked(evaluation.evaluation_cycle_id, client);
 
-      const developmentBlocks = Array.isArray(evaluation.development_blocks) ? evaluation.development_blocks : [];
-      const isDevelopmentPlanComplete = developmentBlocks.length > 0 && developmentBlocks.every((block) => {
-        if (!block || typeof block !== 'object') {
-          return false;
-        }
-
-        const value = String((block as { value?: unknown }).value ?? '').trim();
-        return value.length > 0;
-      });
-
-      if (!isDevelopmentPlanComplete) {
-        throw new AppError(400, 'INVALID_STATUS', 'Personal Development Plan must be completed before self-submit.');
-      }
-
       // Idempotency: if already submitted, return current evaluation
       if (evaluation.status === EvaluationStatus.SUBMITTED) {
         return evaluation;
@@ -499,6 +485,22 @@ export class EvaluationService {
       const rawItems = await this.evaluationItemRepo.findByEvaluationId(evaluationId, client);
       const items = Array.isArray(rawItems) ? rawItems : [];
       this.transitionService.validateSubmittable(evaluation, items);
+
+      const developmentBlocks = Array.isArray(evaluation.development_blocks) ? evaluation.development_blocks : [];
+      if (developmentBlocks.length > 0) {
+        const isDevelopmentPlanComplete = developmentBlocks.every((block) => {
+          if (!block || typeof block !== 'object') {
+            return false;
+          }
+
+          const value = String((block as { value?: unknown }).value ?? '').trim();
+          return value.length > 0;
+        });
+
+        if (!isDevelopmentPlanComplete) {
+          throw new AppError(400, 'INVALID_STATUS', 'Personal Development Plan must be completed before self-submit.');
+        }
+      }
 
       const updatePayload = {
         status: EvaluationStatus.SUBMITTED,
@@ -657,7 +659,7 @@ export class EvaluationService {
 
       const approvableStatuses = [EvaluationStatus.SUBMITTED, EvaluationStatus.MANAGER_REVIEW];
       const developmentBlocks = Array.isArray(evaluation.development_blocks) ? evaluation.development_blocks : [];
-      const hasCompletedDevelopmentPlan = developmentBlocks.length > 0 && developmentBlocks.every((block) => String((block as { value?: unknown }).value ?? '').trim().length > 0);
+      const hasCompletedDevelopmentPlan = developmentBlocks.length === 0 || developmentBlocks.every((block) => String((block as { value?: unknown }).value ?? '').trim().length > 0);
       const isSelfSubmittedButStatusLagging =
         evaluation.status === EvaluationStatus.OPEN &&
         Boolean(evaluation.submitted_at) &&

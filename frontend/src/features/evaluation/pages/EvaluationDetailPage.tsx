@@ -12,7 +12,7 @@ import { PersonalDevelopmentPlanPanel } from '../components/PersonalDevelopmentP
 import { KpiEvaluationCard } from '../components/KpiEvaluationCard';
 import { SubmitConfirmModal } from '../components/SubmitConfirmModal';
 import { COLORS } from '@/lib/theme';
-import { RADII, TYPOGRAPHY } from '@/shared/theme';
+import { RADII, SHADOWS, TYPOGRAPHY } from '@/shared/theme';
 import { AlertCircle, ArrowLeft, RefreshCw, CheckCircle2, Sparkles, Sliders, Save } from 'lucide-react';
 import { useAuth } from '@/shared/auth/auth-context';
 import { OverrideScoreModal } from '../components/OverrideScoreModal';
@@ -1263,3 +1263,11 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
 export function EvaluationDetailPage() {
   return <EvaluationDetailContent mode="self" />;
 }
+
+const panelStyle: React.CSSProperties = {
+  background: COLORS.neutral.white,
+  border: `1px solid ${COLORS.neutral[200]}`,
+  borderRadius: RADII['2xl'],
+  boxShadow: SHADOWS.card,
+  padding: '22px',
+};
