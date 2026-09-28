@@ -111,13 +111,10 @@ export function percentToTenPointScore(value: number | string | null | undefined
 export function getCriterionCategory(
   item: Pick<EvaluationItem, 'category' | 'criterion_category_snapshot' | 'criterion_code_snapshot' | 'criterion_name_snapshot' | 'kpi_code_snapshot' | 'kpi_name_snapshot'>,
 ): string {
-  const directCategory = [item.criterion_category_snapshot, item.category]
-    .find((value) => Boolean(value && ['performance', 'capability', 'contribution'].includes(value.trim().toLowerCase()))) as string | undefined;
-  if (directCategory) {
-    const normalized = directCategory.trim().toLowerCase();
-    if (normalized === 'performance') return 'Performance';
-    if (normalized === 'capability') return 'Capability';
-    if (normalized === 'contribution') return 'Contribution';
+  const directCategory = [item.criterion_category_snapshot, item.category].find(Boolean) as string | undefined;
+  if (directCategory && directCategory.trim()) {
+    const trimmed = directCategory.trim();
+    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
   }
 
   const code = [item.criterion_code_snapshot, item.kpi_code_snapshot].filter(Boolean).join(' ').toLowerCase();
@@ -126,6 +123,7 @@ export function getCriterionCategory(
   if (code.includes('performance') || code.startsWith('perf') || name.includes('performance')) return 'Performance';
   if (code.includes('capability') || code.startsWith('cap') || name.includes('capability') || name.includes('competency') || name.includes('competence') || name.includes('skill')) return 'Capability';
   if (code.includes('contribution') || code.startsWith('con') || name.includes('contribution') || name.includes('collaboration') || name.includes('teamwork') || name.includes('support')) return 'Contribution';
+  if (code.includes('behavior') || code.startsWith('beh') || name.includes('behavior') || name.includes('hành vi')) return 'Behavior';
   return 'Uncategorized';
 }
 

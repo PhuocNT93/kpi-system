@@ -10,7 +10,8 @@ import { PostgresTemplateKpiRepository } from './infrastructure/persistence/post
 import { PostgresOverrideRepository } from './infrastructure/persistence/postgres-override.repository.js';
 import { PostgresWorkflowRepository } from './infrastructure/persistence/postgres-workflow.repository.js';
 import { PostgresConfigurationAuditRepository } from './infrastructure/persistence/postgres-configuration-audit.repository.js';
-
+import { PostgresCriterionCategoryRepository } from './infrastructure/persistence/postgres-criterion-category.repository.js';
+import { CriterionCategoryService } from './application/services/criterion-category.service.js';
 import { CriterionService } from './application/services/criterion.service.js';
 import { EvaluationLevelService } from './application/services/evaluation-level.service.js';
 import { ScoringRuleService } from './application/services/scoring-rule.service.js';
@@ -67,7 +68,9 @@ export function createConfigurationModule(pool: Pool, centralAuditService?: Audi
   const overrideRepo = new PostgresOverrideRepository(pool);
   const workflowRepo = new PostgresWorkflowRepository(pool);
   const auditRepo = new PostgresConfigurationAuditRepository(pool);
+  const categoryRepo = new PostgresCriterionCategoryRepository(pool);
 
+  const categoryService = new CriterionCategoryService(categoryRepo);
   const criterionService = new CriterionService(criterionRepo, versionRepo, scoringRuleRepo, auditRepo, pool, centralAuditService);
   const levelService = new EvaluationLevelService(levelRepo, auditRepo);
   const scoringRuleService = new ScoringRuleService(scoringRuleRepo, auditRepo);
@@ -108,7 +111,8 @@ export function createConfigurationModule(pool: Pool, centralAuditService?: Audi
     cloneService,
     snapshotService,
     workflowService,
-    auditService
+    auditService,
+    categoryService
   );
 
   return {

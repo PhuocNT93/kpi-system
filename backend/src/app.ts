@@ -186,6 +186,7 @@ export function createApp(options: AppOptions = {}) {
         authorizationService,
         employeeController,
         organizationController,
+        teamFormulaController: organizationModule?.teamFormulaController,
         configurationController,
         kpiRelationshipController,
         kpiController,
