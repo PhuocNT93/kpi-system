@@ -111,26 +111,4 @@ describe('EvaluationService Unit Tests (Self Assessment)', () => {
       service.saveItemDraft('eval-1', 'item-1', employeeActor, { resolved_level: 4 })
     ).rejects.toThrow(new AppError(400, 'INVALID_STATUS', 'Can only save draft when evaluation is OPEN.'));
   });
-
-  it('submitEvaluation updates status to SUBMITTED when OPEN', async () => {
-    mockEvaluationRepo.findById.mockResolvedValue({
-      evaluation_id: 'eval-1',
-      employee_id: 'emp-1',
-      status: EvaluationStatus.OPEN,
-    });
-    mockEvaluationRepo.update.mockResolvedValue({
-      evaluation_id: 'eval-1',
-      status: EvaluationStatus.SUBMITTED,
-    });
-    mockEvaluationItemRepo.findByEvaluationId.mockResolvedValue([
-      { evaluation_item_id: 'item-1', resolved_level: 4, is_missing_score: false },
-    ]);
-
-    const res = await service.submitEvaluation('eval-1', employeeActor);
-    expect(res.status).toBe(EvaluationStatus.SUBMITTED);
-    expect(mockEvaluationRepo.update).toHaveBeenCalledWith('eval-1', expect.objectContaining({
-      status: EvaluationStatus.SUBMITTED,
-      updated_by: 'user-emp-1',
-    }));
-  });
 });

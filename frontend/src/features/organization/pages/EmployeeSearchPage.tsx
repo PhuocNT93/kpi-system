@@ -41,11 +41,18 @@ export function EmployeeSearchPage() {
 
   // Debounce search query input (300ms)
   useEffect(() => {
+    let isActive = true;
     const timer = setTimeout(() => {
+      if (!isActive) {
+        return;
+      }
       setQDebounced(qInput.trim());
       setPage(1);
     }, 300);
-    return () => clearTimeout(timer);
+    return () => {
+      isActive = false;
+      clearTimeout(timer);
+    };
   }, [qInput]);
 
   // Sync state changes back to URL search params

@@ -301,17 +301,6 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
     },
   });
 
-  const lockMutation = useMutation({
-    mutationFn: () => evaluationApi.lockEvaluation(id!),
-    onSuccess: () => {
-      showToast('success', 'Đã khóa đánh giá thành công.');
-      queryClient.invalidateQueries({ queryKey: ['evaluation-detail', id] });
-    },
-    onError: (err: Error) => {
-      showToast('error', err.message || 'Không thể khóa đánh giá.');
-    },
-  });
-
   const overrideMutation = useMutation({
     mutationFn: ({ kpiId, score, reason }: { kpiId: string; score: number; reason: string }) => 
       evaluationApi.overrideKpiScore(id!, kpiId, { manual_override_score: score, override_reason: reason }),
@@ -670,7 +659,6 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
   };
 
   const handlePublish = () => publishMutation.mutate();
-  const handleLock = () => lockMutation.mutate();
 
   const handleOverrideSubmit = (kpiId: string, score: number, reason: string) => {
     overrideMutation.mutate({ kpiId, score, reason });
@@ -865,7 +853,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
       />
 
       {!isManagerMode && selfSubmitBlockedReason && (
-        <section style={{ ...panelStyle, borderColor: '#fde68a', backgroundColor: '#fffbeb', color: '#92400e' }}>
+        <section style={{ borderColor: '#fde68a', backgroundColor: '#fffbeb', color: '#92400e' }}>
           {selfSubmitBlockedReason}
         </section>
       )}
