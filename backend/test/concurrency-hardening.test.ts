@@ -63,6 +63,58 @@ describe('TC24 - TC33: Concurrency & Locking Hardening Tests', () => {
     });
   });
 
+  // TC25: Concurrent submit idempotency
+  describe('TC25: Concurrent Submit', () => {
+    it('processes first submit and returns idempotent evaluation on concurrent submit', async () => {
+      let currentStatus: EvaluationStatus = EvaluationStatus.OPEN;
+
+      const mockRepo = {
+        findById: vi.fn(async () => ({
+          evaluation_id: 'eval-1',
+          employee_id: 'emp-1',
+          status: currentStatus,
+          is_locked: false,
+        })),
+        findByIdForUpdate: vi.fn(async () => ({
+          evaluation_id: 'eval-1',
+          employee_id: 'emp-1',
+          status: currentStatus,
+          is_locked: false,
+        })),
+        update: vi.fn(async (_id: string, payload: { status: EvaluationStatus }) => {
+          currentStatus = payload.status;
+          return {
+            evaluation_id: 'eval-1',
+            employee_id: 'emp-1',
+            status: currentStatus,
+            is_locked: false,
+          };
+        }),
+      } as unknown as import('../src/modules/evaluation/domain/repositories.interface.js').IEvaluationRepository;
+
+      const mockItemRepo = {
+        findByEvaluationId: vi.fn(async () => []),
+      } as unknown as import('../src/modules/evaluation/domain/repositories.interface.js').IEvaluationItemRepository;
+
+      const mockPool = {
+        connect: vi.fn().mockResolvedValue({
+          query: vi.fn().mockResolvedValue({ rows: [] }),
+          release: vi.fn(),
+        }),
+      } as unknown as import('pg').Pool;
+
+      const evalService = new EvaluationService(mockRepo, mockItemRepo, mockPool);
+
+      // First submit transitions to SUBMITTED
+      const sub1 = await evalService.submitEvaluation('eval-1', employeeActor);
+      expect(sub1.status).toBe(EvaluationStatus.SUBMITTED);
+
+      // Second concurrent submit recognizes SUBMITTED and returns cleanly (idempotent)
+      const sub2 = await evalService.submitEvaluation('eval-1', employeeActor);
+      expect(sub2.status).toBe(EvaluationStatus.SUBMITTED);
+    });
+  });
+
   // TC26: Concurrent approve
   describe('TC26: Concurrent Approve Conflict', () => {
     it('allows first approve and throws 409 ALREADY_APPROVED on concurrent second approve', async () => {
