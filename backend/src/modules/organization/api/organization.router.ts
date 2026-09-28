@@ -1,9 +1,11 @@
 import { Router, RequestHandler } from 'express';
 import { OrganizationController } from './organization.controller.js';
+import { TeamFormulaController } from './formula.controller.js';
 
 export function createOrganizationRouter(
   controller: OrganizationController,
-  jwtMiddleware: RequestHandler
+  jwtMiddleware: RequestHandler,
+  formulaController?: TeamFormulaController
 ): Router {
   const router = Router();
 
@@ -30,5 +32,20 @@ export function createOrganizationRouter(
   router.get('/job-levels/:id', controller.getJobLevelById);
   router.patch('/job-levels/:id', controller.updateJobLevel);
 
+  // ── Team & Department Evaluation Formula Routes ────────────────────────────
+  if (formulaController) {
+    router.get('/formula/summary', formulaController.getAllFormulasSummary);
+    router.get('/formula', formulaController.getGlobalFormula);
+    router.put('/formula', formulaController.saveGlobalFormula);
+    router.post('/formula/simulate', formulaController.simulate);
+    router.get('/departments/:departmentId/formula', formulaController.getDepartmentFormula);
+    router.put('/departments/:departmentId/formula', formulaController.saveDepartmentFormula);
+    router.delete('/departments/:departmentId/formula', formulaController.resetDepartmentFormula);
+    router.get('/teams/:teamId/formula', formulaController.getTeamFormula);
+    router.put('/teams/:teamId/formula', formulaController.saveTeamFormula);
+    router.delete('/teams/:teamId/formula', formulaController.resetTeamFormula);
+  }
+
   return router;
 }
+

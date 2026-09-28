@@ -126,6 +126,9 @@ export interface TeamEvaluation {
     self_score?: number;
     manager_score?: number;
     final_score?: number;
+    formula_snapshot?: Record<string, unknown>;
+    calculated_rank?: string;
+    salary_recommendation?: Record<string, unknown>;
     submitted_at?: string;
     approved_at?: string;
     is_locked: boolean;
@@ -145,6 +148,9 @@ export interface EvaluationDetail {
   manager_score?: number;
   final_score?: number;
   official_score?: number | null;
+  formula_snapshot?: Record<string, unknown>;
+  calculated_rank?: string;
+  salary_recommendation?: Record<string, unknown>;
   scoring_breakdown?: EvaluationScoringBreakdown;
   development_blocks?: Array<{
     title: string;

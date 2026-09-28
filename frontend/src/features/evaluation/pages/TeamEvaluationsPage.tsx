@@ -64,6 +64,36 @@ export function TeamEvaluationsPage() {
     }
   };
 
+  const getRankBadge = (rank?: string, finalScore?: number) => {
+    let effectiveRank = rank;
+    if (!effectiveRank && finalScore != null && Number(finalScore) > 0) {
+      const score = Number(finalScore);
+      effectiveRank = score >= 90 || score >= 4.5 ? 'S' : score >= 60 || score >= 3.0 ? 'A' : 'B';
+    }
+    if (!effectiveRank) return null;
+
+    const bg = effectiveRank === 'S' ? '#FEF3C7' : effectiveRank === 'A' ? '#DBEAFE' : '#FFEDD5';
+    const text = effectiveRank === 'S' ? '#92400E' : effectiveRank === 'A' ? '#1E40AF' : '#9A3412';
+    const border = effectiveRank === 'S' ? '#FDE68A' : effectiveRank === 'A' ? '#BFDBFE' : '#FED7AA';
+
+    return (
+      <span style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '4px',
+        padding: '4px 8px',
+        borderRadius: RADII.md,
+        fontSize: TYPOGRAPHY.fontSize.xs,
+        fontWeight: 800,
+        backgroundColor: bg,
+        color: text,
+        border: `1px solid ${border}`,
+      }}>
+        RANK {effectiveRank}
+      </span>
+    );
+  };
+
   const filteredEvaluations = evaluations.filter((item: TeamEvaluation) => {
     const matchesSearch =
       !searchTerm ||
@@ -229,6 +259,7 @@ export function TeamEvaluationsPage() {
                               ⭐ {Number(item.evaluation.final_score ?? item.evaluation.manager_score).toFixed(1)}
                             </span>
                           )}
+                          {getRankBadge(item.evaluation.calculated_rank, item.evaluation.final_score ?? item.evaluation.manager_score)}
                           <span style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -335,6 +366,7 @@ export function TeamEvaluationsPage() {
                               ⭐ {Number(item.evaluation.final_score ?? item.evaluation.manager_score).toFixed(1)}
                             </span>
                           )}
+                          {getRankBadge(item.evaluation.calculated_rank, item.evaluation.final_score ?? item.evaluation.manager_score)}
                           <span style={{
                             display: 'flex',
                             alignItems: 'center',

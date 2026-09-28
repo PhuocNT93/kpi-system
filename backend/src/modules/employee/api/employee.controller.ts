@@ -59,10 +59,26 @@ export class EmployeeController {
 
   async getEmployees(req: Request, res: Response): Promise<void> {
     const { limit, offset, buildPageMeta } = parsePaginationQuery(req.query as Record<string, unknown>);
+    const departmentId = (req.query['department_id'] ?? req.query['departmentId']) as string | undefined;
+    const teamId = (req.query['team_id'] ?? req.query['teamId']) as string | undefined;
+    const roleId = (req.query['role_id'] ?? req.query['roleId']) as string | undefined;
+    const jobLevelId = (req.query['job_level_id'] ?? req.query['jobLevelId']) as string | undefined;
+    const managerId = (req.query['manager_id'] ?? req.query['managerId']) as string | undefined;
+    const employmentStatus = (req.query['employment_status'] ?? req.query['status']) as string | undefined;
+    const search = (req.query['search'] ?? req.query['q']) as string | undefined;
 
     if (this.employeeRepo && this.hasDb()) {
-      console.log('Fetching employees with limit:', limit, 'and offset:', offset);
-      const result = await this.employeeRepo.findMany({ limit, offset });
+      const result = await this.employeeRepo.findMany({
+        departmentId,
+        teamId,
+        roleId,
+        jobLevelId,
+        managerId,
+        employmentStatus,
+        search,
+        limit,
+        offset,
+      });
       const cadences = this.employeeCadenceService
         ? await this.employeeCadenceService.resolveEffectiveCadences(result.employees.map((emp) => emp.employeeId))
         : new Map<string, EffectiveCadence | null>();
