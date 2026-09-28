@@ -123,9 +123,22 @@ export const UnifiedSystemAdminPage: React.FC = () => {
   };
 
   const activeTabConfig = availableTabs.find((tab) => tab.id === activeTab);
+  // The audit table scrolls inside itself, so its tab must fill the remaining height.
+  const fillsHeight = activeTab === 'audit';
+  const fillStyle: React.CSSProperties = fillsHeight
+    ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }
+    : {};
 
   return (
-    <div style={{ width: '100%', boxSizing: 'border-box', padding: '0 0 40px 0', marginTop: '8px' }}>
+    <div
+      style={{
+        width: '100%',
+        boxSizing: 'border-box',
+        padding: fillsHeight ? 0 : '0 0 40px 0',
+        marginTop: '8px',
+        ...fillStyle,
+      }}
+    >
       {/* Top Banner & Tab Switcher Hub */}
       <div
         className="unified-hub-banner"
@@ -253,7 +266,7 @@ export const UnifiedSystemAdminPage: React.FC = () => {
       </div>
 
       {/* Tab Content Display Area */}
-      <div>
+      <div style={fillStyle}>
         {activeTab === 'organization' && <OrganizationPage />}
         {activeTab === 'iam' && (
           <div style={{ width: '100%', boxSizing: 'border-box' }}>
@@ -309,7 +322,7 @@ export const UnifiedSystemAdminPage: React.FC = () => {
             {iamSubTab === 'permissions' && <PermissionTable />}
           </div>
         )}
-        {activeTab === 'audit' && <AuditLogPage />}
+        {activeTab === 'audit' && <AuditLogPage isEmbedded />}
         {activeTab === 'i18n' && <I18nPage />}
       </div>
     </div>

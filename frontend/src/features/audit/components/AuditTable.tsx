@@ -1,9 +1,22 @@
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import type { WireAuditLog } from '../api/audit-types';
 import { Button } from '../../../shared/ui/Button/Button';
 import { COLORS } from '../../../lib/theme';
 import { RADII, TYPOGRAPHY, useTheme } from '../../../shared/theme';
 import { useUiTranslation } from '../../../shared/i18n/ui-i18n';
 import { Eye } from 'lucide-react';
+
+const COLUMN_WIDTHS = ['14%', '14%', '14%', '9%', '17%', '22%', '10%'];
+
+const BADGE_FIT: React.CSSProperties = {
+  maxWidth: '100%',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  verticalAlign: 'middle',
+  boxSizing: 'border-box',
+};
+const TABLE_MIN_WIDTH = '1100px';
 
 interface AuditTableProps {
   logs: WireAuditLog[];
@@ -13,6 +26,24 @@ interface AuditTableProps {
 export const AuditTable = ({ logs, onSelectLog }: AuditTableProps) => {
   const { isDark } = useTheme();
   const { t, currentLocale } = useUiTranslation();
+  const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [scrollbarWidth, setScrollbarWidth] = useState(0);
+
+  // The header's scrollbar lane must match the body's real scrollbar width, which varies by OS/browser.
+  useLayoutEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return;
+    const measure = () => setScrollbarWidth(body.offsetWidth - body.clientWidth);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(body);
+    return () => observer.disconnect();
+  }, []);
+
+  const scrollTrackColor = isDark ? '#0f172a' : '#f1f5f9';
+  const scrollThumbColor = isDark ? '#475569' : '#cbd5e1';
 
   const getActionBadgeStyle = (act: string) => {
     switch (act) {
@@ -68,112 +99,228 @@ export const AuditTable = ({ logs, onSelectLog }: AuditTableProps) => {
     }
   };
 
+  const headerCellStyle: React.CSSProperties = {
+    padding: '0.85rem 1rem',
+    fontWeight: 600,
+    color: isDark ? '#cbd5e1' : COLORS.neutral[700],
+  };
+
+  // Screen readers still get column headers for the body table; the visible header is aria-hidden.
+  const hiddenHeaderCellStyle: React.CSSProperties = {
+    padding: 0,
+    height: 0,
+    lineHeight: 0,
+    fontSize: 0,
+    border: 0,
+    overflow: 'hidden',
+  };
+
+  const headerRow = (cellStyle: React.CSSProperties) => (
+    <tr>
+      <th style={cellStyle}>{t('colTime')}</th>
+      <th style={cellStyle}>{t('colAction')}</th>
+      <th style={cellStyle}>{t('colEntityType')}</th>
+      <th style={cellStyle}>{t('colEntityId')}</th>
+      <th style={cellStyle}>{t('colActor')}</th>
+      <th style={cellStyle}>{t('colReason')}</th>
+      <th style={{ ...cellStyle, textAlign: 'right' }}>{t('colActions')}</th>
+    </tr>
+  );
+
+  const colgroup = (
+    <colgroup>
+      {COLUMN_WIDTHS.map((width, i) => (
+        <col key={i} style={{ width }} />
+      ))}
+    </colgroup>
+  );
+
+  const tableStyle: React.CSSProperties = {
+    width: '100%',
+    tableLayout: 'fixed',
+    borderCollapse: 'collapse',
+    textAlign: 'left',
+    fontSize: TYPOGRAPHY.fontSize.sm,
+  };
+
+  // Header and body are separate tables sharing fixed column widths so the vertical
+  // scrollbar starts below the header. The header ends in a lane as wide as the body's
+  // scrollbar, painted in the track colour, so the scrollbar column runs top to bottom.
   return (
     <div
       style={{
+        flex: 1,
+        minHeight: '240px',
+        display: 'flex',
+        flexDirection: 'column',
         overflowX: 'auto',
+        overflowY: 'hidden',
         background: isDark ? '#1e293b' : '#fff',
         borderRadius: RADII.lg,
         border: isDark ? '1px solid #334155' : '1px solid #e5e7eb',
         boxShadow: isDark ? '0 1px 3px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.02)',
       }}
     >
-      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: TYPOGRAPHY.fontSize.sm }}>
-        <thead style={{ background: isDark ? '#0f172a' : '#f8fafc', borderBottom: isDark ? '2px solid #334155' : '2px solid #e2e8f0' }}>
-          <tr>
-            <th style={{ padding: '0.85rem 1rem', fontWeight: 600, color: isDark ? '#cbd5e1' : COLORS.neutral[700] }}>{t('colTime')}</th>
-            <th style={{ padding: '0.85rem 1rem', fontWeight: 600, color: isDark ? '#cbd5e1' : COLORS.neutral[700] }}>{t('colAction')}</th>
-            <th style={{ padding: '0.85rem 1rem', fontWeight: 600, color: isDark ? '#cbd5e1' : COLORS.neutral[700] }}>{t('colEntityType')}</th>
-            <th style={{ padding: '0.85rem 1rem', fontWeight: 600, color: isDark ? '#cbd5e1' : COLORS.neutral[700] }}>{t('colEntityId')}</th>
-            <th style={{ padding: '0.85rem 1rem', fontWeight: 600, color: isDark ? '#cbd5e1' : COLORS.neutral[700] }}>{t('colActor')}</th>
-            <th style={{ padding: '0.85rem 1rem', fontWeight: 600, color: isDark ? '#cbd5e1' : COLORS.neutral[700] }}>{t('colReason')}</th>
-            <th style={{ padding: '0.85rem 1rem', fontWeight: 600, color: isDark ? '#cbd5e1' : COLORS.neutral[700], textAlign: 'right' }}>{t('colActions')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {logs.map((log) => {
-            const badge = getActionBadgeStyle(log.action);
-            return (
-              <tr
-                key={log.auditLogId}
-                style={{
-                  borderBottom: isDark ? '1px solid #334155' : '1px solid #f1f5f9',
-                }}
-              >
-                <td style={{ padding: '0.85rem 1rem', whiteSpace: 'nowrap', color: isDark ? '#94a3b8' : COLORS.neutral[600], fontSize: TYPOGRAPHY.fontSize.xs }}>
-                  {new Date(log.performedAt).toLocaleString(currentLocale === 'vi' ? 'vi-VN' : 'en-US')}
-                </td>
-                <td style={{ padding: '0.85rem 1rem' }}>
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      padding: '2px 8px',
-                      borderRadius: RADII.full,
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      backgroundColor: badge.bg,
-                      color: badge.text,
-                      border: `1px solid ${badge.border}`,
-                    }}
-                  >
-                    {log.action}
-                  </span>
-                </td>
-                <td style={{ padding: '0.85rem 1rem', fontWeight: 500, color: isDark ? '#f8fafc' : COLORS.neutral[800] }}>
-                  {log.entityType}
-                </td>
-                <td style={{ padding: '0.85rem 1rem', fontSize: '0.8rem', color: isDark ? '#94a3b8' : '#64748b', fontFamily: 'monospace' }}>
-                  {log.entityId}
-                </td>
-                <td style={{ padding: '0.85rem 1rem' }}>
-                  <div style={{ fontWeight: 500, color: isDark ? '#f8fafc' : COLORS.neutral[900] }}>
-                    {log.performedByName || t('systemActor')}
-                  </div>
-                  {log.performedBy && (
-                    <div style={{ fontSize: '0.75rem', color: isDark ? '#64748b' : '#94a3b8', fontFamily: 'monospace' }}>
-                      {log.performedBy}
+      <div aria-hidden="true" style={{ display: 'flex', flexShrink: 0, minWidth: TABLE_MIN_WIDTH }}>
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            background: isDark ? '#0f172a' : '#f8fafc',
+            borderBottom: isDark ? '2px solid #334155' : '2px solid #e2e8f0',
+          }}
+        >
+          <table style={tableStyle}>
+            {colgroup}
+            <thead>{headerRow(headerCellStyle)}</thead>
+          </table>
+        </div>
+        <div style={{ flexShrink: 0, width: scrollbarWidth, background: scrollTrackColor }} />
+      </div>
+
+      <div
+        ref={bodyRef}
+        style={{
+          flex: 1,
+          minHeight: 0,
+          minWidth: TABLE_MIN_WIDTH,
+          overflowY: 'auto',
+          scrollbarGutter: 'stable',
+          scrollbarWidth: 'thin',
+          scrollbarColor: `${scrollThumbColor} ${scrollTrackColor}`,
+        }}
+      >
+        <table style={tableStyle}>
+          {colgroup}
+          <thead>{headerRow(hiddenHeaderCellStyle)}</thead>
+          <tbody>
+            {logs.map((log) => {
+              const badge = getActionBadgeStyle(log.action);
+              return (
+                <tr
+                  key={log.auditLogId}
+                  onMouseEnter={() => setHoveredRowId(log.auditLogId)}
+                  onMouseLeave={() => setHoveredRowId(null)}
+                  onClick={() => {
+                    // Selecting text (e.g. copying an Entity ID) must not open the modal.
+                    if (window.getSelection()?.toString()) return;
+                    onSelectLog(log);
+                  }}
+                  style={{
+                    borderBottom: isDark ? '1px solid #334155' : '1px solid #f1f5f9',
+                    backgroundColor: hoveredRowId === log.auditLogId
+                      ? (isDark ? 'rgba(255,255,255,0.04)' : '#f8fafc')
+                      : 'transparent',
+                    cursor: 'pointer',
+                    transition: 'background-color 150ms ease',
+                  }}
+                >
+                  <td style={{ padding: '0.85rem 1rem', whiteSpace: 'nowrap', color: isDark ? '#94a3b8' : COLORS.neutral[600], fontSize: TYPOGRAPHY.fontSize.xs }}>
+                    {new Date(log.performedAt).toLocaleString(currentLocale === 'vi' ? 'vi-VN' : 'en-US')}
+                  </td>
+                  <td style={{ padding: '0.85rem 1rem' }}>
+                    <span
+                      title={log.action}
+                      style={{
+                        ...BADGE_FIT,
+                        display: 'inline-block',
+                        padding: '2px 8px',
+                        borderRadius: RADII.full,
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        backgroundColor: badge.bg,
+                        color: badge.text,
+                        border: `1px solid ${badge.border}`,
+                      }}
+                    >
+                      {log.action}
+                    </span>
+                  </td>
+                  <td style={{ padding: '0.85rem 1rem' }}>
+                    <span
+                      title={log.entityType}
+                      style={{
+                        ...BADGE_FIT,
+                        display: 'inline-block',
+                        padding: '2px 8px',
+                        borderRadius: RADII.sm,
+                        fontSize: '0.7rem',
+                        fontWeight: 600,
+                        letterSpacing: '0.02em',
+                        backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : '#e0e7ff',
+                        color: isDark ? '#a5b4fc' : '#3730a3',
+                        border: isDark ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid #c7d2fe',
+                      }}
+                    >
+                      {log.entityType}
+                    </span>
+                  </td>
+                  <td style={{ padding: '0.85rem 1rem' }}>
+                    <span
+                      title={log.entityId}
+                      style={{
+                        display: 'block',
+                        fontSize: '0.8rem',
+                        color: isDark ? '#94a3b8' : '#64748b',
+                        fontFamily: 'monospace',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {log.entityId}
+                    </span>
+                  </td>
+                  <td style={{ padding: '0.85rem 1rem' }}>
+                    <div style={{ fontWeight: 500, color: isDark ? '#f8fafc' : COLORS.neutral[900] }}>
+                      {log.performedByName || t('systemActor')}
                     </div>
-                  )}
-                </td>
-                <td style={{ padding: '0.85rem 1rem', fontSize: '0.85rem' }}>
-                  {log.fieldName && (
-                    <div style={{ marginBottom: '2px' }}>
-                      <strong style={{ color: isDark ? '#e2e8f0' : COLORS.neutral[700] }}>{log.fieldName}:</strong>{' '}
-                      <span style={{ color: isDark ? '#f87171' : '#dc2626', textDecoration: 'line-through' }}>
-                        {log.oldValue ?? 'null'}
-                      </span>{' '}
-                      &rarr;{' '}
-                      <span style={{ color: isDark ? '#4ade80' : '#16a34a', fontWeight: 600 }}>
-                        {log.newValue ?? 'null'}
-                      </span>
-                    </div>
-                  )}
-                  {log.reason && (
-                    <div style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: '0.8rem', marginTop: '2px' }}>
-                      <em>{log.reason}</em>
-                    </div>
-                  )}
-                  {!log.fieldName && !log.reason && (
-                    <span style={{ color: isDark ? '#64748b' : '#94a3b8', fontSize: '0.75rem' }}>Source: {log.source || 'API'}</span>
-                  )}
-                </td>
-                <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>
-                  <Button
-                    type="button"
-                    variant="outlined"
-                    size="sm"
-                    onClick={() => onSelectLog(log)}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                  >
-                    <Eye size={14} />
-                    {t('btnDetail')}
-                  </Button>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                    {log.performedBy && (
+                      <div style={{ fontSize: '0.75rem', color: isDark ? '#64748b' : '#94a3b8', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                        {log.performedBy}
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ padding: '0.85rem 1rem', fontSize: '0.85rem', overflowWrap: 'anywhere' }}>
+                    {log.fieldName && (
+                      <div style={{ marginBottom: '2px' }}>
+                        <strong style={{ color: isDark ? '#e2e8f0' : COLORS.neutral[700] }}>{log.fieldName}:</strong>{' '}
+                        <span style={{ color: isDark ? '#f87171' : '#dc2626', textDecoration: 'line-through' }}>
+                          {log.oldValue ?? 'null'}
+                        </span>{' '}
+                        &rarr;{' '}
+                        <span style={{ color: isDark ? '#4ade80' : '#16a34a', fontWeight: 600 }}>
+                          {log.newValue ?? 'null'}
+                        </span>
+                      </div>
+                    )}
+                    {log.reason && (
+                      <div style={{ color: isDark ? '#cbd5e1' : '#475569', fontSize: '0.8rem', marginTop: '2px' }}>
+                        <em>{log.reason}</em>
+                      </div>
+                    )}
+                    {!log.fieldName && !log.reason && (
+                      <span style={{ color: isDark ? '#64748b' : '#94a3b8', fontSize: '0.75rem' }}>Source: {log.source || 'API'}</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>
+                    <Button
+                      type="button"
+                      variant="outlined"
+                      size="sm"
+                      onClick={(e) => { e.stopPropagation(); onSelectLog(log); }}
+                      icon={<Eye size={14} />}
+                      style={{ whiteSpace: 'nowrap' }}
+                    >
+                      {t('btnDetail')}
+                    </Button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };
