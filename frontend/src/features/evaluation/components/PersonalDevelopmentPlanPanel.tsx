@@ -1,5 +1,5 @@
 import type React from 'react';
-import { CheckCircle2, PenLine } from 'lucide-react';
+import { CheckCircle2, PenLine, Send } from 'lucide-react';
 import { COLORS } from '@/lib/theme';
 import { RADII, SHADOWS, TYPOGRAPHY } from '@/shared/theme';
 
@@ -15,7 +15,12 @@ type PersonalDevelopmentPlanPanelProps = {
   isSaving: boolean;
   isSaved: boolean;
   canSave: boolean;
+  showSubmit?: boolean;
+  canSubmit: boolean;
+  submitLabel: string;
+  submitDisabledReason?: string;
   onSave: () => void;
+  onSubmit: () => void;
   onChangeBlock: (index: number, value: string) => void;
 };
 
@@ -24,7 +29,12 @@ export function PersonalDevelopmentPlanPanel({
   isSaving,
   isSaved,
   canSave,
+  showSubmit = true,
+  canSubmit,
+  submitLabel,
+  submitDisabledReason,
   onSave,
+  onSubmit,
   onChangeBlock,
 }: PersonalDevelopmentPlanPanelProps) {
   return (
@@ -56,6 +66,31 @@ export function PersonalDevelopmentPlanPanel({
           >
             Save PDP
           </button>
+          {showSubmit && (
+            <button
+              type="button"
+              onClick={onSubmit}
+              disabled={!canSubmit}
+              title={!canSubmit ? submitDisabledReason : undefined}
+              style={{
+                padding: '10px 14px',
+                borderRadius: RADII.full,
+                border: `1px solid ${COLORS.semantic.success[100]}`,
+                background: COLORS.semantic.success.DEFAULT,
+                color: COLORS.neutral.white,
+                fontSize: TYPOGRAPHY.fontSize.sm,
+                fontWeight: TYPOGRAPHY.fontWeight.semibold,
+                cursor: !canSubmit ? 'not-allowed' : 'pointer',
+                opacity: !canSubmit ? 0.7 : 1,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
+              <Send size={16} />
+              {submitLabel}
+            </button>
+          )}
         </div>
       </div>
 

@@ -324,6 +324,20 @@ export class EvaluationService {
 
       await this.checkCycleNotLocked(evaluation.evaluation_cycle_id, client);
 
+      const developmentBlocks = Array.isArray(evaluation.development_blocks) ? evaluation.development_blocks : [];
+      const isDevelopmentPlanComplete = developmentBlocks.length > 0 && developmentBlocks.every((block) => {
+        if (!block || typeof block !== 'object') {
+          return false;
+        }
+
+        const value = String((block as { value?: unknown }).value ?? '').trim();
+        return value.length > 0;
+      });
+
+      if (!isDevelopmentPlanComplete) {
+        throw new AppError(400, 'INVALID_STATUS', 'Personal Development Plan must be completed before self-submit.');
+      }
+
       // Idempotency: if already submitted, return current evaluation
       if (evaluation.status === EvaluationStatus.SUBMITTED) {
         return evaluation;
@@ -491,9 +505,28 @@ export class EvaluationService {
         throw new AppError(409, 'ALREADY_APPROVED', 'Evaluation has already been approved.');
       }
 
-      const approvableStatuses = [EvaluationStatus.OPEN, EvaluationStatus.SUBMITTED, EvaluationStatus.MANAGER_REVIEW];
+      const approvableStatuses = [EvaluationStatus.SUBMITTED, EvaluationStatus.MANAGER_REVIEW];
+      const developmentBlocks = Array.isArray(evaluation.development_blocks) ? evaluation.development_blocks : [];
+      const hasCompletedDevelopmentPlan = developmentBlocks.length > 0 && developmentBlocks.every((block) => String((block as { value?: unknown }).value ?? '').trim().length > 0);
+      const isSelfSubmittedButStatusLagging =
+        evaluation.status === EvaluationStatus.OPEN &&
+        Boolean(evaluation.submitted_at) &&
+        hasCompletedDevelopmentPlan;
+
+      if (isSelfSubmittedButStatusLagging) {
+        await this.evaluationRepo.update(
+          evaluationId,
+          {
+            status: EvaluationStatus.SUBMITTED,
+            updated_by: actor.userId,
+          },
+          repositoryClient
+        );
+        evaluation.status = EvaluationStatus.SUBMITTED;
+      }
+
       if (!approvableStatuses.includes(evaluation.status)) {
-        throw new AppError(400, 'INVALID_STATUS', 'Evaluation must be OPEN, SUBMITTED, or MANAGER_REVIEW to be approved.');
+        throw new AppError(400, 'INVALID_STATUS', 'Evaluation must be SUBMITTED or MANAGER_REVIEW to be approved.');
       }
 
       const updated = await this.evaluationRepo.update(evaluationId, {

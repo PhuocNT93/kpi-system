@@ -21,6 +21,8 @@ interface EvaluationHeaderProps {
   isSaving: boolean;
   isSubmitting: boolean;
   hasUnsavedChanges: boolean;
+  canSubmit?: boolean;
+  submitDisabledReason?: string;
   onSaveDraft: () => void;
   onSubmit: () => void;
   backPath?: string;
@@ -30,7 +32,6 @@ interface EvaluationHeaderProps {
   mode?: 'self' | 'manager';
   isHrAdmin?: boolean;
   onPublish?: () => void;
-  onLock?: () => void;
   onRequestCorrection?: () => void;
   onReject?: () => void;
 }
@@ -49,6 +50,8 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
   isSaving,
   isSubmitting,
   hasUnsavedChanges,
+  canSubmit = true,
+  submitDisabledReason,
   onSaveDraft,
   onSubmit,
   backPath = '/admin/my-evaluations',
@@ -57,7 +60,6 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
   submittingLabel = 'Đang gửi...',
   mode = 'self',
   isHrAdmin = false,
-  onLock,
   onRequestCorrection,
   onReject,
 }) => {
@@ -222,53 +224,36 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
                   </button>
                 )}
 
-                <button
-                  type="button"
-                  onClick={onSubmit}
-                  disabled={isSaving || isSubmitting}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 20px',
-                    borderRadius: RADII.lg,
-                    backgroundColor: mode === 'manager' ? '#059669' : COLORS.primary.DEFAULT,
-                    border: 'none',
-                    color: COLORS.neutral.white,
-                    fontSize: TYPOGRAPHY.fontSize.sm,
-                    fontWeight: 600,
-                    cursor: isSaving || isSubmitting ? 'not-allowed' : 'pointer',
-                    boxShadow: mode === 'manager' ? '0 2px 4px rgba(5, 150, 105, 0.2)' : '0 2px 4px rgba(79, 70, 229, 0.2)',
-                  }}
-                >
-                  <Send size={16} />
-                  <span>{isSubmitting ? submittingLabel : mode === 'manager' ? 'Phê duyệt (Approve)' : submitLabel}</span>
-                </button>
-              </div>
-            )}
-
-            {isHrAdmin && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                {(status === EvaluationStatus.APPROVED || status === EvaluationStatus.PUBLISHED) && onLock && (
+                {!(mode === 'manager' && (status === EvaluationStatus.APPROVED || status === EvaluationStatus.PUBLISHED)) && (
                   <button
                     type="button"
-                    onClick={onLock}
+                    onClick={onSubmit}
+                    disabled={isSaving || isSubmitting || !canSubmit}
                     style={{
-                      padding: '8px 16px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 20px',
                       borderRadius: RADII.lg,
-                      backgroundColor: COLORS.neutral[800],
+                      backgroundColor: mode === 'manager' ? '#059669' : COLORS.primary.DEFAULT,
                       border: 'none',
                       color: COLORS.neutral.white,
                       fontSize: TYPOGRAPHY.fontSize.sm,
                       fontWeight: 600,
-                      cursor: 'pointer',
+                      cursor: isSaving || isSubmitting || !canSubmit ? 'not-allowed' : 'pointer',
+                      boxShadow: mode === 'manager' ? '0 2px 4px rgba(5, 150, 105, 0.2)' : '0 2px 4px rgba(79, 70, 229, 0.2)',
+                      opacity: !canSubmit ? 0.75 : 1,
                     }}
+                    title={!canSubmit ? submitDisabledReason : undefined}
                   >
-                    Lock Evaluation
+                    <Send size={16} />
+                    <span>{isSubmitting ? submittingLabel : mode === 'manager' ? 'Phê duyệt (Approve)' : submitLabel}</span>
                   </button>
                 )}
               </div>
             )}
+
+            {isHrAdmin && <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }} />}
           </div>
         </div>
 
