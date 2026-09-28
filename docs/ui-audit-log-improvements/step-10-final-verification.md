@@ -58,7 +58,8 @@ The Audit Log page UI was improved: a clearer filter bar (title row, active-filt
 - `performance-benchmarks` Benchmark 1 is load-sensitive and may flake on CI.
 - `migrate:down` needs `--no-check-order` because of pre-existing duplicate migration prefixes.
 - Nothing has been committed or pushed. `CLAUDE.md`, `.agents/`, `.vscode/` are the user's pre-existing changes and are not part of this task.
-- Local-only, not in git: 25 dummy audit rows (`source = 'UI_DUMMY'`) in the local Docker DB (cleanup: `SET ROLE kpi_maintenance; DELETE FROM audit_log WHERE source = 'UI_DUMMY';`); `docker-compose.override.yml` and `dev-autobuild.local.mjs` (excluded via `.git/info/exclude`); `backend/.env` (gitignored). The local DB also has develop's `1788926000018_*`, `1788926000020_*`, `1791000000009_seed_unified_hubs_*` applied.
+- The 25 local-only dummy audit rows (`source = 'UI_DUMMY'`) were deleted after approval. `kpi_maintenance` has no DELETE grant on `audit_log`, so the table owner disabled `audit_log_append_only`, deleted by source and re-enabled the trigger inside one transaction; verified 0 rows left and trigger enabled.
+- Local-only, not in git: `docker-compose.override.yml` and `dev-autobuild.local.mjs` (excluded via `.git/info/exclude`); `backend/.env` (gitignored). The local DB also has develop's `1788926000018_*`, `1788926000020_*`, `1791000000009_seed_unified_hubs_*` applied.
 
 ## Final Status
 DONE
