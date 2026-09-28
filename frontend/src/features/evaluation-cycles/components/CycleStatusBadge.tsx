@@ -20,6 +20,36 @@ const STATUS_CONFIG: Record<CycleStatus, { bg: string; color: string; label: str
     label: 'OPEN',
     border: COLORS.primary[200],
   },
+  IN_PROGRESS: {
+    bg: '#e0f2fe',
+    color: '#0369a1',
+    label: 'IN_PROGRESS',
+    border: '#bae6fd',
+  },
+  SUBMITTED: {
+    bg: '#fef3c7',
+    color: '#b45309',
+    label: 'SUBMITTED',
+    border: '#fde68a',
+  },
+  REVIEWING: {
+    bg: '#f3e8ff',
+    color: '#7e22ce',
+    label: 'REVIEWING',
+    border: '#e9d5ff',
+  },
+  CALIBRATION: {
+    bg: '#fae8ff',
+    color: '#86198f',
+    label: 'CALIBRATION',
+    border: '#f5d0fe',
+  },
+  APPROVED: {
+    bg: '#dcfce7',
+    color: '#15803d',
+    label: 'APPROVED',
+    border: '#bbf7d0',
+  },
   PUBLISHED: {
     bg: '#d1fae5',
     color: '#047857',

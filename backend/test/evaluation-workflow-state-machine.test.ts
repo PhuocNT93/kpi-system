@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Pool } from 'pg';
 import express, { Express, RequestHandler } from 'express';
-import request from 'supertest';
 import { EvaluationTransitionService } from '../src/modules/evaluation/application/services/evaluation-transition.service.js';
 import { EvaluationService } from '../src/modules/evaluation/application/services/evaluation.service.js';
 import { EvaluationController } from '../src/modules/evaluation/api/evaluation.controller.js';
@@ -232,20 +231,6 @@ describe('Task 43: Evaluation Workflow State Machine', () => {
       is_locked: false,
       created_at: new Date(),
       updated_at: new Date(),
-    };
-
-    const completeItem: EvaluationItem = {
-      evaluation_item_id: 'item-1',
-      evaluation_id: 'eval-1',
-      template_criterion_id: 'crit-1',
-      criterion_code_snapshot: 'CODE_QUALITY',
-      criterion_name_snapshot: 'Code Quality',
-      weight_snapshot: 1.0,
-      scoring_rule_snapshot: {},
-      level_definition_snapshot: [],
-      resolved_level: 4,
-      is_disabled_for_employee: false,
-      is_missing_score: false,
     };
 
     beforeEach(() => {
