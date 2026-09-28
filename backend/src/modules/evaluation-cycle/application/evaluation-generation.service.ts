@@ -213,11 +213,12 @@ export class EvaluationGenerationService {
               c.id AS criterion_id,
               c.code AS criterion_code,
               c.name AS criterion_name,
+              c.category AS criterion_category,
               sr.rule_type,
               sr.config AS rule_config
        FROM template_criteria tc
-       JOIN template_kpi tk ON tk.template_criterion_id = tc.id
-       JOIN kpi k ON tk.kpi_id = k.kpi_id
+      LEFT JOIN template_kpi tk ON tk.template_criterion_id = tc.id
+      LEFT JOIN kpi k ON tk.kpi_id = k.kpi_id
        JOIN criterion_versions cv ON tc.criterion_version_id = cv.id
        JOIN criteria c ON cv.criterion_id = c.id
        JOIN scoring_rules sr ON cv.scoring_rule_id = sr.id
@@ -655,6 +656,7 @@ export class EvaluationGenerationService {
           templateCriterionId: legacyTemplateCriterionId,
           criterionCodeSnapshot: tc.criterion_code as string,
           criterionNameSnapshot: nameSnapshot,
+          criterion_category_snapshot: tc.criterion_category as string | undefined,
           weightSnapshot: parseFloat(tc.effective_weight as string),
           kpiIdSnapshot: tc.kpi_id as string | undefined,
           kpiCodeSnapshot: tc.kpi_code as string | undefined,

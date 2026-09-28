@@ -50,6 +50,7 @@ export interface EvaluationItem {
   criterion_code_snapshot: string;
   criterion_name_snapshot: string;
   criterion_category_snapshot?: string;
+  criterionCategorySnapshot?: string;
   weight_snapshot: number;
   kpi_id_snapshot?: string;
   kpi_code_snapshot?: string;

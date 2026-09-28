@@ -13,6 +13,7 @@ export class PostgresEvaluationItemRepository implements IEvaluationItemReposito
       template_criterion_id: row.template_criterion_id as string,
       criterion_code_snapshot: row.criterion_code_snapshot as string,
       criterion_name_snapshot: row.criterion_name_snapshot as string,
+      criterion_category_snapshot: row.criterion_category_snapshot as string | undefined,
       weight_snapshot: Number(row.weight_snapshot),
       kpi_id_snapshot: row.kpi_id_snapshot as string,
       kpi_code_snapshot: row.kpi_code_snapshot as string,

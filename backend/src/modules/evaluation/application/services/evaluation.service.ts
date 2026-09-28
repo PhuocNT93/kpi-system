@@ -50,6 +50,24 @@ export class EvaluationService {
     return { userId: res.rows[0].user_id, email: res.rows[0].email };
   }
 
+  private async resolveEmployeeIdForActor(actor: Actor, client?: PoolClient): Promise<string | undefined> {
+    if (actor.employeeId) {
+      return actor.employeeId;
+    }
+
+    if (!actor.userId) {
+      return undefined;
+    }
+
+    const executor = client ?? this.pool;
+    const result = await executor.query(
+      'SELECT employee_id FROM app_user WHERE id = $1 LIMIT 1',
+      [actor.userId]
+    );
+
+    return result.rows[0]?.employee_id ?? undefined;
+  }
+
   private async checkCycleNotLocked(cycleId?: string, client?: PoolClient): Promise<void> {
     if (!cycleId) return;
     const runner = client || this.pool;
@@ -69,8 +87,10 @@ export class EvaluationService {
 
   async getMyEvaluations(actor: Actor): Promise<MyEvaluationListItem[]> {
     const isSuperAdminOrHr = actor.role === 'SYSTEM_ADMIN' || actor.role === 'HR_ADMIN';
+    const employeeId = await this.resolveEmployeeIdForActor(actor);
+
     return this.evaluationRepo.findMyEvaluations({
-      userId: actor.employeeId || actor.userId,
+      userId: employeeId ?? actor.userId,
       includeAll: isSuperAdminOrHr,
     });
   }
@@ -1459,7 +1479,7 @@ export class EvaluationService {
 
     const kpi_items = itemRows.map((rowRaw: unknown) => {
       const row = rowRaw as DbItemRow;
-      const category = row.kpi_name_snapshot || 'Performance';
+      const category = row.criterion_category || '';
       const measurementVal = row.measurement_value !== null && row.measurement_value !== undefined
         ? parseFloat(row.measurement_value)
         : null;
@@ -1472,8 +1492,8 @@ export class EvaluationService {
         evaluation_item_id: row.evaluation_item_id,
         criterion_code: row.criterion_code_snapshot,
         criterion_name: row.criterion_name_snapshot,
-        category: (row.criterion_category as string | undefined) || category,
-        criterion_category_snapshot: (row.criterion_category as string | undefined) || category,
+        category,
+        criterion_category_snapshot: category,
         weight,
         raw_score: rawScore,
         weighted_score: weightedScore,

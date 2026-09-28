@@ -85,6 +85,7 @@ interface EvaluationItemRow {
   template_criterion_id: string;
   criterion_code_snapshot: string;
   criterion_name_snapshot: string;
+  criterion_category_snapshot?: string | null;
   weight_snapshot: string | number;
   kpi_id_snapshot?: string;
   kpi_code_snapshot?: string;
@@ -512,13 +513,14 @@ export class PostgresEvaluationItemRepository implements IEvaluationItemReposito
 
       for (const item of chunk) {
         valueTuples.push(
-          `($${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++})`
+              `($${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++})`
         );
         values.push(
           item.evaluationId,
           item.templateCriterionId,
           item.criterionCodeSnapshot,
           item.criterionNameSnapshot,
+          item.criterion_category_snapshot ?? null,
           item.weightSnapshot,
           item.kpiIdSnapshot ?? null,
           item.kpiCodeSnapshot ?? null,
@@ -536,12 +538,12 @@ export class PostgresEvaluationItemRepository implements IEvaluationItemReposito
       const res = await client.query(
         `INSERT INTO evaluation_item (
           evaluation_id, template_criterion_id, criterion_code_snapshot, criterion_name_snapshot,
-          weight_snapshot, kpi_id_snapshot, kpi_code_snapshot, kpi_name_snapshot, kpi_weight_snapshot,
+              criterion_category_snapshot, weight_snapshot, kpi_id_snapshot, kpi_code_snapshot, kpi_name_snapshot, kpi_weight_snapshot,
           scoring_rule_snapshot, level_definition_snapshot,
           is_disabled_for_employee, is_missing_score, created_by, updated_by
         ) VALUES ${valueTuples.join(', ')}
         RETURNING evaluation_item_id, evaluation_id, template_criterion_id, criterion_code_snapshot,
-                  criterion_name_snapshot, weight_snapshot, kpi_id_snapshot, kpi_code_snapshot, kpi_name_snapshot,
+                      criterion_name_snapshot, criterion_category_snapshot, weight_snapshot, kpi_id_snapshot, kpi_code_snapshot, kpi_name_snapshot,
                   kpi_weight_snapshot, scoring_rule_snapshot, level_definition_snapshot,
                   resolved_level, raw_score, weighted_score, is_disabled_for_employee, is_missing_score,
                   comment, reviewer_id, review_date, created_at, updated_at, created_by, updated_by`,
@@ -563,6 +565,7 @@ export class PostgresEvaluationItemRepository implements IEvaluationItemReposito
       templateCriterionId: row.template_criterion_id,
       criterionCodeSnapshot: row.criterion_code_snapshot,
       criterionNameSnapshot: row.criterion_name_snapshot,
+      criterion_category_snapshot: row.criterion_category_snapshot ?? undefined,
       weightSnapshot: Number(row.weight_snapshot),
       kpiIdSnapshot: row.kpi_id_snapshot,
       kpiCodeSnapshot: row.kpi_code_snapshot,

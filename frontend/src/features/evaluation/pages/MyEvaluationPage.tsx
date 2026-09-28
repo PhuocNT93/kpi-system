@@ -63,6 +63,8 @@ export function MyEvaluationPage() {
     queryFn: evaluationApi.getMyEvaluations,
   });
 
+  const selfEvaluations = myEvaluations ?? [];
+
   const { data: teamEvaluations = [] } = useQuery({
     queryKey: ['team-evaluations', 'my-evaluation-picker'],
     queryFn: evaluationApi.getTeamEvaluations,
@@ -102,7 +104,15 @@ export function MyEvaluationPage() {
 
   const activeEvaluationId = isHrAdmin
     ? selectedEvaluationId ?? filteredTeamEvaluations[0]?.evaluation.evaluation_id
-    : myEvaluations?.[0]?.evaluation.evaluation_id;
+    : selfEvaluations[0]?.evaluation.evaluation_id;
+
+  const selectedSelfEvaluation = useMemo(() => {
+    if (isHrAdmin) {
+      return null;
+    }
+
+    return selfEvaluations[0] ?? null;
+  }, [isHrAdmin, selfEvaluations]);
 
   const selectedTeamEvaluation = useMemo(() => {
     if (!isHrAdmin || !activeEvaluationId) {
@@ -240,16 +250,20 @@ export function MyEvaluationPage() {
   };
 
   const selectedEmployee = selectedTeamEvaluation?.employee ?? myEvaluations?.[0]?.employee;
+  const selfEmployee = selectedSelfEvaluation?.employee;
+  const selfEvaluation = selectedSelfEvaluation?.evaluation;
   const enrichedEmployee = {
     ...selectedEmployee,
-    join_date: selectedEmployeeProfile?.joinDate ?? selectedEmployee?.join_date,
-    next_review_due_date: selectedEmployee?.next_review_due_date,
-    employee_code: selectedEmployeeProfile?.employeeCode ?? selectedEmployee?.employee_code,
-    full_name: selectedEmployeeProfile?.fullName ?? selectedEmployee?.full_name,
-    email: selectedEmployeeProfile?.email ?? selectedEmployee?.email,
-    created_at: selectedEmployee?.created_at,
+    ...selfEmployee,
+    join_date: selectedEmployeeProfile?.joinDate ?? selectedEmployee?.join_date ?? selfEmployee?.join_date,
+    next_review_due_date: selectedEmployee?.next_review_due_date ?? selfEmployee?.next_review_due_date,
+    employee_code: selectedEmployeeProfile?.employeeCode ?? selectedEmployee?.employee_code ?? selfEmployee?.employee_code,
+    full_name: selectedEmployeeProfile?.fullName ?? selectedEmployee?.full_name ?? selfEmployee?.full_name,
+    email: selectedEmployeeProfile?.email ?? selectedEmployee?.email ?? selfEmployee?.email,
+    created_at: selectedEmployee?.created_at ?? selfEmployee?.created_at,
   };
-  const selectedEvaluation = isHrAdmin ? selectedTeamEvaluation?.evaluation : myEvaluations?.[0]?.evaluation;
+  const selectedEvaluation = isHrAdmin ? selectedTeamEvaluation?.evaluation : selfEvaluation;
+  const officialScore = evaluationDetail?.official_score ?? scoreFormula.totalScore;
   const profileFacts = [
     ['Joined', formatDisplayDate(enrichedEmployee.join_date ?? enrichedEmployee.created_at)],
     ['Previous Review', formatDisplayDate(selectedEvaluation?.approved_at ?? selectedEvaluation?.submitted_at)],
@@ -405,10 +419,10 @@ export function MyEvaluationPage() {
               </div>
             </div>
 
-            <EvaluationOverviewPanel score={scoreFormula.totalRawScoreValue} cycleProgress={cycleProgress} />
+            <EvaluationOverviewPanel score={officialScore} cycleProgress={cycleProgress} />
           </div>
 
-          <EvaluationScoreSummaryPanel score={scoreFormula.totalScore} grouped={scoreFormula.grouped} />
+          <EvaluationScoreSummaryPanel score={officialScore} grouped={scoreFormula.grouped} />
         </section>
       
         <section>
