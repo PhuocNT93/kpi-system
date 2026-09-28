@@ -85,6 +85,103 @@ export class EvaluationService {
     }
   }
 
+  private async resolveFormulaAndCalculateRank(
+    teamId: string | null | undefined,
+    scorePercentage: number,
+    client?: PoolClient
+  ): Promise<{
+    calculated_score_5: number;
+    calculated_rank: string;
+    formula_snapshot: Record<string, unknown>;
+    salary_recommendation: Record<string, unknown>;
+  }> {
+    const executor = client || this.pool;
+    let formulaRow: Record<string, unknown> | null = null;
+    if (teamId) {
+      try {
+        const teamRes = await executor.query(
+          `SELECT * FROM team_evaluation_formula WHERE team_id = $1 AND is_custom_override = TRUE LIMIT 1`,
+          [teamId]
+        );
+        if (teamRes.rows.length > 0) {
+          formulaRow = teamRes.rows[0];
+        } else {
+          // Check Department-level formula
+          const deptRes = await executor.query(
+            `SELECT f.*
+             FROM team t
+             JOIN team_evaluation_formula f ON t.department_id = f.department_id AND f.team_id IS NULL AND f.is_custom_override = TRUE
+             WHERE t.team_id = $1 LIMIT 1`,
+            [teamId]
+          );
+          if (deptRes.rows.length > 0) formulaRow = deptRes.rows[0];
+        }
+      } catch {
+        // Fallback silently
+      }
+    }
+    if (!formulaRow) {
+      try {
+        const globalRes = await executor.query(
+          `SELECT * FROM team_evaluation_formula WHERE team_id IS NULL AND department_id IS NULL LIMIT 1`
+        );
+        if (globalRes.rows.length > 0) formulaRow = globalRes.rows[0];
+      } catch {
+        // Fallback silently
+      }
+    }
+
+    const scaleMax = formulaRow?.scale_max ? Number(formulaRow.scale_max) : 5.0;
+    const calculated_score_5 = Number(((scorePercentage / 100) * scaleMax).toFixed(2));
+
+    const rankMatrix = typeof formulaRow?.rank_matrix === 'string'
+      ? JSON.parse(formulaRow.rank_matrix)
+      : formulaRow?.rank_matrix || {
+        S: { min: 4.5, raise_rates: { '<30m': [10, 15], '30m-50m': [10, 15], '>=50m': [10, 15] }, ceiling_action: 'ONE_TIME_BONUS', ceiling_note: 'Lương sẽ bị đóng băng nếu chạm mức trần. Xem xét thưởng one-time bonus cho member đạt loại S.' },
+        A: { min: 3.0, raise_rates: { '<30m': [4, 8], '30m-50m': [4, 8], '>=50m': [4, 8] }, ceiling_action: 'FREEZE', ceiling_note: 'Lương sẽ bị đóng băng nếu lương của member chạm mức trần.' },
+        B: { min: 0.0, raise_rates: { '<30m': [0, 2], '30m-50m': [0, 2], '>=50m': [0, 0] }, ceiling_action: 'FREEZE', ceiling_note: 'Tăng từ 0 - 2% hoặc không tăng.' },
+      };
+
+    let calculated_rank = 'B';
+    if (calculated_score_5 >= (rankMatrix.S?.min ?? 4.5)) {
+      calculated_rank = 'S';
+    } else if (calculated_score_5 >= (rankMatrix.A?.min ?? 3.0)) {
+      calculated_rank = 'A';
+    } else {
+      calculated_rank = 'B';
+    }
+
+    const rankConfig = rankMatrix[calculated_rank] || rankMatrix.B;
+    const salaryTier = '<30m';
+    const raiseRate = rankConfig?.raise_rates?.[salaryTier] || [0, 0];
+
+    const components = typeof formulaRow?.components === 'string'
+      ? JSON.parse(formulaRow.components)
+      : formulaRow?.components || [];
+
+    return {
+      calculated_score_5,
+      calculated_rank,
+      formula_snapshot: {
+        formula_id: formulaRow?.id,
+        team_id: formulaRow?.team_id,
+        department_id: formulaRow?.department_id,
+        source_level: formulaRow?.team_id ? 'TEAM' : formulaRow?.department_id ? 'DEPARTMENT' : 'GLOBAL',
+        is_custom_override: formulaRow?.is_custom_override,
+        scale_max: scaleMax,
+        components,
+        applied_at: new Date().toISOString(),
+      },
+      salary_recommendation: {
+        salary_tier: salaryTier,
+        min_percent: raiseRate[0],
+        max_percent: raiseRate[1],
+        ceiling_action: rankConfig?.ceiling_action,
+        ceiling_note: rankConfig?.ceiling_note,
+      },
+    };
+  }
+
   async getMyEvaluations(actor: Actor): Promise<MyEvaluationListItem[]> {
     const isSuperAdminOrHr = actor.role === 'SYSTEM_ADMIN' || actor.role === 'HR_ADMIN';
     const employeeId = await this.resolveEmployeeIdForActor(actor);
@@ -150,9 +247,62 @@ export class EvaluationService {
         }));
 
 
+    let effectiveFormula = evaluation.formula_snapshot;
+    if (!effectiveFormula) {
+      try {
+        let formulaRow: Record<string, unknown> | null = null;
+        let targetTeamId = evaluation.team_id_snapshot;
+        if (!targetTeamId && evaluation.employee_id) {
+          const empRes = await this.pool.query('SELECT team_id FROM employee WHERE employee_id = $1 LIMIT 1', [evaluation.employee_id]);
+          if (empRes.rows.length > 0 && empRes.rows[0].team_id) {
+            targetTeamId = empRes.rows[0].team_id;
+          }
+        }
+        if (targetTeamId) {
+          const teamRes = await this.pool.query(
+            `SELECT * FROM team_evaluation_formula WHERE team_id = $1 AND is_custom_override = TRUE LIMIT 1`,
+            [targetTeamId]
+          );
+          if (teamRes.rows.length > 0) {
+            formulaRow = teamRes.rows[0];
+          } else {
+            const deptRes = await this.pool.query(
+              `SELECT f.*
+               FROM team t
+               JOIN team_evaluation_formula f ON t.department_id = f.department_id AND f.team_id IS NULL AND f.is_custom_override = TRUE
+               WHERE t.team_id = $1 LIMIT 1`,
+              [targetTeamId]
+            );
+            if (deptRes.rows.length > 0) formulaRow = deptRes.rows[0];
+          }
+        }
+        if (!formulaRow) {
+          const globalRes = await this.pool.query(
+            `SELECT * FROM team_evaluation_formula WHERE team_id IS NULL AND department_id IS NULL LIMIT 1`
+          );
+          if (globalRes.rows.length > 0) formulaRow = globalRes.rows[0];
+        }
+        if (formulaRow) {
+          effectiveFormula = {
+            id: formulaRow.id,
+            team_id: formulaRow.team_id,
+            department_id: formulaRow.department_id,
+            is_custom_override: Boolean(formulaRow.is_custom_override),
+            scale_max: Number(formulaRow.scale_max ?? 5.0),
+            components: typeof formulaRow.components === 'string' ? JSON.parse(formulaRow.components as string) : formulaRow.components,
+            rank_matrix: typeof formulaRow.rank_matrix === 'string' ? JSON.parse(formulaRow.rank_matrix as string) : formulaRow.rank_matrix,
+          };
+        }
+      } catch {
+        // Fallback silently
+      }
+    }
+
     return {
       ...evaluation,
       items,
+      formula_snapshot: effectiveFormula,
+      effective_formula: effectiveFormula,
       official_score: canSeeScores
         ? ((typeof evaluation.scoring_breakdown?.official_score === 'number' ? evaluation.scoring_breakdown.official_score : null) ?? evaluation.manager_score ?? null)
         : null,
@@ -324,6 +474,20 @@ export class EvaluationService {
 
       await this.checkCycleNotLocked(evaluation.evaluation_cycle_id, client);
 
+      const developmentBlocks = Array.isArray(evaluation.development_blocks) ? evaluation.development_blocks : [];
+      const isDevelopmentPlanComplete = developmentBlocks.length > 0 && developmentBlocks.every((block) => {
+        if (!block || typeof block !== 'object') {
+          return false;
+        }
+
+        const value = String((block as { value?: unknown }).value ?? '').trim();
+        return value.length > 0;
+      });
+
+      if (!isDevelopmentPlanComplete) {
+        throw new AppError(400, 'INVALID_STATUS', 'Personal Development Plan must be completed before self-submit.');
+      }
+
       // Idempotency: if already submitted, return current evaluation
       if (evaluation.status === EvaluationStatus.SUBMITTED) {
         return evaluation;
@@ -491,9 +655,28 @@ export class EvaluationService {
         throw new AppError(409, 'ALREADY_APPROVED', 'Evaluation has already been approved.');
       }
 
-      const approvableStatuses = [EvaluationStatus.OPEN, EvaluationStatus.SUBMITTED, EvaluationStatus.MANAGER_REVIEW];
+      const approvableStatuses = [EvaluationStatus.SUBMITTED, EvaluationStatus.MANAGER_REVIEW];
+      const developmentBlocks = Array.isArray(evaluation.development_blocks) ? evaluation.development_blocks : [];
+      const hasCompletedDevelopmentPlan = developmentBlocks.length > 0 && developmentBlocks.every((block) => String((block as { value?: unknown }).value ?? '').trim().length > 0);
+      const isSelfSubmittedButStatusLagging =
+        evaluation.status === EvaluationStatus.OPEN &&
+        Boolean(evaluation.submitted_at) &&
+        hasCompletedDevelopmentPlan;
+
+      if (isSelfSubmittedButStatusLagging) {
+        await this.evaluationRepo.update(
+          evaluationId,
+          {
+            status: EvaluationStatus.SUBMITTED,
+            updated_by: actor.userId,
+          },
+          repositoryClient
+        );
+        evaluation.status = EvaluationStatus.SUBMITTED;
+      }
+
       if (!approvableStatuses.includes(evaluation.status)) {
-        throw new AppError(400, 'INVALID_STATUS', 'Evaluation must be OPEN, SUBMITTED, or MANAGER_REVIEW to be approved.');
+        throw new AppError(400, 'INVALID_STATUS', 'Evaluation must be SUBMITTED or MANAGER_REVIEW to be approved.');
       }
 
       const updated = await this.evaluationRepo.update(evaluationId, {
@@ -1010,10 +1193,22 @@ export class EvaluationService {
       }
     }
 
+    const formulaResult = await this.resolveFormulaAndCalculateRank(
+      locked.team_id_snapshot,
+      scoringResult.overall_weighted_score,
+      repositoryClient
+    );
+
     const updated = await this.evaluationRepo.update(evaluationId, {
       manager_score: scoringResult.overall_weighted_score,
       final_score: scoringResult.overall_weighted_score,
-      scoring_breakdown: scoringResult as unknown as Record<string, unknown>,
+      scoring_breakdown: {
+        ...(scoringResult as unknown as Record<string, unknown>),
+        formula_calculation: formulaResult,
+      },
+      formula_snapshot: formulaResult.formula_snapshot,
+      calculated_rank: formulaResult.calculated_rank,
+      salary_recommendation: formulaResult.salary_recommendation,
       updated_by: actor.userId,
     }, repositoryClient);
 

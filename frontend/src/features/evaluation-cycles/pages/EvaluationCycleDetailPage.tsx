@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQueries } from '@tanstack/react-query';
+import { ArrowLeft, Edit3, Play, Lock, CheckCircle2, Send, ExternalLink } from 'lucide-react';
 import {
   useEvaluationCycleDetailQuery,
   useScopePreviewQuery,
   useOpenCycleMutation,
-  useLockCycleMutation,
   useTransitionCycleMutation,
 } from '../hooks/use-evaluation-cycles';
+import { type EvaluationCycleDTO, type ScopePreviewDTO, type CycleStatus } from '../types/cycle-types';
 import { PageToast } from '../components/PageToast';
 import { CycleStatusBadge } from '../components/CycleStatusBadge';
 import { CycleTimeline } from '../components/CycleTimeline';
@@ -22,20 +23,6 @@ import { Button } from '@/shared/ui/Button/Button';
 import { LoadingSpinner, ErrorAlert } from '@/shared/components/ui';
 import { COLORS } from '@/lib/theme';
 import { TYPOGRAPHY, RADII } from '@/shared/theme';
-import {
-  ArrowLeft,
-  Edit3,
-  Play,
-  Lock,
-  CheckCircle2,
-  ArrowRight,
-  Send,
-  Eye,
-  Sliders,
-  Check,
-  ExternalLink,
-} from 'lucide-react';
-import type { EvaluationCycleDTO, ScopePreviewDTO, CycleStatus } from '../types/cycle-types';
 import { usePageToast } from '../hooks/use-page-toast';
 
 const MOCK_DETAIL: EvaluationCycleDTO = {
@@ -96,7 +83,6 @@ export const EvaluationCycleDetailPage: React.FC = () => {
   const { data: scopeData } = useScopePreviewQuery(id);
 
   const openMutation = useOpenCycleMutation();
-  const lockMutation = useLockCycleMutation();
   const transitionMutation = useTransitionCycleMutation();
   const { toast, showToast } = usePageToast();
 
@@ -132,7 +118,6 @@ export const EvaluationCycleDetailPage: React.FC = () => {
   const isLocked = cycle.status === 'LOCKED';
   const canEdit = (cycle.allowedActions.includes('EDIT') || cycle.status === 'DRAFT') && !isLocked;
   const canOpen = (cycle.allowedActions.includes('OPEN') || cycle.status === 'DRAFT') && !isLocked;
-  const canLock = !isLocked && cycle.status !== 'DRAFT';
 
   const handleConfirmOpen = async () => {
     try {
@@ -158,21 +143,6 @@ export const EvaluationCycleDetailPage: React.FC = () => {
         showToast('success', message);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to transition cycle status';
-        showToast('error', message);
-        alert(message);
-      }
-    }
-  };
-
-  const handleLockCycle = async () => {
-    if (window.confirm('Are you sure you want to lock this evaluation cycle? It will become permanently read-only.')) {
-      try {
-        await lockMutation.mutateAsync(cycle.id);
-        const message = 'Evaluation cycle is now locked and read-only.';
-        setActionSuccessMsg(message);
-        showToast('success', message);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to lock cycle';
         showToast('error', message);
         alert(message);
       }
@@ -256,69 +226,18 @@ export const EvaluationCycleDetailPage: React.FC = () => {
 
           {cycle.status === 'OPEN' && (
             <Button
-              onClick={() => handleTransition('IN_PROGRESS', 'In Progress')}
-              disabled={transitionMutation.isPending}
-            >
-              <ArrowRight size={16} style={{ marginRight: '6px' }} />
-              Start In Progress
-            </Button>
-          )}
-
-          {cycle.status === 'IN_PROGRESS' && (
-            <Button
-              onClick={() => handleTransition('SUBMITTED', 'Submitted')}
+              onClick={() => handleTransition('PUBLISHED', 'Published')}
               disabled={transitionMutation.isPending}
             >
               <Send size={16} style={{ marginRight: '6px' }} />
-              Submit All Evaluations
+              Publish Cycle
             </Button>
           )}
 
-          {cycle.status === 'SUBMITTED' && (
+          {cycle.status === 'PUBLISHED' && (
             <Button
-              onClick={() => handleTransition('REVIEWING', 'Reviewing')}
+              onClick={() => handleTransition('LOCKED', 'Locked')}
               disabled={transitionMutation.isPending}
-            >
-              <Eye size={16} style={{ marginRight: '6px' }} />
-              Start Reviewing
-            </Button>
-          )}
-
-          {cycle.status === 'REVIEWING' && (
-            <>
-              <Button
-                variant="secondary"
-                onClick={() => handleTransition('CALIBRATION', 'Calibration')}
-                disabled={transitionMutation.isPending}
-              >
-                <Sliders size={16} style={{ marginRight: '6px' }} />
-                Move to Calibration
-              </Button>
-              <Button
-                onClick={() => handleTransition('APPROVED', 'Approved')}
-                disabled={transitionMutation.isPending}
-              >
-                <Check size={16} style={{ marginRight: '6px' }} />
-                Approve Cycle
-              </Button>
-            </>
-          )}
-
-          {cycle.status === 'CALIBRATION' && (
-            <Button
-              onClick={() => handleTransition('APPROVED', 'Approved')}
-              disabled={transitionMutation.isPending}
-            >
-              <Check size={16} style={{ marginRight: '6px' }} />
-              Approve Cycle
-            </Button>
-          )}
-
-          {canLock && (
-            <Button
-              variant="outlined"
-              onClick={handleLockCycle}
-              disabled={lockMutation.isPending}
             >
               <Lock size={16} style={{ marginRight: '6px' }} />
               Lock Cycle
@@ -444,7 +363,7 @@ export const EvaluationCycleDetailPage: React.FC = () => {
                 {employee.evaluationId && (
                   <button
                     type="button"
-                    onClick={() => navigate(`/admin/my-evaluations/${employee.evaluationId}`)}
+                    onClick={() => navigate(`/admin/team-evaluations/${employee.evaluationId}`)}
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',

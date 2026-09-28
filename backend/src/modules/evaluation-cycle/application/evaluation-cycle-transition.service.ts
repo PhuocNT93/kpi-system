@@ -4,7 +4,7 @@ import { Conflict } from '../../../api/app-error.js';
 export class EvaluationCycleTransitionService {
   private static readonly ALLOWED_TRANSITIONS: Record<EvaluationCycleStatus, EvaluationCycleStatus[]> = {
     [EvaluationCycleStatus.DRAFT]: [EvaluationCycleStatus.OPEN],
-    [EvaluationCycleStatus.OPEN]: [EvaluationCycleStatus.IN_PROGRESS, EvaluationCycleStatus.LOCKED],
+    [EvaluationCycleStatus.OPEN]: [EvaluationCycleStatus.PUBLISHED, EvaluationCycleStatus.LOCKED],
     [EvaluationCycleStatus.IN_PROGRESS]: [EvaluationCycleStatus.SUBMITTED, EvaluationCycleStatus.LOCKED],
     [EvaluationCycleStatus.SUBMITTED]: [EvaluationCycleStatus.REVIEWING, EvaluationCycleStatus.LOCKED],
     [EvaluationCycleStatus.REVIEWING]: [EvaluationCycleStatus.CALIBRATION, EvaluationCycleStatus.APPROVED, EvaluationCycleStatus.LOCKED],

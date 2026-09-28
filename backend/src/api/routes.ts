@@ -27,6 +27,7 @@ import { createReportsRouter } from '../modules/reports/api/reports.router.js';
 import { EvaluationDataImportController } from '../modules/evaluation-data-import/api/evaluation-data-import.controller.js';
 import { createEvaluationDataImportRouter } from '../modules/evaluation-data-import/api/evaluation-data-import.router.js';
 import { CalibrationController, createCalibrationRouter } from '../modules/calibration/index.js';
+import { TeamFormulaController } from '../modules/organization/api/formula.controller.js';
 import { ReviewCadenceController, ReviewDueController, createReviewCadenceRouter } from '../modules/review-cadence/index.js';
 
 export interface RegisterRoutesOptions {
@@ -36,6 +37,7 @@ export interface RegisterRoutesOptions {
   authorizationService: AuthorizationService;
   employeeController?: EmployeeController;
   organizationController?: OrganizationController;
+  teamFormulaController?: TeamFormulaController;
   configurationController?: ConfigurationController;
   kpiRelationshipController?: KpiRelationshipController;
   kpiController?: KpiController;
@@ -82,8 +84,9 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
 
   // ── Organization Module Routes ────────────────────────────────────────────
   if (options.organizationController) {
-    router.use('/org', createOrganizationRouter(options.organizationController, options.jwtMiddleware));
+    router.use('/org', createOrganizationRouter(options.organizationController, options.jwtMiddleware, options.teamFormulaController));
   }
+
 
   // ── Configuration Module Routes ───────────────────────────────────────────
   if (options.configurationController) {

@@ -18,7 +18,7 @@ import { useAuth } from '@/shared/auth/auth-context';
 import { OverrideScoreModal } from '../components/OverrideScoreModal';
 import { invalidateAfterEvaluationPublish } from '../hooks/evaluation-publish-invalidation';
 import { ReviewActionModal, type ReviewActionType } from '../components/ReviewActionModal';
-import { buildEvaluationScoringSummary, getLocalizedText, type EvaluationItem, type ScoringKpiResult } from '../domain/evaluation-models';
+import { buildEvaluationScoringSummary, getLocalizedText, deriveFormulaSourceLabel, type EvaluationItem, type ScoringKpiResult } from '../domain/evaluation-models';
 
 type EvaluationDetailMode = 'self' | 'manager';
 
@@ -69,10 +69,11 @@ const toLevelPercent = (level?: number | null): number | undefined => {
 
 const toDisplayLevel = (value?: number | null): number | null => {
   if (value === null || value === undefined) return null;
-  if (value >= 100) return 5;
-  if (value >= 90) return 4;
-  if (value >= 80) return 3;
-  if (value >= 70) return 2;
+  if (value >= 1 && value <= 5) return Math.round(value);
+  if (value >= 95) return 5;
+  if (value >= 85) return 4;
+  if (value >= 75) return 3;
+  if (value >= 65) return 2;
   return 1;
 };
 
@@ -162,6 +163,18 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
   const hasUnsavedChanges = useMemo(() => {
     return Object.values(draftItems).some((item) => item.isDirty);
   }, [draftItems]);
+
+  const isDevelopmentPlanComplete = useMemo(() => {
+    if (!detail?.development_blocks || detail.development_blocks.length === 0) {
+      return false;
+    }
+
+    return detail.development_blocks.every((block) => String(block.value ?? '').trim().length > 0);
+  }, [detail?.development_blocks]);
+
+  const selfSubmitBlockedReason = !isDevelopmentPlanComplete
+    ? 'Hãy hoàn tất đầy đủ Personal Development Plan trước khi nộp tự đánh giá.'
+    : '';
 
   // Handle beforeunload warning
   useEffect(() => {
@@ -533,7 +546,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
 
         return {
           ...item,
-          resolved_level: toLevelPercent(draft.resolved_level) ?? item.resolved_level,
+          resolved_level: draft.resolved_level ?? item.resolved_level,
           comment: draft.comment,
         };
       }),
@@ -541,6 +554,14 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
   }, [detail, draftItems]);
 
   const scoreFormula = useMemo(() => buildEvaluationScoringSummary(detailForScoring), [detailForScoring]);
+
+  // Derive which formula is being applied for display
+  const formulaSourceLabel = useMemo(() => {
+    if (!detail) return undefined;
+    // employee team_name from items context or from the evaluation itself
+    const teamName = (detail as unknown as { employee?: { team_name?: string } }).employee?.team_name ?? undefined;
+    return deriveFormulaSourceLabel(detail, teamName ?? null);
+  }, [detail]);
   const currentRank = useMemo(() => {
     if (scoreFormula.totalScore > 4.5) {
       return 'S';
@@ -838,18 +859,25 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
         isSaving={saveBatchMutation.isPending}
         isSubmitting={submitMutation.isPending || approveMutation.isPending}
         hasUnsavedChanges={hasUnsavedChanges}
+        canSubmit={isManagerMode ? !(detail.status === EvaluationStatus.APPROVED || detail.status === EvaluationStatus.PUBLISHED) : isDevelopmentPlanComplete}
+        submitDisabledReason={selfSubmitBlockedReason}
         onSaveDraft={handleSaveAll}
         onSubmit={handleOpenSubmit}
         backPath={isManagerMode ? '/admin/team-evaluations' : '/admin/my-evaluations'}
         backLabel={isManagerMode ? 'Team Evaluations' : 'My Evaluations'}
         isHrAdmin={isHrAdmin}
         onPublish={handlePublish}
-        onLock={handleLock}
         onRequestCorrection={() => setReviewActionType('REQUEST_CORRECTION')}
         onReject={() => setReviewActionType('REJECT')}
         submitLabel={isManagerMode ? 'Duyệt đánh giá' : 'Nộp tự đánh giá'}
         submittingLabel={isManagerMode ? 'Đang duyệt...' : 'Đang gửi...'}
       />
+
+      {!isManagerMode && selfSubmitBlockedReason && (
+        <section style={{ ...panelStyle, borderColor: '#fde68a', backgroundColor: '#fffbeb', color: '#92400e' }}>
+          {selfSubmitBlockedReason}
+        </section>
+      )}
 
       <EvaluationOverviewPanel
         score={scoreFormula.totalRawScoreValue}
@@ -859,6 +887,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
       <EvaluationScoreSummaryPanel
         score={scoreFormula.totalScore}
         grouped={scoreFormula.grouped}
+        formulaSource={formulaSourceLabel}
       />
 
       <section>
@@ -951,7 +980,11 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
         isSaving={saveDevelopmentBlocksMutation.isPending}
         isSaved={!saveDevelopmentBlocksMutation.isPending}
         canSave={!!id}
+        canSubmit={isManagerMode || isDevelopmentPlanComplete}
+        submitLabel={isManagerMode ? 'Phê duyệt' : 'Nộp tự đánh giá'}
+        submitDisabledReason={selfSubmitBlockedReason}
         onSave={() => saveDevelopmentBlocksMutation.mutate()}
+        onSubmit={handleOpenSubmit}
         onChangeBlock={updateDevelopmentBlock}
       />
 

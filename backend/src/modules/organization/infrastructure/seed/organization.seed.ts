@@ -26,13 +26,8 @@ export async function seedOrganizationModule(pool: Pool): Promise<void> {
 
   // 2. Teams
   const teams = [
-    { code: 'TEAM-BACKEND', name: 'Backend Team', deptCode: 'DEPT-ENG' },
-    { code: 'TEAM-FRONTEND', name: 'Frontend Team', deptCode: 'DEPT-ENG' },
-    { code: 'TEAM-MOBILE', name: 'Mobile Team', deptCode: 'DEPT-ENG' },
-    { code: 'TEAM-DATA', name: 'Data Team', deptCode: 'DEPT-ENG' },
-    { code: 'TEAM-DEVOPS', name: 'DevOps Team', deptCode: 'DEPT-ENG' },
-    { code: 'TEAM-QA', name: 'QA/QC Team', deptCode: 'DEPT-ENG' },
-    { code: 'TEAM-PLATFORM', name: 'Platform Team', deptCode: 'DEPT-ENG' },
+    { code: 'ALLEGRO-NX', name: 'ALLEGRO NX', deptCode: 'DEPT-ENG' },
+    { code: 'MARITIME-SOL', name: 'Maritime Solutions', deptCode: 'DEPT-ENG' },
     { code: 'TEAM-PROD-MGT', name: 'Product Management', deptCode: 'DEPT-PROD' },
     { code: 'TEAM-DESIGN', name: 'UI/UX Design', deptCode: 'DEPT-PROD' },
     { code: 'TEAM-ACCOUNTING', name: 'Accounting', deptCode: 'DEPT-FIN' },

@@ -42,7 +42,12 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
   const bulkUpdateMutation = useBulkUpdateEmployees();
   const headerCheckboxRef = useRef<HTMLInputElement>(null);
 
-  const employees = employeesQuery.data ?? [];
+  const rawEmployees = employeesQuery.data ?? [];
+  const employees = rawEmployees.filter((e) => {
+    if (teamId && e.teamId !== teamId) return false;
+    if (departmentId && e.departmentId !== departmentId) return false;
+    return true;
+  });
   const roles = rolesQuery.data ?? [];
   const levels = levelsQuery.data ?? [];
 

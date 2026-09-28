@@ -167,6 +167,7 @@ export interface MemberBatchResult {
   dateTo: string | null;
   blueprintSummary?: BlueprintMemberSummary;
   penaltyBreakdown?: PenaltyBreakdown;
+  scoringBreakdown?: Record<string, unknown>;
 }
 
 interface GeminiEvaluationResponse {

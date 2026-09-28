@@ -11,7 +11,7 @@ import {
   Search,
 } from 'lucide-react';
 import { useAuth } from '@/shared/auth/auth-context';
-import { type TeamEvaluation, buildEvaluationScoringSummary } from '../domain/evaluation-models';
+import { type TeamEvaluation, buildEvaluationScoringSummary, deriveFormulaSourceLabel } from '../domain/evaluation-models';
 import type { EmployeeSearchResult } from '@/features/organization/api/employee-search.api';
 import { EvaluationOverviewPanel } from '../components/EvaluationOverviewPanel';
 import { EvaluationScoreSummaryPanel } from '../components/EvaluationScoreSummaryPanel';
@@ -65,6 +65,21 @@ export function MyEvaluationPage() {
 
   const selfEvaluations = myEvaluations ?? [];
 
+  useEffect(() => {
+    if (isHrAdmin) {
+      return;
+    }
+
+    if (!selectedEvaluationId && selfEvaluations.length > 0) {
+      setSelectedEvaluationId(selfEvaluations[0].evaluation.evaluation_id);
+      return;
+    }
+
+    if (selectedEvaluationId && !selfEvaluations.some((item) => item.evaluation.evaluation_id === selectedEvaluationId)) {
+      setSelectedEvaluationId(selfEvaluations[0]?.evaluation.evaluation_id ?? null);
+    }
+  }, [isHrAdmin, selectedEvaluationId, selfEvaluations]);
+
   const { data: teamEvaluations = [] } = useQuery({
     queryKey: ['team-evaluations', 'my-evaluation-picker'],
     queryFn: evaluationApi.getTeamEvaluations,
@@ -104,15 +119,15 @@ export function MyEvaluationPage() {
 
   const activeEvaluationId = isHrAdmin
     ? selectedEvaluationId ?? filteredTeamEvaluations[0]?.evaluation.evaluation_id
-    : selfEvaluations[0]?.evaluation.evaluation_id;
+    : selectedEvaluationId ?? selfEvaluations[0]?.evaluation.evaluation_id;
 
   const selectedSelfEvaluation = useMemo(() => {
     if (isHrAdmin) {
       return null;
     }
 
-    return selfEvaluations[0] ?? null;
-  }, [isHrAdmin, selfEvaluations]);
+    return selfEvaluations.find((item) => item.evaluation.evaluation_id === (selectedEvaluationId ?? selfEvaluations[0]?.evaluation.evaluation_id)) ?? null;
+  }, [isHrAdmin, selfEvaluations, selectedEvaluationId]);
 
   const selectedTeamEvaluation = useMemo(() => {
     if (!isHrAdmin || !activeEvaluationId) {
@@ -122,7 +137,7 @@ export function MyEvaluationPage() {
     return teamEvaluations.find((item) => item.evaluation.evaluation_id === activeEvaluationId) ?? null;
   }, [activeEvaluationId, isHrAdmin, teamEvaluations]);
 
-  const selectedEmployeeId = selectedTeamEvaluation?.employee?.employee_id ?? myEvaluations?.[0]?.employee?.employee_id;
+  const selectedEmployeeId = selectedTeamEvaluation?.employee?.employee_id ?? selectedSelfEvaluation?.employee?.employee_id ?? selfEvaluations[0]?.employee?.employee_id;
   const selectedManagerId = selectedTeamEvaluation?.evaluation.manager_id_snapshot ?? null;
 
   const { data: employeeProfiles } = useQuery<EmployeeSearchResult>({
@@ -196,6 +211,7 @@ export function MyEvaluationPage() {
   const scoreFormula = useMemo(() => buildEvaluationScoringSummary(evaluationDetail), [evaluationDetail]);
   const criteria = scoreFormula.criteria;
 
+
   const currentRank = useMemo(() => {
     if (scoreFormula.totalScore > 4.5) {
       return 'S';
@@ -210,7 +226,7 @@ export function MyEvaluationPage() {
 
   const progress = (value: number) => `${Math.max(0, Math.min(100, value))}%`;
 
-  const activeCycle = selectedTeamEvaluation?.cycle ?? myEvaluations?.[0]?.cycle;
+  const activeCycle = selectedTeamEvaluation?.cycle ?? selectedSelfEvaluation?.cycle ?? selfEvaluations[0]?.cycle;
 
   const cycleProgress = useMemo(() => {
     if (!activeCycle?.start_date || !activeCycle?.end_date) {
@@ -249,7 +265,7 @@ export function MyEvaluationPage() {
     return parsed.toLocaleDateString('vi-VN');
   };
 
-  const selectedEmployee = selectedTeamEvaluation?.employee ?? myEvaluations?.[0]?.employee;
+  const selectedEmployee = selectedTeamEvaluation?.employee ?? selectedSelfEvaluation?.employee ?? selfEvaluations[0]?.employee;
   const selfEmployee = selectedSelfEvaluation?.employee;
   const selfEvaluation = selectedSelfEvaluation?.evaluation;
   const enrichedEmployee = {
@@ -263,7 +279,38 @@ export function MyEvaluationPage() {
     created_at: selectedEmployee?.created_at ?? selfEmployee?.created_at,
   };
   const selectedEvaluation = isHrAdmin ? selectedTeamEvaluation?.evaluation : selfEvaluation;
+  const selectedEvaluationStatus = selectedEvaluation?.status ?? 'OPEN';
+  const selectedEvaluationStatusLabel =
+    selectedEvaluationStatus === 'SUBMITTED'
+      ? 'Đã nộp tự đánh giá - Chờ quản lý'
+      : selectedEvaluationStatus === 'MANAGER_REVIEW'
+      ? 'Quản lý đang đánh giá'
+      : selectedEvaluationStatus === 'APPROVED'
+      ? 'Đã duyệt'
+      : selectedEvaluationStatus === 'PUBLISHED'
+      ? 'Đã công bố'
+      : selectedEvaluationStatus === 'LOCKED'
+      ? 'Đã khóa'
+      : 'Chưa nộp';
+  const selectedEvaluationStatusStyle: React.CSSProperties =
+    selectedEvaluationStatus === 'SUBMITTED'
+      ? { background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }
+      : selectedEvaluationStatus === 'MANAGER_REVIEW'
+      ? { background: '#fff7ed', color: '#b45309', border: '1px solid #fed7aa' }
+      : selectedEvaluationStatus === 'APPROVED' || selectedEvaluationStatus === 'PUBLISHED'
+      ? { background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' }
+      : selectedEvaluationStatus === 'LOCKED'
+      ? { background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1' }
+      : { background: '#f8fafc', color: '#475569', border: '1px solid #e2e8f0' };
   const officialScore = evaluationDetail?.official_score ?? scoreFormula.totalScore;
+
+  // Derive which formula level is being applied (Team / Dept / Global) — must come after enrichedEmployee
+  const formulaSourceLabel = useMemo(() => {
+    if (!evaluationDetail) return undefined;
+    const teamName = enrichedEmployee?.team_name ?? null;
+    return deriveFormulaSourceLabel(evaluationDetail, teamName);
+  }, [evaluationDetail, enrichedEmployee?.team_name]);
+
   const profileFacts = [
     ['Joined', formatDisplayDate(enrichedEmployee.join_date ?? enrichedEmployee.created_at)],
     ['Previous Review', formatDisplayDate(selectedEvaluation?.approved_at ?? selectedEvaluation?.submitted_at)],
@@ -288,6 +335,23 @@ export function MyEvaluationPage() {
       }
 
       await evaluationApi.saveDevelopmentBlocks(activeEvaluationId, developmentBlocks);
+    },
+  });
+
+  const isDevelopmentPlanComplete = useMemo(() => {
+    return developmentBlocks.length > 0 && developmentBlocks.every((block) => String(block.value ?? '').trim().length > 0);
+  }, [developmentBlocks]);
+
+  const selfSubmitMutation = useMutation({
+    mutationFn: async () => {
+      if (!activeEvaluationId) {
+        throw new Error('Missing evaluation id');
+      }
+
+      await evaluationApi.submitEvaluation(activeEvaluationId);
+    },
+    onSuccess: () => {
+      window.location.reload();
     },
   });
 
@@ -405,6 +469,73 @@ export function MyEvaluationPage() {
           </div>
         </section>
 
+        {!isHrAdmin && selfEvaluations.length > 1 && (
+          <section style={panelStyle}>
+            <div style={sectionHeadingStyle}>
+              <div>
+                <div style={eyebrowStyle}>My Evaluations</div>
+                <h2 style={sectionTitleStyle}>Select an evaluation</h2>
+              </div>
+              <div style={{ color: COLORS.neutral.textSecondary, fontSize: TYPOGRAPHY.fontSize.sm }}>
+                {selfEvaluations.length} evaluations available
+              </div>
+            </div>
+
+            <div style={{ marginTop: '16px', display: 'grid', gap: '10px' }}>
+              {selfEvaluations.map((item) => {
+                const isSelected = item.evaluation.evaluation_id === activeEvaluationId;
+                const status = item.evaluation.status;
+                return (
+                  <button
+                    key={item.evaluation.evaluation_id}
+                    type="button"
+                    onClick={() => setSelectedEvaluationId(item.evaluation.evaluation_id)}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: '12px',
+                      width: '100%',
+                      padding: '14px 16px',
+                      borderRadius: RADII.xl,
+                      border: `1px solid ${isSelected ? COLORS.primary.DEFAULT : COLORS.neutral[200]}`,
+                      background: isSelected ? 'rgba(99,102,241,0.06)' : COLORS.neutral.white,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: TYPOGRAPHY.fontWeight.semibold, color: COLORS.neutral.textPrimary }}>
+                        {item.cycle?.name || 'Evaluation'}
+                      </div>
+                      <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, marginTop: '4px' }}>
+                        {item.employee?.employee_code} • {item.employee?.full_name || 'Employee'}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: isSelected ? COLORS.primary.DEFAULT : COLORS.neutral.textSecondary, fontWeight: TYPOGRAPHY.fontWeight.semibold }}>
+                      {status}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {!isHrAdmin && (
+          <section style={{ ...panelStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <div>
+              <div style={eyebrowStyle}>Submission Status</div>
+              <h2 style={{ margin: '8px 0 0', fontSize: TYPOGRAPHY.fontSize['2xl'], fontWeight: TYPOGRAPHY.fontWeight.bold }}>
+                {selectedEvaluationStatusLabel}
+              </h2>
+            </div>
+            <div style={{ ...selectedEvaluationStatusStyle, padding: '8px 12px', borderRadius: RADII.full, fontSize: TYPOGRAPHY.fontSize.sm, fontWeight: TYPOGRAPHY.fontWeight.semibold }}>
+              {selectedEvaluationStatus}
+            </div>
+          </section>
+        )}
+
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
           <div style={{ ...panelStyle, padding: '28px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
@@ -422,7 +553,7 @@ export function MyEvaluationPage() {
             <EvaluationOverviewPanel score={officialScore} cycleProgress={cycleProgress} />
           </div>
 
-          <EvaluationScoreSummaryPanel score={officialScore} grouped={scoreFormula.grouped} />
+          <EvaluationScoreSummaryPanel score={officialScore} grouped={scoreFormula.grouped} formulaSource={formulaSourceLabel} />
         </section>
       
         <section>
@@ -575,9 +706,26 @@ export function MyEvaluationPage() {
           isSaving={saveDevelopmentBlocksMutation.isPending}
           isSaved={saved}
           canSave={!!activeEvaluationId}
+          showSubmit={!isHrAdmin}
+          canSubmit={!isHrAdmin && isDevelopmentPlanComplete && selectedEvaluation?.status !== 'SUBMITTED'}
+          submitLabel={selfSubmitMutation.isPending ? 'Đang nộp...' : 'Nộp tự đánh giá'}
+          submitDisabledReason={
+            !isDevelopmentPlanComplete
+              ? 'Hãy hoàn tất đầy đủ Personal Development Plan trước khi nộp tự đánh giá.'
+              : selectedEvaluation?.status === 'SUBMITTED'
+              ? 'Bản tự đánh giá đã được nộp.'
+              : undefined
+          }
           onSave={() => saveDevelopmentBlocksMutation.mutate()}
+          onSubmit={() => selfSubmitMutation.mutate()}
           onChangeBlock={updateDevelopmentBlock}
         />
+
+        {!isHrAdmin && !isDevelopmentPlanComplete && (
+          <div style={{ marginTop: '-8px', fontSize: TYPOGRAPHY.fontSize.xs, color: '#b45309' }}>
+            Hãy điền đầy đủ cả 4 mục PDP thì nút nộp mới được mở.
+          </div>
+        )}
 
       </div>
     </div>
