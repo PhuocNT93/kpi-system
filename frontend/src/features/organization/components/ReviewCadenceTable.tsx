@@ -8,8 +8,11 @@ import type { OrgReviewCadence } from '../domain/organization-models';
 import { Star } from 'lucide-react';
 import { useTheme } from '../../../shared/theme';
 import { useOrganizationTranslation } from '../hooks/useOrganizationTranslation';
+import { useTableHeaderOffset } from '@/shared/hooks/use-table-header-offset';
+import type { CreateControl } from './create-control';
 
-export function ReviewCadenceTable() {
+export function ReviewCadenceTable({ createControl }: { createControl?: CreateControl } = {}) {
+  const tableFrameRef = useTableHeaderOffset<HTMLDivElement>();
   const { user } = useAuth();
   const { isDark } = useTheme();
   const { t } = useOrganizationTranslation();
@@ -19,7 +22,9 @@ export function ReviewCadenceTable() {
   const deleteMutation = useDeleteReviewCadence();
 
   const [editingCadence, setEditingCadence] = useState<OrgReviewCadence | undefined>();
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [ownCreateOpen, setOwnCreateOpen] = useState(false);
+  const isCreateOpen = createControl?.isOpen ?? ownCreateOpen;
+  const setIsCreateOpen = createControl?.onOpenChange ?? setOwnCreateOpen;
   const [deletingCadence, setDeletingCadence] = useState<OrgReviewCadence | null>(null);
 
   const cadences = cadencesQuery.data ?? [];
@@ -56,8 +61,8 @@ export function ReviewCadenceTable() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      {isAdmin && (
+    <div className="fill-column" style={{ gap: '1rem' }}>
+      {isAdmin && !createControl && (
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <Button id="create-cadence-btn" onClick={() => setIsCreateOpen(true)} size="sm">
             {t('btn_create_cadence', '+ Create Cadence')}
@@ -68,7 +73,7 @@ export function ReviewCadenceTable() {
       {cadences.length === 0 ? (
         <EmptyState message={t('empty_cadences', 'No review cadences found.')} />
       ) : (
-        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <div ref={tableFrameRef} className="table-scroll-frame">
           <table style={{ width: '100%', minWidth: '640px', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr
@@ -81,8 +86,8 @@ export function ReviewCadenceTable() {
                 <th style={thStyle}>{t('col_name', 'Name')}</th>
                 <th style={thStyle}>{t('col_interval', 'Interval')}</th>
                 <th style={thStyle}>{t('col_system_default', 'System Default')}</th>
-                <th style={thStyle}>{t('col_status', 'Status')}</th>
-                {isAdmin && <th style={{ ...thStyle, width: '150px' }}>{t('col_actions', 'Actions')}</th>}
+                <th style={thStyle}>{t('org.col.status', 'Status')}</th>
+                {isAdmin && <th style={{ ...thStyle, width: '150px' }}>{t('org.col.actions', 'Actions')}</th>}
               </tr>
             </thead>
             <tbody>

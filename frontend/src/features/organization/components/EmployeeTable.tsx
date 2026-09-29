@@ -12,6 +12,8 @@ import { EmployeeFormModal } from './EmployeeFormModal';
 import { BulkActionBar } from './BulkActionBar';
 import { useTheme } from '../../../shared/theme';
 import { useOrganizationTranslation } from '../hooks/useOrganizationTranslation';
+import { useTableHeaderOffset } from '@/shared/hooks/use-table-header-offset';
+import type { CreateControl } from './create-control';
 import {
   EMPTY_SCHEDULE_VALUE,
   formatTimestampDatePart,
@@ -19,7 +21,16 @@ import {
   getCadenceSourceLabel,
 } from '../domain/review-schedule-display';
 
-export function EmployeeTable({ departmentId, teamId }: { departmentId?: string; teamId?: string }) {
+export function EmployeeTable({
+  departmentId,
+  teamId,
+  createControl,
+}: {
+  departmentId?: string;
+  teamId?: string;
+  createControl?: CreateControl;
+}) {
+  const tableFrameRef = useTableHeaderOffset<HTMLDivElement>();
   const { user } = useAuth();
   const { isDark } = useTheme();
   const { t } = useOrganizationTranslation();
@@ -34,7 +45,9 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
   const levelsQuery = useJobLevels();
 
   const [editingEmployee, setEditingEmployee] = useState<OrgEmployee | undefined>();
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [ownCreateOpen, setOwnCreateOpen] = useState(false);
+  const isCreateOpen = createControl?.isOpen ?? ownCreateOpen;
+  const setIsCreateOpen = createControl?.onOpenChange ?? setOwnCreateOpen;
 
   // Bulk action state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -113,9 +126,10 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
   const subTextColor = isDark ? '#94a3b8' : '#4b5563';
   const codeColor = isDark ? '#93c5fd' : '#2563eb';
 
+  // Only the table scrolls; the extra bottom space keeps the last row clear of the fixed bulk action bar.
   return (
-    <div style={{ paddingBottom: '6rem' }}>
-      {isAdmin && (
+    <div className="fill-column">
+      {isAdmin && !createControl && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
           <Button id="create-employee-btn" onClick={() => setIsCreateOpen(true)} size="sm">
             + Add Employee
@@ -126,7 +140,7 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
       {employees.length === 0 ? (
         <EmptyState message="No employees found." />
       ) : (
-        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <div ref={tableFrameRef} className="table-scroll-frame" style={{ paddingBottom: selectedIds.size > 0 ? '6rem' : 0 }}>
           <table style={{ width: '100%', minWidth: '850px', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr style={{ borderBottom: trHeaderBorder, backgroundColor: thBg }}>
@@ -147,11 +161,11 @@ export function EmployeeTable({ departmentId, teamId }: { departmentId?: string;
                 <th style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>Role</th>
                 <th style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>Level</th>
                 <th style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>Email</th>
-                <th style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}><span title={t('effective_review_cadence', 'Effective Review Cadence')}>{t('emp_col_cadence', 'Cadence')}</span></th>
-                <th style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}><span title={t('last_evaluation_completed', 'Last Evaluation Completed')}>{t('emp_col_last_review', 'Last Review')}</span></th>
-                <th style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}><span title={t('next_review_due_date', 'Next Review Due Date')}>{t('emp_col_next_review', 'Next Review')}</span></th>
-                <th style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_status', 'Status')}</th>
-                {isAdmin && <th style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', width: '56px', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_actions', 'Actions')}</th>}
+                <th style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}><span title={t('effective_review_cadence', 'Effective Review Cadence')}>{t('org.col.cadence', 'Cadence')}</span></th>
+                <th style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}><span title={t('last_evaluation_completed', 'Last Evaluation Completed')}>{t('org.col.last_review', 'Last Review')}</span></th>
+                <th style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}><span title={t('next_review_due_date', 'Next Review Due Date')}>{t('org.col.next_review', 'Next Review')}</span></th>
+                <th style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('org.col.status', 'Status')}</th>
+                {isAdmin && <th style={{ padding: '0.625rem 0.625rem', whiteSpace: 'nowrap', width: '56px', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('org.col.actions', 'Actions')}</th>}
               </tr>
             </thead>
             <tbody>

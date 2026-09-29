@@ -4,6 +4,9 @@ import { useEmployeeSearch } from '../../../organization/hooks/useEmployeeSearch
 import type { EmployeeSearchItem } from '../../../organization/api/employee-search.api';
 import { useEvaluationCyclesQuery } from '../../../evaluation-cycles/hooks/use-evaluation-cycles';
 import { resolveLocalizedText } from '../api/kpi-summary.api';
+import { useTheme } from '@/shared/theme';
+import { useUiTranslation } from '@/shared/i18n/ui-i18n';
+import { useReportPalette, type ReportTone } from '../../hooks/use-report-palette';
 
 interface EmployeeSearchBarProps {
   selectedEmployeeId: string | null;
@@ -14,6 +17,25 @@ interface EmployeeSearchBarProps {
   onSelectCycle?: (cycleId: string) => void;
 }
 
+const EVALUATION_STATUS_OPTIONS = [
+  'DRAFT',
+  'IN_PROGRESS',
+  'SELF_ASSESSMENT',
+  'MANAGER_ASSESSMENT',
+  'SUBMITTED',
+  'MANAGER_REVIEW',
+  'REVIEWING',
+  'APPROVED',
+  'PUBLISHED',
+  'LOCKED',
+];
+
+const getStatusTone = (status: string): ReportTone => {
+  if (status === 'PUBLISHED' || status === 'APPROVED') return 'success';
+  if (status === 'SELF_ASSESSMENT' || status === 'OPEN') return 'info';
+  return 'warning';
+};
+
 export const EmployeeSearchBar: React.FC<EmployeeSearchBarProps> = ({
   selectedEmployeeId,
   onSelectEmployee,
@@ -21,6 +43,9 @@ export const EmployeeSearchBar: React.FC<EmployeeSearchBarProps> = ({
   selectedCycleId,
   onSelectCycle,
 }) => {
+  const { t } = useUiTranslation();
+  const { isDark } = useTheme();
+  const palette = useReportPalette();
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -89,21 +114,44 @@ export const EmployeeSearchBar: React.FC<EmployeeSearchBarProps> = ({
 
   const hasActiveFilters = Boolean(department || team || role || jobLevel || evaluationStatus);
 
+  const fieldLabelStyle: React.CSSProperties = {
+    display: 'block',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    color: palette.textSecondary,
+    marginBottom: '4px',
+  };
+  const filterFieldStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '7px 10px',
+    borderRadius: '6px',
+    border: `1px solid ${palette.inputBorder}`,
+    backgroundColor: palette.inputBg,
+    color: palette.textPrimary,
+    fontSize: '0.85rem',
+    boxSizing: 'border-box',
+    colorScheme: isDark ? 'dark' : 'light',
+  };
+  const dropdownMessageStyle: React.CSSProperties = {
+    padding: '16px',
+    textAlign: 'center',
+    color: palette.textSecondary,
+    fontSize: '0.875rem',
+  };
+
   return (
     <div
       ref={containerRef}
       style={{
         position: 'relative',
-        backgroundColor: 'var(--bg-surface)',
-        border: '1px solid var(--border-subtle)',
+        backgroundColor: palette.surface,
+        border: `1px solid ${palette.border}`,
         borderRadius: '10px',
         padding: '16px 20px',
-        marginBottom: '24px',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+        boxShadow: palette.shadow,
       }}
     >
       <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-        {/* Search input with debouncing */}
         <div style={{ position: 'relative', flex: '1 1 280px' }}>
           <Search
             size={18}
@@ -112,15 +160,15 @@ export const EmployeeSearchBar: React.FC<EmployeeSearchBarProps> = ({
               left: '12px',
               top: '50%',
               transform: 'translateY(-50%)',
-              color: 'var(--text-secondary)',
+              color: palette.textMuted,
             }}
           />
           <input
             type="text"
             placeholder={
               isEmployeeRole
-                ? 'Your profile is selected'
-                : 'Search employee by name (supports Vietnamese diacritics), code, email...'
+                ? t('reports.summary.search_placeholder_self', 'Your profile is selected')
+                : t('reports.summary.search_placeholder', 'Search employee by name (supports Vietnamese diacritics), code, email...')
             }
             value={searchTerm}
             onChange={(e) => {
@@ -135,9 +183,9 @@ export const EmployeeSearchBar: React.FC<EmployeeSearchBarProps> = ({
               width: '100%',
               padding: '9px 36px 9px 38px',
               borderRadius: '8px',
-              border: '1px solid var(--border-subtle)',
-              backgroundColor: isEmployeeRole ? 'var(--bg-muted, rgba(0,0,0,0.03))' : 'var(--bg-card, #fff)',
-              color: 'var(--text-primary)',
+              border: `1px solid ${palette.inputBorder}`,
+              backgroundColor: isEmployeeRole ? palette.surfaceMuted : palette.inputBg,
+              color: palette.textPrimary,
               fontSize: '0.9rem',
               outline: 'none',
               boxSizing: 'border-box',
@@ -157,31 +205,33 @@ export const EmployeeSearchBar: React.FC<EmployeeSearchBarProps> = ({
                 background: 'none',
                 border: 'none',
                 cursor: 'pointer',
-                color: 'var(--text-secondary)',
+                color: palette.textSecondary,
                 padding: '4px',
               }}
-              aria-label="Clear search"
+              aria-label={t('reports.summary.clear_search', 'Clear search')}
             >
               <X size={16} />
             </button>
           )}
         </div>
 
-        {/* Cycle selector */}
         {cycles.length > 0 && onSelectCycle && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Cycle:</span>
+            <span style={{ fontSize: '0.85rem', color: palette.textSecondary, whiteSpace: 'nowrap' }}>
+              {t('reports.summary.cycle_label', 'Cycle:')}
+            </span>
             <select
               value={selectedCycleId || ''}
               onChange={(e) => onSelectCycle(e.target.value)}
               style={{
                 padding: '8px 12px',
                 borderRadius: '8px',
-                border: '1px solid var(--border-subtle)',
-                backgroundColor: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
+                border: `1px solid ${palette.inputBorder}`,
+                backgroundColor: palette.inputBg,
+                color: palette.textPrimary,
                 fontSize: '0.875rem',
                 cursor: 'pointer',
+                colorScheme: isDark ? 'dark' : 'light',
               }}
             >
               {cycles.map((c) => (
@@ -193,7 +243,6 @@ export const EmployeeSearchBar: React.FC<EmployeeSearchBarProps> = ({
           </div>
         )}
 
-        {/* Filter Toggle Button */}
         {!isEmployeeRole && (
           <button
             onClick={() => setIsFilterOpen(!isFilterOpen)}
@@ -203,16 +252,16 @@ export const EmployeeSearchBar: React.FC<EmployeeSearchBarProps> = ({
               gap: '6px',
               padding: '8px 14px',
               borderRadius: '8px',
-              border: `1px solid ${hasActiveFilters ? 'var(--primary, #3b82f6)' : 'var(--border-subtle)'}`,
-              backgroundColor: hasActiveFilters ? 'rgba(59, 130, 246, 0.08)' : 'var(--bg-surface)',
-              color: hasActiveFilters ? 'var(--primary, #3b82f6)' : 'var(--text-primary)',
+              border: `1px solid ${hasActiveFilters ? 'var(--primary, #3b82f6)' : palette.inputBorder}`,
+              backgroundColor: hasActiveFilters ? palette.tones.info.bg : palette.inputBg,
+              color: hasActiveFilters ? palette.tones.info.fg : palette.textPrimary,
               fontSize: '0.875rem',
               fontWeight: 500,
               cursor: 'pointer',
             }}
           >
             <Filter size={16} />
-            Filters
+            {t('reports.summary.filters', 'Filters')}
             {hasActiveFilters && (
               <span
                 style={{
@@ -236,113 +285,63 @@ export const EmployeeSearchBar: React.FC<EmployeeSearchBarProps> = ({
         )}
       </div>
 
-      {/* Expanded Filter Panel */}
       {isFilterOpen && !isEmployeeRole && (
         <div
           style={{
             marginTop: '16px',
             paddingTop: '16px',
-            borderTop: '1px solid var(--border-subtle)',
+            borderTop: `1px solid ${palette.border}`,
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
             gap: '12px',
           }}
         >
           <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
-              Department
-            </label>
+            <label style={fieldLabelStyle}>{t('reports.summary.department', 'Department')}</label>
             <input
               type="text"
-              placeholder="e.g. Engineering"
+              placeholder={t('reports.summary.department_placeholder', 'e.g. Engineering')}
               value={department}
               onChange={(e) => setDepartment(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '7px 10px',
-                borderRadius: '6px',
-                border: '1px solid var(--border-subtle)',
-                backgroundColor: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
-                fontSize: '0.85rem',
-                boxSizing: 'border-box',
-              }}
+              style={filterFieldStyle}
             />
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
-              Team
-            </label>
+            <label style={fieldLabelStyle}>{t('reports.summary.team', 'Team')}</label>
             <input
               type="text"
-              placeholder="e.g. Backend"
+              placeholder={t('reports.summary.team_placeholder', 'e.g. Backend')}
               value={team}
               onChange={(e) => setTeam(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '7px 10px',
-                borderRadius: '6px',
-                border: '1px solid var(--border-subtle)',
-                backgroundColor: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
-                fontSize: '0.85rem',
-                boxSizing: 'border-box',
-              }}
+              style={filterFieldStyle}
             />
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
-              Role
-            </label>
+            <label style={fieldLabelStyle}>{t('reports.summary.role', 'Role')}</label>
             <input
               type="text"
-              placeholder="e.g. Engineer"
+              placeholder={t('reports.summary.role_placeholder', 'e.g. Engineer')}
               value={role}
               onChange={(e) => setRole(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '7px 10px',
-                borderRadius: '6px',
-                border: '1px solid var(--border-subtle)',
-                backgroundColor: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
-                fontSize: '0.85rem',
-                boxSizing: 'border-box',
-              }}
+              style={filterFieldStyle}
             />
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
-              Status
-            </label>
+            <label style={fieldLabelStyle}>{t('reports.summary.status', 'Status')}</label>
             <select
               value={evaluationStatus}
               onChange={(e) => setEvaluationStatus(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '7px 10px',
-                borderRadius: '6px',
-                border: '1px solid var(--border-subtle)',
-                backgroundColor: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
-                fontSize: '0.85rem',
-                boxSizing: 'border-box',
-              }}
+              style={filterFieldStyle}
             >
-              <option value="">All Statuses</option>
-              <option value="DRAFT">DRAFT</option>
-              <option value="IN_PROGRESS">IN_PROGRESS</option>
-              <option value="SELF_ASSESSMENT">SELF_ASSESSMENT</option>
-              <option value="MANAGER_ASSESSMENT">MANAGER_ASSESSMENT</option>
-              <option value="SUBMITTED">SUBMITTED</option>
-              <option value="MANAGER_REVIEW">MANAGER_REVIEW</option>
-              <option value="REVIEWING">REVIEWING</option>
-              <option value="APPROVED">APPROVED</option>
-              <option value="PUBLISHED">PUBLISHED</option>
-              <option value="LOCKED">LOCKED</option>
+              <option value="">{t('reports.summary.all_statuses', 'All Statuses')}</option>
+              {EVALUATION_STATUS_OPTIONS.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -353,21 +352,20 @@ export const EmployeeSearchBar: React.FC<EmployeeSearchBarProps> = ({
                 style={{
                   padding: '7px 14px',
                   borderRadius: '6px',
-                  border: '1px solid var(--border-subtle)',
+                  border: `1px solid ${palette.inputBorder}`,
                   backgroundColor: 'transparent',
-                  color: 'var(--text-secondary)',
+                  color: palette.textSecondary,
                   fontSize: '0.85rem',
                   cursor: 'pointer',
                 }}
               >
-                Clear Filters
+                {t('reports.summary.clear_filters', 'Clear Filters')}
               </button>
             </div>
           )}
         </div>
       )}
 
-      {/* Autocomplete Dropdown List */}
       {isDropdownOpen && !isEmployeeRole && (
         <div
           style={{
@@ -378,23 +376,24 @@ export const EmployeeSearchBar: React.FC<EmployeeSearchBarProps> = ({
             marginTop: '8px',
             maxHeight: '320px',
             overflowY: 'auto',
-            backgroundColor: 'var(--bg-surface, #fff)',
-            border: '1px solid var(--border-subtle)',
+            backgroundColor: palette.surface,
+            border: `1px solid ${palette.borderStrong}`,
             borderRadius: '8px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+            boxShadow: isDark ? '0 8px 24px rgba(0,0,0,0.5)' : '0 8px 24px rgba(0,0,0,0.12)',
           }}
         >
           {isSearching ? (
-            <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-              Searching employees...
+            <div style={dropdownMessageStyle}>
+              {t('reports.summary.searching_employees', 'Searching employees...')}
             </div>
           ) : employees.length === 0 ? (
-            <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-              No employees found matching criteria.
+            <div style={dropdownMessageStyle}>
+              {t('reports.summary.no_employees_found', 'No employees found matching criteria.')}
             </div>
           ) : (
             employees.map((emp) => {
               const isSelected = emp.employeeId === selectedEmployeeId;
+              const statusColors = emp.evaluationStatus ? palette.tones[getStatusTone(emp.evaluationStatus)] : null;
               return (
                 <div
                   key={emp.employeeId}
@@ -405,12 +404,12 @@ export const EmployeeSearchBar: React.FC<EmployeeSearchBarProps> = ({
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     cursor: 'pointer',
-                    borderBottom: '1px solid var(--border-subtle)',
-                    backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
+                    borderBottom: `1px solid ${palette.border}`,
+                    backgroundColor: isSelected ? palette.tones.info.bg : 'transparent',
                     transition: 'background-color 0.15s',
                   }}
                   onMouseEnter={(e) => {
-                    if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--bg-hover, rgba(0,0,0,0.03))';
+                    if (!isSelected) e.currentTarget.style.backgroundColor = palette.tones.neutral.bg;
                   }}
                   onMouseLeave={(e) => {
                     if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
@@ -434,44 +433,36 @@ export const EmployeeSearchBar: React.FC<EmployeeSearchBarProps> = ({
                       {emp.fullName.charAt(0) || <User size={18} />}
                     </div>
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.9rem', color: palette.textPrimary }}>
                         {resolveLocalizedText(emp.fullName)}
-                        <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginLeft: '8px', fontWeight: 400 }}>
+                        <span style={{ fontSize: '0.78rem', color: palette.textSecondary, marginLeft: '8px', fontWeight: 400 }}>
                           ({resolveLocalizedText(emp.employeeCode)})
                         </span>
                       </div>
-                      <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                        {resolveLocalizedText(emp.department?.name, 'No Dept')} • {resolveLocalizedText(emp.team?.name, 'No Team')} • {resolveLocalizedText(emp.role?.name, 'No Role')}
+                      <div style={{ fontSize: '0.78rem', color: palette.textSecondary, marginTop: '2px' }}>
+                        {resolveLocalizedText(emp.department?.name, t('reports.summary.no_department', 'No Dept'))} •{' '}
+                        {resolveLocalizedText(emp.team?.name, t('reports.summary.no_team', 'No Team'))} •{' '}
+                        {resolveLocalizedText(emp.role?.name, t('reports.summary.no_role', 'No Role'))}
                       </div>
                     </div>
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {emp.evaluationStatus && (
+                    {emp.evaluationStatus && statusColors && (
                       <span
                         style={{
                           fontSize: '0.75rem',
                           padding: '3px 8px',
                           borderRadius: '12px',
                           fontWeight: 500,
-                          backgroundColor:
-                            emp.evaluationStatus === 'PUBLISHED' || emp.evaluationStatus === 'APPROVED'
-                              ? 'rgba(16, 185, 129, 0.12)'
-                              : emp.evaluationStatus === 'SELF_ASSESSMENT' || emp.evaluationStatus === 'OPEN'
-                                ? 'rgba(59, 130, 246, 0.12)'
-                                : 'rgba(245, 158, 11, 0.12)',
-                          color:
-                            emp.evaluationStatus === 'PUBLISHED' || emp.evaluationStatus === 'APPROVED'
-                              ? '#059669'
-                              : emp.evaluationStatus === 'SELF_ASSESSMENT' || emp.evaluationStatus === 'OPEN'
-                                ? '#2563eb'
-                                : '#d97706',
+                          backgroundColor: statusColors.bg,
+                          color: statusColors.fg,
                         }}
                       >
                         {emp.evaluationStatus}
                       </span>
                     )}
-                    {isSelected && <Check size={18} style={{ color: 'var(--primary, #3b82f6)' }} />}
+                    {isSelected && <Check size={18} style={{ color: palette.tones.info.fg }} />}
                   </div>
                 </div>
               );

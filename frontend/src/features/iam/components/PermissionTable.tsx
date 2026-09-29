@@ -4,6 +4,7 @@ import { ErrorAlert, LoadingSpinner, EmptyState } from '../../../shared/componen
 import { useTheme } from '@/shared/theme';
 import { useUiTranslation } from '@/shared/i18n/ui-i18n';
 import type { IamRole } from '../domain/iam-models';
+import { useTableHeaderOffset } from '@/shared/hooks/use-table-header-offset';
 import {
   Check,
   Minus,
@@ -12,10 +13,11 @@ import {
   LayoutGrid,
   Table as TableIcon,
   Loader2,
-  Filter,
   X,
   Lock,
 } from 'lucide-react';
+import { FilterField } from '@/shared/ui/FilterField/FilterField';
+import { FILTER_CONTROL_HEIGHT, useFilterControlStyle } from '@/shared/ui/FilterField/use-filter-control-style';
 
 // Only allow configuration for these 4 core roles
 const ALLOWED_CORE_ROLES = ['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER', 'EMPLOYEE'] as const;
@@ -77,6 +79,8 @@ const ROLE_CONFIG: Record<
 };
 
 export function PermissionTable() {
+  const tableFrameRef = useTableHeaderOffset<HTMLDivElement>();
+  const { controlStyle } = useFilterControlStyle();
   const { isDark } = useTheme();
   const { t } = useUiTranslation();
 
@@ -175,6 +179,7 @@ export function PermissionTable() {
         gap: '1.25rem',
         width: '100%',
         boxSizing: 'border-box',
+        flex: 1,
       }}
     >
       {/* ── Subtitle & Notice Banner ─────────────────────────────────── */}
@@ -264,7 +269,7 @@ export function PermissionTable() {
           display: 'flex',
           flexWrap: 'wrap',
           gap: '0.75rem',
-          alignItems: 'center',
+          alignItems: 'flex-end',
           justifyContent: 'space-between',
         }}
       >
@@ -273,18 +278,13 @@ export function PermissionTable() {
             display: 'flex',
             flexWrap: 'wrap',
             gap: '0.75rem',
-            alignItems: 'center',
+            alignItems: 'flex-end',
             flex: '1 1 320px',
           }}
         >
           {/* Search Input */}
-          <div
-            style={{
-              position: 'relative',
-              flex: '1 1 240px',
-              maxWidth: '420px',
-            }}
-          >
+          <FilterField id="iam-permission-search" label={t('iam.filter.search', 'Search')} flex="1 1 260px" maxWidth="420px">
+          <div style={{ position: 'relative' }}>
             <Search
               size={16}
               style={{
@@ -304,18 +304,9 @@ export function PermissionTable() {
                 'iam.permissions.search_placeholder',
                 'Search by code, name, description...'
               )}
+              id="iam-permission-search"
               aria-label="Search permissions"
-              style={{
-                width: '100%',
-                boxSizing: 'border-box',
-                padding: '0.55rem 2.25rem 0.55rem 2.25rem',
-                fontSize: '0.875rem',
-                borderRadius: '8px',
-                border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
-                backgroundColor: isDark ? '#0f172a' : '#ffffff',
-                color: isDark ? '#f8fafc' : '#0f172a',
-                outline: 'none',
-              }}
+              style={{ ...controlStyle, padding: '0 2.25rem' }}
             />
             {searchQuery && (
               <button
@@ -340,24 +331,16 @@ export function PermissionTable() {
               </button>
             )}
           </div>
+          </FilterField>
 
           {/* Module Selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-            <Filter size={15} color={isDark ? '#94a3b8' : '#64748b'} />
+          <FilterField id="iam-permission-module" label={t('iam.filter.module', 'Module')}>
             <select
+              id="iam-permission-module"
               value={selectedModule}
               onChange={(e) => setSelectedModule(e.target.value)}
               aria-label="Filter by module"
-              style={{
-                padding: '0.55rem 0.875rem',
-                fontSize: '0.85rem',
-                borderRadius: '8px',
-                border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
-                backgroundColor: isDark ? '#0f172a' : '#ffffff',
-                color: isDark ? '#f8fafc' : '#0f172a',
-                cursor: 'pointer',
-                outline: 'none',
-              }}
+              style={{ ...controlStyle, cursor: 'pointer' }}
             >
               <option value="ALL">{t('iam.permissions.all_modules', 'All Modules')}</option>
               {modules.map((mod) => (
@@ -366,13 +349,17 @@ export function PermissionTable() {
                 </option>
               ))}
             </select>
-          </div>
+          </FilterField>
         </div>
 
         {/* View Mode Switcher */}
         <div
           style={{
             display: 'flex',
+            // Same height as the filter controls so it lines up with them.
+            height: FILTER_CONTROL_HEIGHT,
+            boxSizing: 'border-box',
+            alignItems: 'stretch',
             borderRadius: '8px',
             padding: '2px',
             backgroundColor: isDark ? '#0f172a' : '#f1f5f9',
@@ -463,14 +450,14 @@ export function PermissionTable() {
       ) : viewMode === 'matrix' ? (
         /* Matrix Table View */
         <div
+          ref={tableFrameRef}
+          className="table-scroll-frame"
           style={{
             width: '100%',
-            overflowX: 'auto',
             borderRadius: '12px',
             border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
             backgroundColor: isDark ? '#1e293b' : '#ffffff',
             boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-            WebkitOverflowScrolling: 'touch',
           }}
         >
           <table
@@ -649,7 +636,9 @@ export function PermissionTable() {
       ) : (
         /* Responsive Cards View */
         <div
+          className="table-scroll-frame"
           style={{
+            alignContent: 'start',
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
             gap: '1rem',
