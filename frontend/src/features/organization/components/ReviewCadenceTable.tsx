@@ -77,7 +77,6 @@ export function ReviewCadenceTable({ createControl }: { createControl?: CreateCo
       {cadences.length === 0 ? (
         <EmptyState message={t('empty_cadences', 'Không tìm thấy chu kỳ đánh giá nào.')} />
       ) : (
-        <div style={{ overflowX: 'auto', maxHeight: '420px', overflowY: 'auto', borderRadius: '8px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}` }}>
         <div ref={tableFrameRef} className="table-scroll-frame">
           <table style={{ width: '100%', minWidth: '640px', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>

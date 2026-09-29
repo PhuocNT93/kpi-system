@@ -135,6 +135,7 @@ function ProtectedLayout() {
         else navigate(`/admin/${id}`);
       }}
       pageTitle={pageTitle}
+      pageSection={pageSection}
       onGenerateReport={() => alert('Generate Report clicked')}
       footerProps={{}}
     >

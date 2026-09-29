@@ -16,6 +16,7 @@ import {
   Users,
   Edit2,
   Power,
+  UserPlus,
 } from 'lucide-react';
 import { FilterField } from '@/shared/ui/FilterField/FilterField';
 import { FILTER_CONTROL_HEIGHT, useFilterControlStyle } from '@/shared/ui/FilterField/use-filter-control-style';
@@ -170,9 +171,6 @@ export function UserTable() {
           icon={<UserPlus size={15} />}
         >
           {t('iam.users.create_btn', 'Create User')}
-        {/* Same look as the organization create buttons ("+ Create Department"). */}
-        <Button id="create-user-btn" onClick={() => setIsCreateOpen(true)} size="sm">
-          + {t('iam.users.create_btn', 'Create User')}
         </Button>
       </div>
 

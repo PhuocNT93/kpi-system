@@ -19,6 +19,7 @@ import {
   LayoutGrid,
   Table as TableIcon,
   Edit2,
+  Plus,
 } from 'lucide-react';
 import { FilterField } from '@/shared/ui/FilterField/FilterField';
 import { FILTER_CONTROL_HEIGHT, useFilterControlStyle } from '@/shared/ui/FilterField/use-filter-control-style';
@@ -314,9 +315,6 @@ export function RoleTable() {
           icon={<Plus size={15} />}
         >
           {t('iam.roles.create_btn', 'Create Role')}
-        {/* Same look as the organization create buttons ("+ Create Department"). */}
-        <Button id="create-role-btn" onClick={() => setIsCreateOpen(true)} size="sm">
-          + {t('iam.roles.create_btn', 'Create Role')}
         </Button>
       </div>
 
