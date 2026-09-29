@@ -8,8 +8,11 @@ import type { OrgJobLevel } from '../domain/organization-models';
 import { BulkActionBar } from './BulkActionBar';
 import { useTheme } from '../../../shared/theme';
 import { useOrganizationTranslation } from '../hooks/useOrganizationTranslation';
+import { useTableHeaderOffset } from '@/shared/hooks/use-table-header-offset';
+import type { CreateControl } from './create-control';
 
-export function JobLevelTable() {
+export function JobLevelTable({ createControl }: { createControl?: CreateControl } = {}) {
+  const tableFrameRef = useTableHeaderOffset<HTMLDivElement>();
   const { user } = useAuth();
   const { isDark } = useTheme();
   const { t } = useOrganizationTranslation();
@@ -17,7 +20,9 @@ export function JobLevelTable() {
   
   const levelsQuery = useJobLevels();
   const [editingLevel, setEditingLevel] = useState<OrgJobLevel | undefined>();
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [ownCreateOpen, setOwnCreateOpen] = useState(false);
+  const isCreateOpen = createControl?.isOpen ?? ownCreateOpen;
+  const setIsCreateOpen = createControl?.onOpenChange ?? setOwnCreateOpen;
 
   // Bulk action state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -91,9 +96,10 @@ export function JobLevelTable() {
     color: isDark ? '#f8fafc' : '#111827',
   };
 
+  // Only the table scrolls; the extra bottom space keeps the last row clear of the fixed bulk action bar.
   return (
-    <div style={{ paddingBottom: '6rem' }}>
-      {isAdmin && (
+    <div className="fill-column">
+      {isAdmin && !createControl && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
           <Button id="create-level-btn" onClick={() => setIsCreateOpen(true)} size="sm">
             {t('btn_create_level', '+ Create Level')}
@@ -104,7 +110,7 @@ export function JobLevelTable() {
       {levels.length === 0 ? (
         <EmptyState message={t('empty_levels', 'No job levels found.')} />
       ) : (
-        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <div ref={tableFrameRef} className="table-scroll-frame" style={{ paddingBottom: selectedIds.size > 0 ? '6rem' : 0 }}>
           <table style={{ width: '100%', minWidth: '600px', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr
@@ -128,8 +134,8 @@ export function JobLevelTable() {
                 <th style={thStyle}>{t('col_code', 'Code')}</th>
                 <th style={thStyle}>{t('col_name', 'Name')}</th>
                 <th style={thStyle}>{t('col_rank', 'Rank')}</th>
-                <th style={thStyle}>{t('col_status', 'Status')}</th>
-                {isAdmin && <th style={{ ...thStyle, width: '150px' }}>{t('col_actions', 'Actions')}</th>}
+                <th style={thStyle}>{t('org.col.status', 'Status')}</th>
+                {isAdmin && <th style={{ ...thStyle, width: '150px' }}>{t('org.col.actions', 'Actions')}</th>}
               </tr>
             </thead>
             <tbody>

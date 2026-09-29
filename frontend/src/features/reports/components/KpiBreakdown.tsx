@@ -1,58 +1,66 @@
 import React, { useState } from 'react';
-import { Card } from '@/shared/components/Card';
-import { TYPOGRAPHY, RADII, SHADOWS } from '@/shared/theme';
-import { COLORS } from '@/lib/theme';
+import { TYPOGRAPHY, RADII } from '@/shared/theme';
+import { useUiTranslation } from '@/shared/i18n/ui-i18n';
 import { Target, FileCheck, MessageSquare, Sparkles } from 'lucide-react';
 import type { EmployeeKpiScore, TeamKpiAggregate } from '../types/reports.types';
+import { useReportPalette } from '../hooks/use-report-palette';
 import { KpiExplainabilityDrawer } from './KpiExplainabilityDrawer';
+import { ReportEmptyState } from './ReportEmptyState';
 
 interface KpiBreakdownProps {
   kpis: (EmployeeKpiScore | TeamKpiAggregate)[];
   title?: string;
+  // Inside a hub tab: the card fills the remaining height and only the KPI list scrolls.
+  isScrollable?: boolean;
 }
 
-export const KpiBreakdown: React.FC<KpiBreakdownProps> = ({ kpis, title = 'KPI Breakdown' }) => {
+export const KpiBreakdown: React.FC<KpiBreakdownProps> = ({ kpis, title, isScrollable = false }) => {
+  const palette = useReportPalette();
+  const { t } = useUiTranslation();
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
   const [selectedKpi, setSelectedKpi] = useState<{
     evaluationId: string;
     kpiCode: string;
     kpiName: string;
   } | null>(null);
 
+  const resolvedTitle = title ?? t('reports.kpi.title', 'KPI Breakdown');
+  const cardStyle: React.CSSProperties = {
+    padding: '20px 24px',
+    background: palette.surface,
+    border: `1px solid ${palette.border}`,
+    borderRadius: RADII.lg,
+    boxShadow: palette.shadow,
+  };
+
+  const heading = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', flexShrink: 0 }}>
+      <div style={{ backgroundColor: palette.tones.primary.bg, color: palette.tones.primary.fg, padding: '8px', borderRadius: RADII.md, display: 'flex' }}>
+        <Target size={20} aria-hidden="true" />
+      </div>
+      <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.lg, fontWeight: TYPOGRAPHY.fontWeight.semibold, color: palette.textPrimary }}>
+        {resolvedTitle}
+      </h3>
+    </div>
+  );
+
   if (!kpis || kpis.length === 0) {
     return (
-      <Card style={{ padding: '32px', textAlign: 'center', color: COLORS.neutral.textSecondary }}>
-        <Target size={48} color={COLORS.neutral[300]} style={{ margin: '0 auto 16px' }} />
-        <p>No KPI data available for this report.</p>
-      </Card>
+      <section style={isScrollable ? { ...cardStyle, flex: 1, display: 'flex', flexDirection: 'column' } : cardStyle}>
+        {heading}
+        {/* The empty state has no table to scroll, so it gets no minimum height of its own. */}
+        <div style={isScrollable ? { flex: 1, minHeight: 0, overflowY: 'auto' } : undefined}>
+          <ReportEmptyState isBare icon={<Target size={24} />} title={t('reports.kpi.empty', 'No KPI data available for this report.')} />
+        </div>
+      </section>
     );
   }
 
   return (
     <>
-      <Card
-        style={{
-          padding: '24px',
-          boxShadow: SHADOWS.sm,
-          border: `1px solid ${COLORS.neutral[200]}`,
-          borderRadius: RADII.xl,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-          <div style={{ backgroundColor: COLORS.primary[100], padding: '8px', borderRadius: RADII.md }}>
-            <Target size={20} color={COLORS.primary[600]} />
-          </div>
-          <h3
-            style={{
-              margin: 0,
-              fontSize: TYPOGRAPHY.fontSize.lg,
-              fontWeight: TYPOGRAPHY.fontWeight.semibold,
-            }}
-          >
-            {title}
-          </h3>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <section style={isScrollable ? { ...cardStyle, flex: 1, display: 'flex', flexDirection: 'column' } : cardStyle}>
+        {heading}
+        <div className={isScrollable ? 'table-scroll-frame' : undefined} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {kpis.map((kpi, idx) => {
             const kpiCode = 'criterionCode' in kpi ? kpi.criterionCode : 'Unknown';
             const kpiName = 'criterionName' in kpi ? kpi.criterionName : 'Unknown';
@@ -65,39 +73,34 @@ export const KpiBreakdown: React.FC<KpiBreakdownProps> = ({ kpis, title = 'KPI B
             const hasEvidence = isEmployeeKpi ? (kpi as EmployeeKpiScore).hasEvidence : false;
             const evidenceCount = isEmployeeKpi ? (kpi as EmployeeKpiScore).evidenceCount ?? 0 : 0;
             const comment = isEmployeeKpi ? (kpi as EmployeeKpiScore).comment : null;
+            const rowKey = kpi.id || String(idx);
 
             return (
               <div
-                key={kpi.id || idx}
+                key={rowKey}
+                onMouseEnter={() => setHoveredKey(rowKey)}
+                onMouseLeave={() => setHoveredKey(null)}
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  padding: '16px',
-                  backgroundColor: COLORS.neutral[50],
+                  gap: '16px',
+                  padding: '14px 16px',
+                  backgroundColor: hoveredKey === rowKey ? palette.surfaceMuted : palette.surfaceSubtle,
                   borderRadius: RADII.md,
-                  border: `1px solid ${COLORS.neutral[200]}`,
-                  transition: 'background-color 0.2s',
+                  border: `1px solid ${palette.border}`,
+                  transition: 'background-color 150ms ease',
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = COLORS.neutral[100])}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = COLORS.neutral[50])}
               >
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span
-                      style={{
-                        fontSize: TYPOGRAPHY.fontSize.xs,
-                        color: COLORS.neutral.textSecondary,
-                        fontWeight: TYPOGRAPHY.fontWeight.medium,
-                      }}
-                    >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: palette.textMuted, fontWeight: TYPOGRAPHY.fontWeight.medium }}>
                       {kpiCode}
                     </span>
 
-                    {/* Evidence Indicator Badge */}
                     {hasEvidence && (
                       <span
-                        title={`${evidenceCount} evidence items attached`}
+                        title={t('reports.kpi.evidence_count', '{count} evidence items attached', { count: evidenceCount })}
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -105,20 +108,19 @@ export const KpiBreakdown: React.FC<KpiBreakdownProps> = ({ kpis, title = 'KPI B
                           fontSize: '11px',
                           padding: '1px 6px',
                           borderRadius: RADII.full,
-                          backgroundColor: COLORS.primary[100],
-                          color: COLORS.primary[700],
+                          backgroundColor: palette.tones.primary.bg,
+                          color: palette.tones.primary.fg,
                           fontWeight: TYPOGRAPHY.fontWeight.medium,
                         }}
                       >
-                        <FileCheck size={11} />
-                        {evidenceCount > 0 ? evidenceCount : 'Evidence'}
+                        <FileCheck size={11} aria-hidden="true" />
+                        {evidenceCount > 0 ? evidenceCount : t('reports.kpi.evidence', 'Evidence')}
                       </span>
                     )}
 
-                    {/* Comment indicator badge */}
                     {comment && (
                       <span
-                        title="Has comment"
+                        title={t('reports.kpi.has_comment', 'Has comment')}
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -126,81 +128,52 @@ export const KpiBreakdown: React.FC<KpiBreakdownProps> = ({ kpis, title = 'KPI B
                           fontSize: '11px',
                           padding: '1px 6px',
                           borderRadius: RADII.full,
-                          backgroundColor: COLORS.neutral[200],
-                          color: COLORS.neutral[700],
+                          backgroundColor: palette.tones.neutral.bg,
+                          color: palette.textSecondary,
                           fontWeight: TYPOGRAPHY.fontWeight.medium,
                         }}
                       >
-                        <MessageSquare size={11} />
-                        Note
+                        <MessageSquare size={11} aria-hidden="true" />
+                        {t('reports.kpi.note', 'Note')}
                       </span>
                     )}
                   </div>
 
-                  <div
-                    style={{
-                      fontSize: TYPOGRAPHY.fontSize.sm,
-                      fontWeight: TYPOGRAPHY.fontWeight.medium,
-                      color: COLORS.neutral.textPrimary,
-                    }}
-                  >
+                  <div style={{ fontSize: TYPOGRAPHY.fontSize.sm, fontWeight: TYPOGRAPHY.fontWeight.medium, color: palette.textPrimary }}>
                     {kpiName}
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexShrink: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-                    <span
-                      style={{
-                        fontSize: TYPOGRAPHY.fontSize.xl,
-                        fontWeight: TYPOGRAPHY.fontWeight.bold,
-                        color: COLORS.primary[600],
-                      }}
-                    >
+                    <span style={{ fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: TYPOGRAPHY.fontWeight.bold, color: palette.tones.primary.fg }}>
                       {Number(displayScore).toFixed(1)}
                     </span>
-                    <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
-                      pts
+                    <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: palette.textMuted }}>
+                      {t('reports.kpi.points', 'pts')}
                     </span>
                   </div>
 
-                  {/* Explain / Evidence button for employee evaluations */}
                   {evaluationId && (
                     <button
-                      onClick={() =>
-                        setSelectedKpi({
-                          evaluationId,
-                          kpiCode,
-                          kpiName,
-                        })
-                      }
+                      type="button"
+                      onClick={() => setSelectedKpi({ evaluationId, kpiCode, kpiName })}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '6px',
                         padding: '6px 12px',
                         borderRadius: RADII.md,
-                        backgroundColor: COLORS.neutral.white,
-                        border: `1px solid ${COLORS.neutral[300]}`,
-                        color: COLORS.neutral[700],
+                        backgroundColor: palette.surface,
+                        border: `1px solid ${palette.borderStrong}`,
+                        color: palette.textSecondary,
                         fontSize: TYPOGRAPHY.fontSize.xs,
                         fontWeight: TYPOGRAPHY.fontWeight.medium,
                         cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = COLORS.primary[50];
-                        e.currentTarget.style.borderColor = COLORS.primary[300];
-                        e.currentTarget.style.color = COLORS.primary[700];
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = COLORS.neutral.white;
-                        e.currentTarget.style.borderColor = COLORS.neutral[300];
-                        e.currentTarget.style.color = COLORS.neutral[700];
                       }}
                     >
-                      <Sparkles size={13} />
-                      Explain
+                      <Sparkles size={13} aria-hidden="true" />
+                      {t('reports.kpi.explain', 'Explain')}
                     </button>
                   )}
                 </div>
@@ -208,9 +181,8 @@ export const KpiBreakdown: React.FC<KpiBreakdownProps> = ({ kpis, title = 'KPI B
             );
           })}
         </div>
-      </Card>
+      </section>
 
-      {/* Drawer */}
       {selectedKpi && (
         <KpiExplainabilityDrawer
           isOpen={Boolean(selectedKpi)}

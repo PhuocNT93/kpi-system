@@ -249,6 +249,48 @@ describe('KpiSummaryDashboardPage', () => {
     expect(screen.getByPlaceholderText(/search employee by name/i)).toBeInTheDocument();
   });
 
+  it('TC-FE-01b: Hides the page title in embedded mode but keeps the search bar', async () => {
+    vi.mocked(kpiSummaryApiModule.fetchEmployeeKpiSummary).mockResolvedValue(mockSummaryData);
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/reports/kpi-summary']}>
+          <Routes>
+            <Route path="/reports/kpi-summary" element={<KpiSummaryDashboardPage isEmbedded />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    expect(screen.queryByText('KPI Summary Dashboard')).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/search employee by name/i)).toBeInTheDocument();
+  });
+
+  it('TC46: In embedded mode switches between KPI items and relationships with sub-tabs', async () => {
+    vi.mocked(kpiSummaryApiModule.fetchEmployeeKpiSummary).mockResolvedValue(mockSummaryData);
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/reports/employees/emp-100/kpi-summary']}>
+          <Routes>
+            <Route path="/reports/employees/:employeeId/kpi-summary" element={<KpiSummaryDashboardPage isEmbedded />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    const itemsTab = await screen.findByRole('tab', { name: 'KPI Items' });
+    expect(itemsTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('KPI Evaluation Items')).toBeInTheDocument();
+    expect(screen.queryByText('Organizational & Evaluation Relationship Diagram')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Relationships' }));
+    expect(screen.getByText('Organizational & Evaluation Relationship Diagram')).toBeInTheDocument();
+    expect(screen.queryByText('KPI Evaluation Items')).not.toBeInTheDocument();
+    // No KPI is selected, so the detail panel stays closed.
+    expect(kpiSummaryApiModule.fetchEmployeeKpiDetail).not.toHaveBeenCalled();
+  });
+
   it('TC-FE-02: Displays authoritative Employee Info Card and Score Summary Card', async () => {
     vi.mocked(kpiSummaryApiModule.fetchEmployeeKpiSummary).mockResolvedValue(mockSummaryData);
 

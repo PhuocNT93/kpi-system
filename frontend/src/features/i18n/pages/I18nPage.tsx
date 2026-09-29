@@ -30,7 +30,7 @@ export function I18nPage() {
 
   return (
     <>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem', width: '100%', boxSizing: 'border-box' }}>
+      <div className="fill-column" style={{ gap: '1.5rem', width: '100%', boxSizing: 'border-box' }}>
         {isLoading ? (
           <LoadingSpinner label={t('i18n.loading', 'Loading i18n configuration...')} />
         ) : error ? (
@@ -138,8 +138,8 @@ export function I18nPage() {
               </div>
             </div>
 
-            {/* Master Data Entity Translations Section */}
-            <div>
+            {/* Master Data Entity Translations Section — its translation table is the only scroll area */}
+            <div className="fill-column">
               <div style={{ marginBottom: '0.75rem' }}>
                 <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: isDark ? '#f8fafc' : '#0f172a', margin: 0 }}>
                   {t('i18n.editor_title', 'Master Data Translation Editor')}

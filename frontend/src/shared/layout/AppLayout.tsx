@@ -3,6 +3,7 @@ import { COLORS } from '@/lib/theme';
 import { useTheme } from '@/shared/theme';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { HeaderTrailProvider } from './HeaderTrailProvider';
 import type { FooterActionBarProps } from './FooterActionBar';
 
 export interface AppLayoutProps {
@@ -13,6 +14,8 @@ export interface AppLayoutProps {
   onToggleSidebarCollapse?: (collapsed: boolean) => void;
   pageTitle?: string;
   pageSubtitle?: string;
+  // Sidebar section of the current page; the first breadcrumb step when a hub sets a trail.
+  pageSection?: string;
   headerActions?: React.ReactNode;
   footerProps?: FooterActionBarProps;
   onSelectMenuItem?: (id: string) => void;
@@ -27,6 +30,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   onToggleSidebarCollapse,
   pageTitle = 'Configure Evaluation',
   pageSubtitle,
+  pageSection,
   headerActions,
   footerProps: _footerProps,
   onSelectMenuItem,
@@ -117,19 +121,22 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           minWidth: 0,
         }}
       >
-        {/* Top Header */}
-        <Header
-          title={pageTitle}
-          subtitle={pageSubtitle}
-          actions={headerActions}
-          onToggleMobileMenu={() => setMobileMenuOpen((prev) => !prev)}
-          isMobileMenuOpen={mobileMenuOpen}
-        />
+        <HeaderTrailProvider>
+          {/* Top Header */}
+          <Header
+            title={pageTitle}
+            subtitle={pageSubtitle}
+            section={pageSection}
+            actions={headerActions}
+            onToggleMobileMenu={() => setMobileMenuOpen((prev) => !prev)}
+            isMobileMenuOpen={mobileMenuOpen}
+          />
 
-        {/* Scrollable Main Body Content Slot with Responsive Padding */}
-        <main className="app-layout-main">
-          {children}
-        </main>
+          {/* Scrollable Main Body Content Slot with Responsive Padding */}
+          <main className="app-layout-main">
+            {children}
+          </main>
+        </HeaderTrailProvider>
 
         {/* Bottom Action / Footer Bar */}
         {/* <FooterActionBar {...footerProps} /> */}

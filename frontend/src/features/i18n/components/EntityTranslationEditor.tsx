@@ -16,6 +16,7 @@ import { LoadingSpinner, ErrorAlert } from '@/shared/components/ui';
 import { MASTER_ENTITY_TYPES } from './entity-translation-constants';
 import { useTheme } from '@/shared/theme';
 import { useUiTranslation } from '@/shared/i18n/ui-i18n';
+import { useTableHeaderOffset } from '@/shared/hooks/use-table-header-offset';
 
 
 interface Props {
@@ -27,6 +28,7 @@ export const EntityTranslationEditor: React.FC<Props> = ({
   initialEntityType = 'DEPARTMENT',
   initialEntityId = '',
 }) => {
+  const tableFrameRef = useTableHeaderOffset<HTMLDivElement>();
   const { isDark } = useTheme();
   const { t } = useUiTranslation();
   const [searchMode, setSearchMode] = useState<'GLOBAL' | 'CATEGORY'>('GLOBAL');
@@ -276,6 +278,7 @@ export const EntityTranslationEditor: React.FC<Props> = ({
         gap: '1.25rem',
         width: '100%',
         boxSizing: 'border-box',
+        flex: 1,
       }}
     >
       {/* Entity Selection Panel */}
@@ -573,7 +576,7 @@ export const EntityTranslationEditor: React.FC<Props> = ({
           👈 {t('i18n.select_prompt', 'Select an item from the list above to manage its translations.')}
         </div>
       ) : (
-        <div>
+        <div className="fill-column">
           {/* Rules & Toolbar */}
           <div
             style={{
@@ -639,7 +642,7 @@ export const EntityTranslationEditor: React.FC<Props> = ({
           </form>
 
           {/* Translation Matrix Table */}
-          <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: 6 }}>
+          <div ref={tableFrameRef} className="table-scroll-frame" style={{ width: '100%', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: 6 }}>
             <table style={{ width: '100%', minWidth: '650px', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
               <thead>
                 <tr style={{ background: isDark ? '#1e293b' : '#f8fafc', borderBottom: `1px solid ${isDark ? '#334155' : '#e2e8f0'}` }}>
@@ -713,7 +716,7 @@ export const EntityTranslationEditor: React.FC<Props> = ({
           </div>
 
           {/* Action Bar */}
-          <div style={{ marginTop: '1.25rem', display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+          <div style={{ marginTop: '1.25rem', display: 'flex', justifyContent: 'flex-end', gap: 12, flexShrink: 0 }}>
             <Button onClick={handleSave} disabled={upsert.isPending}>
               {upsert.isPending ? t('common.saving', 'Saving...') : t('i18n.save_translations', 'Save Translations')}
             </Button>

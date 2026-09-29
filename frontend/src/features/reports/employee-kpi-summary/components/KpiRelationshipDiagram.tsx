@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import type { RelationshipTuple, EmployeeInfo, EvaluationInfo, KpiItem } from '../types/kpi-summary.types';
 import { resolveLocalizedText } from '../api/kpi-summary.api';
+import { useUiTranslation } from '@/shared/i18n/ui-i18n';
+import { useReportPalette, type ReportTone } from '../../hooks/use-report-palette';
 import { Network, Table as TableIcon, ArrowRight, Building, Users, Calendar, Award, CheckCircle } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 interface KpiRelationshipDiagramProps {
   employee: EmployeeInfo;
@@ -16,37 +19,93 @@ export const KpiRelationshipDiagram: React.FC<KpiRelationshipDiagramProps> = ({
   kpis,
   relationships,
 }) => {
+  const { t } = useUiTranslation();
+  const palette = useReportPalette();
   const [viewMode, setViewMode] = useState<'visual' | 'accessible'>('visual');
+
+  const entityTypeLabels = {
+    employee: t('reports.summary.entity_employee', 'Employee'),
+    team: t('reports.summary.entity_team', 'Team'),
+    department: t('reports.summary.entity_department', 'Department'),
+    manager: t('reports.summary.entity_manager', 'Manager'),
+    evaluation: t('reports.summary.entity_evaluation', 'Evaluation'),
+    cycle: t('reports.summary.entity_cycle', 'Cycle'),
+    kpi: t('reports.summary.entity_kpi', 'KPI'),
+  };
 
   // Build a lookup of entities by stable ID
   const entityMap = new Map<string, { label: string; type: string }>();
-  entityMap.set(employee.employeeId, { label: resolveLocalizedText(employee.fullName), type: 'Employee' });
-  if (employee.team) entityMap.set(employee.team.teamId, { label: resolveLocalizedText(employee.team.name), type: 'Team' });
-  if (employee.department) entityMap.set(employee.department.departmentId, { label: resolveLocalizedText(employee.department.name), type: 'Department' });
-  if (employee.manager) entityMap.set(employee.manager.employeeId, { label: resolveLocalizedText(employee.manager.fullName), type: 'Manager' });
-  entityMap.set(evaluation.evaluationId, { label: `Evaluation (${evaluation.status})`, type: 'Evaluation' });
-  entityMap.set(evaluation.evaluationCycleId, { label: resolveLocalizedText(evaluation.cycleName), type: 'Cycle' });
+  entityMap.set(employee.employeeId, { label: resolveLocalizedText(employee.fullName), type: entityTypeLabels.employee });
+  if (employee.team) entityMap.set(employee.team.teamId, { label: resolveLocalizedText(employee.team.name), type: entityTypeLabels.team });
+  if (employee.department) entityMap.set(employee.department.departmentId, { label: resolveLocalizedText(employee.department.name), type: entityTypeLabels.department });
+  if (employee.manager) entityMap.set(employee.manager.employeeId, { label: resolveLocalizedText(employee.manager.fullName), type: entityTypeLabels.manager });
+  entityMap.set(evaluation.evaluationId, {
+    label: t('reports.summary.evaluation_with_status', 'Evaluation ({status})', { status: evaluation.status }),
+    type: entityTypeLabels.evaluation,
+  });
+  entityMap.set(evaluation.evaluationCycleId, { label: resolveLocalizedText(evaluation.cycleName), type: entityTypeLabels.cycle });
 
   kpis.forEach((k) => {
-    entityMap.set(k.evaluationItemId, { label: resolveLocalizedText(k.criterionName), type: 'KPI' });
+    entityMap.set(k.evaluationItemId, { label: resolveLocalizedText(k.criterionName), type: entityTypeLabels.kpi });
   });
+
+  const toggleButtonStyle = (isActive: boolean): React.CSSProperties => ({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '6px 12px',
+    borderRadius: '6px',
+    border: 'none',
+    backgroundColor: isActive ? palette.surface : 'transparent',
+    color: isActive ? palette.tones.info.fg : palette.textSecondary,
+    fontWeight: 600,
+    fontSize: '0.8rem',
+    cursor: 'pointer',
+    boxShadow: isActive ? palette.shadow : 'none',
+  });
+
+  const renderContextNode = (Icon: LucideIcon, tone: ReportTone, typeLabel: string, value: string) => (
+    <div
+      style={{
+        border: `1px solid ${palette.border}`,
+        borderRadius: '8px',
+        padding: '10px 16px',
+        backgroundColor: palette.tones[tone].bg,
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+      }}
+    >
+      <Icon size={16} style={{ color: palette.tones[tone].fg }} />
+      <div>
+        <div style={{ fontSize: '0.72rem', color: palette.textSecondary }}>{typeLabel}</div>
+        <div style={{ fontSize: '0.85rem', fontWeight: 600, color: palette.textPrimary }}>{value}</div>
+      </div>
+    </div>
+  );
+
+  const headerCellStyle: React.CSSProperties = { padding: '10px 12px' };
+  const idCellStyle: React.CSSProperties = {
+    padding: '10px 12px',
+    color: palette.textSecondary,
+    fontSize: '0.75rem',
+    fontFamily: 'monospace',
+  };
 
   return (
     <div
       style={{
-        backgroundColor: 'var(--bg-surface)',
-        border: '1px solid var(--border-subtle)',
+        backgroundColor: palette.surface,
+        border: `1px solid ${palette.border}`,
         borderRadius: '10px',
         overflow: 'hidden',
-        marginBottom: '24px',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+        boxShadow: palette.shadow,
       }}
     >
-      {/* Card Header */}
       <div
         style={{
           padding: '16px 20px',
-          borderBottom: '1px solid var(--border-subtle)',
+          borderBottom: `1px solid ${palette.border}`,
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
@@ -55,69 +114,46 @@ export const KpiRelationshipDiagram: React.FC<KpiRelationshipDiagramProps> = ({
         }}
       >
         <div>
-          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Network size={18} style={{ color: 'var(--primary, #3b82f6)' }} />
-            Organizational & Evaluation Relationship Diagram
+          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: palette.textPrimary, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Network size={18} style={{ color: palette.tones.info.fg }} />
+            {t('reports.summary.relationship_diagram_title', 'Organizational & Evaluation Relationship Diagram')}
           </h3>
-          <p style={{ margin: '2px 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-            Rendered directly from backend entity relationships ({relationships.length} graph edges)
+          <p style={{ margin: '2px 0 0 0', fontSize: '0.8rem', color: palette.textSecondary }}>
+            {t(
+              'reports.summary.relationship_diagram_description',
+              'Rendered directly from backend entity relationships ({count} graph edges)',
+              { count: relationships.length }
+            )}
           </p>
         </div>
 
-        {/* View mode toggle */}
         <div
           style={{
             display: 'inline-flex',
-            backgroundColor: 'var(--bg-muted, rgba(0,0,0,0.05))',
+            backgroundColor: palette.surfaceMuted,
+            border: `1px solid ${palette.border}`,
             borderRadius: '8px',
             padding: '2px',
           }}
         >
           <button
             onClick={() => setViewMode('visual')}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '6px 12px',
-              borderRadius: '6px',
-              border: 'none',
-              backgroundColor: viewMode === 'visual' ? 'var(--bg-surface, #fff)' : 'transparent',
-              color: viewMode === 'visual' ? 'var(--primary, #3b82f6)' : 'var(--text-secondary)',
-              fontWeight: 600,
-              fontSize: '0.8rem',
-              cursor: 'pointer',
-              boxShadow: viewMode === 'visual' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-            }}
+            style={toggleButtonStyle(viewMode === 'visual')}
             aria-pressed={viewMode === 'visual'}
           >
-            <Network size={14} /> Graphical DAG
+            <Network size={14} /> {t('reports.summary.view_graphical', 'Graphical DAG')}
           </button>
           <button
             onClick={() => setViewMode('accessible')}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '6px 12px',
-              borderRadius: '6px',
-              border: 'none',
-              backgroundColor: viewMode === 'accessible' ? 'var(--bg-surface, #fff)' : 'transparent',
-              color: viewMode === 'accessible' ? 'var(--primary, #3b82f6)' : 'var(--text-secondary)',
-              fontWeight: 600,
-              fontSize: '0.8rem',
-              cursor: 'pointer',
-              boxShadow: viewMode === 'accessible' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-            }}
+            style={toggleButtonStyle(viewMode === 'accessible')}
             aria-pressed={viewMode === 'accessible'}
-            aria-label="Accessible table view"
+            aria-label={t('reports.summary.view_accessible_aria', 'Accessible table view')}
           >
-            <TableIcon size={14} /> Accessible List
+            <TableIcon size={14} /> {t('reports.summary.view_accessible', 'Accessible List')}
           </button>
         </div>
       </div>
 
-      {/* Graphical Node View */}
       {viewMode === 'visual' ? (
         <div style={{ padding: '24px', overflowX: 'auto' }}>
           <div
@@ -128,82 +164,30 @@ export const KpiRelationshipDiagram: React.FC<KpiRelationshipDiagramProps> = ({
               minWidth: '600px',
             }}
           >
-            {/* Top Level: Organization Context */}
             <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', alignItems: 'center' }}>
-              {employee.department && (
-                <div
-                  style={{
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: '8px',
-                    padding: '10px 16px',
-                    backgroundColor: 'rgba(59, 130, 246, 0.05)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                  }}
-                >
-                  <Building size={16} style={{ color: '#2563eb' }} />
-                  <div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Department</div>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{resolveLocalizedText(employee.department.name)}</div>
-                  </div>
-                </div>
-              )}
+              {employee.department &&
+                renderContextNode(Building, 'info', entityTypeLabels.department, resolveLocalizedText(employee.department.name))}
 
-              {employee.department && employee.team && <ArrowRight size={16} style={{ color: 'var(--text-secondary)' }} />}
+              {employee.department && employee.team && <ArrowRight size={16} style={{ color: palette.textSecondary }} />}
 
-              {employee.team && (
-                <div
-                  style={{
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: '8px',
-                    padding: '10px 16px',
-                    backgroundColor: 'rgba(16, 185, 129, 0.05)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                  }}
-                >
-                  <Users size={16} style={{ color: '#059669' }} />
-                  <div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Team</div>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{resolveLocalizedText(employee.team.name)}</div>
-                  </div>
-                </div>
-              )}
+              {employee.team &&
+                renderContextNode(Users, 'success', entityTypeLabels.team, resolveLocalizedText(employee.team.name))}
 
               {employee.manager && (
                 <>
                   <div style={{ width: '20px' }} />
-                  <div
-                    style={{
-                      border: '1px solid var(--border-subtle)',
-                      borderRadius: '8px',
-                      padding: '10px 16px',
-                      backgroundColor: 'rgba(245, 158, 11, 0.05)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                    }}
-                  >
-                    <Award size={16} style={{ color: '#d97706' }} />
-                    <div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Manager</div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{resolveLocalizedText(employee.manager.fullName)}</div>
-                    </div>
-                  </div>
+                  {renderContextNode(Award, 'warning', entityTypeLabels.manager, resolveLocalizedText(employee.manager.fullName))}
                 </>
               )}
             </div>
 
-            {/* Middle Level: Employee Core Node */}
             <div style={{ display: 'flex', justifyContent: 'center' }}>
               <div
                 style={{
                   border: '2px solid var(--primary, #3b82f6)',
                   borderRadius: '10px',
                   padding: '14px 24px',
-                  backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                  backgroundColor: palette.tones.info.bg,
                   display: 'flex',
                   alignItems: 'center',
                   gap: '12px',
@@ -226,64 +210,35 @@ export const KpiRelationshipDiagram: React.FC<KpiRelationshipDiagramProps> = ({
                   {resolveLocalizedText(employee.fullName).charAt(0)}
                 </div>
                 <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary, #3b82f6)', textTransform: 'uppercase' }}>
-                    Target Employee
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: palette.tones.info.fg, textTransform: 'uppercase' }}>
+                    {t('reports.summary.target_employee', 'Target Employee')}
                   </div>
-                  <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  <div style={{ fontSize: '1rem', fontWeight: 700, color: palette.textPrimary }}>
                     {resolveLocalizedText(employee.fullName)}
                   </div>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                  <div style={{ fontSize: '0.78rem', color: palette.textSecondary }}>
                     {resolveLocalizedText(employee.employeeCode)}
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Evaluation Node */}
             <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', alignItems: 'center' }}>
-              <div
-                style={{
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: '8px',
-                  padding: '10px 16px',
-                  backgroundColor: 'rgba(139, 92, 246, 0.05)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}
-              >
-                <Calendar size={16} style={{ color: '#7c3aed' }} />
-                <div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Cycle</div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{resolveLocalizedText(evaluation.cycleName)}</div>
-                </div>
-              </div>
+              {renderContextNode(Calendar, 'primary', entityTypeLabels.cycle, resolveLocalizedText(evaluation.cycleName))}
 
-              <ArrowRight size={16} style={{ color: 'var(--text-secondary)' }} />
+              <ArrowRight size={16} style={{ color: palette.textSecondary }} />
 
-              <div
-                style={{
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: '8px',
-                  padding: '10px 16px',
-                  backgroundColor: 'rgba(16, 185, 129, 0.05)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}
-              >
-                <CheckCircle size={16} style={{ color: '#059669' }} />
-                <div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Evaluation</div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>Status: {evaluation.status}</div>
-                </div>
-              </div>
+              {renderContextNode(
+                CheckCircle,
+                'success',
+                entityTypeLabels.evaluation,
+                t('reports.summary.status_value', 'Status: {status}', { status: evaluation.status })
+              )}
             </div>
 
-            {/* Bottom Level: Evaluated Criteria Nodes */}
             <div>
-              <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center', marginBottom: '10px' }}>
-                Evaluated Criteria ({kpis.length})
+              <div style={{ fontSize: '0.78rem', fontWeight: 600, color: palette.textSecondary, textAlign: 'center', marginBottom: '10px' }}>
+                {t('reports.summary.evaluated_criteria', 'Evaluated Criteria ({count})', { count: kpis.length })}
               </div>
               <div
                 style={{
@@ -297,28 +252,28 @@ export const KpiRelationshipDiagram: React.FC<KpiRelationshipDiagramProps> = ({
                   <div
                     key={kpi.evaluationItemId}
                     style={{
-                      border: '1px solid var(--border-subtle)',
+                      border: `1px solid ${palette.border}`,
                       borderRadius: '6px',
                       padding: '6px 12px',
                       fontSize: '0.78rem',
-                      backgroundColor: 'var(--bg-surface)',
+                      backgroundColor: palette.surfaceSubtle,
                       display: 'flex',
                       alignItems: 'center',
                       gap: '6px',
                     }}
                   >
-                    <span style={{ fontWeight: 600, color: 'var(--primary, #3b82f6)' }}>
+                    <span style={{ fontWeight: 600, color: palette.tones.info.fg }}>
                       #{kpi.displayOrder}
                     </span>
-                    <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
+                    <span style={{ color: palette.textPrimary, fontWeight: 500 }}>
                       {resolveLocalizedText(kpi.criterionName)}
                     </span>
-                    <span style={{ color: 'var(--text-secondary)' }}>({kpi.weight}%)</span>
+                    <span style={{ color: palette.textSecondary }}>({kpi.weight}%)</span>
                   </div>
                 ))}
                 {kpis.length > 10 && (
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', alignSelf: 'center' }}>
-                    +{kpis.length - 10} more criteria
+                  <div style={{ fontSize: '0.78rem', color: palette.textSecondary, alignSelf: 'center' }}>
+                    {t('reports.summary.more_criteria', '+{count} more criteria', { count: kpis.length - 10 })}
                   </div>
                 )}
               </div>
@@ -326,8 +281,7 @@ export const KpiRelationshipDiagram: React.FC<KpiRelationshipDiagramProps> = ({
           </div>
         </div>
       ) : (
-        /* Accessible Table Representation */
-        <div style={{ padding: '16px 20px' }}>
+        <div style={{ padding: '16px 20px', overflowX: 'auto' }}>
           <table
             style={{
               width: '100%',
@@ -337,12 +291,12 @@ export const KpiRelationshipDiagram: React.FC<KpiRelationshipDiagramProps> = ({
             }}
           >
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
-                <th style={{ padding: '10px 12px' }}>Source Entity</th>
-                <th style={{ padding: '10px 12px' }}>Relationship Type</th>
-                <th style={{ padding: '10px 12px' }}>Target Entity</th>
-                <th style={{ padding: '10px 12px' }}>Source ID</th>
-                <th style={{ padding: '10px 12px' }}>Target ID</th>
+              <tr style={{ borderBottom: `1px solid ${palette.border}`, color: palette.textSecondary }}>
+                <th style={headerCellStyle}>{t('reports.summary.column_source_entity', 'Source Entity')}</th>
+                <th style={headerCellStyle}>{t('reports.summary.column_relationship_type', 'Relationship Type')}</th>
+                <th style={headerCellStyle}>{t('reports.summary.column_target_entity', 'Target Entity')}</th>
+                <th style={headerCellStyle}>{t('reports.summary.column_source_id', 'Source ID')}</th>
+                <th style={headerCellStyle}>{t('reports.summary.column_target_id', 'Target ID')}</th>
               </tr>
             </thead>
             <tbody>
@@ -351,8 +305,8 @@ export const KpiRelationshipDiagram: React.FC<KpiRelationshipDiagramProps> = ({
                 const targetMeta = entityMap.get(rel.targetId);
 
                 return (
-                  <tr key={`${rel.sourceId}-${rel.targetId}-${idx}`} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                    <td style={{ padding: '10px 12px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  <tr key={`${rel.sourceId}-${rel.targetId}-${idx}`} style={{ borderBottom: `1px solid ${palette.border}` }}>
+                    <td style={{ padding: '10px 12px', fontWeight: 600, color: palette.textPrimary }}>
                       {sourceMeta ? `${sourceMeta.label} (${sourceMeta.type})` : rel.sourceId}
                     </td>
                     <td style={{ padding: '10px 12px' }}>
@@ -362,22 +316,18 @@ export const KpiRelationshipDiagram: React.FC<KpiRelationshipDiagramProps> = ({
                           fontWeight: 600,
                           padding: '2px 8px',
                           borderRadius: '4px',
-                          backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                          color: 'var(--primary, #3b82f6)',
+                          backgroundColor: palette.tones.info.bg,
+                          color: palette.tones.info.fg,
                         }}
                       >
                         {rel.relationshipType}
                       </span>
                     </td>
-                    <td style={{ padding: '10px 12px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    <td style={{ padding: '10px 12px', fontWeight: 600, color: palette.textPrimary }}>
                       {targetMeta ? `${targetMeta.label} (${targetMeta.type})` : rel.targetId}
                     </td>
-                    <td style={{ padding: '10px 12px', color: 'var(--text-secondary)', fontSize: '0.75rem', fontFamily: 'monospace' }}>
-                      {rel.sourceId.substring(0, 8)}...
-                    </td>
-                    <td style={{ padding: '10px 12px', color: 'var(--text-secondary)', fontSize: '0.75rem', fontFamily: 'monospace' }}>
-                      {rel.targetId.substring(0, 8)}...
-                    </td>
+                    <td style={idCellStyle}>{rel.sourceId.substring(0, 8)}...</td>
+                    <td style={idCellStyle}>{rel.targetId.substring(0, 8)}...</td>
                   </tr>
                 );
               })}

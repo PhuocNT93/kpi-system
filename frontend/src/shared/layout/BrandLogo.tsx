@@ -1,64 +1,35 @@
 import React from 'react';
-import { COLORS } from '@/lib/theme';
-import { RADII, TYPOGRAPHY, useTheme } from '@/shared/theme';
+import { TYPOGRAPHY, useTheme } from '@/shared/theme';
+import emblemUrl from '@/assets/brand/performant-emblem.png';
 
 export interface BrandLogoProps {
   collapsed?: boolean;
   className?: string;
 }
 
+// Brand colours taken from the Performant emblem (navy anchor, teal growth arrow).
+const BRAND_NAVY = '#1e3a5f';
+const BRAND_TEAL = '#0e7c86';
 
-export const BrandIcon: React.FC<{ size?: number }> = ({ size = 34 }) => {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 36 36"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      style={{ flexShrink: 0, borderRadius: RADII.md }}
-      aria-hidden="true"
-    >
-      <defs>
-        <linearGradient id="brand-grad" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor={COLORS.primary.DEFAULT} />
-          <stop offset="100%" stopColor={COLORS.secondary.DEFAULT} />
-        </linearGradient>
-      </defs>
-
-      {/* Background container */}
-      <rect width="36" height="36" rx="8" fill="url(#brand-grad)" />
-
-      {/* Stylized letter 'P' with growth chart & performance arrow */}
-      {/* Stem of P */}
-      <rect x="8" y="8" width="4.5" height="20" rx="2" fill={COLORS.neutral.white} />
-
-      {/* Loop of P */}
-      <path
-        d="M12.5 8H20C23.3137 8 26 10.6863 26 14C26 17.3137 23.3137 20 20 20H12.5V8Z"
-        fill={COLORS.neutral.white}
-        fillOpacity="0.9"
-      />
-
-      {/* Inner cutout of P */}
-      <path
-        d="M12.5 12H19.5C20.6046 12 21.5 12.8954 21.5 14C21.5 15.1046 20.6046 16 19.5 16H12.5V12Z"
-        fill="url(#brand-grad)"
-      />
-
-      {/* Growth Trend Accent: Bar chart & arrow inside */}
-      <rect x="14.5" y="14" width="1.8" height="2" rx="0.5" fill={COLORS.neutral.white} />
-      <rect x="17" y="13" width="1.8" height="3" rx="0.5" fill={COLORS.neutral.white} />
-      <path
-        d="M15 13.5L18.5 10M18.5 10H16.5M18.5 10V12"
-        stroke={COLORS.neutral.white}
-        strokeWidth="1.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-};
+// The emblem sits on a white tile so its light background also reads well in dark mode.
+export const BrandIcon: React.FC<{ size?: number }> = ({ size = 34 }) => (
+  <span
+    aria-hidden="true"
+    style={{
+      width: size,
+      height: size,
+      flexShrink: 0,
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: '8px',
+      backgroundColor: '#ffffff',
+      overflow: 'hidden',
+    }}
+  >
+    <img src={emblemUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+  </span>
+);
 
 export const BrandLogo: React.FC<BrandLogoProps> = ({ collapsed = false, className }) => {
   const { isDark } = useTheme();
@@ -72,12 +43,12 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ collapsed = false, classNa
         gap: collapsed ? '0' : '10px',
         justifyContent: collapsed ? 'center' : 'flex-start',
         userSelect: 'none',
-        overflow: 'hidden'
+        overflow: 'hidden',
       }}
-      title="Performant - Employee KPI Evaluation"
-      aria-label="Performant - Employee KPI Evaluation"
+      title="Performant - Member KPI • Marine Logistics"
+      aria-label="Performant - Member KPI • Marine Logistics"
     >
-      <BrandIcon size={34} />
+      <BrandIcon size={40} />
 
       {!collapsed && (
         <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -87,9 +58,9 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ collapsed = false, classNa
               fontSize: '1.05rem',
               fontWeight: TYPOGRAPHY.fontWeight.bold,
               letterSpacing: '0.04em',
-              color: isDark ? '#F8FAFC' : COLORS.neutral.textPrimary,
+              color: isDark ? '#F8FAFC' : BRAND_NAVY,
               lineHeight: 1.15,
-              whiteSpace: 'nowrap'
+              whiteSpace: 'nowrap',
             }}
           >
             PERFORMANT
@@ -97,16 +68,17 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ collapsed = false, classNa
           <span
             style={{
               fontFamily: TYPOGRAPHY.fontFamily.body,
-              fontSize: '0.65rem',
+              fontSize: '0.6rem',
               fontWeight: TYPOGRAPHY.fontWeight.semibold,
-              letterSpacing: '0.08em',
-              color: isDark ? '#94A3B8' : COLORS.neutral.textSecondary,
+              letterSpacing: '0.04em',
               lineHeight: 1.1,
               whiteSpace: 'nowrap',
-              marginTop: '2px'
+              marginTop: '2px',
+              color: isDark ? '#CBD5E1' : BRAND_NAVY,
             }}
           >
-            KPI EVALUATION
+            MEMBER KPI{' '}
+            <span style={{ color: isDark ? '#5EEAD4' : BRAND_TEAL }}>• MARINE LOGISTICS</span>
           </span>
         </div>
       )}
