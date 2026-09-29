@@ -38,6 +38,11 @@
   box-sizing: border-box;
 }
 
+button svg {
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
 html,
 body,
 #root {
@@ -180,7 +185,7 @@ body,
 .unified-hub-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 16px;
@@ -192,28 +197,6 @@ body,
   font-weight: 800;
   letter-spacing: -0.02em;
   line-height: 1.3;
-}
-
-.unified-hub-description {
-  margin: 3px 0 0 0;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-/* Reserves the bold width of a tab label so selecting a tab never shifts its neighbours. */
-.unified-hub-tab-label {
-  display: inline-flex;
-  flex-direction: column;
-}
-
-.unified-hub-tab-label::after {
-  content: attr(data-label);
-  height: 0;
-  overflow: hidden;
-  visibility: hidden;
-  font-weight: 700;
-  pointer-events: none;
-  user-select: none;
 }
 
 .unified-hub-tabs {
@@ -257,6 +240,13 @@ body,
   align-items: center;
 }
 
+.unified-hub-hint {
+  display: flex;
+  align-items: center;
+  margin-top: 12px;
+  font-size: 12px;
+}
+
 @media (max-width: 768px) {
   .unified-hub-banner {
     padding: 0 0 8px 0 !important;
@@ -284,6 +274,10 @@ body,
   }
 
   .unified-hub-tab-badge {
+    display: none !important;
+  }
+
+  .unified-hub-hint {
     display: none !important;
   }
 }
@@ -375,77 +369,6 @@ body,
   }
 }
 
-/* Hub content: the page and tab panels stay fixed, only the main table scrolls.
-   .fill-column passes the available height down a flex chain;
-   .table-scroll-frame is the one scroll container, with a sticky header.
-   The frame's `contain: size` makes it count as only its 240px minimum when its ancestors
-   work out how small they may get, so a card never shrinks below its fixed content plus
-   that minimum (content would otherwise spill over the card's border); when the window is
-   too short the page scrolls instead. */
-.fill-column {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.table-scroll-frame {
-  flex: 1;
-  min-height: 240px;
-  overflow: auto;
-  contain: size;
-}
-
-/* The vertical scrollbar starts below the table header: the track's top margin equals the
-   header height published by useTableHeaderOffset. Chromium ignores ::-webkit-scrollbar once
-   scrollbar-width/scrollbar-color are set, so those are kept for other browsers only. */
-.table-scroll-frame::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-.table-scroll-frame::-webkit-scrollbar-track {
-  background: transparent;
-  margin-top: var(--table-header-height, 0px);
-}
-
-.table-scroll-frame::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border: 2px solid transparent;
-  border-radius: 8px;
-  background-clip: padding-box;
-}
-
-.dark .table-scroll-frame::-webkit-scrollbar-thumb {
-  background: #475569;
-  background-clip: padding-box;
-}
-
-.table-scroll-frame::-webkit-scrollbar-corner {
-  background: transparent;
-}
-
-@supports not selector(::-webkit-scrollbar) {
-  .table-scroll-frame {
-    scrollbar-width: thin;
-    scrollbar-color: #cbd5e1 transparent;
-  }
-
-  .dark .table-scroll-frame {
-    scrollbar-color: #475569 transparent;
-  }
-}
-
-.table-scroll-frame thead {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  box-shadow: 0 1px 0 #e2e8f0;
-}
-
-.dark .table-scroll-frame thead {
-  box-shadow: 0 1px 0 #334155;
-}
-
 /* Organization Module Responsive Styles */
 .org-page-container {
   width: 100%;
@@ -460,18 +383,43 @@ body,
   }
 }
 
+.org-tabs-bar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 1.5rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.org-job-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+}
+
+@media (min-width: 1024px) {
+  .org-job-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+}
+
+.org-job-full-width {
+  grid-column: 1 / -1;
+}
+
 .org-structure-layout {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
   align-items: stretch;
-  flex: 1;
 }
 
 @media (min-width: 1024px) {
   .org-structure-layout {
     flex-direction: row;
-    gap: 1rem;
+    gap: 1.25rem;
+    align-items: flex-start;
   }
 }
 
@@ -482,14 +430,29 @@ body,
   max-height: 380px;
   overflow-y: auto;
   scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.org-tree-sidebar::-webkit-scrollbar {
+  width: 5px;
+}
+.org-tree-sidebar::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 9999px;
+}
+.dark .org-tree-sidebar {
+  scrollbar-color: #475569 transparent;
+}
+.dark .org-tree-sidebar::-webkit-scrollbar-thumb {
+  background-color: #475569;
 }
 
 @media (min-width: 1024px) {
   .org-tree-sidebar {
-    width: 300px;
-    max-height: none;
-    /* Stretches to the row; its own length never forces the row taller. */
-    contain: size;
+    width: 290px;
+    max-height: calc(100vh - 210px);
+    position: sticky;
+    top: 16px;
   }
 }
 
@@ -500,9 +463,10 @@ body,
 }
 
 .org-card {
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 1.25rem;
   box-sizing: border-box;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 @media (min-width: 768px) {
@@ -663,4 +627,4 @@ body,
     justify-content: space-between;
     align-items: center;
   }
-}
+}

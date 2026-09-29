@@ -16,6 +16,7 @@ import {
   Users,
   Edit2,
   Power,
+  UserPlus,
 } from 'lucide-react';
 import { FilterField } from '@/shared/ui/FilterField/FilterField';
 import { FILTER_CONTROL_HEIGHT, useFilterControlStyle } from '@/shared/ui/FilterField/use-filter-control-style';
@@ -163,9 +164,13 @@ export function UserTable() {
           </div>
         </div>
 
-        {/* Same look as the organization create buttons ("+ Create Department"). */}
-        <Button id="create-user-btn" onClick={() => setIsCreateOpen(true)} size="sm">
-          + {t('iam.users.create_btn', 'Create User')}
+        <Button
+          id="create-user-btn"
+          onClick={() => setIsCreateOpen(true)}
+          size="sm"
+          icon={<UserPlus size={15} />}
+        >
+          {t('iam.users.create_btn', 'Create User')}
         </Button>
       </div>
 
@@ -433,29 +438,28 @@ export function UserTable() {
 
                     {/* Actions */}
                     <td style={{ padding: '0.75rem 1rem', verticalAlign: 'middle', textAlign: 'right' }}>
-                      <div style={{ display: 'inline-flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                      <div style={{ display: 'inline-flex', gap: '0.5rem', justifyContent: 'flex-end', alignItems: 'center' }}>
                         <Button
                           variant="outlined"
                           size="sm"
+                          icon={<Edit2 size={12} />}
                           aria-label={`${t('common.edit', 'Edit')} ${user.name}`}
                           title={t('common.edit', 'Edit')}
                           onClick={() => setEditingUser(user)}
-                          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0.375rem', lineHeight: 0 }}
+                          style={{ padding: '0.25rem 0.55rem', fontSize: '0.75rem' }}
                         >
-                          <Edit2 size={14} aria-hidden="true" />
+                          {t('common.edit', 'Edit')}
                         </Button>
                         <Button
                           variant="secondary"
                           size="sm"
+                          icon={<Power size={12} />}
                           aria-label={`${user.isActive ? t('iam.users.deactivate', 'Deactivate') : t('iam.users.activate', 'Activate')} ${user.name}`}
                           title={user.isActive ? t('iam.users.deactivate', 'Deactivate') : t('iam.users.activate', 'Activate')}
                           onClick={() => setPendingToggle(user)}
                           style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: '0.375rem',
-                            lineHeight: 0,
+                            padding: '0.25rem 0.55rem',
+                            fontSize: '0.75rem',
                             color: user.isActive ? (isDark ? '#f87171' : '#dc2626') : (isDark ? '#34d399' : '#059669'),
                             backgroundColor: isDark
                               ? (user.isActive ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)')
@@ -465,7 +469,7 @@ export function UserTable() {
                               : (user.isActive ? '1px solid #fecaca' : '1px solid #a7f3d0'),
                           }}
                         >
-                          <Power size={14} aria-hidden="true" />
+                          {user.isActive ? t('iam.users.deactivate', 'Deactivate') : t('iam.users.activate', 'Activate')}
                         </Button>
                       </div>
                     </td>
@@ -552,29 +556,24 @@ export function UserTable() {
                     {user.roleCode}
                   </span>
 
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                     <Button
                       variant="outlined"
                       size="sm"
-                      aria-label={`${t('common.edit', 'Edit')} ${user.name}`}
-                      title={t('common.edit', 'Edit')}
+                      icon={<Edit2 size={12} />}
                       onClick={() => setEditingUser(user)}
-                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0.375rem', lineHeight: 0 }}
+                      style={{ padding: '0.25rem 0.55rem', fontSize: '0.75rem' }}
                     >
-                      <Edit2 size={14} aria-hidden="true" />
+                      {t('common.edit', 'Edit')}
                     </Button>
                     <Button
                       variant="secondary"
                       size="sm"
-                      aria-label={`${user.isActive ? t('iam.users.deactivate', 'Deactivate') : t('iam.users.activate', 'Activate')} ${user.name}`}
-                      title={user.isActive ? t('iam.users.deactivate', 'Deactivate') : t('iam.users.activate', 'Activate')}
+                      icon={<Power size={12} />}
                       onClick={() => setPendingToggle(user)}
                       style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: '0.375rem',
-                        lineHeight: 0,
+                        padding: '0.25rem 0.55rem',
+                        fontSize: '0.75rem',
                         color: user.isActive ? (isDark ? '#f87171' : '#dc2626') : (isDark ? '#34d399' : '#059669'),
                         backgroundColor: isDark
                           ? (user.isActive ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)')
@@ -584,7 +583,7 @@ export function UserTable() {
                           : (user.isActive ? '1px solid #fecaca' : '1px solid #a7f3d0'),
                       }}
                     >
-                      <Power size={14} aria-hidden="true" />
+                      {user.isActive ? t('iam.users.deactivate', 'Deactivate') : t('iam.users.activate', 'Activate')}
                     </Button>
                   </div>
                 </div>

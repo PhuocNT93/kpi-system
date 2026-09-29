@@ -19,6 +19,7 @@ import {
   LayoutGrid,
   Table as TableIcon,
   Edit2,
+  Plus,
 } from 'lucide-react';
 import { FilterField } from '@/shared/ui/FilterField/FilterField';
 import { FILTER_CONTROL_HEIGHT, useFilterControlStyle } from '@/shared/ui/FilterField/use-filter-control-style';
@@ -307,9 +308,13 @@ export function RoleTable() {
           </div>
         </div>
 
-        {/* Same look as the organization create buttons ("+ Create Department"). */}
-        <Button id="create-role-btn" onClick={() => setIsCreateOpen(true)} size="sm">
-          + {t('iam.roles.create_btn', 'Create Role')}
+        <Button
+          id="create-role-btn"
+          onClick={() => setIsCreateOpen(true)}
+          size="sm"
+          icon={<Plus size={15} />}
+        >
+          {t('iam.roles.create_btn', 'Create Role')}
         </Button>
       </div>
 
@@ -543,12 +548,12 @@ export function RoleTable() {
                       <Button
                         variant="outlined"
                         size="sm"
-                        aria-label={`${t('common.edit', 'Edit')} ${role.name}`}
-                        title={t('common.edit', 'Edit')}
+                        icon={<Edit2 size={12} />}
+                        aria-label={`Edit ${role.name}`}
                         onClick={() => setEditingRole(role)}
-                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0.375rem', lineHeight: 0 }}
+                        style={{ padding: '0.25rem 0.55rem', fontSize: '0.75rem' }}
                       >
-                        <Edit2 size={14} aria-hidden="true" />
+                        {t('common.edit', 'Edit')}
                       </Button>
                     </td>
                   </tr>
@@ -636,12 +641,11 @@ export function RoleTable() {
                   <Button
                     variant="outlined"
                     size="sm"
-                    aria-label={`${t('common.edit', 'Edit')} ${role.name}`}
-                    title={t('common.edit', 'Edit')}
+                    icon={<Edit2 size={12} />}
                     onClick={() => setEditingRole(role)}
-                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0.375rem', lineHeight: 0 }}
+                    style={{ padding: '0.25rem 0.55rem', fontSize: '0.75rem' }}
                   >
-                    <Edit2 size={14} aria-hidden="true" />
+                    {t('common.edit', 'Edit')}
                   </Button>
                 </div>
               </div>
