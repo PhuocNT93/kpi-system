@@ -10,4 +10,7 @@ export const authApi = {
 
   signup: (body: SignupRequest): Promise<WireUser> =>
     postApi<WireUser>('/api/auth/signup', body),
+
+  changePassword: (body: { currentPassword: string; newPassword: string }): Promise<{ message: string }> =>
+    postApi<{ message: string }>('/api/auth/change-password', body),
 };

@@ -3,6 +3,7 @@ import { OrgStructureTab } from '../components/OrgStructureTab';
 import { JobArchitectureTab } from '../components/JobArchitectureTab';
 import { useTheme } from '../../../shared/theme';
 import { useOrganizationTranslation } from '../hooks/useOrganizationTranslation';
+import { Network, Briefcase } from 'lucide-react';
 
 type Tab = 'structure' | 'architecture';
 
@@ -11,51 +12,118 @@ export function OrganizationPage() {
   const { isDark } = useTheme();
   const { t } = useOrganizationTranslation();
 
-  const tabStyle = (tab: Tab): React.CSSProperties => {
-    const isActive = activeTab === tab;
-    return {
-      padding: '10px 20px',
-      minHeight: '40px',
-      borderRadius: '6px 6px 0 0',
-      border: 'none',
-      cursor: 'pointer',
-      fontWeight: 600,
-      fontSize: '0.875rem',
-      backgroundColor: isActive ? (isDark ? '#1e293b' : '#fff') : 'transparent',
-      color: isActive ? (isDark ? '#a5b4fc' : '#4f46e5') : (isDark ? '#94a3b8' : '#6b7280'),
-      borderBottom: isActive ? `2px solid ${isDark ? '#818cf8' : '#4f46e5'}` : '2px solid transparent',
-      transition: 'all 0.15s ease',
-      whiteSpace: 'nowrap',
-    };
-  };
-
   return (
-    <main className="org-page-container">
-      <div style={{ marginBottom: '1.5rem' }}>
-        <h1 style={{ margin: 0, fontSize: 'clamp(1.25rem, 3vw, 1.5rem)', fontWeight: 800, color: isDark ? '#f8fafc' : '#111827' }}>
-          {t('page_title', 'Organization Management')}
-        </h1>
-        <p style={{ margin: '0.25rem 0 0', color: isDark ? '#94a3b8' : '#6b7280', fontSize: '0.875rem' }}>
-          {t('page_subtitle', 'Manage your organization structure and job architecture.')}
-        </p>
-      </div>
-
+    <main className="org-page-container" style={{ width: '100%', boxSizing: 'border-box' }}>
+      {/* Sub-header & Tab Switcher Bar */}
       <div
-        className="org-tabs-bar"
         style={{
-          borderBottom: `1px solid ${isDark ? '#334155' : '#e5e7eb'}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px',
+          marginBottom: '1.25rem',
+          paddingBottom: '0.75rem',
+          borderBottom: `1px solid ${isDark ? '#1e293b' : '#f1f5f9'}`,
         }}
       >
-        <button style={tabStyle('structure')} onClick={() => setActiveTab('structure')}>
-          {t('tab_org_structure', 'Org Structure')}
-        </button>
-        <button style={tabStyle('architecture')} onClick={() => setActiveTab('architecture')}>
-          {t('tab_job_architecture', 'Job Architecture')}
-        </button>
+        <div>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: '1.15rem',
+              fontWeight: 700,
+              color: isDark ? '#f8fafc' : '#0f172a',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+          >
+            <span>{t('org_page_title', 'Cơ cấu Tổ chức & Quản trị Chức danh')}</span>
+          </h2>
+          <p
+            style={{
+              margin: '3px 0 0',
+              color: isDark ? '#94a3b8' : '#64748b',
+              fontSize: '0.8125rem',
+            }}
+          >
+            {t(
+              'org_page_subtitle',
+              'Quản trị phân cấp phòng ban, cấu trúc đội nhóm, danh mục chức danh và chu kỳ đánh giá hiệu suất'
+            )}
+          </p>
+        </div>
+
+        {/* Modern Segmented Sub-Tab Switcher */}
+        <div
+          role="tablist"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '4px',
+            backgroundColor: isDark ? '#0f172a' : '#f1f5f9',
+            borderRadius: '10px',
+            border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
+          }}
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'structure'}
+            onClick={() => setActiveTab('structure')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 14px',
+              borderRadius: '8px',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: activeTab === 'structure' ? 700 : 500,
+              fontSize: '0.8125rem',
+              backgroundColor: activeTab === 'structure' ? (isDark ? '#1e293b' : '#ffffff') : 'transparent',
+              color: activeTab === 'structure' ? (isDark ? '#60a5fa' : '#2563eb') : (isDark ? '#94a3b8' : '#64748b'),
+              boxShadow: activeTab === 'structure' ? (isDark ? '0 1px 3px rgba(0,0,0,0.4)' : '0 1px 3px rgba(0,0,0,0.08)') : 'none',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <Network size={15} />
+            <span>{t('tab_org_structure', 'Sơ đồ tổ chức')}</span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'architecture'}
+            onClick={() => setActiveTab('architecture')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 14px',
+              borderRadius: '8px',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: activeTab === 'architecture' ? 700 : 500,
+              fontSize: '0.8125rem',
+              backgroundColor: activeTab === 'architecture' ? (isDark ? '#1e293b' : '#ffffff') : 'transparent',
+              color: activeTab === 'architecture' ? (isDark ? '#818cf8' : '#4f46e5') : (isDark ? '#94a3b8' : '#64748b'),
+              boxShadow: activeTab === 'architecture' ? (isDark ? '0 1px 3px rgba(0,0,0,0.4)' : '0 1px 3px rgba(0,0,0,0.08)') : 'none',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <Briefcase size={15} />
+            <span>{t('tab_job_architecture', 'Kiến trúc chức danh')}</span>
+          </button>
+        </div>
       </div>
 
-      {activeTab === 'structure' && <OrgStructureTab />}
-      {activeTab === 'architecture' && <JobArchitectureTab />}
+      <div style={{ marginTop: '4px' }}>
+        {activeTab === 'structure' && <OrgStructureTab />}
+        {activeTab === 'architecture' && <JobArchitectureTab />}
+      </div>
     </main>
   );
 }

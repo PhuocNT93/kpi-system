@@ -165,10 +165,9 @@ export function UserTable() {
           id="create-user-btn"
           onClick={() => setIsCreateOpen(true)}
           size="sm"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+          icon={<UserPlus size={15} />}
         >
-          <UserPlus size={15} />
-          <span>{t('iam.users.create_btn', 'Create User')}</span>
+          {t('iam.users.create_btn', 'Create User')}
         </Button>
       </div>
 
@@ -457,27 +456,25 @@ export function UserTable() {
 
                     {/* Actions */}
                     <td style={{ padding: '0.75rem 1rem', verticalAlign: 'middle', textAlign: 'right' }}>
-                      <div style={{ display: 'inline-flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                      <div style={{ display: 'inline-flex', gap: '0.5rem', justifyContent: 'flex-end', alignItems: 'center' }}>
                         <Button
                           variant="outlined"
                           size="sm"
+                          icon={<Edit2 size={12} />}
                           aria-label={`${t('common.edit', 'Edit')} ${user.name}`}
                           onClick={() => setEditingUser(user)}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                          style={{ padding: '0.25rem 0.55rem', fontSize: '0.75rem' }}
                         >
-                          <Edit2 size={12} />
-                          <span>{t('common.edit', 'Edit')}</span>
+                          {t('common.edit', 'Edit')}
                         </Button>
                         <Button
                           variant="secondary"
                           size="sm"
+                          icon={<Power size={12} />}
                           aria-label={`${user.isActive ? t('iam.users.deactivate', 'Deactivate') : t('iam.users.activate', 'Activate')} ${user.name}`}
                           onClick={() => setPendingToggle(user)}
                           style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.25rem',
-                            padding: '0.25rem 0.5rem',
+                            padding: '0.25rem 0.55rem',
                             fontSize: '0.75rem',
                             color: user.isActive ? (isDark ? '#f87171' : '#dc2626') : (isDark ? '#34d399' : '#059669'),
                             backgroundColor: isDark
@@ -488,8 +485,7 @@ export function UserTable() {
                               : (user.isActive ? '1px solid #fecaca' : '1px solid #a7f3d0'),
                           }}
                         >
-                          <Power size={12} />
-                          <span>{user.isActive ? t('iam.users.deactivate', 'Deactivate') : t('iam.users.activate', 'Activate')}</span>
+                          {user.isActive ? t('iam.users.deactivate', 'Deactivate') : t('iam.users.activate', 'Activate')}
                         </Button>
                       </div>
                     </td>
@@ -574,25 +570,23 @@ export function UserTable() {
                     {user.roleCode}
                   </span>
 
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                     <Button
                       variant="outlined"
                       size="sm"
+                      icon={<Edit2 size={12} />}
                       onClick={() => setEditingUser(user)}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                      style={{ padding: '0.25rem 0.55rem', fontSize: '0.75rem' }}
                     >
-                      <Edit2 size={12} />
-                      <span>{t('common.edit', 'Edit')}</span>
+                      {t('common.edit', 'Edit')}
                     </Button>
                     <Button
                       variant="secondary"
                       size="sm"
+                      icon={<Power size={12} />}
                       onClick={() => setPendingToggle(user)}
                       style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.25rem',
-                        padding: '0.25rem 0.5rem',
+                        padding: '0.25rem 0.55rem',
                         fontSize: '0.75rem',
                         color: user.isActive ? (isDark ? '#f87171' : '#dc2626') : (isDark ? '#34d399' : '#059669'),
                         backgroundColor: isDark
@@ -603,8 +597,7 @@ export function UserTable() {
                           : (user.isActive ? '1px solid #fecaca' : '1px solid #a7f3d0'),
                       }}
                     >
-                      <Power size={12} />
-                      <span>{user.isActive ? t('iam.users.deactivate', 'Deactivate') : t('iam.users.activate', 'Activate')}</span>
+                      {user.isActive ? t('iam.users.deactivate', 'Deactivate') : t('iam.users.activate', 'Activate')}
                     </Button>
                   </div>
                 </div>

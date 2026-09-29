@@ -307,10 +307,9 @@ export function RoleTable() {
           id="create-role-btn"
           onClick={() => setIsCreateOpen(true)}
           size="sm"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+          icon={<Plus size={15} />}
         >
-          <Plus size={15} />
-          <span>{t('iam.roles.create_btn', 'Create Role')}</span>
+          {t('iam.roles.create_btn', 'Create Role')}
         </Button>
       </div>
 
@@ -547,12 +546,12 @@ export function RoleTable() {
                       <Button
                         variant="outlined"
                         size="sm"
+                        icon={<Edit2 size={12} />}
                         aria-label={`Edit ${role.name}`}
                         onClick={() => setEditingRole(role)}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                        style={{ padding: '0.25rem 0.55rem', fontSize: '0.75rem' }}
                       >
-                        <Edit2 size={12} />
-                        <span>{t('common.edit', 'Edit')}</span>
+                        {t('common.edit', 'Edit')}
                       </Button>
                     </td>
                   </tr>
@@ -638,11 +637,11 @@ export function RoleTable() {
                   <Button
                     variant="outlined"
                     size="sm"
+                    icon={<Edit2 size={12} />}
                     onClick={() => setEditingRole(role)}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                    style={{ padding: '0.25rem 0.55rem', fontSize: '0.75rem' }}
                   >
-                    <Edit2 size={12} />
-                    <span>{t('common.edit', 'Edit')}</span>
+                    {t('common.edit', 'Edit')}
                   </Button>
                 </div>
               </div>

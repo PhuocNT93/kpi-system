@@ -251,7 +251,7 @@ export function OrgStructureTab() {
             
             <div style={{ marginBottom: '2rem' }}>
               <h3 style={{ margin: '0 0 1rem', fontSize: '1rem', color: subHeadingColor, borderBottom: `1px solid ${dividerColor}`, paddingBottom: '0.5rem' }}>
-                {t('all_departments', 'Departments')}
+                {t('departments_list', 'Danh sách Phòng ban')}
               </h3>
               <DepartmentTable />
             </div>

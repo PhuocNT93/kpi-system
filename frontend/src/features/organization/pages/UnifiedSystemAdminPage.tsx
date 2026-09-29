@@ -151,12 +151,12 @@ export const UnifiedSystemAdminPage: React.FC = () => {
       >
         <div className="unified-hub-header">
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div
                 className="unified-hub-icon"
                 style={{
-                  width: '38px',
-                  height: '38px',
+                  width: '40px',
+                  height: '40px',
                   borderRadius: RADII.lg,
                   backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff',
                   color: isDark ? '#93c5fd' : '#2563eb',
@@ -168,11 +168,13 @@ export const UnifiedSystemAdminPage: React.FC = () => {
               >
                 <Shield size={22} />
               </div>
-              <div>
+              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <h1
                   className="unified-hub-title"
                   style={{
                     color: isDark ? '#f8fafc' : '#0f172a',
+                    margin: 0,
+                    lineHeight: 1.25,
                   }}
                 >
                   {t('sysadmin.hub_title', 'Quản Trị Hệ Thống & Bảo Mật')}
@@ -235,19 +237,21 @@ export const UnifiedSystemAdminPage: React.FC = () => {
                   fontWeight: isActive ? 700 : 500,
                 }}
               >
-                <span style={{ color: isActive ? (isDark ? '#60a5fa' : '#2563eb') : (isDark ? '#64748b' : '#94a3b8') }}>
+                <span style={{ display: 'flex', alignItems: 'center', color: isActive ? (isDark ? '#60a5fa' : '#2563eb') : (isDark ? '#64748b' : '#94a3b8') }}>
                   {tab.icon}
                 </span>
                 <span>{t(tab.labelKey, tab.defaultLabel)}</span>
-                <span
-                  className="unified-hub-tab-badge"
-                  style={{
-                    backgroundColor: isDark ? tab.badgeBgDark : tab.badgeBg,
-                    color: isDark ? '#ffffff' : tab.badgeColor,
-                  }}
-                >
-                  {t(tab.badgeKey, tab.defaultBadge)}
-                </span>
+                {t(tab.labelKey, tab.defaultLabel).toLowerCase().trim() !== t(tab.badgeKey, tab.defaultBadge).toLowerCase().trim() && (
+                  <span
+                    className="unified-hub-tab-badge"
+                    style={{
+                      backgroundColor: isDark ? tab.badgeBgDark : tab.badgeBg,
+                      color: isDark ? '#ffffff' : tab.badgeColor,
+                    }}
+                  >
+                    {t(tab.badgeKey, tab.defaultBadge)}
+                  </span>
+                )}
               </button>
             );
           })}

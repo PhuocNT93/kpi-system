@@ -8,6 +8,7 @@ import type { OrgDepartment } from '../domain/organization-models';
 import { BulkActionBar } from './BulkActionBar';
 import { useTheme } from '../../../shared/theme';
 import { useOrganizationTranslation } from '../hooks/useOrganizationTranslation';
+import { Search } from 'lucide-react';
 
 export function DepartmentTable() {
   const { user } = useAuth();
@@ -25,7 +26,13 @@ export function DepartmentTable() {
   const bulkUpdateMutation = useBulkUpdateDepartments();
   const headerCheckboxRef = useRef<HTMLInputElement>(null);
 
-  const departments = departmentsQuery.data ?? [];
+  const [search, setSearch] = useState('');
+  const departments = (departmentsQuery.data ?? []).filter(
+    (d) =>
+      !search ||
+      d.name.toLowerCase().includes(search.toLowerCase()) ||
+      d.code.toLowerCase().includes(search.toLowerCase())
+  );
 
   const isAllSelected = departments.length > 0 && selectedIds.size === departments.length;
   const isIndeterminate = selectedIds.size > 0 && selectedIds.size < departments.length;
@@ -86,19 +93,40 @@ export function DepartmentTable() {
   const codeColor = isDark ? '#93c5fd' : '#2563eb';
 
   return (
-    <div style={{ paddingBottom: '6rem' }}>
-      {isAdmin && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
-          <Button id="create-department-btn" onClick={() => setIsCreateOpen(true)} size="sm">
-            + Create Department
-          </Button>
+    <div style={{ paddingBottom: selectedIds.size > 0 ? '5rem' : '0.5rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '1rem', flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', width: '260px' }}>
+          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('search_departments', 'Tìm phòng ban (tên, mã)...')}
+            style={{
+              width: '100%',
+              padding: '6px 12px 6px 30px',
+              fontSize: '0.8125rem',
+              borderRadius: '8px',
+              border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+              backgroundColor: isDark ? '#0f172a' : '#ffffff',
+              color: textColor,
+              outline: 'none',
+              boxSizing: 'border-box',
+            }}
+          />
         </div>
-      )}
+
+        {isAdmin && (
+          <Button id="create-department-btn" onClick={() => setIsCreateOpen(true)} size="sm">
+            + {t('create_department', 'Tạo phòng ban')}
+          </Button>
+        )}
+      </div>
 
       {departments.length === 0 ? (
-        <EmptyState message="No departments found." />
+        <EmptyState message="Không tìm thấy phòng ban nào." />
       ) : (
-        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', borderRadius: '8px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}` }}>
           <table style={{ width: '100%', minWidth: '540px', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr style={{ borderBottom: trHeaderBorder, backgroundColor: thBg }}>

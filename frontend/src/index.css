@@ -38,6 +38,11 @@
   box-sizing: border-box;
 }
 
+button svg {
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
 html,
 body,
 #root {
@@ -413,7 +418,7 @@ body,
 @media (min-width: 1024px) {
   .org-structure-layout {
     flex-direction: row;
-    gap: 1rem;
+    gap: 1.25rem;
     align-items: flex-start;
   }
 }
@@ -424,13 +429,30 @@ body,
   box-sizing: border-box;
   max-height: 380px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.org-tree-sidebar::-webkit-scrollbar {
+  width: 5px;
+}
+.org-tree-sidebar::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 9999px;
+}
+.dark .org-tree-sidebar {
+  scrollbar-color: #475569 transparent;
+}
+.dark .org-tree-sidebar::-webkit-scrollbar-thumb {
+  background-color: #475569;
 }
 
 @media (min-width: 1024px) {
   .org-tree-sidebar {
-    width: 260px;
-    max-height: none;
-    min-height: 520px;
+    width: 290px;
+    max-height: calc(100vh - 210px);
+    position: sticky;
+    top: 16px;
   }
 }
 
@@ -441,9 +463,10 @@ body,
 }
 
 .org-card {
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 1.25rem;
   box-sizing: border-box;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 @media (min-width: 768px) {
