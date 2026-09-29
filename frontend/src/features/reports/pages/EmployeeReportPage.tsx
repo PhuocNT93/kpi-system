@@ -1,115 +1,117 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '@/shared/auth/auth-context';
+import { useUiTranslation } from '@/shared/i18n/ui-i18n';
+import { RADII, TYPOGRAPHY } from '@/shared/theme';
+import { PageHeader, LoadingSpinner, ErrorAlert as ErrorDisplay } from '@/shared/components/ui';
+import { Award, Target, CalendarDays, Lock, ClipboardX, CalendarSearch, UserX } from 'lucide-react';
 import { useEmployeeReport } from '../hooks/use-reports';
+import { useReportPalette } from '../hooks/use-report-palette';
 import { ScoreCard } from '../components/ScoreCard';
 import { KpiBreakdown } from '../components/KpiBreakdown';
-import { DataAsOf } from '../components/DataAsOf';
 import { CycleSelector } from '../components/CycleSelector';
-import { PageHeader, LoadingSpinner, ErrorAlert as ErrorDisplay } from '@/shared/components/ui';
-import { Award, Target, CalendarDays, Lock, AlertCircle } from 'lucide-react';
-import { TYPOGRAPHY, COLORS, RADII, SHADOWS } from '@/shared/theme';
+import { ReportFilterBar } from '../components/ReportFilterBar';
+import { ReportEmptyState } from '../components/ReportEmptyState';
+import { reportPageStyle } from './report-page-layout';
 
-export const EmployeeReportPage: React.FC = () => {
+interface EmployeeReportPageProps {
+  isEmbedded?: boolean;
+}
+
+const formatScore = (value: number | null | undefined): string | null =>
+  value !== undefined && value !== null ? Number(value).toFixed(2) : null;
+
+export const EmployeeReportPage: React.FC<EmployeeReportPageProps> = ({ isEmbedded = false }) => {
   const { employeeId } = useParams<{ employeeId?: string }>();
   const { user } = useAuth();
+  const { t } = useUiTranslation();
+  const palette = useReportPalette();
   const [cycleId, setCycleId] = React.useState('');
 
-  const targetEmployeeId = (employeeId && employeeId !== 'me') ? employeeId : (user?.employeeId || 'me');
-
+  // Accounts without a linked employee profile (e.g. pure admin accounts) have no personal report.
+  const targetEmployeeId = employeeId && employeeId !== 'me' ? employeeId : user?.employeeId || '';
   const { data: response, isLoading, isError, error, refetch } = useEmployeeReport(targetEmployeeId, cycleId);
 
-  return (
-    <div style={{ padding: '32px', maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-        <PageHeader 
-          title="Performance Report" 
-          description="View your evaluation scores and KPI breakdown for the selected cycle."
-        />
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '12px' }}>
-          <CycleSelector 
-            label="" 
-            value={cycleId} 
-            onChange={setCycleId} 
-          />
-          {response?.dataAsOf && <DataAsOf timestamp={response.dataAsOf} />}
-          {response?.score?.isLocked && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#b45309', fontSize: TYPOGRAPHY.fontSize.sm }}>
-              <Lock size={14} /> Evaluation Locked
-            </div>
-          )}
-        </div>
-      </div>
+  const noScoreHint = t('reports.common.no_score_hint', 'Scores appear once evaluations are completed.');
+  const scoreCard = (title: string, value: number | null | undefined, icon: React.ReactNode, theme: 'primary' | 'info' | 'warning', subtitle?: string) => {
+    const formatted = formatScore(value);
+    return <ScoreCard title={title} score={formatted ?? '—'} subtitle={formatted ? subtitle : noScoreHint} icon={icon} theme={theme} />;
+  };
 
-      {!cycleId ? (
-        <div style={{
-          padding: '48px',
-          textAlign: 'center',
-          backgroundColor: COLORS.neutral.white,
-          borderRadius: RADII.xl,
-          boxShadow: SHADOWS.sm,
-          border: `1px solid ${COLORS.neutral[200]}`,
-          color: COLORS.neutral.textSecondary,
-        }}>
-          Please select an evaluation cycle from the dropdown above.
-        </div>
+  return (
+    <div style={reportPageStyle(isEmbedded)}>
+      {!isEmbedded && (
+        <PageHeader
+          title={t('reports.my.title', 'Performance Report')}
+          description={t('reports.my.description', 'View your evaluation scores and KPI breakdown for the selected cycle.')}
+        />
+      )}
+
+      <ReportFilterBar title={t('reports.common.filters', 'Report Filters')} dataAsOf={response?.dataAsOf}>
+        <CycleSelector
+          id="my-report-cycle"
+          label={t('reports.common.cycle', 'Evaluation Cycle')}
+          value={cycleId}
+          onChange={setCycleId}
+        />
+        {response?.score?.isLocked && (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              height: '38px',
+              padding: '0 12px',
+              borderRadius: RADII.md,
+              background: palette.tones.warning.bg,
+              color: palette.tones.warning.fg,
+              fontSize: TYPOGRAPHY.fontSize.sm,
+              fontWeight: 600,
+            }}
+          >
+            <Lock size={14} aria-hidden="true" /> {t('reports.my.locked', 'Evaluation Locked')}
+          </span>
+        )}
+      </ReportFilterBar>
+
+      {!targetEmployeeId ? (
+        <ReportEmptyState
+          icon={<UserX size={26} />}
+          title={t('reports.my.no_profile_title', 'No employee profile linked')}
+          description={t(
+            'reports.my.no_profile_desc',
+            'This account is not linked to an employee profile, so there is no personal report. Use the Team, Organization or KPI Summary tabs instead.'
+          )}
+        />
+      ) : !cycleId ? (
+        <ReportEmptyState
+          icon={<CalendarSearch size={26} />}
+          title={t('reports.common.select_cycle', 'Please select an evaluation cycle from the dropdown above.')}
+        />
       ) : isLoading ? (
         <div style={{ padding: '40px', display: 'flex', justifyContent: 'center' }}>
-          <LoadingSpinner label="Loading performance report..." />
+          <LoadingSpinner label={t('reports.my.loading', 'Loading performance report...')} />
         </div>
       ) : isError ? (
-        <div style={{ padding: '20px' }}>
-          <ErrorDisplay 
-            error={error instanceof Error ? error : new Error("You don't have permission to view this report or data is unavailable.")} 
-            onRetry={refetch}
-          />
-        </div>
+        <ErrorDisplay
+          error={error instanceof Error ? error : new Error(t('reports.common.load_error', "You don't have permission to view this report or data is unavailable."))}
+          onRetry={refetch}
+        />
       ) : !response || !response.score ? (
-        <div style={{
-          padding: '48px 24px',
-          textAlign: 'center',
-          backgroundColor: COLORS.neutral.white,
-          borderRadius: RADII.xl,
-          boxShadow: SHADOWS.sm,
-          border: `1px solid ${COLORS.neutral[200]}`,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '12px'
-        }}>
-          <AlertCircle size={36} color={COLORS.neutral[400]} />
-          <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.lg, color: COLORS.neutral.textPrimary }}>
-            No Evaluation Record
-          </h3>
-          <p style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary }}>
-            There is no evaluation record found for this cycle.
-          </p>
-        </div>
+        <ReportEmptyState
+          icon={<ClipboardX size={26} />}
+          title={t('reports.my.empty_title', 'No Evaluation Record')}
+          description={t('reports.my.empty_desc', 'There is no evaluation record found for this cycle.')}
+        />
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
-            <ScoreCard 
-              title="Final Score" 
-              score={response.score.finalScore !== undefined && response.score.finalScore !== null ? Number(response.score.finalScore).toFixed(2) : '-'} 
-              subtitle="Out of 100 points"
-              icon={<Award size={24} />}
-              theme="primary"
-            />
-            <ScoreCard 
-              title="Manager Score" 
-              score={response.score.managerScore !== undefined && response.score.managerScore !== null ? Number(response.score.managerScore).toFixed(2) : '-'} 
-              icon={<Target size={24} />}
-              theme="info"
-            />
-            <ScoreCard 
-              title="Self Score" 
-              score={response.score.selfScore !== undefined && response.score.selfScore !== null ? Number(response.score.selfScore).toFixed(2) : '-'} 
-              icon={<CalendarDays size={24} />}
-              theme="warning"
-            />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
+            {scoreCard(t('reports.my.final_score', 'Final Score'), response.score.finalScore, <Award size={24} />, 'primary', t('reports.common.out_of_100', 'Out of 100 points'))}
+            {scoreCard(t('reports.my.manager_score', 'Manager Score'), response.score.managerScore, <Target size={24} />, 'info')}
+            {scoreCard(t('reports.my.self_score', 'Self Score'), response.score.selfScore, <CalendarDays size={24} />, 'warning')}
           </div>
 
-          <KpiBreakdown kpis={response.kpis || []} title="Your KPI Breakdown" />
+          <KpiBreakdown kpis={response.kpis || []} title={t('reports.my.kpi_title', 'Your KPI Breakdown')} isScrollable={isEmbedded} />
         </>
       )}
     </div>

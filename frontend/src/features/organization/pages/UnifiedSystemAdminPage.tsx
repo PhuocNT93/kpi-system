@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/shared/auth/auth-context';
+import { humanizeRoleCode, roleLabelKey } from '@/shared/auth/role-label';
+import { SubTabs } from '@/shared/ui/SubTabs/SubTabs';
 import { RADII, TYPOGRAPHY, SHADOWS, useTheme } from '@/shared/theme';
 import { useUiTranslation } from '@/shared/i18n/ui-i18n';
 import {
@@ -19,6 +21,11 @@ import { I18nPage } from '@/features/i18n/pages/I18nPage';
 import { UserTable } from '@/features/iam/components/UserTable';
 import { RoleTable } from '@/features/iam/components/RoleTable';
 import { PermissionTable } from '@/features/iam/components/PermissionTable';
+import { useHubTabTooltip } from '@/shared/ui/HubTabTooltip/use-hub-tab-tooltip';
+import { useHeaderTrail } from '@/shared/layout/header-trail';
+
+// Below this the whole page scrolls instead of squeezing the tables.
+const HUB_PANEL_MIN_HEIGHT = '480px';
 
 export type SystemTabId = 'organization' | 'iam' | 'audit' | 'i18n';
 export type IamSubTabId = 'users' | 'roles' | 'permissions';
@@ -122,27 +129,27 @@ export const UnifiedSystemAdminPage: React.FC = () => {
     setSearchParams({ tab: tabId });
   };
 
-  const activeTabConfig = availableTabs.find((tab) => tab.id === activeTab);
-  // The audit table scrolls inside itself, so its tab must fill the remaining height.
-  const fillsHeight = activeTab === 'audit';
-  const fillStyle: React.CSSProperties = fillsHeight
-    ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }
-    : {};
+  const { tabHintProps, renderHintIcon, tooltip } = useHubTabTooltip();
+  const activeLabelConfig = availableTabs.find((tab) => tab.id === activeTab);
+  useHeaderTrail(activeLabelConfig ? t(activeLabelConfig.labelKey, activeLabelConfig.defaultLabel) : '');
+  const roleLabel = t(roleLabelKey(userRole), humanizeRoleCode(userRole));
 
   return (
     <div
       style={{
         width: '100%',
         boxSizing: 'border-box',
-        padding: fillsHeight ? 0 : '0 0 40px 0',
         marginTop: '8px',
-        ...fillStyle,
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
       {/* Top Banner & Tab Switcher Hub */}
       <div
         className="unified-hub-banner"
         style={{
+          flexShrink: 0,
           backgroundColor: isDark ? '#111827' : '#ffffff',
           borderRadius: RADII.xl,
           border: `1px solid ${isDark ? '#1f2937' : '#e2e8f0'}`,
@@ -151,12 +158,12 @@ export const UnifiedSystemAdminPage: React.FC = () => {
       >
         <div className="unified-hub-header">
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div
                 className="unified-hub-icon"
                 style={{
-                  width: '40px',
-                  height: '40px',
+                  width: '38px',
+                  height: '38px',
                   borderRadius: RADII.lg,
                   backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff',
                   color: isDark ? '#93c5fd' : '#2563eb',
@@ -168,25 +175,11 @@ export const UnifiedSystemAdminPage: React.FC = () => {
               >
                 <Shield size={22} />
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                <h1
-                  className="unified-hub-title"
-                  style={{
-                    color: isDark ? '#f8fafc' : '#0f172a',
-                    margin: 0,
-                    lineHeight: 1.25,
-                  }}
-                >
+              <div>
+                <h1 className="unified-hub-title" style={{ color: isDark ? '#f8fafc' : '#0f172a' }}>
                   {t('sysadmin.hub_title', 'Quản Trị Hệ Thống & Bảo Mật')}
                 </h1>
-                <p
-                  className="hide-on-mobile"
-                  style={{
-                    margin: '3px 0 0 0',
-                    fontSize: TYPOGRAPHY.fontSize.xs,
-                    color: isDark ? '#94a3b8' : '#64748b',
-                  }}
-                >
+                <p className="unified-hub-description hide-on-mobile" style={{ color: isDark ? '#94a3b8' : '#64748b' }}>
                   {t(
                     'sysadmin.hub_subtitle',
                     'Quản lý cơ cấu phòng ban, phân quyền tài khoản người dùng, nhật ký kiểm toán và cấu hình đa ngôn ngữ'
@@ -211,13 +204,14 @@ export const UnifiedSystemAdminPage: React.FC = () => {
               fontWeight: 700,
             }}
           >
-            <span>{t('common.role', 'Vai trò')}: {userRole}</span>
+            <span>{t('common.role', 'Vai trò')}: {roleLabel}</span>
           </div>
         </div>
 
         {/* Tab Selection Bar */}
         <div
           className="unified-hub-tabs"
+          role="tablist"
           style={{
             borderBottom: `1px solid ${isDark ? '#1f2937' : '#e2e8f0'}`,
           }}
@@ -228,7 +222,10 @@ export const UnifiedSystemAdminPage: React.FC = () => {
               <button
                 key={tab.id}
                 type="button"
+                role="tab"
+                aria-selected={isActive}
                 onClick={() => handleTabChange(tab.id)}
+                {...tabHintProps(t(tab.descriptionKey, tab.defaultDescription))}
                 className="unified-hub-tab-btn"
                 style={{
                   borderBottom: isActive ? `3px solid ${isDark ? '#60a5fa' : '#2563eb'}` : '3px solid transparent',
@@ -237,90 +234,49 @@ export const UnifiedSystemAdminPage: React.FC = () => {
                   fontWeight: isActive ? 700 : 500,
                 }}
               >
-                <span style={{ display: 'flex', alignItems: 'center', color: isActive ? (isDark ? '#60a5fa' : '#2563eb') : (isDark ? '#64748b' : '#94a3b8') }}>
+                <span style={{ color: isActive ? (isDark ? '#60a5fa' : '#2563eb') : (isDark ? '#64748b' : '#94a3b8') }}>
                   {tab.icon}
                 </span>
-                <span>{t(tab.labelKey, tab.defaultLabel)}</span>
-                {t(tab.labelKey, tab.defaultLabel).toLowerCase().trim() !== t(tab.badgeKey, tab.defaultBadge).toLowerCase().trim() && (
-                  <span
-                    className="unified-hub-tab-badge"
-                    style={{
-                      backgroundColor: isDark ? tab.badgeBgDark : tab.badgeBg,
-                      color: isDark ? '#ffffff' : tab.badgeColor,
-                    }}
-                  >
-                    {t(tab.badgeKey, tab.defaultBadge)}
-                  </span>
-                )}
+                <span className="unified-hub-tab-label" data-label={t(tab.labelKey, tab.defaultLabel)}>
+                  {t(tab.labelKey, tab.defaultLabel)}
+                </span>
+                <span
+                  className="unified-hub-tab-badge"
+                  style={{
+                    backgroundColor: isDark ? tab.badgeBgDark : tab.badgeBg,
+                    color: isDark ? '#ffffff' : tab.badgeColor,
+                  }}
+                >
+                  {t(tab.badgeKey, tab.defaultBadge)}
+                </span>
+                {renderHintIcon(t(tab.descriptionKey, tab.defaultDescription), isActive)}
               </button>
             );
           })}
         </div>
 
-        {activeTabConfig && (
-          <div
-            className="unified-hub-hint hide-on-mobile"
-            style={{
-              color: isDark ? '#94a3b8' : '#64748b',
-            }}
-          >
-            <span>💡 {t(activeTabConfig.descriptionKey, activeTabConfig.defaultDescription)}</span>
-          </div>
-        )}
+        {tooltip}
       </div>
 
-      {/* Tab Content Display Area */}
-      <div style={fillStyle}>
+      {/* Tab Content Display Area — does not scroll; each tab passes the height down to its main table */}
+      <div
+        role="tabpanel"
+        className="fill-column"
+        style={{ minHeight: HUB_PANEL_MIN_HEIGHT }}
+      >
         {activeTab === 'organization' && <OrganizationPage />}
         {activeTab === 'iam' && (
-          <div style={{ width: '100%', boxSizing: 'border-box' }}>
-            <div
-              style={{
-                display: 'flex',
-                gap: '8px',
-                marginBottom: '20px',
-                borderBottom: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
-                paddingBottom: '8px',
-              }}
-            >
-              {[
-                { id: 'users' as const, label: t('iam.tabs.users', 'Users'), icon: <UserCheck size={16} /> },
-                { id: 'roles' as const, label: t('iam.tabs.roles', 'Roles'), icon: <Lock size={16} /> },
-                { id: 'permissions' as const, label: t('iam.tabs.permissions', 'Permissions'), icon: <Key size={16} /> },
-              ].map((sub) => {
-                const isSubActive = iamSubTab === sub.id;
-                return (
-                  <button
-                    key={sub.id}
-                    type="button"
-                    onClick={() => setIamSubTab(sub.id)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '6px 14px',
-                      borderRadius: RADII.md,
-                      border: isSubActive
-                        ? `1px solid ${isDark ? '#3b82f6' : '#2563eb'}`
-                        : `1px solid ${isDark ? '#374151' : '#d1d5db'}`,
-                      backgroundColor: isSubActive
-                        ? (isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff')
-                        : 'transparent',
-                      color: isSubActive
-                        ? (isDark ? '#93c5fd' : '#1d4ed8')
-                        : (isDark ? '#94a3b8' : '#4b5563'),
-                      fontWeight: isSubActive ? 600 : 500,
-                      cursor: 'pointer',
-                      fontSize: '13px',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    {sub.icon}
-                    {sub.label}
-                  </button>
-                );
-              })}
-            </div>
+          <div className="fill-column">
+            <SubTabs<IamSubTabId>
+              ariaLabel={t('sysadmin.tab.iam', 'Tài khoản & Phân quyền')}
+              value={iamSubTab}
+              onChange={setIamSubTab}
+              items={[
+                { id: 'users', label: t('iam.tabs.users', 'Users'), icon: <UserCheck size={16} /> },
+                { id: 'roles', label: t('iam.tabs.roles', 'Roles'), icon: <Lock size={16} /> },
+                { id: 'permissions', label: t('iam.tabs.permissions', 'Permissions'), icon: <Key size={16} /> },
+              ]}
+            />
             {iamSubTab === 'users' && <UserTable />}
             {iamSubTab === 'roles' && <RoleTable />}
             {iamSubTab === 'permissions' && <PermissionTable />}

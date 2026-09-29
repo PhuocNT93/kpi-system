@@ -219,9 +219,9 @@ export class EvaluationGenerationService {
        FROM template_criteria tc
       LEFT JOIN template_kpi tk ON tk.template_criterion_id = tc.id
       LEFT JOIN kpi k ON tk.kpi_id = k.kpi_id
-       JOIN criterion_versions cv ON tc.criterion_version_id = cv.id
-       JOIN criteria c ON cv.criterion_id = c.id
-       JOIN scoring_rules sr ON cv.scoring_rule_id = sr.id
+      JOIN criterion_versions cv ON tc.criterion_version_id = cv.id
+      JOIN criteria c ON cv.criterion_id = c.id
+      LEFT JOIN scoring_rules sr ON cv.scoring_rule_id = sr.id
        WHERE tc.template_version_id = $1
        ORDER BY tc.display_order ASC, tk.display_order ASC`,
       [templateVersionId]
@@ -258,6 +258,7 @@ export class EvaluationGenerationService {
     const legacyCriterionIdByCurrentId = new Map<string, string>();
     const legacyCriterionVersionIdByCurrentId = new Map<string, string>();
     const legacyScoringRuleIdByCurrentId = new Map<string, string>();
+    let legacyFallbackScoringRuleId: string | undefined;
 
     const currentCriterionVersionIds = Array.from(
       new Set(criteriaWithApplicability.map((tc: Record<string, unknown>) => tc.criterion_version_id).filter(Boolean))
@@ -301,6 +302,7 @@ export class EvaluationGenerationService {
       );
 
       for (const row of criterionVersionMirrorRes.rows as Record<string, unknown>[]) {
+        const legacyTimestamp = new Date().toISOString();
         const currentScoringRuleId = row.current_scoring_rule_id as string | undefined;
         let legacyScoringRuleId: string | undefined = undefined;
         if (currentScoringRuleId) {
@@ -328,15 +330,51 @@ export class EvaluationGenerationService {
                 row.scoring_rule_type,
                 row.scoring_rule_config,
                 row.scoring_rule_name,
-                row.scoring_rule_created_at,
+                row.scoring_rule_created_at ?? legacyTimestamp,
                 row.scoring_rule_created_by,
-                row.scoring_rule_updated_at,
+                row.scoring_rule_updated_at ?? legacyTimestamp,
                 row.scoring_rule_updated_by,
               ]
             );
             legacyScoringRuleId = legacyScoringRuleInsertRes.rows[0].scoring_rule_id as string;
           }
           legacyScoringRuleIdByCurrentId.set(currentScoringRuleId, legacyScoringRuleId);
+        } else {
+          if (!legacyFallbackScoringRuleId) {
+            const fallbackRes = await dbClient.query(
+              `SELECT scoring_rule_id
+               FROM scoring_rule
+               WHERE rule_type = $1 AND rule_config = $2::jsonb
+               LIMIT 1`,
+              ['ORDINAL_MANUAL', '{}']
+            );
+            legacyFallbackScoringRuleId = fallbackRes.rows[0]?.scoring_rule_id as string | undefined;
+
+            if (!legacyFallbackScoringRuleId) {
+              const fallbackInsertRes = await dbClient.query(
+                `INSERT INTO scoring_rule (
+                   rule_type,
+                   rule_config,
+                   description,
+                   created_at,
+                   created_by,
+                   updated_at,
+                   updated_by
+                 ) VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7)
+                 RETURNING scoring_rule_id`,
+                [
+                  'ORDINAL_MANUAL',
+                  '{}',
+                  'Auto-generated fallback scoring rule for criteria without a scoring rule',
+                  row.scoring_rule_created_at ?? legacyTimestamp,
+                  row.scoring_rule_created_by,
+                  row.scoring_rule_updated_at ?? legacyTimestamp,
+                  row.scoring_rule_updated_by,
+                ]
+              );
+              legacyFallbackScoringRuleId = fallbackInsertRes.rows[0].scoring_rule_id as string;
+            }
+          }
         }
 
         const legacyCriterionRes = await dbClient.query(
@@ -405,11 +443,11 @@ export class EvaluationGenerationService {
               row.default_weight,
               row.measurement_unit,
               row.measurement_source_label,
-              legacyScoringRuleId,
+              legacyScoringRuleId ?? legacyFallbackScoringRuleId ?? null,
               row.effective_from ?? row.scoring_rule_created_at ?? new Date().toISOString(),
               row.effective_to,
               row.scoring_rule_status || 'DRAFT',
-              row.scoring_rule_created_at,
+              row.scoring_rule_created_at ?? legacyTimestamp,
               row.scoring_rule_created_by,
             ]
           );
@@ -473,9 +511,11 @@ export class EvaluationGenerationService {
       legacyCriterionIdByCurrentId.set(currentId, legacyInsertRes.rows[0].template_criterion_id as string);
     }
 
-    // Sum effective weight of enabled criteria
-    const enabledCriteria = criteriaWithApplicability.filter((tc: Record<string, unknown>) => !tc.is_disabled);
-    const totalWeight = enabledCriteria.reduce((sum: number, tc: Record<string, unknown>) => sum + parseFloat(tc.effective_weight as string), 0);
+    // Sum effective weight across all criteria so open-cycle validation uses the full template definition.
+    const totalWeight = criteriaWithApplicability.reduce(
+      (sum: number, tc: Record<string, unknown>) => sum + parseFloat(tc.effective_weight as string),
+      0
+    );
 
     // Defensive validation: weight sum must be 100%
     if (Math.abs(totalWeight - 100) > 0.01) {
@@ -662,10 +702,12 @@ export class EvaluationGenerationService {
           kpiCodeSnapshot: tc.kpi_code as string | undefined,
           kpiNameSnapshot: tc.kpi_name as string | undefined,
           kpiWeightSnapshot: parseFloat(tc.kpi_weight as string),
-          scoringRuleSnapshot: {
-            rule_type: tc.rule_type as string,
-            rule_config: typeof tc.rule_config === 'string' ? JSON.parse(tc.rule_config) : tc.rule_config,
-          },
+          scoringRuleSnapshot: tc.rule_type
+            ? {
+                rule_type: tc.rule_type as string,
+                rule_config: typeof tc.rule_config === 'string' ? JSON.parse(tc.rule_config) : tc.rule_config,
+              }
+            : null,
           levelDefinitionSnapshot: levels,
           resolvedLevel: null,
           rawScore: null,

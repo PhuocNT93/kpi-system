@@ -1,123 +1,88 @@
 import React from 'react';
+import { useUiTranslation } from '@/shared/i18n/ui-i18n';
+import { PageHeader, LoadingSpinner, ErrorAlert as ErrorDisplay } from '@/shared/components/ui';
+import { Building2, CheckCircle, CalendarSearch, Building } from 'lucide-react';
 import { useOrganizationReport } from '../hooks/use-reports';
 import { ScoreCard } from '../components/ScoreCard';
-import { DataAsOf } from '../components/DataAsOf';
 import { CycleSelector } from '../components/CycleSelector';
-import { PageHeader, LoadingSpinner, ErrorAlert as ErrorDisplay } from '@/shared/components/ui';
-import { Building2, CheckCircle, PieChart, AlertCircle } from 'lucide-react';
-import { Card } from '@/shared/components/Card';
-import { TYPOGRAPHY, RADII, SHADOWS } from '@/shared/theme';
-import { COLORS } from '@/lib/theme';
+import { ReportFilterBar } from '../components/ReportFilterBar';
+import { ReportEmptyState } from '../components/ReportEmptyState';
+import { ScoreDistributionBars } from '../components/ScoreDistributionBars';
+import { reportPageStyle } from './report-page-layout';
 
-export const OrganizationReportPage: React.FC = () => {
+interface OrganizationReportPageProps {
+  isEmbedded?: boolean;
+}
+
+export const OrganizationReportPage: React.FC<OrganizationReportPageProps> = ({ isEmbedded = false }) => {
+  const { t } = useUiTranslation();
   const [cycleId, setCycleId] = React.useState('');
 
   const { data: orgReport, isLoading, isError, error, refetch } = useOrganizationReport(cycleId);
-
   const orgData = orgReport?.data?.[0];
+  const averageScore =
+    orgData?.averageScore !== undefined && orgData?.averageScore !== null ? Number(orgData.averageScore).toFixed(2) : null;
 
   return (
-    <div style={{ padding: '32px', maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-        <PageHeader 
-          title="Organization Dashboard" 
-          description="View organizational performance and completion metrics across all departments and teams."
+    <div style={reportPageStyle(isEmbedded)}>
+      {!isEmbedded && (
+        <PageHeader
+          title={t('reports.org.title', 'Organization Dashboard')}
+          description={t('reports.org.description', 'View organizational performance and completion metrics across all departments and teams.')}
         />
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '12px' }}>
-          <CycleSelector 
-            label="" 
-            value={cycleId} 
-            onChange={setCycleId} 
-          />
-          {orgReport?.dataAsOf && <DataAsOf timestamp={orgReport.dataAsOf} />}
-        </div>
-      </div>
+      )}
+
+      <ReportFilterBar title={t('reports.common.filters', 'Report Filters')} dataAsOf={orgReport?.dataAsOf}>
+        <CycleSelector id="org-report-cycle" label={t('reports.common.cycle', 'Evaluation Cycle')} value={cycleId} onChange={setCycleId} />
+      </ReportFilterBar>
 
       {!cycleId ? (
-        <div style={{
-          padding: '48px',
-          textAlign: 'center',
-          backgroundColor: COLORS.neutral.white,
-          borderRadius: RADII.xl,
-          boxShadow: SHADOWS.sm,
-          border: `1px solid ${COLORS.neutral[200]}`,
-          color: COLORS.neutral.textSecondary,
-        }}>
-          Please select an evaluation cycle from the dropdown above.
-        </div>
+        <ReportEmptyState
+          icon={<CalendarSearch size={26} />}
+          title={t('reports.common.select_cycle', 'Please select an evaluation cycle from the dropdown above.')}
+        />
       ) : isLoading ? (
         <div style={{ padding: '40px', display: 'flex', justifyContent: 'center' }}>
-          <LoadingSpinner label="Loading organization dashboard..." />
+          <LoadingSpinner label={t('reports.org.loading', 'Loading organization dashboard...')} />
         </div>
       ) : isError ? (
-        <div style={{ padding: '20px' }}>
-          <ErrorDisplay 
-            error={error instanceof Error ? error : new Error("You don't have permission to view this report or data is unavailable.")} 
-            onRetry={refetch}
-          />
-        </div>
+        <ErrorDisplay
+          error={error instanceof Error ? error : new Error(t('reports.common.load_error', "You don't have permission to view this report or data is unavailable."))}
+          onRetry={refetch}
+        />
       ) : !orgData ? (
-        <div style={{
-          padding: '48px 24px',
-          textAlign: 'center',
-          backgroundColor: COLORS.neutral.white,
-          borderRadius: RADII.xl,
-          boxShadow: SHADOWS.sm,
-          border: `1px solid ${COLORS.neutral[200]}`,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '12px'
-        }}>
-          <AlertCircle size={36} color={COLORS.neutral[400]} />
-          <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.lg, color: COLORS.neutral.textPrimary }}>
-            No Organization Data
-          </h3>
-          <p style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary }}>
-            No organizational report data found for the selected cycle.
-          </p>
-        </div>
+        <ReportEmptyState
+          icon={<Building size={26} />}
+          title={t('reports.org.empty_title', 'No Organization Data')}
+          description={t('reports.org.empty_desc', 'No organizational report data found for the selected cycle.')}
+        />
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
-            <ScoreCard 
-              title="Organization Average Score" 
-              score={orgData.averageScore !== undefined && orgData.averageScore !== null ? Number(orgData.averageScore).toFixed(2) : '-'} 
-              subtitle="Out of 100 points"
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
+            <ScoreCard
+              title={t('reports.org.average_score', 'Organization Average Score')}
+              score={averageScore ?? '—'}
+              subtitle={
+                averageScore
+                  ? t('reports.common.out_of_100', 'Out of 100 points')
+                  : t('reports.common.no_score_hint', 'Scores appear once evaluations are completed.')
+              }
               icon={<Building2 size={24} />}
               theme="primary"
             />
-            <ScoreCard 
-              title="Overall Completion Rate" 
-              score={`${orgData.completionRate !== undefined && orgData.completionRate !== null ? Number(orgData.completionRate).toFixed(1) : 0}%`} 
-              subtitle={`${orgData.completedEmployeeCount ?? 0} / ${orgData.employeeCount ?? 0} Employees Completed`}
+            <ScoreCard
+              title={t('reports.org.completion_rate', 'Overall Completion Rate')}
+              score={`${orgData.completionRate !== undefined && orgData.completionRate !== null ? Number(orgData.completionRate).toFixed(1) : 0}%`}
+              subtitle={t('reports.common.completed_of', '{completed} / {total} Employees Completed', {
+                completed: orgData.completedEmployeeCount ?? 0,
+                total: orgData.employeeCount ?? 0,
+              })}
               icon={<CheckCircle size={24} />}
               theme={orgData.completionRate === 100 ? 'success' : 'warning'}
             />
           </div>
 
-          <Card style={{ padding: '24px', boxShadow: SHADOWS.sm, border: `1px solid ${COLORS.neutral[200]}`, borderRadius: RADII.xl }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-              <div style={{ backgroundColor: COLORS.primary[100], padding: '8px', borderRadius: RADII.md }}>
-                <PieChart size={20} color={COLORS.primary[600]} />
-              </div>
-              <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.lg, fontWeight: TYPOGRAPHY.fontWeight.semibold }}>
-                Score Distribution
-              </h3>
-            </div>
-            
-            {orgData.scoreDistribution && Object.keys(orgData.scoreDistribution).length > 0 ? (
-              <div style={{ padding: '20px', backgroundColor: COLORS.neutral[50], borderRadius: RADII.md }}>
-                <pre style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary }}>
-                  {JSON.stringify(orgData.scoreDistribution, null, 2)}
-                </pre>
-              </div>
-            ) : (
-              <p style={{ color: COLORS.neutral.textSecondary, textAlign: 'center', padding: '20px' }}>
-                No score distribution data available for this cycle yet.
-              </p>
-            )}
-          </Card>
+          <ScoreDistributionBars distribution={orgData.scoreDistribution} />
         </>
       )}
     </div>

@@ -10,8 +10,11 @@ import { BulkActionBar } from './BulkActionBar';
 import { useTheme } from '../../../shared/theme';
 import { useOrganizationTranslation } from '../hooks/useOrganizationTranslation';
 import { Search } from 'lucide-react';
+import { useTableHeaderOffset } from '@/shared/hooks/use-table-header-offset';
+import type { CreateControl } from './create-control';
 
-export function TeamTable({ departmentId }: { departmentId?: string }) {
+export function TeamTable({ departmentId, createControl }: { departmentId?: string; createControl?: CreateControl }) {
+  const tableFrameRef = useTableHeaderOffset<HTMLDivElement>();
   const { user } = useAuth();
   const { isDark } = useTheme();
   const { t } = useOrganizationTranslation();
@@ -21,7 +24,9 @@ export function TeamTable({ departmentId }: { departmentId?: string }) {
 
   const teamsQuery = useTeams(filters);
   const [editingTeam, setEditingTeam] = useState<OrgTeam | undefined>();
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [ownCreateOpen, setOwnCreateOpen] = useState(false);
+  const isCreateOpen = createControl?.isOpen ?? ownCreateOpen;
+  const setIsCreateOpen = createControl?.onOpenChange ?? setOwnCreateOpen;
   const [deactivatingTeam, setDeactivatingTeam] = useState<OrgTeam | null>(null);
 
   // Bulk action state
@@ -96,6 +101,7 @@ export function TeamTable({ departmentId }: { departmentId?: string }) {
   const textColor = isDark ? '#f8fafc' : '#111827';
   const codeColor = isDark ? '#93c5fd' : '#2563eb';
 
+  // Only the table scrolls; the extra bottom space keeps the last row clear of the fixed bulk action bar.
   return (
     <div style={{ paddingBottom: selectedIds.size > 0 ? '5rem' : '0.5rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '1rem', flexWrap: 'wrap' }}>
@@ -130,8 +136,8 @@ export function TeamTable({ departmentId }: { departmentId?: string }) {
       {teams.length === 0 ? (
         <EmptyState message="Không tìm thấy đội nhóm nào." />
       ) : (
-        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', borderRadius: '8px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}` }}>
-          <table style={{ width: '100%', minWidth: '540px', borderCollapse: 'collapse', textAlign: 'left' }}>
+        <div ref={tableFrameRef} className="table-scroll-frame" style={{ paddingBottom: selectedIds.size > 0 ? '6rem' : 0 }}>
+          <table style={{ width: '100%', minWidth: '580px', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr style={{ borderBottom: trHeaderBorder, backgroundColor: thBg }}>
                 {isAdmin && (
@@ -148,8 +154,8 @@ export function TeamTable({ departmentId }: { departmentId?: string }) {
                 )}
                 <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_code', 'Code')}</th>
                 <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_name', 'Name')}</th>
-                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_status', 'Status')}</th>
-                {isAdmin && <th style={{ padding: '0.75rem 1rem', width: '150px', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_actions', 'Actions')}</th>}
+                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('org.col.status', 'Status')}</th>
+                {isAdmin && <th style={{ padding: '0.75rem 1rem', width: '150px', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('org.col.actions', 'Actions')}</th>}
               </tr>
             </thead>
             <tbody>

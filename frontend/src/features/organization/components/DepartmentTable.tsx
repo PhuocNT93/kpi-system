@@ -9,8 +9,11 @@ import { BulkActionBar } from './BulkActionBar';
 import { useTheme } from '../../../shared/theme';
 import { useOrganizationTranslation } from '../hooks/useOrganizationTranslation';
 import { Search } from 'lucide-react';
+import { useTableHeaderOffset } from '@/shared/hooks/use-table-header-offset';
+import type { CreateControl } from './create-control';
 
-export function DepartmentTable() {
+export function DepartmentTable({ createControl }: { createControl?: CreateControl } = {}) {
+  const tableFrameRef = useTableHeaderOffset<HTMLDivElement>();
   const { user } = useAuth();
   const { isDark } = useTheme();
   const { t } = useOrganizationTranslation();
@@ -18,7 +21,9 @@ export function DepartmentTable() {
   
   const departmentsQuery = useDepartments();
   const [editingDepartment, setEditingDepartment] = useState<OrgDepartment | undefined>();
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [ownCreateOpen, setOwnCreateOpen] = useState(false);
+  const isCreateOpen = createControl?.isOpen ?? ownCreateOpen;
+  const setIsCreateOpen = createControl?.onOpenChange ?? setOwnCreateOpen;
 
   // Bulk action state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -92,8 +97,9 @@ export function DepartmentTable() {
   const textColor = isDark ? '#f8fafc' : '#111827';
   const codeColor = isDark ? '#93c5fd' : '#2563eb';
 
+  // Only the table scrolls; the extra bottom space keeps the last row clear of the fixed bulk action bar.
   return (
-    <div style={{ paddingBottom: selectedIds.size > 0 ? '5rem' : '0.5rem' }}>
+    <div className="fill-column" style={{ paddingBottom: selectedIds.size > 0 ? '5rem' : '0.5rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '1rem', flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', width: '260px' }}>
           <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
@@ -116,7 +122,7 @@ export function DepartmentTable() {
           />
         </div>
 
-        {isAdmin && (
+        {isAdmin && !createControl && (
           <Button id="create-department-btn" onClick={() => setIsCreateOpen(true)} size="sm">
             + {t('create_department', 'Tạo phòng ban')}
           </Button>
@@ -126,7 +132,7 @@ export function DepartmentTable() {
       {departments.length === 0 ? (
         <EmptyState message="Không tìm thấy phòng ban nào." />
       ) : (
-        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', borderRadius: '8px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}` }}>
+        <div ref={tableFrameRef} className="table-scroll-frame" style={{ borderRadius: '8px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, paddingBottom: selectedIds.size > 0 ? '6rem' : 0 }}>
           <table style={{ width: '100%', minWidth: '540px', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr style={{ borderBottom: trHeaderBorder, backgroundColor: thBg }}>
@@ -144,8 +150,8 @@ export function DepartmentTable() {
                 )}
                 <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_code', 'Code')}</th>
                 <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_name', 'Name')}</th>
-                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_status', 'Status')}</th>
-                {isAdmin && <th style={{ padding: '0.75rem 1rem', width: '150px', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('col_actions', 'Actions')}</th>}
+                <th style={{ padding: '0.75rem 1rem', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('org.col.status', 'Status')}</th>
+                {isAdmin && <th style={{ padding: '0.75rem 1rem', width: '150px', color: thColor, fontWeight: 600, fontSize: '0.8125rem' }}>{t('org.col.actions', 'Actions')}</th>}
               </tr>
             </thead>
             <tbody>

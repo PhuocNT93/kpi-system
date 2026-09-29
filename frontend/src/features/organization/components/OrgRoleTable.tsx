@@ -9,8 +9,11 @@ import { BulkActionBar } from './BulkActionBar';
 import { useTheme } from '../../../shared/theme';
 import { useOrganizationTranslation } from '../hooks/useOrganizationTranslation';
 import { Search } from 'lucide-react';
+import { useTableHeaderOffset } from '@/shared/hooks/use-table-header-offset';
+import type { CreateControl } from './create-control';
 
-export function OrgRoleTable() {
+export function OrgRoleTable({ createControl }: { createControl?: CreateControl } = {}) {
+  const tableFrameRef = useTableHeaderOffset<HTMLDivElement>();
   const { user } = useAuth();
   const { isDark } = useTheme();
   const { t } = useOrganizationTranslation();
@@ -18,7 +21,9 @@ export function OrgRoleTable() {
   
   const rolesQuery = useJobRoles();
   const [editingRole, setEditingRole] = useState<OrgJobRole | undefined>();
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [ownCreateOpen, setOwnCreateOpen] = useState(false);
+  const isCreateOpen = createControl?.isOpen ?? ownCreateOpen;
+  const setIsCreateOpen = createControl?.onOpenChange ?? setOwnCreateOpen;
 
   // Bulk action state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -103,6 +108,7 @@ export function OrgRoleTable() {
     color: isDark ? '#f8fafc' : '#111827',
   };
 
+  // Only the table scrolls; the extra bottom space keeps the last row clear of the fixed bulk action bar.
   return (
     <div style={{ paddingBottom: selectedIds.size > 0 ? '5rem' : '0.5rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '1rem', flexWrap: 'wrap' }}>
@@ -137,8 +143,8 @@ export function OrgRoleTable() {
       {roles.length === 0 ? (
         <EmptyState message={t('empty_roles', 'Không tìm thấy chức danh nào.')} />
       ) : (
-        <div style={{ overflowX: 'auto', maxHeight: '420px', overflowY: 'auto', borderRadius: '8px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}` }}>
-          <table style={{ width: '100%', minWidth: '500px', borderCollapse: 'collapse', textAlign: 'left' }}>
+        <div ref={tableFrameRef} className="table-scroll-frame" style={{ paddingBottom: selectedIds.size > 0 ? '6rem' : 0 }}>
+          <table style={{ width: '100%', minWidth: '540px', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr
                 style={{
@@ -159,8 +165,8 @@ export function OrgRoleTable() {
                 )}
                 <th style={thStyle}>{t('col_code', 'Code')}</th>
                 <th style={thStyle}>{t('col_name', 'Name')}</th>
-                <th style={thStyle}>{t('col_status', 'Status')}</th>
-                {isAdmin && <th style={{ ...thStyle, width: '150px' }}>{t('col_actions', 'Actions')}</th>}
+                <th style={thStyle}>{t('org.col.status', 'Status')}</th>
+                {isAdmin && <th style={{ ...thStyle, width: '150px' }}>{t('org.col.actions', 'Actions')}</th>}
               </tr>
             </thead>
             <tbody>

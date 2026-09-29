@@ -568,8 +568,8 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
       return;
     }
 
-    setPreviousEvaluationText((current) => current || `Previous evaluation snapshot\n- Final score: ${detail.final_score ?? 'N/A'}\n- Self score: ${detail.self_score ?? 'N/A'}\n- Manager score: ${detail.manager_score ?? 'N/A'}\n- Approved at: ${detail.approved_at ?? 'N/A'}`);
-    setCurrentEvaluationText((current) => current || `This evaluation notes\n- Status: ${detail.status}\n- Final score: ${detail.final_score ?? 'N/A'}\n- Key items: ${detail.items.length}`);
+    setPreviousEvaluationText((current) => current || detail.previous_evaluation || '');
+    setCurrentEvaluationText((current) => current || detail.this_evaluation || `This evaluation notes\n- Status: ${detail.status}\n- Final score: ${detail.final_score ?? 'N/A'}\n- Key items: ${detail.items.length}`);
   }, [detail]);
 
   useEffect(() => {
@@ -638,6 +638,28 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
       showToast('error', err.message || 'Không thể lưu kế hoạch phát triển cá nhân.');
     },
   });
+
+  const saveComparisonNotesMutation = useMutation({
+    mutationFn: async () => {
+      if (!id) {
+        throw new Error('Missing evaluation id');
+      }
+
+      await evaluationApi.saveComparisonNotes(id, {
+        previous_evaluation: previousEvaluationText,
+        this_evaluation: currentEvaluationText,
+      });
+    },
+    onSuccess: () => {
+      showToast('success', 'Đã lưu Previous/This Evaluation.');
+      queryClient.invalidateQueries({ queryKey: ['evaluation-detail', id] });
+    },
+    onError: (err: Error) => {
+      showToast('error', err.message || 'Không thể lưu Previous/This Evaluation.');
+    },
+  });
+
+  const hasPreviousEvaluation = Boolean(previousEvaluationText.trim());
 
   const handleApplyAllSystemSuggestions = () => {
     if (!detail?.items) return;
@@ -977,12 +999,14 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
       />
 
       <EvaluationComparisonEditorPanel
-        previousValue={previousEvaluationText}
+        previousValue={hasPreviousEvaluation ? previousEvaluationText : ''}
         currentValue={currentEvaluationText}
         onPreviousChange={setPreviousEvaluationText}
         onCurrentChange={setCurrentEvaluationText}
         onCopyPreviousToCurrent={() => setCurrentEvaluationText(previousEvaluationText)}
         onClearCurrent={() => setCurrentEvaluationText('')}
+        onSave={() => saveComparisonNotesMutation.mutate()}
+        isSaving={saveComparisonNotesMutation.isPending}
       />
 
       {detail.scoring_breakdown && (

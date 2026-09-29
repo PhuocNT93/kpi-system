@@ -7,18 +7,18 @@ import { Button } from '../../../shared/ui/Button/Button';
 import type { IamUser } from '../domain/iam-models';
 import { useTheme } from '@/shared/theme';
 import { useUiTranslation } from '@/shared/i18n/ui-i18n';
+import { useTableHeaderOffset } from '@/shared/hooks/use-table-header-offset';
 import {
   Search,
   X,
-  Filter,
-  UserPlus,
   LayoutGrid,
   Table as TableIcon,
   Users,
-  Shield,
   Edit2,
   Power,
 } from 'lucide-react';
+import { FilterField } from '@/shared/ui/FilterField/FilterField';
+import { FILTER_CONTROL_HEIGHT, useFilterControlStyle } from '@/shared/ui/FilterField/use-filter-control-style';
 
 const ROLE_BADGE_STYLES: Record<string, { bg: string; darkBg: string; text: string; darkText: string; border: string; darkBorder: string }> = {
   SYSTEM_ADMIN: {
@@ -56,6 +56,8 @@ const ROLE_BADGE_STYLES: Record<string, { bg: string; darkBg: string; text: stri
 };
 
 export function UserTable() {
+  const tableFrameRef = useTableHeaderOffset<HTMLDivElement>();
+  const { controlStyle } = useFilterControlStyle();
   const { isDark } = useTheme();
   const { t } = useUiTranslation();
 
@@ -126,7 +128,7 @@ export function UserTable() {
   };
 
   return (
-    <div style={{ width: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+    <div style={{ width: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '1.25rem', flex: 1 }}>
       {/* ── Top Header Toolbar ──────────────────────────────────────── */}
       <div
         style={{
@@ -168,6 +170,9 @@ export function UserTable() {
           icon={<UserPlus size={15} />}
         >
           {t('iam.users.create_btn', 'Create User')}
+        {/* Same look as the organization create buttons ("+ Create Department"). */}
+        <Button id="create-user-btn" onClick={() => setIsCreateOpen(true)} size="sm">
+          + {t('iam.users.create_btn', 'Create User')}
         </Button>
       </div>
 
@@ -177,13 +182,14 @@ export function UserTable() {
           display: 'flex',
           flexWrap: 'wrap',
           gap: '0.75rem',
-          alignItems: 'center',
+          alignItems: 'flex-end',
           justifyContent: 'space-between',
         }}
       >
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', flex: '1 1 300px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'flex-end', flex: '1 1 300px' }}>
           {/* Search Input */}
-          <div style={{ position: 'relative', flex: '1 1 220px', maxWidth: '380px' }}>
+          <FilterField id="iam-user-search" label={t('iam.filter.search', 'Search')} flex="1 1 260px" maxWidth="420px">
+            <div style={{ position: 'relative' }}>
             <Search
               size={16}
               style={{
@@ -200,18 +206,9 @@ export function UserTable() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('iam.users.search_placeholder', 'Search by name, email, role...')}
-              aria-label="Search users"
-              style={{
-                width: '100%',
-                boxSizing: 'border-box',
-                padding: '0.5rem 2.25rem 0.5rem 2.25rem',
-                fontSize: '0.85rem',
-                borderRadius: '8px',
-                border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
-                backgroundColor: isDark ? '#0f172a' : '#ffffff',
-                color: isDark ? '#f8fafc' : '#0f172a',
-                outline: 'none',
-              }}
+              id="iam-user-search"
+            aria-label="Search users"
+              style={{ ...controlStyle, padding: '0 2.25rem' }}
             />
             {searchQuery && (
               <button
@@ -236,24 +233,16 @@ export function UserTable() {
               </button>
             )}
           </div>
+          </FilterField>
 
           {/* Role Filter */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-            <Shield size={14} color={isDark ? '#94a3b8' : '#64748b'} />
+          <FilterField id="iam-user-role" label={t('iam.filter.role', 'Role')}>
             <select
+              id="iam-user-role"
               value={selectedRole}
               onChange={(e) => setSelectedRole(e.target.value)}
               aria-label="Filter by role"
-              style={{
-                padding: '0.5rem 0.75rem',
-                fontSize: '0.825rem',
-                borderRadius: '8px',
-                border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
-                backgroundColor: isDark ? '#0f172a' : '#ffffff',
-                color: isDark ? '#f8fafc' : '#0f172a',
-                cursor: 'pointer',
-                outline: 'none',
-              }}
+              style={{ ...controlStyle, cursor: 'pointer' }}
             >
               <option value="ALL">{t('iam.users.all_roles', 'All Roles')}</option>
               {allRoles.map((role) => (
@@ -262,37 +251,32 @@ export function UserTable() {
                 </option>
               ))}
             </select>
-          </div>
+          </FilterField>
 
           {/* Status Filter */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-            <Filter size={14} color={isDark ? '#94a3b8' : '#64748b'} />
+          <FilterField id="iam-user-status" label={t('iam.filter.status', 'Status')}>
             <select
+              id="iam-user-status"
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value as 'ALL' | 'ACTIVE' | 'INACTIVE')}
               aria-label="Filter by status"
-              style={{
-                padding: '0.5rem 0.75rem',
-                fontSize: '0.825rem',
-                borderRadius: '8px',
-                border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
-                backgroundColor: isDark ? '#0f172a' : '#ffffff',
-                color: isDark ? '#f8fafc' : '#0f172a',
-                cursor: 'pointer',
-                outline: 'none',
-              }}
+              style={{ ...controlStyle, cursor: 'pointer' }}
             >
               <option value="ALL">{t('common.all_statuses', 'All Statuses')}</option>
               <option value="ACTIVE">{t('common.active', 'Active')}</option>
               <option value="INACTIVE">{t('common.inactive', 'Inactive')}</option>
             </select>
-          </div>
+          </FilterField>
         </div>
 
         {/* View Mode Switcher */}
         <div
           style={{
             display: 'flex',
+            // Same height as the filter controls so it lines up with them.
+            height: FILTER_CONTROL_HEIGHT,
+            boxSizing: 'border-box',
+            alignItems: 'stretch',
             borderRadius: '8px',
             padding: '2px',
             backgroundColor: isDark ? '#0f172a' : '#f1f5f9',
@@ -352,10 +336,10 @@ export function UserTable() {
       ) : viewMode === 'table' ? (
         /* Desktop / Tablet Table View */
         <div
+          ref={tableFrameRef}
+          className="table-scroll-frame"
           style={{
             width: '100%',
-            overflowX: 'auto',
-            WebkitOverflowScrolling: 'touch',
             border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
             borderRadius: '12px',
             backgroundColor: isDark ? '#1e293b' : '#ffffff',
@@ -462,6 +446,7 @@ export function UserTable() {
                           size="sm"
                           icon={<Edit2 size={12} />}
                           aria-label={`${t('common.edit', 'Edit')} ${user.name}`}
+                          title={t('common.edit', 'Edit')}
                           onClick={() => setEditingUser(user)}
                           style={{ padding: '0.25rem 0.55rem', fontSize: '0.75rem' }}
                         >
@@ -472,6 +457,7 @@ export function UserTable() {
                           size="sm"
                           icon={<Power size={12} />}
                           aria-label={`${user.isActive ? t('iam.users.deactivate', 'Deactivate') : t('iam.users.activate', 'Activate')} ${user.name}`}
+                          title={user.isActive ? t('iam.users.deactivate', 'Deactivate') : t('iam.users.activate', 'Activate')}
                           onClick={() => setPendingToggle(user)}
                           style={{
                             padding: '0.25rem 0.55rem',
@@ -498,7 +484,9 @@ export function UserTable() {
       ) : (
         /* Mobile / Cards View */
         <div
+          className="table-scroll-frame"
           style={{
+            alignContent: 'start',
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
             gap: '1rem',

@@ -185,7 +185,7 @@ export function DepartmentFormModal({ isOpen, department, onClose }: DepartmentF
                    {...register('active' as keyof UpdateFormValues)}
                  />
                  <label htmlFor="dept-active" style={{ fontWeight: 500, fontSize: '0.875rem', color: labelColor }}>
-                   {t('col_status', 'Active')}
+                   {t('org.field.active', 'Active')}
                  </label>
                </div>
                {(errors as Record<string, { message?: string }>).active && (

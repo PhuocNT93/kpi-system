@@ -13,6 +13,8 @@ import {
 import { NotificationPreferencesPage } from './NotificationPreferencesPage';
 import { NotificationTemplatesPage } from './NotificationTemplatesPage';
 import { NotificationLogPage } from './NotificationLogPage';
+import { useHubTabTooltip } from '@/shared/ui/HubTabTooltip/use-hub-tab-tooltip';
+import { useHeaderTrail } from '@/shared/layout/header-trail';
 
 export type NotificationTabId = 'preferences' | 'templates' | 'logs';
 
@@ -102,7 +104,9 @@ export const UnifiedNotificationsPage: React.FC = () => {
     setSearchParams({ tab: tabId });
   };
 
-  const activeTabConfig = availableTabs.find((tab) => tab.id === activeTab);
+  const { tabHintProps, renderHintIcon, tooltip } = useHubTabTooltip();
+  const activeLabelConfig = availableTabs.find((tab) => tab.id === activeTab);
+  useHeaderTrail(activeLabelConfig ? t(activeLabelConfig.labelKey, activeLabelConfig.defaultLabel) : '');
 
   return (
     <div style={{ width: '100%', boxSizing: 'border-box', padding: '0 0 40px 0', marginTop: '8px' }}>
@@ -137,22 +141,10 @@ export const UnifiedNotificationsPage: React.FC = () => {
                 <Bell size={22} />
               </div>
               <div>
-                <h1
-                  className="unified-hub-title"
-                  style={{
-                    color: isDark ? '#f8fafc' : '#0f172a',
-                  }}
-                >
+                <h1 className="unified-hub-title" style={{ color: isDark ? '#f8fafc' : '#0f172a' }}>
                   {t('notifications.hub_title', 'Trung Tâm Thông Báo & Email (Notifications Hub)')}
                 </h1>
-                <p
-                  className="hide-on-mobile"
-                  style={{
-                    margin: '3px 0 0 0',
-                    fontSize: TYPOGRAPHY.fontSize.xs,
-                    color: isDark ? '#94a3b8' : '#64748b',
-                  }}
-                >
+                <p className="unified-hub-description hide-on-mobile" style={{ color: isDark ? '#94a3b8' : '#64748b' }}>
                   {t(
                     'notifications.hub_subtitle',
                     'Cấu hình tùy chọn nhận tin cá nhân, quản lý thông báo và theo dõi lịch sử gửi theo phân quyền'
@@ -196,6 +188,7 @@ export const UnifiedNotificationsPage: React.FC = () => {
                 key={tab.id}
                 type="button"
                 onClick={() => handleTabChange(tab.id)}
+                {...tabHintProps(t(tab.descriptionKey, tab.defaultDescription))}
                 className="unified-hub-tab-btn"
                 style={{
                   borderBottom: isActive ? `3px solid ${isDark ? '#60a5fa' : '#2563eb'}` : '3px solid transparent',
@@ -207,7 +200,9 @@ export const UnifiedNotificationsPage: React.FC = () => {
                 <span style={{ color: isActive ? (isDark ? '#60a5fa' : '#2563eb') : (isDark ? '#64748b' : '#94a3b8') }}>
                   {tab.icon}
                 </span>
-                <span>{t(tab.labelKey, tab.defaultLabel)}</span>
+                <span className="unified-hub-tab-label" data-label={t(tab.labelKey, tab.defaultLabel)}>
+                  {t(tab.labelKey, tab.defaultLabel)}
+                </span>
                 <span
                   className="unified-hub-tab-badge"
                   style={{
@@ -217,22 +212,14 @@ export const UnifiedNotificationsPage: React.FC = () => {
                 >
                   {t(tab.badgeKey, tab.defaultBadge)}
                 </span>
+                {renderHintIcon(t(tab.descriptionKey, tab.defaultDescription), isActive)}
               </button>
             );
           })}
         </div>
 
         {/* Active Tab Description Notice */}
-        {activeTabConfig && (
-          <div
-            className="unified-hub-hint hide-on-mobile"
-            style={{
-              color: isDark ? '#94a3b8' : '#64748b',
-            }}
-          >
-            <span>💡 {t(activeTabConfig.descriptionKey, activeTabConfig.defaultDescription)}</span>
-          </div>
-        )}
+        {tooltip}
       </div>
 
       {/* Tab Content Display Area */}

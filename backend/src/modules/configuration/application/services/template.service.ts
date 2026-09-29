@@ -441,37 +441,36 @@ export class TemplateService {
       throw new ValidationError('Template criteria validation failed.', validation.errors.map(e => ({ field: e.path, code: e.code, message: e.message })));
     }
 
-      await client.query('DELETE FROM template_kpi WHERE template_version_id = $1', [templateVersionId]);
-      await client.query('DELETE FROM template_criteria WHERE template_version_id = $1', [templateVersionId]);
+      const updated = await this.templateCriterionRepo.replaceAllForVersion(
+        templateVersionId,
+        mappedItems.map((item) => ({ ...item, template_version_id: templateVersionId })),
+        client
+      );
 
       const clientIdToCriterionId = new Map<string, string>();
-      const updated: TemplateCriterion[] = [];
-      for (const item of mappedItems) {
-        const created = await this.templateCriterionRepo.create({ ...item, template_version_id: templateVersionId }, client);
-        updated.push(created);
-        if (item.client_id) {
-          clientIdToCriterionId.set(item.client_id, created.id);
+      mappedItems.forEach((item, index) => {
+        if (item.client_id && updated[index]) {
+          clientIdToCriterionId.set(item.client_id, updated[index].id);
         }
-      }
+      });
 
-      const updatedKpis: TemplateKpi[] = [];
-      if (Array.isArray(kpiItems)) {
-        for (const item of kpiItems) {
-          const mappedCriterionId = item.client_criterion_id
-            ? clientIdToCriterionId.get(item.client_criterion_id) ?? null
-            : item.template_criterion_id
-              ? clientIdToCriterionId.get(item.template_criterion_id) ?? item.template_criterion_id
-              : null;
-          const createdKpi = await this.templateKpiRepo.create({
-            template_version_id: templateVersionId,
-            template_criterion_id: mappedCriterionId,
-            kpi_id: item.kpi_id,
-            weight: item.weight ?? 0,
-            display_order: item.display_order ?? 1,
-          }, client);
-          updatedKpis.push(createdKpi);
-        }
-      }
+      const updatedKpis = await this.templateKpiRepo.replaceAllForVersion(
+        templateVersionId,
+        Array.isArray(kpiItems)
+          ? kpiItems.map((item) => ({
+              template_version_id: templateVersionId,
+              template_criterion_id: item.client_criterion_id
+                ? clientIdToCriterionId.get(item.client_criterion_id) ?? null
+                : item.template_criterion_id
+                  ? clientIdToCriterionId.get(item.template_criterion_id) ?? item.template_criterion_id
+                  : null,
+              kpi_id: item.kpi_id,
+              weight: item.weight ?? 0,
+              display_order: item.display_order ?? 1,
+            }))
+          : [],
+        client
+      );
 
     await this.auditRepo.create({
       entity_type: 'TEMPLATE_VERSION',

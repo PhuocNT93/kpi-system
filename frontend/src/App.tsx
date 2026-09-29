@@ -40,6 +40,15 @@ import { LayoutTemplate } from 'lucide-react';
 import { useAuth } from './shared/auth/auth-context';
 import { useUiTranslation } from '@/shared/i18n/ui-i18n';
 
+const PAGE_SECTIONS: Record<string, [string, string]> = {
+  notifications: ['nav.overview', 'Overview'],
+  evaluations: ['nav.performance', 'Performance'],
+  reports: ['nav.reporting', 'Reporting'],
+  cycles: ['nav.configuration', 'Configuration'],
+  templates: ['nav.configuration', 'Configuration'],
+  'system-admin': ['nav.configuration', 'Configuration'],
+};
+
 const ADMIN_PAGE_TITLES: Record<string, string> = {
   dashboard: 'Dashboard',
   'system-admin': 'System & Security Hub',
@@ -102,6 +111,9 @@ function ProtectedLayout() {
     : pathParts.length > 2 ? pathParts[2] : 'dashboard';
   const defaultPageTitle = ADMIN_PAGE_TITLES[activeMenu] ?? 'System Layout';
   const pageTitle = t(`title.${activeMenu.replace(/-/g, '_')}`, defaultPageTitle);
+  // Sidebar section of each hub, shown as the first breadcrumb step in the header.
+  const sectionEntry = PAGE_SECTIONS[activeMenu];
+  const pageSection = sectionEntry ? t(sectionEntry[0], sectionEntry[1]) : undefined;
 
   return (
     <AppLayout

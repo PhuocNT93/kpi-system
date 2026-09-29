@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import '@testing-library/jest-dom/vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor, cleanup } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { OrganizationReportPage } from './OrganizationReportPage';
@@ -23,6 +23,10 @@ vi.mock('../../evaluation-cycles/api/cycle-api', () => ({
 
 describe('OrganizationReportPage', () => {
   let queryClient: QueryClient;
+
+  afterEach(() => {
+    cleanup();
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -72,5 +76,56 @@ describe('OrganizationReportPage', () => {
       expect(screen.getByText('75.0%')).toBeInTheDocument();
       expect(screen.getByText('Score Distribution')).toBeInTheDocument();
     });
+  });
+
+  const renderOrg = (scoreDistribution: unknown, isEmbedded = false) => {
+    vi.mocked(reportsApi.fetchOrganizationReport).mockResolvedValue({
+      data: [
+        {
+          id: 'org-agg-1',
+          evaluationCycleId: 'cycle-1',
+          employeeCount: 19,
+          completedEmployeeCount: 0,
+          completionRate: 0,
+          scoreDistribution: scoreDistribution as Record<string, unknown>,
+          lastRefreshedAt: '2026-06-01T00:00:00.000Z',
+        },
+      ],
+      dataAsOf: '2026-06-01T00:00:00.000Z',
+    });
+
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <OrganizationReportPage isEmbedded={isEmbedded} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+  };
+
+  it('renders the distribution as bars instead of raw JSON', async () => {
+    const { container } = renderOrg([
+      { range: '0.0 - 1.0', count: 1, percentage: 20 },
+      { range: '1.0 - 2.0', count: 4, percentage: 80 },
+    ]);
+
+    expect(await screen.findByText('0.0 - 1.0')).toBeInTheDocument();
+    expect(screen.getByText('1 (20.0%)')).toBeInTheDocument();
+    expect(screen.getByText('4 (80.0%)')).toBeInTheDocument();
+    expect(container.querySelector('pre')).toBeNull();
+  });
+
+  it('shows an empty state when there is no distribution and a dash for a missing average', async () => {
+    renderOrg({});
+
+    expect(await screen.findByText('No score distribution data available for this cycle yet.')).toBeInTheDocument();
+    expect(screen.getByText('—')).toBeInTheDocument();
+  });
+
+  it('hides its own page title when embedded', async () => {
+    renderOrg({}, true);
+
+    expect(await screen.findByText('Score Distribution')).toBeInTheDocument();
+    expect(screen.queryByText('Organization Dashboard')).not.toBeInTheDocument();
   });
 });
