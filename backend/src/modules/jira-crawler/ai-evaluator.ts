@@ -179,7 +179,7 @@ interface GeminiEvaluationResponse {
   volumeRationale?: string;
 }
 
-interface GeminiTaskEvaluationResponse {
+export interface GeminiTaskEvaluationResponse {
   tasks: Array<{
     key: string;
     complexityScore: number;
@@ -189,6 +189,18 @@ interface GeminiTaskEvaluationResponse {
     comment: string;
   }>;
   overallContributionSummary: string;
+}
+
+export interface RawGeminiTaskItem {
+  key: string;
+  complexityScore?: number | string;
+  complexityRationale?: string;
+  contributionScore?: number | string;
+  contributionRationale?: string;
+  reasoning?: string;
+  rationale?: string;
+  comment?: string;
+  [key: string]: unknown;
 }
 
 export class AiScoringEngine {
@@ -406,7 +418,7 @@ ${strictnessCriteria}`;
           };
           const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
           if (rawText) {
-            let tasksList: Array<any> = [];
+            let tasksList: Array<RawGeminiTaskItem> = [];
             try {
               const parsed = JSON.parse(rawText);
               if (Array.isArray(parsed?.tasks)) {
@@ -414,11 +426,15 @@ ${strictnessCriteria}`;
               } else if (Array.isArray(parsed)) {
                 tasksList = parsed;
               } else if (parsed && typeof parsed === 'object') {
-                const values = Object.entries(parsed).map(([k, v]: [string, any]) => ({
-                  key: v?.key || k,
-                  ...(typeof v === 'object' ? v : {}),
-                }));
-                if (values.length > 0 && (values[0].complexityScore !== undefined || values[0].complexityRationale !== undefined)) {
+                const values: Array<RawGeminiTaskItem> = Object.entries(parsed as Record<string, unknown>).map(([k, v]) => {
+                  const entryObj = v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
+                  return {
+                    key: typeof entryObj.key === 'string' ? entryObj.key : k,
+                    ...entryObj,
+                  };
+                });
+                const firstVal = values[0];
+                if (firstVal && (firstVal.complexityScore !== undefined || firstVal.complexityRationale !== undefined)) {
                   tasksList = values;
                 }
               }

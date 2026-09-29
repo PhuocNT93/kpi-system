@@ -219,7 +219,7 @@ function getNextRunPreview(cron: string): string {
       }
       return `${String(nextDate.getDate()).padStart(2, '0')}/${String(nextDate.getMonth() + 1).padStart(2, '0')}/${nextDate.getFullYear()} lúc ${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
     } else {
-      let nextDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, min, 0);
+      const nextDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, min, 0);
       if (nextDate.getTime() <= now.getTime()) {
         nextDate.setDate(nextDate.getDate() + 1);
       }
@@ -1984,7 +1984,7 @@ export const JiraCollectorPage: React.FC = () => {
                         <ArrowUpDown size={13} color="#64748b" />
                         <select
                           value={tableSort}
-                          onChange={(e) => setTableSort(e.target.value as any)}
+                          onChange={(e) => setTableSort(e.target.value as 'score-desc' | 'score-asc' | 'name-asc')}
                           style={{
                             padding: '5px 8px', borderRadius: 6, border: '1px solid #cbd5e1',
                             fontSize: 12, fontWeight: 600, color: '#334155', background: '#fff',
@@ -2930,7 +2930,10 @@ export const JiraCollectorPage: React.FC = () => {
                     setSelectedEmpCodes(modalSelectedCodes);
                     try {
                       localStorage.setItem('kpi_collector_selected_members', JSON.stringify(modalSelectedCodes));
-                    } catch {}
+                    } catch (_err) {
+                      // ignore localStorage save failure
+                      void _err;
+                    }
                     setShowMemberSelectModal(false);
                   }}
                   style={{
@@ -2947,7 +2950,10 @@ export const JiraCollectorPage: React.FC = () => {
                     setSelectedEmpCodes(modalSelectedCodes);
                     try {
                       localStorage.setItem('kpi_collector_selected_members', JSON.stringify(modalSelectedCodes));
-                    } catch {}
+                    } catch (_err) {
+                      // ignore localStorage save failure
+                      void _err;
+                    }
                     handleRunNow(modalSelectedCodes);
                   }}
                   style={{
