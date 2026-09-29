@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Play,
   RefreshCw,
@@ -18,17 +18,29 @@ import {
   Star,
   Info,
   Code2,
+  Users,
+  Search,
+  CheckSquare,
+  Square,
+  Calendar,
+  Download,
+  Sparkles,
+  RotateCcw,
+  ArrowUpDown,
 } from 'lucide-react';
 import {
   getBatchRuns,
   getBatchRunDetail,
   triggerBatchRun,
+  rescoreBatchRun,
   getMemberBatchDetail,
   applyBatchMemberResult,
   updateBatchCron,
+  getJiraManagedMembers,
   type BatchRunListItem,
   type BatchRunSummaryItem,
   type MemberBatchResult,
+  type ManagedMember,
 } from '../api/jira-collector-api';
 import { SHADOWS } from '@/shared/theme';
 
@@ -40,13 +52,44 @@ interface SchedulePreset {
   cron: string;
   hour: string;
   minute: string;
+  dom?: string;
 }
 
 const SCHEDULE_PRESETS: SchedulePreset[] = [
   {
+    id: 'monthly-1st',
+    title: '🗓️ Ngày 01 hàng tháng lúc 00:00 (1 tháng/lần)',
+    badge: '1 tháng/lần',
+    desc: 'Tự động chạy định kỳ 1 tháng 1 lần vào nửa đêm ngày đầu tháng, tổng kết trọn vẹn dữ liệu Jira & Blueprint tháng trước.',
+    cron: '0 0 1 * *',
+    hour: '00',
+    minute: '00',
+    dom: '1',
+  },
+  {
+    id: 'monthly-25th',
+    title: '🗓️ Ngày 25 hàng tháng lúc 18:00 (Chốt KPI tháng)',
+    badge: 'Chốt KPI tháng',
+    desc: 'Chạy định kỳ 1 tháng 1 lần vào 18:00 ngày 25 hàng tháng để tổng hợp dữ liệu chốt kỳ đánh giá KPI tháng.',
+    cron: '0 18 25 * *',
+    hour: '18',
+    minute: '00',
+    dom: '25',
+  },
+  {
+    id: 'monthly-28th',
+    title: '🗓️ Ngày 28 hàng tháng lúc 23:00 (Cuối tháng)',
+    badge: 'Cuối tháng',
+    desc: 'Chạy định kỳ 1 tháng 1 lần vào đêm ngày 28 hàng tháng trước khi tính thưởng và lương.',
+    cron: '0 23 28 * *',
+    hour: '23',
+    minute: '00',
+    dom: '28',
+  },
+  {
     id: 'midnight',
     title: '🌙 00:00 Nửa đêm hàng ngày',
-    badge: 'Khuyến nghị',
+    badge: 'Khuyến nghị ngày',
     desc: 'Tự động chạy sau khi hết ngày làm việc, tổng hợp trọn vẹn dữ liệu Jira & Blueprint của ngày hôm trước.',
     cron: '0 0 * * *',
     hour: '00',
@@ -108,6 +151,14 @@ function describeCron(cron: string): string {
         return `${displayH}:${displayM} hàng ngày (${period}) — Giờ Việt Nam GMT+7`;
       }
     }
+    if (dom !== '*' && mon === '*' && dow === '*') {
+      const h = parseInt(hour, 10);
+      const m = parseInt(min, 10);
+      const period = h < 12 ? 'sáng' : h < 18 ? 'chiều' : 'tối';
+      const displayH = String(h).padStart(2, '0');
+      const displayM = String(m).padStart(2, '0');
+      return `Ngày ${dom} hàng tháng lúc ${displayH}:${displayM} (${period}, 1 tháng/lần) — GMT+7`;
+    }
   }
   return `Lịch cron: ${cron}`;
 }
@@ -143,6 +194,91 @@ function formatDate(iso: string): string {
   });
 }
 
+const LEVEL_BADGE_STYLE: Record<number, { bg: string; text: string; border: string; label: string }> = {
+  5: { bg: '#ede9fe', text: '#6d28d9', border: '#ddd6fe', label: 'Xuất sắc' },
+  4: { bg: '#dcfce7', text: '#15803d', border: '#bbf7d0', label: 'Tốt' },
+  3: { bg: '#fef3c7', text: '#b45309', border: '#fde68a', label: 'Đạt' },
+  2: { bg: '#ffedd5', text: '#c2410c', border: '#fed7aa', label: 'Cần cải thiện' },
+  1: { bg: '#fee2e2', text: '#b91c1c', border: '#fecaca', label: 'Chưa đạt' },
+};
+
+function getNextRunPreview(cron: string): string {
+  try {
+    const parts = cron.trim().split(/\s+/);
+    if (parts.length !== 5) return 'Chưa xác định';
+    const [minStr, hourStr, domStr] = parts;
+    const min = parseInt(minStr, 10) || 0;
+    const hour = parseInt(hourStr, 10) || 0;
+    const now = new Date();
+
+    if (domStr !== '*') {
+      const targetDom = parseInt(domStr, 10) || 1;
+      let nextDate = new Date(now.getFullYear(), now.getMonth(), targetDom, hour, min, 0);
+      if (nextDate.getTime() <= now.getTime()) {
+        nextDate = new Date(now.getFullYear(), now.getMonth() + 1, targetDom, hour, min, 0);
+      }
+      return `${String(nextDate.getDate()).padStart(2, '0')}/${String(nextDate.getMonth() + 1).padStart(2, '0')}/${nextDate.getFullYear()} lúc ${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+    } else {
+      let nextDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, min, 0);
+      if (nextDate.getTime() <= now.getTime()) {
+        nextDate.setDate(nextDate.getDate() + 1);
+      }
+      return `${String(nextDate.getDate()).padStart(2, '0')}/${String(nextDate.getMonth() + 1).padStart(2, '0')}/${nextDate.getFullYear()} lúc ${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+    }
+  } catch {
+    return 'Theo chu kỳ đã cấu hình';
+  }
+}
+
+function exportRunToCSV(run: BatchRunListItem) {
+  const headers = [
+    'Mã NV',
+    'Họ tên',
+    'Đội ngũ (Team)',
+    'Điểm tổng',
+    'Mức xếp loại',
+    'PERF_01 (Tiến độ)',
+    'CODE_QUALITY (Chất lượng)',
+    'TASK_VOLUME (Khối lượng)',
+    'OWNERSHIP_SCOPE (Làm chủ)',
+    'INDEPENDENCE (Tự chủ)',
+    'Tích hợp Blueprint CLV',
+    'Điểm Task AI TB',
+    'Từ ngày',
+    'Đến ngày',
+  ];
+
+  const rows = run.scoreSummary.map((m) => {
+    const kpiMap = Object.fromEntries(m.kpiScores.map((k) => [k.kpi_code, k.resolved_level]));
+    return [
+      `"${m.employeeCode}"`,
+      `"${m.memberName}"`,
+      `"${m.team}"`,
+      m.overallScore.toFixed(1),
+      `"Mức ${m.overallLevel}"`,
+      kpiMap['PERF_01'] != null ? `L${kpiMap['PERF_01']}` : '—',
+      kpiMap['CODE_QUALITY'] != null ? `L${kpiMap['CODE_QUALITY']}` : '—',
+      kpiMap['TASK_VOLUME'] != null ? `L${kpiMap['TASK_VOLUME']}` : '—',
+      kpiMap['OWNERSHIP_SCOPE'] != null ? `L${kpiMap['OWNERSHIP_SCOPE']}` : '—',
+      kpiMap['INDEPENDENCE'] != null ? `L${kpiMap['INDEPENDENCE']}` : '—',
+      m.hasBlueprint ? '"Có"' : '"Không"',
+      m.avgTaskContribution != null ? m.avgTaskContribution.toFixed(1) : '—',
+      `"${m.dateFrom || ''}"`,
+      `"${m.dateTo || ''}"`,
+    ].join(',');
+  });
+
+  const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `kpi-batch-run-${run.versionNumber || 'latest'}-${run.cycleCode || 'kpi'}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 
 // ── Member Detail Panel ──────────────────────────────────────────────────────
 function MemberDetailPanel({
@@ -159,6 +295,7 @@ function MemberDetailPanel({
   const [applyError, setApplyError] = useState<string | null>(null);
   const [expandedTaskKeys, setExpandedTaskKeys] = useState<Set<string>>(new Set());
   const [showLateDetails, setShowLateDetails] = useState<boolean>(true);
+  const [activeTab, setActiveTab] = useState<'kpi' | 'blueprint'>('kpi');
 
   const toggleExpand = (key: string) => {
     setExpandedTaskKeys((prev) => {
@@ -275,9 +412,50 @@ function MemberDetailPanel({
           </button>
         </div>
 
+        {/* Navigation Tabs (Point 19) */}
+        <div style={{
+          display: 'flex', gap: 6, padding: '0 28px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc',
+        }}>
+          <button
+            type="button"
+            onClick={() => setActiveTab('kpi')}
+            style={{
+              padding: '12px 18px', border: 'none',
+              borderBottom: activeTab === 'kpi' ? '3px solid #4f46e5' : '3px solid transparent',
+              background: 'transparent', color: activeTab === 'kpi' ? '#4f46e5' : '#64748b',
+              fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            <Star size={15} />
+            <span>📊 Đánh giá KPI & Nhiệm vụ AI ({result.taskContributions.length} tasks)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('blueprint')}
+            style={{
+              padding: '12px 18px', border: 'none',
+              borderBottom: activeTab === 'blueprint' ? '3px solid #0284c7' : '3px solid transparent',
+              background: 'transparent', color: activeTab === 'blueprint' ? '#0284c7' : '#64748b',
+              fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            <span>🚢 Dữ liệu Blueprint CLV & Chuyên cần</span>
+            {result.blueprintSummary?.hasData ? (
+              <span style={{ fontSize: 10, background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: 999, fontWeight: 700 }}>
+                ✓ Có dữ liệu
+              </span>
+            ) : (
+              <span style={{ fontSize: 10, background: '#f1f5f9', color: '#94a3b8', padding: '2px 8px', borderRadius: 999, fontWeight: 600 }}>
+                Chưa có
+              </span>
+            )}
+          </button>
+        </div>
+
         <div style={{ padding: '20px 28px' }}>
           {/* Blueprint CLV Summary Section */}
-          {result.blueprintSummary?.hasData ? (
+          {activeTab === 'blueprint' && (
+            result.blueprintSummary?.hasData ? (
             <div style={{ marginBottom: 24, background: '#f8faff', borderRadius: 12, border: '1px solid #c7d2fe', padding: '16px 20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -422,10 +600,12 @@ function MemberDetailPanel({
               <Info size={16} color="#94a3b8" />
               <span>Chưa có dữ liệu Blueprint cho nhân sự này trong kỳ H2-2026. Điểm đang được tính 100% từ Jira PIM.</span>
             </div>
-          )}
+          ))}
 
-          {/* KPI Grid */}
-          <div style={{ marginBottom: 24 }}>
+          {activeTab === 'kpi' && (
+            <>
+              {/* KPI Grid */}
+              <div style={{ marginBottom: 24 }}>
             <div style={{ fontWeight: 600, fontSize: 14, color: '#374151', marginBottom: 12 }}>
               📊 Điểm KPI từng tiêu chí
               {result.blueprintSummary?.hasData && (
@@ -518,6 +698,7 @@ function MemberDetailPanel({
                       <th style={{ padding: '10px 14px', textAlign: 'left', color: '#475569', fontWeight: 600 }}>Task & Nghiệp vụ</th>
                       <th style={{ padding: '10px 8px', textAlign: 'center', color: '#475569', fontWeight: 600, width: 110 }}>Độ phức tạp</th>
                       <th style={{ padding: '10px 8px', textAlign: 'center', color: '#475569', fontWeight: 600, width: 110 }}>Đóng góp</th>
+                      <th style={{ padding: '10px 8px', textAlign: 'center', color: '#475569', fontWeight: 600, width: 110 }}>Giờ Log / Est</th>
                       <th style={{ padding: '10px 14px', textAlign: 'left', color: '#475569', fontWeight: 600 }}>Nhận xét AI & Lý giải</th>
                     </tr>
                   </thead>
@@ -626,6 +807,15 @@ function MemberDetailPanel({
                               </div>
                             </td>
 
+                            <td style={{ padding: '10px 8px', textAlign: 'center', verticalAlign: 'top' }}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b' }}>
+                                {(t.timeSpentHours ?? 0) > 0 ? `${t.timeSpentHours}h` : '0h'}
+                              </div>
+                              <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>
+                                Est: {t.originalEstimateHours ? `${t.originalEstimateHours}h` : '—'}
+                              </div>
+                            </td>
+
                             <td style={{ padding: '10px 14px', verticalAlign: 'top' }}>
                               <div style={{ fontSize: 12, color: '#1e293b' }}>{t.aiComment}</div>
                               <div style={{ marginTop: 4, fontSize: 11, color: '#6366f1', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -637,7 +827,7 @@ function MemberDetailPanel({
                           {/* Expanded Detailed Reasoning Drawer */}
                           {isExpanded && (
                             <tr style={{ background: '#faf5ff', borderBottom: idx < result.taskContributions.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                              <td colSpan={4} style={{ padding: '0 14px 14px' }}>
+                              <td colSpan={5} style={{ padding: '0 14px 14px' }}>
                                 <div style={{
                                   background: '#fff', borderRadius: 8, border: '1px solid #e9d5ff',
                                   padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10,
@@ -751,21 +941,24 @@ function MemberDetailPanel({
               Không ghi nhận nhiệm vụ Jira nào của nhân sự trong khoảng thời gian đánh giá.
             </div>
           )}
+          </>
+          )}
 
-          {/* Apply button */}
+          {/* Apply button (Point 22) */}
           <div style={{
             padding: '16px 20px', background: applied ? '#ecfdf5' : '#f8faff',
             borderRadius: 12, border: `1px solid ${applied ? '#6ee7b7' : '#c7d2fe'}`,
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            flexWrap: 'wrap', gap: 12, marginTop: 20,
           }}>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 14, color: applied ? '#047857' : '#3730a3' }}>
-                {applied ? '✅ Đã áp dụng vào chu kỳ đánh giá' : '💾 Áp dụng điểm vào hệ thống'}
+            <div style={{ flex: 1, minWidth: 260 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: applied ? '#047857' : '#3730a3' }}>
+                {applied ? '✅ Đã áp dụng vào chu kỳ đánh giá' : '💾 Áp dụng điểm vào bảng KPI chính thức'}
               </div>
-              <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+              <div style={{ fontSize: 12, color: '#6b7280', marginTop: 3, lineHeight: 1.5 }}>
                 {applied
-                  ? `Điểm đã được ghi vào chu kỳ ${result.cycleCode} và cập nhật ngày review`
-                  : 'Ghi điểm batch vào DB và đánh dấu đã review cho nhân viên này'}
+                  ? `Điểm đã được ghi vào chu kỳ ${result.cycleCode} và cập nhật ngày review cho nhân viên.`
+                  : `Ghi đè điểm KPI vào DB chu kỳ ${result.cycleCode}, đánh dấu review xong và đồng bộ sang màn hình Đánh giá của tôi & Quản lý.`}
               </div>
               {applyError && <div style={{ fontSize: 12, color: '#dc2626', marginTop: 4 }}>⚠ {applyError}</div>}
             </div>
@@ -774,13 +967,14 @@ function MemberDetailPanel({
                 onClick={handleApply}
                 disabled={applying}
                 style={{
-                  background: '#4f46e5', color: '#fff',
-                  border: 'none', borderRadius: 8, padding: '10px 20px',
-                  fontWeight: 600, fontSize: 13, cursor: applying ? 'not-allowed' : 'pointer',
+                  background: 'linear-gradient(135deg, #4f46e5, #6366f1)', color: '#fff',
+                  border: 'none', borderRadius: 8, padding: '10px 22px',
+                  fontWeight: 700, fontSize: 13, cursor: applying ? 'not-allowed' : 'pointer',
                   opacity: applying ? 0.6 : 1, flexShrink: 0,
+                  boxShadow: '0 2px 6px rgba(79,70,229,0.3)',
                 }}
               >
-                {applying ? '⏳ Đang áp dụng...' : '✅ Áp dụng điểm'}
+                {applying ? '⏳ Đang áp dụng...' : '✅ Xác nhận áp dụng điểm'}
               </button>
             )}
           </div>
@@ -824,9 +1018,19 @@ function ScoreRow({
         </span>
       </td>
       <td style={{ padding: '10px 8px', textAlign: 'center' }}>
-        <span style={{ fontSize: 12, color: '#374151', fontWeight: 600 }}>
-          Mức {member.overallLevel}
-        </span>
+        {(() => {
+          const bMeta = LEVEL_BADGE_STYLE[member.overallLevel] || LEVEL_BADGE_STYLE[3];
+          return (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '3px 8px', borderRadius: 999,
+              background: bMeta.bg, color: bMeta.text, border: `1px solid ${bMeta.border}`,
+              fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+            }}>
+              Mức {member.overallLevel} · {bMeta.label}
+            </span>
+          );
+        })()}
       </td>
       {['PERF_01', 'CODE_QUALITY', 'TASK_VOLUME', 'OWNERSHIP_SCOPE', 'INDEPENDENCE'].map((k) => {
         const kpi = kpiMap[k];
@@ -893,10 +1097,78 @@ export const JiraCollectorPage: React.FC = () => {
 
   // Friendly Schedule configuration states
   const [scheduleMode, setScheduleMode] = useState<'preset' | 'time' | 'expert'>('preset');
-  const [selectedPresetId, setSelectedPresetId] = useState<string>('midnight');
+  const [selectedPresetId, setSelectedPresetId] = useState<string>('monthly-1st');
   const [selectedHour, setSelectedHour] = useState<string>('00');
   const [selectedMinute, setSelectedMinute] = useState<string>('00');
+  const [selectedDom, setSelectedDom] = useState<string>('1');
+  const [cronFrequency, setCronFrequency] = useState<'monthly' | 'daily'>('monthly');
   const [showScriptModal, setShowScriptModal] = useState<boolean>(false);
+
+  // Selective Member Collection states
+  // Dynamic Cycle Code (Point 11)
+  const currentCycleCode = useMemo(() => {
+    const d = new Date();
+    return d.getMonth() < 6 ? `H1-${d.getFullYear()}` : `H2-${d.getFullYear()}`;
+  }, []);
+
+  // Selective Member Collection states (Points 17, 18)
+  const [managedMembers, setManagedMembers] = useState<ManagedMember[]>([]);
+  const [showMemberSelectModal, setShowMemberSelectModal] = useState<boolean>(false);
+  const [selectedEmpCodes, setSelectedEmpCodes] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('kpi_collector_selected_members');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  });
+  const [modalSelectedCodes, setModalSelectedCodes] = useState<string[]>([]);
+  const [memberSearchTerm, setMemberSearchTerm] = useState<string>('');
+
+  // Table Filter & Search & Sort states (Point 10)
+  const [levelFilter, setLevelFilter] = useState<'all' | 'level-4-5' | 'level-3' | 'level-1-2'>('all');
+  const [tableSearch, setTableSearch] = useState<string>('');
+  const [tableSort, setTableSort] = useState<'score-desc' | 'score-asc' | 'name-asc'>('score-desc');
+
+  // Confirmation & Rescore states (Points 9, 16)
+  const [showRunConfirmModal, setShowRunConfirmModal] = useState(false);
+  const [rescoring, setRescoring] = useState(false);
+
+  useEffect(() => {
+    async function loadMembers() {
+      try {
+        const res = await getJiraManagedMembers();
+        if (res.members && res.members.length > 0) {
+          setManagedMembers(res.members);
+          setSelectedEmpCodes((prev) => {
+            if (prev.length > 0) {
+              const valid = prev.filter((c) => res.members.some((m) => m.code === c));
+              if (valid.length > 0) return valid;
+            }
+            return res.members.map((m) => m.code);
+          });
+        }
+      } catch (e) {
+        console.warn('Could not load managed members:', e);
+      }
+    }
+    loadMembers();
+  }, []);
+
+  const filteredMembers = useMemo(() => {
+    if (!memberSearchTerm.trim()) return managedMembers;
+    const term = memberSearchTerm.toLowerCase().trim();
+    return managedMembers.filter(
+      (m) =>
+        m.name.toLowerCase().includes(term) ||
+        m.code.toLowerCase().includes(term) ||
+        (m.team && m.team.toLowerCase().includes(term))
+    );
+  }, [managedMembers, memberSearchTerm]);
 
   const loadBatchRuns = useCallback(async () => {
     try {
@@ -909,11 +1181,23 @@ export const JiraCollectorPage: React.FC = () => {
           setSelectedPresetId(found.id);
           setSelectedHour(found.hour);
           setSelectedMinute(found.minute);
+          if (found.dom) {
+            setSelectedDom(found.dom);
+            setCronFrequency('monthly');
+          } else {
+            setCronFrequency('daily');
+          }
         } else {
           const parts = data.currentCron.trim().split(/\s+/);
-          if (parts.length === 5 && parts[2] === '*' && parts[3] === '*' && parts[4] === '*') {
+          if (parts.length === 5) {
             setSelectedHour(String(parts[1]).padStart(2, '0'));
             setSelectedMinute(String(parts[0]).padStart(2, '0'));
+            if (parts[2] !== '*') {
+              setSelectedDom(parts[2]);
+              setCronFrequency('monthly');
+            } else {
+              setCronFrequency('daily');
+            }
           }
         }
       }
@@ -924,18 +1208,37 @@ export const JiraCollectorPage: React.FC = () => {
     }
   }, []);
 
+  const [selectedRunErrorLog, setSelectedRunErrorLog] = useState<string[]>([]);
+  const [showAllErrors, setShowAllErrors] = useState(false);
+
+  const currentRun = batchData?.runs[selectedRunIdx];
+  const latestRun = batchData?.runs[0];
+
+  // A batch is truly active only if the latest version is marked RUNNING and started recently (< 60 mins) (Point 13)
+  const isRunning = Boolean(
+    latestRun?.status === 'RUNNING' &&
+    (!latestRun.runAt || (Date.now() - new Date(latestRun.runAt).getTime()) < 60 * 60 * 1000)
+  );
+
+  // Poll every 8s ONLY while a run is in progress (Point 12)
   useEffect(() => {
     loadBatchRuns();
-    // Poll every 8s while a run might be in progress
+    if (!isRunning) return;
     const interval = setInterval(loadBatchRuns, 8000);
     return () => clearInterval(interval);
-  }, [loadBatchRuns]);
+  }, [loadBatchRuns, isRunning]);
 
-  const handleRunNow = async () => {
+  const handleRunNow = async (customCodes?: string[] | React.MouseEvent) => {
     setRunning(true);
     setRunMessage(null);
+    setShowRunConfirmModal(false);
     try {
-      const res = await triggerBatchRun();
+      const targetCodes = Array.isArray(customCodes) ? customCodes : selectedEmpCodes;
+      const codesToPass = (managedMembers.length > 0 && targetCodes.length < managedMembers.length)
+        ? targetCodes
+        : undefined;
+
+      const res = await triggerBatchRun(currentCycleCode, codesToPass);
       setRunMessage(res.message);
       // Refresh after 3s
       setTimeout(loadBatchRuns, 3000);
@@ -943,6 +1246,26 @@ export const JiraCollectorPage: React.FC = () => {
       setRunMessage(`Lỗi: ${(err as Error).message}`);
     } finally {
       setRunning(false);
+      setShowMemberSelectModal(false);
+    }
+  };
+
+  const handleRescore = async () => {
+    if (!currentRun) return;
+    const vName = currentRun.versionTag || `Phiên bản #${currentRun.versionNumber || (batchData?.runs.length ? batchData.runs.length - selectedRunIdx : 1)}`;
+    if (!window.confirm(`Bạn có chắc chắn muốn chấm điểm lại toàn bộ nhân sự trong ${vName} bằng AI với prompt & rubric mới nhất không?\n\n(Dữ liệu Jira & Blueprint đã cào sẽ được giữ nguyên, chỉ chấm lại điểm và tạo Version mới)`)) {
+      return;
+    }
+    setRescoring(true);
+    setRunMessage(null);
+    try {
+      const res = await rescoreBatchRun(currentRun.id);
+      setRunMessage(`⚡ ${res.message || 'Đã chấm điểm lại thành công!'}`);
+      await loadBatchRuns();
+    } catch (err) {
+      setRunMessage(`Lỗi chấm lại: ${(err as Error).message}`);
+    } finally {
+      setRescoring(false);
     }
   };
 
@@ -973,12 +1296,6 @@ export const JiraCollectorPage: React.FC = () => {
     }
   };
 
-  const [selectedRunErrorLog, setSelectedRunErrorLog] = useState<string[]>([]);
-  const [showAllErrors, setShowAllErrors] = useState(false);
-
-  const currentRun = batchData?.runs[selectedRunIdx];
-  const latestRun = batchData?.runs[0];
-
   useEffect(() => {
     if (!currentRun) {
       setSelectedRunErrorLog([]);
@@ -999,90 +1316,250 @@ export const JiraCollectorPage: React.FC = () => {
     }
   }, [currentRun]);
 
-  // A batch is truly active only if the latest version is marked RUNNING and started recently (< 15 mins)
-  const isRunning = Boolean(
-    latestRun?.status === 'RUNNING' &&
-    (!latestRun.runAt || (Date.now() - new Date(latestRun.runAt).getTime()) < 15 * 60 * 1000)
-  );
+  // Filtered, searched and sorted members for current run (Point 10)
+  const displayedMembers = useMemo(() => {
+    if (!currentRun?.scoreSummary) return [];
+    let list = [...currentRun.scoreSummary];
+    if (tableSearch.trim()) {
+      const q = tableSearch.toLowerCase().trim();
+      list = list.filter((m) =>
+        m.memberName.toLowerCase().includes(q) ||
+        m.employeeCode.toLowerCase().includes(q) ||
+        (m.team && m.team.toLowerCase().includes(q))
+      );
+    }
+    if (levelFilter === 'level-4-5') {
+      list = list.filter((m) => m.overallLevel >= 4);
+    } else if (levelFilter === 'level-3') {
+      list = list.filter((m) => m.overallLevel === 3);
+    } else if (levelFilter === 'level-1-2') {
+      list = list.filter((m) => m.overallLevel <= 2);
+    }
+
+    if (tableSort === 'score-desc') {
+      list.sort((a, b) => b.overallScore - a.overallScore);
+    } else if (tableSort === 'score-asc') {
+      list.sort((a, b) => a.overallScore - b.overallScore);
+    } else if (tableSort === 'name-asc') {
+      list.sort((a, b) => a.memberName.localeCompare(b.memberName, 'vi'));
+    }
+    return list;
+  }, [currentRun?.scoreSummary, tableSearch, levelFilter, tableSort]);
+
+  const levelCounts = useMemo(() => {
+    if (!currentRun?.scoreSummary) return { all: 0, l45: 0, l3: 0, l12: 0 };
+    const list = currentRun.scoreSummary;
+    return {
+      all: list.length,
+      l45: list.filter((m) => m.overallLevel >= 4).length,
+      l3: list.filter((m) => m.overallLevel === 3).length,
+      l12: list.filter((m) => m.overallLevel <= 2).length,
+    };
+  }, [currentRun?.scoreSummary]);
+
+  // Overall statistics for summary cards (Point 4)
+  const avgOverallScore = useMemo(() => {
+    if (!currentRun?.scoreSummary || currentRun.scoreSummary.length === 0) return 0;
+    return currentRun.scoreSummary.reduce((sum, m) => sum + m.overallScore, 0) / currentRun.scoreSummary.length;
+  }, [currentRun?.scoreSummary]);
+
+  const avgOverallLevel = useMemo(() => {
+    if (!currentRun?.scoreSummary || currentRun.scoreSummary.length === 0) return 3;
+    return Math.round(currentRun.scoreSummary.reduce((sum, m) => sum + m.overallLevel, 0) / currentRun.scoreSummary.length);
+  }, [currentRun?.scoreSummary]);
+
+  // Identify failed member codes for targeted retry (Point 14)
+  const failedMemberCodes = useMemo(() => {
+    if (!currentRun || currentRun.failedMembers === 0) return [];
+    const successfulCodes = new Set(currentRun.scoreSummary.map((m) => m.employeeCode));
+    return managedMembers.map((m) => m.code).filter((c) => !successfulCodes.has(c));
+  }, [currentRun, managedMembers]);
 
   return (
     <div style={{ padding: '0 0 32px' }}>
-      {/* Page header */}
+      {/* Page Header (Tier 1) - Point 1 */}
       <div style={{
         display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
         marginBottom: 16, flexWrap: 'wrap', gap: 12,
       }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#1e293b' }}>
-            🤖 Batch KPI Scoring & Lịch sử Version
-          </h2>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: '#64748b' }}>
-            Tự động thu thập Jira PIM + Blueprint CLV · AI chấm điểm chi tiết từng task — 19 thành viên
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          {/* Cron info */}
-          <div
-            onClick={() => setShowCronEdit(true)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '8px 14px', background: '#f8faff', border: '1px solid #c7d2fe',
-              borderRadius: 8, cursor: 'pointer', fontSize: 13, color: '#4f46e5',
-            }}
-          >
-            <Clock size={14} />
-            <span style={{ fontWeight: 600 }}>
-              00:00 hàng ngày ({batchData?.currentCron || '0 0 * * *'})
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#1e293b' }}>
+              Data Ingestion Hub · Thu thập & Chấm điểm KPI Tự động
+            </h2>
+            <span style={{
+              fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
+              background: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe',
+            }}>
+              Chu kỳ {currentCycleCode}
             </span>
           </div>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: '#64748b' }}>
+            Thu thập dữ liệu Jira PIM & Blueprint CLV · AI chấm điểm chi tiết từng task · Lưu trữ lịch sử phiên bản
+          </p>
+        </div>
 
-          <button
-            onClick={loadBatchRuns}
+        {/* Top right quick status indicator */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div
+            onClick={() => setShowCronEdit(true)}
+            title="Bấm để tùy chỉnh lịch thu thập tự động (Hàng tháng / Hàng ngày)"
             style={{
-              background: 'none', border: '1px solid #e2e8f0',
-              borderRadius: 8, padding: '8px 12px', cursor: 'pointer', color: '#64748b',
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '6px 12px', background: '#f8faff', border: '1px solid #c7d2fe',
+              borderRadius: 8, cursor: 'pointer', fontSize: 12, color: '#4f46e5', fontWeight: 600,
             }}
           >
-            <RefreshCw size={15} />
+            <Clock size={13} />
+            <span>{describeCron(batchData?.currentCron || '0 0 * * *')}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Action Toolbar (Tier 2) - Point 2 */}
+      <div style={{
+        background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 12,
+        padding: '12px 18px', marginBottom: 16, display: 'flex',
+        alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12,
+        boxShadow: SHADOWS.sm,
+      }}>
+        {/* Left: Current Version info tag */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {currentRun ? (
+            <>
+              <span style={{
+                fontSize: 12, fontWeight: 800, padding: '4px 10px', borderRadius: 6,
+                background: '#4f46e5', color: '#ffffff', display: 'inline-flex', alignItems: 'center', gap: 5,
+              }}>
+                <Sparkles size={12} />
+                {currentRun.versionTag || `Phiên bản #${currentRun.versionNumber || (batchData?.runs.length ? batchData.runs.length - selectedRunIdx : 1)}`}
+              </span>
+              <span style={{ fontSize: 12, color: '#64748b' }}>
+                {formatDate(currentRun.runAt)} · <strong>{currentRun.completedMembers}/{currentRun.totalMembers} NV</strong>
+              </span>
+              {currentRun.status === 'RUNNING' && (
+                <span style={{
+                  fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
+                  background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe',
+                }}>
+                  ⏳ Đang chạy...
+                </span>
+              )}
+            </>
+          ) : (
+            <span style={{ fontSize: 13, color: '#64748b' }}>Chưa có phiên bản nào</span>
+          )}
+        </div>
+
+        {/* Right: Categorized Action buttons */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Member Selection button (Point 18) */}
+          <button
+            type="button"
+            onClick={() => {
+              setModalSelectedCodes([...selectedEmpCodes]);
+              setShowMemberSelectModal(true);
+            }}
+            title="Chọn danh sách nhân sự muốn thu thập dữ liệu Jira & Blueprint"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: '#fff', border: '1.5px solid #c7d2fe',
+              borderRadius: 8, padding: '7px 12px', cursor: 'pointer',
+              color: '#4338ca', fontWeight: 700, fontSize: 12,
+            }}
+          >
+            <Users size={14} />
+            <span>Nhân sự ({selectedEmpCodes.length}/{managedMembers.length || 19})</span>
           </button>
 
+          {/* Export CSV button (Point 21) */}
           <button
-            id="batch-run-now-btn"
-            onClick={handleRunNow}
-            disabled={running || !!isRunning}
+            type="button"
+            onClick={() => currentRun && exportRunToCSV(currentRun)}
+            disabled={!currentRun || currentRun.scoreSummary.length === 0}
+            title="Xuất bảng điểm KPI của phiên bản hiện tại ra file CSV"
             style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              background: running || isRunning ? '#94a3b8' : 'linear-gradient(135deg, #4f46e5, #6366f1)',
-              color: '#fff', border: 'none', borderRadius: 10,
-              padding: '10px 22px', fontWeight: 700, fontSize: 14,
-              cursor: running || isRunning ? 'not-allowed' : 'pointer',
-              boxShadow: '0 4px 14px rgba(79,70,229,0.35)',
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: '#fff', border: '1px solid #cbd5e1',
+              borderRadius: 8, padding: '7px 12px',
+              cursor: !currentRun || currentRun.scoreSummary.length === 0 ? 'not-allowed' : 'pointer',
+              color: !currentRun || currentRun.scoreSummary.length === 0 ? '#94a3b8' : '#334155',
+              fontWeight: 600, fontSize: 12,
             }}
           >
-            {running || isRunning ? <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Play size={16} />}
-            {running ? 'Đang khởi động...' : isRunning ? 'Đang chạy...' : '▶ Chạy Batch ngay'}
+            <Download size={14} />
+            <span>Xuất CSV</span>
+          </button>
+
+          {/* Rescore with AI button (Point 16) */}
+          <button
+            type="button"
+            onClick={handleRescore}
+            disabled={rescoring || running || !currentRun || currentRun.status !== 'DONE'}
+            title="Chấm điểm lại toàn bộ nhân sự theo prompt và rubric AI mới nhất mà không cần cào lại Jira"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: '#fff', border: '1.5px solid #fed7aa',
+              borderRadius: 8, padding: '7px 12px',
+              cursor: rescoring || running || !currentRun || currentRun.status !== 'DONE' ? 'not-allowed' : 'pointer',
+              color: '#c2410c', fontWeight: 700, fontSize: 12,
+            }}
+          >
+            <Sparkles size={14} className={rescoring ? 'animate-spin' : ''} />
+            <span>{rescoring ? 'Đang chấm lại AI...' : 'Chấm lại AI'}</span>
+          </button>
+
+          {/* Refresh button */}
+          <button
+            onClick={loadBatchRuns}
+            title="Làm mới trạng thái & lịch sử"
+            style={{
+              background: '#fff', border: '1px solid #e2e8f0',
+              borderRadius: 8, padding: '7px 10px', cursor: 'pointer', color: '#64748b',
+              display: 'flex', alignItems: 'center',
+            }}
+          >
+            <RefreshCw size={14} />
+          </button>
+
+          {/* Batch Run button (Point 9 - opens confirmation dialog) */}
+          <button
+            id="batch-run-now-btn"
+            onClick={() => setShowRunConfirmModal(true)}
+            disabled={running || isRunning}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: running || isRunning ? '#94a3b8' : 'linear-gradient(135deg, #4f46e5, #6366f1)',
+              color: '#fff', border: 'none', borderRadius: 8,
+              padding: '8px 16px', fontWeight: 700, fontSize: 13,
+              cursor: running || isRunning ? 'not-allowed' : 'pointer',
+              boxShadow: '0 2px 8px rgba(79,70,229,0.3)',
+            }}
+          >
+            {running || isRunning ? <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Play size={14} />}
+            <span>{running ? 'Đang khởi động...' : isRunning ? 'Đang chạy...' : `Chạy Batch (${selectedEmpCodes.length < (managedMembers.length || 19) ? `${selectedEmpCodes.length} NV` : 'Toàn bộ'})`}</span>
           </button>
         </div>
       </div>
 
-      {/* Auto-collect Schedule & Database Persistence Banner */}
+      {/* Auto-collect Schedule & Database Persistence Banner (Points 3, 24) */}
       <div style={{
         background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
-        border: '1px solid #bae6fd', borderRadius: 12, padding: '14px 20px',
-        marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        flexWrap: 'wrap', gap: 12, boxShadow: '0 2px 8px rgba(2,132,199,0.08)',
+        border: '1px solid #bae6fd', borderRadius: 12, padding: '12px 18px',
+        marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        flexWrap: 'wrap', gap: 12, boxShadow: '0 2px 8px rgba(2,132,199,0.06)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{
-            width: 40, height: 40, borderRadius: 10, background: '#0284c7',
+            width: 38, height: 38, borderRadius: 10, background: '#0284c7',
             display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
             flexShrink: 0,
           }}>
-            <Clock size={20} />
+            <Clock size={18} />
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontWeight: 700, fontSize: 14, color: '#0369a1' }}>
+              <span style={{ fontWeight: 700, fontSize: 13, color: '#0369a1' }}>
                 ⏰ Lịch thu thập tự động: {describeCron(batchData?.currentCron || '0 0 * * *')}
               </span>
               <span style={{
@@ -1095,11 +1572,17 @@ export const JiraCollectorPage: React.FC = () => {
                 fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
                 background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0',
               }}>
-                💾 Lưu version vào PostgreSQL
+                💾 Lưu PostgreSQL
+              </span>
+              <span style={{
+                fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
+                background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a',
+              }}>
+                🕒 Lần chạy tiếp: {getNextRunPreview(batchData?.currentCron || '0 0 * * *')}
               </span>
             </div>
             <div style={{ fontSize: 12, color: '#0c4a6e', marginTop: 3 }}>
-              Mỗi lần chạy sẽ tạo 1 <strong>Phiên bản lịch sử (Version)</strong> lưu đầy đủ dữ liệu Jira + Blueprint CLV vào cơ sở dữ liệu · Click từng hàng để xem AI phân tích chuyên sâu từng task.
+              Hệ thống tự động đồng bộ dữ liệu Jira PIM + Blueprint CLV định kỳ theo lịch trình, lưu trọn vẹn từng Version và hỗ trợ phân tích AI chi tiết.
             </div>
           </div>
         </div>
@@ -1110,26 +1593,102 @@ export const JiraCollectorPage: React.FC = () => {
             onClick={() => setShowScriptModal(true)}
             style={{
               background: '#fff', border: '1px solid #c7d2fe', color: '#4338ca',
-              borderRadius: 8, padding: '8px 14px', fontWeight: 600, fontSize: 13,
+              borderRadius: 8, padding: '7px 12px', fontWeight: 600, fontSize: 12,
               cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
             }}
           >
-            <Code2 size={14} /> ⚙️ Script JQL setup là gì?
+            <Code2 size={13} /> ⚙️ Script JQL là gì?
           </button>
           <button
             type="button"
             onClick={() => setShowCronEdit(true)}
             style={{
               background: '#0284c7', border: 'none', color: '#fff',
-              borderRadius: 8, padding: '8px 16px', fontWeight: 700, fontSize: 13,
+              borderRadius: 8, padding: '7px 14px', fontWeight: 700, fontSize: 12,
               cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-              boxShadow: '0 2px 6px rgba(2,132,199,0.3)',
+              boxShadow: '0 2px 6px rgba(2,132,199,0.25)',
             }}
           >
-            <Settings size={14} /> Cài đặt lịch chạy
+            <Settings size={13} /> Cài đặt lịch chạy
           </button>
         </div>
       </div>
+
+      {/* Quick KPI Summary Cards (Point 4) */}
+      {currentRun && (
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: 12, marginBottom: 16,
+        }}>
+          {/* Card 1: Monitored members */}
+          <div style={{
+            background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0',
+            padding: '14px 18px', boxShadow: SHADOWS.sm,
+          }}>
+            <div style={{ fontSize: 12, color: '#64748b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Users size={14} color="#4f46e5" />
+              <span>Nhân sự thu thập</span>
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: '#1e293b', marginTop: 4 }}>
+              {currentRun.completedMembers}/{currentRun.totalMembers} <span style={{ fontSize: 13, fontWeight: 600, color: '#64748b' }}>NV</span>
+            </div>
+            <div style={{ fontSize: 11, color: '#059669', fontWeight: 600, marginTop: 4 }}>
+              🚢 {currentRun.blueprintMembersCount || 0} nhân sự có Blueprint CLV
+            </div>
+          </div>
+
+          {/* Card 2: Selected Version */}
+          <div style={{
+            background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0',
+            padding: '14px 18px', boxShadow: SHADOWS.sm,
+          }}>
+            <div style={{ fontSize: 12, color: '#64748b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Sparkles size={14} color="#7c3aed" />
+              <span>Phiên bản hiển thị</span>
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#1e293b', marginTop: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {currentRun.versionTag || `Phiên bản #${currentRun.versionNumber || (batchData?.runs.length ? batchData.runs.length - selectedRunIdx : 1)}`}
+            </div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+              {formatDate(currentRun.runAt)} · {currentRun.triggeredBy === 'CRON' ? '⏰ Tự động' : '👤 Thủ công'}
+            </div>
+          </div>
+
+          {/* Card 3: Success rate */}
+          <div style={{
+            background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0',
+            padding: '14px 18px', boxShadow: SHADOWS.sm,
+          }}>
+            <div style={{ fontSize: 12, color: '#64748b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <CheckCircle2 size={14} color="#059669" />
+              <span>Tỷ lệ thành công</span>
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: currentRun.failedMembers === 0 ? '#059669' : '#d97706', marginTop: 4 }}>
+              {currentRun.totalMembers > 0 ? Math.round((currentRun.completedMembers / currentRun.totalMembers) * 100) : 0}%
+            </div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+              ⏱️ Thời lượng: {formatDuration(currentRun.durationMs)} {currentRun.failedMembers > 0 ? `· (${currentRun.failedMembers} lỗi)` : ''}
+            </div>
+          </div>
+
+          {/* Card 4: Average KPI Score */}
+          <div style={{
+            background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0',
+            padding: '14px 18px', boxShadow: SHADOWS.sm,
+          }}>
+            <div style={{ fontSize: 12, color: '#64748b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Star size={14} color="#f59e0b" />
+              <span>Điểm KPI đội ngũ TB</span>
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: '#1e293b', marginTop: 4 }}>
+              {avgOverallScore > 0 ? avgOverallScore.toFixed(1) : '—'} <span style={{ fontSize: 13, fontWeight: 600, color: '#64748b' }}>/ 5.0</span>
+            </div>
+            <div style={{ fontSize: 11, color: '#4338ca', fontWeight: 600, marginTop: 4 }}>
+              {avgOverallScore > 0 ? `Mức xếp loại TB: Mức ${avgOverallLevel} · ${LEVEL_BADGE_STYLE[avgOverallLevel]?.label || ''}` : 'Chưa có dữ liệu'}
+            </div>
+          </div>
+        </div>
+      )}
 
       {runMessage && (
         <div style={{
@@ -1190,58 +1749,90 @@ export const JiraCollectorPage: React.FC = () => {
           <div style={{
             background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0',
             overflow: 'hidden', boxShadow: SHADOWS.sm,
+            position: 'sticky', top: 20,
+            maxHeight: 'calc(100vh - 120px)',
+            display: 'flex', flexDirection: 'column',
           }}>
             <div style={{
               padding: '12px 16px', background: '#f8fafc',
               borderBottom: '1px solid #e2e8f0',
               fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5,
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              flexShrink: 0,
             }}>
               <span>Lịch sử Version</span>
               <span style={{ fontSize: 11, background: '#e2e8f0', padding: '1px 6px', borderRadius: 4 }}>
                 {batchData.runs.length} bản
               </span>
             </div>
-            {batchData.runs.map((run, idx) => (
-              <div
-                key={run.id}
-                onClick={() => setSelectedRunIdx(idx)}
-                style={{
-                  padding: '12px 16px', cursor: 'pointer',
-                  borderBottom: idx < batchData.runs.length - 1 ? '1px solid #f1f5f9' : 'none',
-                  background: selectedRunIdx === idx ? '#eff6ff' : 'transparent',
-                  borderLeft: selectedRunIdx === idx ? '3px solid #4f46e5' : '3px solid transparent',
-                  transition: 'all 0.15s',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
-                  {run.status === 'DONE' && <CheckCircle2 size={13} color="#047857" />}
-                  {run.status === 'RUNNING' && <RefreshCw size={13} color="#2563eb" style={{ animation: 'spin 1s linear infinite' }} />}
-                  {run.status === 'FAILED' && <AlertCircle size={13} color="#dc2626" />}
-                  <span style={{
-                    fontSize: 11, fontWeight: 800,
-                    color: '#1e293b',
-                  }}>
-                    {run.versionTag || `Phiên bản #${run.versionNumber || (batchData.runs.length - idx)}`}
-                  </span>
-                  {idx === 0 && (
-                    <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 4, background: '#ede9fe', color: '#6d28d9', fontWeight: 700 }}>
-                      Mới nhất
+            <div style={{
+              overflowY: 'auto', flex: 1, minHeight: 0,
+              scrollbarWidth: 'thin',
+            }}>
+              {batchData.runs.map((run, idx) => (
+                <div
+                  key={run.id}
+                  onClick={() => setSelectedRunIdx(idx)}
+                  style={{
+                    padding: '12px 14px', cursor: 'pointer',
+                    borderBottom: idx < batchData.runs.length - 1 ? '1px solid #f1f5f9' : 'none',
+                    background: selectedRunIdx === idx ? '#eff6ff' : 'transparent',
+                    borderLeft: selectedRunIdx === idx ? '3px solid #4f46e5' : '3px solid transparent',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      {run.status === 'DONE' && <CheckCircle2 size={13} color="#047857" />}
+                      {run.status === 'RUNNING' && <RefreshCw size={13} color="#2563eb" style={{ animation: 'spin 1s linear infinite' }} />}
+                      {run.status === 'FAILED' && <AlertCircle size={13} color="#dc2626" />}
+                      <span style={{ fontSize: 12, fontWeight: 800, color: '#1e293b' }}>
+                        {run.versionTag || `Phiên bản #${run.versionNumber || (batchData.runs.length - idx)}`}
+                      </span>
+                    </div>
+
+                    {/* Point 8: Vibrant gradient "✨ Mới nhất" badge */}
+                    {idx === 0 && (
+                      <span style={{
+                        fontSize: 10, padding: '2px 7px', borderRadius: 999,
+                        background: 'linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%)',
+                        color: '#6d28d9', fontWeight: 800, border: '1px solid #c4b5fd',
+                        boxShadow: '0 1px 3px rgba(109,40,217,0.12)',
+                        display: 'inline-flex', alignItems: 'center', gap: 2,
+                      }}>
+                        ✨ Mới nhất
+                      </span>
+                    )}
+                  </div>
+
+                  <div style={{ fontSize: 11, color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>{formatDate(run.runAt)}</span>
+                    {/* Point 7: trigger & status pill */}
+                    <span style={{
+                      fontSize: 10, fontWeight: 600, padding: '1px 5px', borderRadius: 4,
+                      background: run.triggeredBy === 'CRON' ? '#f0fdf4' : '#f8fafc',
+                      color: run.triggeredBy === 'CRON' ? '#166534' : '#64748b',
+                      border: '1px solid #e2e8f0',
+                    }}>
+                      {run.triggeredBy === 'CRON' ? '⏰ Cron' : '👤 Thủ công'}
                     </span>
-                  )}
+                  </div>
+
+                  {/* Point 7: run summary detail */}
+                  <div style={{ fontSize: 11, color: '#475569', marginTop: 4, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <span style={{
+                      fontWeight: 700, color: run.completedMembers === run.totalMembers ? '#059669' : '#d97706',
+                    }}>
+                      {run.completedMembers}/{run.totalMembers} NV
+                    </span>
+                    {run.blueprintMembersCount ? (
+                      <span style={{ color: '#059669', fontWeight: 600 }}>🚢 {run.blueprintMembersCount}</span>
+                    ) : null}
+                    <span style={{ color: '#94a3b8' }}>· {formatDuration(run.durationMs)}</span>
+                  </div>
                 </div>
-                <div style={{ fontSize: 11, color: '#64748b' }}>
-                  {formatDate(run.runAt)}
-                </div>
-                <div style={{ fontSize: 11, color: '#475569', marginTop: 2, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  <span>{run.completedMembers}/{run.totalMembers} NV ✅</span>
-                  {run.blueprintMembersCount ? (
-                    <span style={{ color: '#059669', fontWeight: 600 }}>🚢 {run.blueprintMembersCount} Blueprint</span>
-                  ) : null}
-                  <span>({formatDuration(run.durationMs)})</span>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
 
           {/* Score table */}
@@ -1251,47 +1842,162 @@ export const JiraCollectorPage: React.FC = () => {
                 {/* Run info bar */}
                 <div style={{
                   padding: '12px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0',
-                  display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12,
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{
-                      fontSize: 12, fontWeight: 800, padding: '3px 10px', borderRadius: 6,
-                      background: '#4f46e5', color: '#fff',
-                    }}>
-                      {currentRun.versionTag || `Phiên bản #${currentRun.versionNumber || 1}`}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{
+                        fontSize: 12, fontWeight: 800, padding: '3px 10px', borderRadius: 6,
+                        background: '#4f46e5', color: '#fff',
+                      }}>
+                        {currentRun.versionTag || `Phiên bản #${currentRun.versionNumber || 1}`}
+                      </span>
+                      {currentRun.status === 'DONE' ? <CheckCircle2 size={15} color="#047857" /> :
+                        currentRun.status === 'RUNNING' ? <RefreshCw size={15} color="#2563eb" style={{ animation: 'spin 1s linear infinite' }} /> :
+                          <AlertCircle size={15} color="#dc2626" />}
+                      <span style={{ fontWeight: 700, fontSize: 13, color: '#374151' }}>
+                        {formatDate(currentRun.runAt)}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: 12, color: '#64748b' }}>
+                      Kích hoạt: <strong>{currentRun.triggeredBy === 'CRON' ? '⏰ Tự động (Cron)' : '👤 Thủ công'}</strong>
                     </span>
-                    {currentRun.status === 'DONE' ? <CheckCircle2 size={15} color="#047857" /> :
-                      currentRun.status === 'RUNNING' ? <RefreshCw size={15} color="#2563eb" style={{ animation: 'spin 1s linear infinite' }} /> :
-                        <AlertCircle size={15} color="#dc2626" />}
-                    <span style={{ fontWeight: 700, fontSize: 13, color: '#374151' }}>
-                      {formatDate(currentRun.runAt)}
+                    <span style={{ fontSize: 12, color: '#64748b' }}>
+                      Thành công: <strong style={{ color: '#047857' }}>{currentRun.completedMembers}/{currentRun.totalMembers}</strong> NV
                     </span>
+                    {currentRun.blueprintMembersCount ? (
+                      <span style={{ fontSize: 12, color: '#15803d', fontWeight: 600 }}>
+                        🚢 Blueprint: {currentRun.blueprintMembersCount} NV
+                      </span>
+                    ) : null}
+                    {currentRun.durationMs > 0 && (
+                      <span style={{ fontSize: 12, color: '#94a3b8' }}>
+                        <Timer size={12} style={{ verticalAlign: 'middle' }} /> {formatDuration(currentRun.durationMs)}
+                      </span>
+                    )}
+                    {currentRun.status === 'RUNNING' && (
+                      <span style={{
+                        padding: '2px 10px', background: '#eff6ff', color: '#2563eb',
+                        borderRadius: 999, fontSize: 11, fontWeight: 600, border: '1px solid #bfdbfe',
+                      }}>
+                        ⏳ Đang xử lý...
+                      </span>
+                    )}
                   </div>
-                  <span style={{ fontSize: 12, color: '#64748b' }}>
-                    Kích hoạt: <strong>{currentRun.triggeredBy === 'CRON' ? '⏰ Tự động (Cron)' : '👤 Thủ công'}</strong>
-                  </span>
-                  <span style={{ fontSize: 12, color: '#64748b' }}>
-                    Thành công: <strong style={{ color: '#047857' }}>{currentRun.completedMembers}/{currentRun.totalMembers}</strong> NV
-                  </span>
-                  {currentRun.blueprintMembersCount ? (
-                    <span style={{ fontSize: 12, color: '#15803d', fontWeight: 600 }}>
-                      🚢 Đồng bộ Blueprint: {currentRun.blueprintMembersCount} NV
-                    </span>
-                  ) : null}
-                  {currentRun.durationMs > 0 && (
-                    <span style={{ fontSize: 12, color: '#94a3b8' }}>
-                      <Timer size={12} style={{ verticalAlign: 'middle' }} /> {formatDuration(currentRun.durationMs)}
-                    </span>
-                  )}
-                  {currentRun.status === 'RUNNING' && (
-                    <span style={{
-                      padding: '2px 10px', background: '#eff6ff', color: '#2563eb',
-                      borderRadius: 999, fontSize: 11, fontWeight: 600, border: '1px solid #bfdbfe',
-                    }}>
-                      ⏳ Đang xử lý — Tự động cập nhật mỗi 8s
-                    </span>
+
+                  {/* Point 14: Retry failed members button */}
+                  {currentRun.failedMembers > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRunNow(failedMemberCodes.length > 0 ? failedMemberCodes : undefined)}
+                      disabled={running || isRunning}
+                      title="Chạy lại riêng cho các nhân sự bị lỗi/chưa có kết quả"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        padding: '5px 12px', background: '#fee2e2', border: '1px solid #fca5a5',
+                        borderRadius: 6, color: '#b91c1c', fontWeight: 700, fontSize: 12,
+                        cursor: running || isRunning ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      <RotateCcw size={12} className={running ? 'animate-spin' : ''} />
+                      <span>Chạy lại {failedMemberCodes.length > 0 ? failedMemberCodes.length : currentRun.failedMembers} NV lỗi</span>
+                    </button>
                   )}
                 </div>
+
+                {/* Point 10: Table Filtering, Search, and Sort Toolbar */}
+                {currentRun.scoreSummary.length > 0 && (
+                  <div style={{
+                    padding: '10px 20px', background: '#ffffff', borderBottom: '1px solid #e2e8f0',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    gap: 12, flexWrap: 'wrap',
+                  }}>
+                    {/* Filter tabs */}
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => setLevelFilter('all')}
+                        style={{
+                          padding: '5px 10px', borderRadius: 6, border: 'none',
+                          fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                          background: levelFilter === 'all' ? '#4f46e5' : '#f1f5f9',
+                          color: levelFilter === 'all' ? '#fff' : '#475569',
+                        }}
+                      >
+                        Tất cả ({levelCounts.all})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLevelFilter('level-4-5')}
+                        style={{
+                          padding: '5px 10px', borderRadius: 6, border: 'none',
+                          fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                          background: levelFilter === 'level-4-5' ? '#059669' : '#ecfdf5',
+                          color: levelFilter === 'level-4-5' ? '#fff' : '#047857',
+                        }}
+                      >
+                        Mức 4–5 · Tốt/Xuất sắc ({levelCounts.l45})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLevelFilter('level-3')}
+                        style={{
+                          padding: '5px 10px', borderRadius: 6, border: 'none',
+                          fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                          background: levelFilter === 'level-3' ? '#d97706' : '#fef3c7',
+                          color: levelFilter === 'level-3' ? '#fff' : '#b45309',
+                        }}
+                      >
+                        Mức 3 · Đạt ({levelCounts.l3})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLevelFilter('level-1-2')}
+                        style={{
+                          padding: '5px 10px', borderRadius: 6, border: 'none',
+                          fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                          background: levelFilter === 'level-1-2' ? '#dc2626' : '#fee2e2',
+                          color: levelFilter === 'level-1-2' ? '#fff' : '#b91c1c',
+                        }}
+                      >
+                        Mức 1–2 · Cần cải thiện ({levelCounts.l12})
+                      </button>
+                    </div>
+
+                    {/* Search & Sort */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <div style={{ position: 'relative', width: 180 }}>
+                        <Search size={13} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                        <input
+                          type="text"
+                          placeholder="Lọc nhân sự..."
+                          value={tableSearch}
+                          onChange={(e) => setTableSearch(e.target.value)}
+                          style={{
+                            width: '100%', padding: '5px 8px 5px 26px', borderRadius: 6,
+                            border: '1px solid #cbd5e1', fontSize: 12, outline: 'none', boxSizing: 'border-box',
+                          }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <ArrowUpDown size={13} color="#64748b" />
+                        <select
+                          value={tableSort}
+                          onChange={(e) => setTableSort(e.target.value as any)}
+                          style={{
+                            padding: '5px 8px', borderRadius: 6, border: '1px solid #cbd5e1',
+                            fontSize: 12, fontWeight: 600, color: '#334155', background: '#fff',
+                          }}
+                        >
+                          <option value="score-desc">Điểm cao → thấp</option>
+                          <option value="score-asc">Điểm thấp → cao</option>
+                          <option value="name-asc">Tên A → Z</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {currentRun.scoreSummary.length === 0 ? (
                   (() => {
@@ -1579,10 +2285,48 @@ export const JiraCollectorPage: React.FC = () => {
                                   {effectiveErrors[0]}
                                 </div>
                               )}
-                              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+
+                              {/* Point 15: Detailed failed member breakdown cards */}
+                              {failedMemberCodes.length > 0 && (
+                                <div>
+                                  <div style={{ fontSize: 12, fontWeight: 700, color: '#991b1b', marginBottom: 6 }}>
+                                    Danh sách nhân sự chưa thu thập được ({failedMemberCodes.length} người):
+                                  </div>
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8, marginBottom: 4 }}>
+                                    {failedMemberCodes.map((code) => {
+                                      const m = managedMembers.find((mb) => mb.code === code);
+                                      return (
+                                        <div key={code} style={{
+                                          padding: '8px 12px', background: '#ffffff', borderRadius: 8,
+                                          border: '1px solid #fecaca', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                        }}>
+                                          <div>
+                                            <div style={{ fontSize: 12, fontWeight: 700, color: '#991b1b' }}>{m?.name || code}</div>
+                                            <div style={{ fontSize: 11, color: '#7f1d1d' }}>Mã: {code} {m?.team ? `· ${m.team}` : ''}</div>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRunNow([code])}
+                                            disabled={running}
+                                            style={{
+                                              padding: '3px 8px', borderRadius: 4, border: '1px solid #fca5a5',
+                                              background: '#fee2e2', color: '#b91c1c', fontSize: 11, fontWeight: 600,
+                                              cursor: 'pointer',
+                                            }}
+                                          >
+                                            Chạy lại
+                                          </button>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+
+                              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                                 <button
                                   type="button"
-                                  onClick={handleRunNow}
+                                  onClick={() => handleRunNow(failedMemberCodes.length > 0 ? failedMemberCodes : undefined)}
                                   disabled={running}
                                   style={{
                                     display: 'inline-flex',
@@ -1598,7 +2342,8 @@ export const JiraCollectorPage: React.FC = () => {
                                     cursor: 'pointer',
                                   }}
                                 >
-                                  <RefreshCw size={14} className={running ? 'animate-spin' : ''} /> Chạy lại Batch
+                                  <RefreshCw size={14} className={running ? 'animate-spin' : ''} />
+                                  <span>Chạy lại {failedMemberCodes.length > 0 ? `${failedMemberCodes.length} nhân sự lỗi` : 'toàn bộ Batch'}</span>
                                 </button>
                                 {effectiveErrors.length > 1 && (
                                   <button
@@ -1648,7 +2393,7 @@ export const JiraCollectorPage: React.FC = () => {
                   })()
                 ) : (
                   <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 920 }}>
                       <thead>
                         <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                           <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 700, fontSize: 12, color: '#475569' }}>Nhân viên</th>
@@ -1666,16 +2411,22 @@ export const JiraCollectorPage: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {currentRun.scoreSummary
-                          .sort((a, b) => b.overallScore - a.overallScore)
-                          .map((member) => (
+                        {displayedMembers.length === 0 ? (
+                          <tr>
+                            <td colSpan={12} style={{ textAlign: 'center', padding: '36px', color: '#94a3b8', fontSize: 13 }}>
+                              Không tìm thấy nhân viên nào phù hợp với bộ lọc hoặc từ khóa "{tableSearch}".
+                            </td>
+                          </tr>
+                        ) : (
+                          displayedMembers.map((member) => (
                             <ScoreRow
                               key={member.employeeCode}
                               member={member}
                               runId={currentRun.id}
                               onViewDetail={handleViewDetail}
                             />
-                          ))}
+                          ))
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -1750,7 +2501,7 @@ export const JiraCollectorPage: React.FC = () => {
                   cursor: 'pointer',
                 }}
               >
-                🕒 Chọn giờ hàng ngày
+                🕒 Cài đặt định kỳ (Tháng / Ngày)
               </button>
               <button
                 type="button"
@@ -1814,23 +2565,98 @@ export const JiraCollectorPage: React.FC = () => {
                 background: '#f8fafc', padding: 20, borderRadius: 12, border: '1px solid #e2e8f0',
                 marginBottom: 16,
               }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#334155', marginBottom: 12 }}>
-                  Chọn giờ chạy tự động mỗi ngày (Giờ Việt Nam GMT+7):
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#334155', marginBottom: 10 }}>
+                  Tần suất thu thập tự động:
                 </div>
+                <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCronFrequency('monthly');
+                      const cron = `${selectedMinute} ${parseInt(selectedHour, 10)} ${selectedDom} * *`;
+                      setCronInput(cron);
+                    }}
+                    style={{
+                      flex: 1, padding: '8px 12px', borderRadius: 8,
+                      border: cronFrequency === 'monthly' ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                      background: cronFrequency === 'monthly' ? '#e0f2fe' : '#fff',
+                      color: cronFrequency === 'monthly' ? '#0369a1' : '#475569',
+                      fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    }}
+                  >
+                    <Calendar size={14} />
+                    <span>Hàng tháng (1 tháng / lần)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCronFrequency('daily');
+                      const cron = `${selectedMinute} ${parseInt(selectedHour, 10)} * * *`;
+                      setCronInput(cron);
+                    }}
+                    style={{
+                      flex: 1, padding: '8px 12px', borderRadius: 8,
+                      border: cronFrequency === 'daily' ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                      background: cronFrequency === 'daily' ? '#e0f2fe' : '#fff',
+                      color: cronFrequency === 'daily' ? '#0369a1' : '#475569',
+                      fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    }}
+                  >
+                    <Clock size={14} />
+                    <span>Hàng ngày (Mỗi ngày)</span>
+                  </button>
+                </div>
+
+                {cronFrequency === 'monthly' && (
+                  <div style={{ marginBottom: 14 }}>
+                    <label style={{ fontSize: 11, color: '#64748b', fontWeight: 600, display: 'block', marginBottom: 4 }}>
+                      Ngày trong tháng (1 - 31)
+                    </label>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <select
+                        value={selectedDom}
+                        onChange={(e) => {
+                          const d = e.target.value;
+                          setSelectedDom(d);
+                          const cron = `${selectedMinute} ${parseInt(selectedHour, 10)} ${d} * *`;
+                          setCronInput(cron);
+                        }}
+                        style={{
+                          padding: '8px 12px', borderRadius: 8, border: '1.5px solid #cbd5e1',
+                          fontSize: 14, fontWeight: 700, color: '#1e293b', background: '#fff',
+                        }}
+                      >
+                        {Array.from({ length: 31 }).map((_, i) => (
+                          <option key={i + 1} value={String(i + 1)}>
+                            Ngày {i + 1} hàng tháng {i + 1 === 1 ? '(Đầu tháng)' : i + 1 === 25 ? '(Kỳ chốt KPI)' : i + 1 === 28 ? '(Cuối tháng)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <span style={{ fontSize: 12, color: '#64748b' }}>
+                        (Gợi ý: Ngày <strong>01</strong> hoặc <strong>25</strong> hàng tháng)
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
                   <div>
-                    <label style={{ fontSize: 11, color: '#64748b', fontWeight: 600, display: 'block', marginBottom: 4 }}>Giờ (00-23)</label>
+                    <label style={{ fontSize: 11, color: '#64748b', fontWeight: 600, display: 'block', marginBottom: 4 }}>Giờ chạy (00-23)</label>
                     <select
                       value={selectedHour}
                       onChange={(e) => {
                         const h = e.target.value;
                         setSelectedHour(h);
-                        const cron = `${selectedMinute} ${parseInt(h, 10)} * * *`;
+                        const domPart = cronFrequency === 'monthly' ? selectedDom : '*';
+                        const cron = `${selectedMinute} ${parseInt(h, 10)} ${domPart} * *`;
                         setCronInput(cron);
                       }}
                       style={{
                         padding: '8px 12px', borderRadius: 8, border: '1.5px solid #cbd5e1',
-                        fontSize: 15, fontWeight: 700, color: '#1e293b', background: '#fff',
+                        fontSize: 14, fontWeight: 700, color: '#1e293b', background: '#fff',
                       }}
                     >
                       {Array.from({ length: 24 }).map((_, i) => {
@@ -1850,12 +2676,13 @@ export const JiraCollectorPage: React.FC = () => {
                       onChange={(e) => {
                         const m = e.target.value;
                         setSelectedMinute(m);
-                        const cron = `${m} ${parseInt(selectedHour, 10)} * * *`;
+                        const domPart = cronFrequency === 'monthly' ? selectedDom : '*';
+                        const cron = `${m} ${parseInt(selectedHour, 10)} ${domPart} * *`;
                         setCronInput(cron);
                       }}
                       style={{
                         padding: '8px 12px', borderRadius: 8, border: '1.5px solid #cbd5e1',
-                        fontSize: 15, fontWeight: 700, color: '#1e293b', background: '#fff',
+                        fontSize: 14, fontWeight: 700, color: '#1e293b', background: '#fff',
                       }}
                     >
                       {['00', '15', '30', '45'].map((m) => (
@@ -1866,7 +2693,9 @@ export const JiraCollectorPage: React.FC = () => {
                 </div>
 
                 <div style={{ fontSize: 12, color: '#0369a1', background: '#e0f2fe', padding: '8px 12px', borderRadius: 8 }}>
-                  💡 Hệ thống sẽ tự động quét và tính điểm vào lúc <strong>{selectedHour}:{selectedMinute}</strong> mỗi ngày.
+                  💡 {cronFrequency === 'monthly'
+                    ? `Hệ thống sẽ tự động quét định kỳ 1 tháng 1 lần vào ngày ${selectedDom} hàng tháng lúc ${selectedHour}:${selectedMinute}.`
+                    : `Hệ thống sẽ tự động quét mỗi ngày vào lúc ${selectedHour}:${selectedMinute}.`}
                 </div>
               </div>
             )}
@@ -1885,12 +2714,13 @@ export const JiraCollectorPage: React.FC = () => {
                     border: '1.5px solid #c7d2fe', fontFamily: 'monospace', fontSize: 16,
                     outline: 'none', boxSizing: 'border-box', marginBottom: 8,
                   }}
-                  placeholder="0 0 * * *"
+                  placeholder="0 0 1 * *"
                 />
                 <div style={{ fontSize: 11, color: '#64748b', lineHeight: 1.5 }}>
+                  • <code>0 0 1 * *</code> : Ngày 01 hàng tháng lúc 00:00 (1 tháng/lần)<br />
+                  • <code>0 18 25 * *</code> : Ngày 25 hàng tháng lúc 18:00 (Chốt KPI tháng)<br />
                   • <code>0 0 * * *</code> : 00:00 nửa đêm mỗi ngày<br />
-                  • <code>0 7 * * *</code> : 07:00 sáng mỗi ngày<br />
-                  • <code>0 */6 * * *</code> : Mỗi 6 tiếng một lần
+                  • <code>0 7 * * *</code> : 07:00 sáng mỗi ngày
                 </div>
               </div>
             )}
@@ -1906,10 +2736,11 @@ export const JiraCollectorPage: React.FC = () => {
                   Lịch trình được chọn
                 </div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#166534', marginTop: 1 }}>
-                  {describeCron(cronInput || '0 0 * * *')}
+                  {describeCron(cronInput || '0 0 1 * *')}
                 </div>
-                <div style={{ fontSize: 11, color: '#15803d', marginTop: 2 }}>
-                  Múi giờ máy chủ: Asia/Ho_Chi_Minh (GMT+7) · Cron: <code>{cronInput}</code>
+                <div style={{ fontSize: 11, color: '#15803d', marginTop: 2, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <span>Múi giờ máy chủ: Asia/Ho_Chi_Minh (GMT+7) · Cron: <code>{cronInput}</code></span>
+                  <span style={{ fontWeight: 700 }}>· 🕒 Lần chạy tiếp: {getNextRunPreview(cronInput || '0 0 1 * *')}</span>
                 </div>
               </div>
             </div>
@@ -1940,6 +2771,198 @@ export const JiraCollectorPage: React.FC = () => {
               >
                 {cronSaving ? 'Đang lưu...' : '💾 Lưu & Áp dụng lịch này'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Member Selection Modal */}
+      {showMemberSelectModal && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }} onClick={() => setShowMemberSelectModal(false)}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            background: '#fff', borderRadius: 16, width: '100%', maxWidth: 640,
+            maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '16px 20px', background: 'linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%)',
+              borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: 10, background: '#4f46e5',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
+                }}>
+                  <Users size={18} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>
+                    Chọn nhân sự cần thu thập dữ liệu
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748b' }}>
+                    Chỉ thu thập Jira & Blueprint cho những thành viên được chọn thay vì toàn bộ
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMemberSelectModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: 4 }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Filter & Controls */}
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid #f1f5f9', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: 200, position: 'relative' }}>
+                <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                <input
+                  type="text"
+                  placeholder="Tìm theo tên, mã NV hoặc team..."
+                  value={memberSearchTerm}
+                  onChange={(e) => setMemberSearchTerm(e.target.value)}
+                  style={{
+                    width: '100%', padding: '7px 12px 7px 32px', borderRadius: 8,
+                    border: '1px solid #cbd5e1', fontSize: 13, outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setModalSelectedCodes(managedMembers.map((m) => m.code))}
+                  style={{
+                    padding: '6px 12px', borderRadius: 6, border: '1px solid #cbd5e1',
+                    background: '#f8fafc', fontSize: 12, fontWeight: 600, color: '#334155', cursor: 'pointer',
+                  }}
+                >
+                  Chọn tất cả ({managedMembers.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalSelectedCodes([])}
+                  style={{
+                    padding: '6px 12px', borderRadius: 6, border: '1px solid #cbd5e1',
+                    background: '#f8fafc', fontSize: 12, fontWeight: 600, color: '#64748b', cursor: 'pointer',
+                  }}
+                >
+                  Bỏ chọn hết
+                </button>
+              </div>
+            </div>
+
+            {/* Member list */}
+            <div style={{ overflowY: 'auto', flex: 1, padding: '12px 20px', maxHeight: '50vh' }}>
+              {filteredMembers.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '30px 0', color: '#94a3b8', fontSize: 13 }}>
+                  Không tìm thấy nhân viên nào phù hợp từ khóa "{memberSearchTerm}"
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 8 }}>
+                  {filteredMembers.map((m) => {
+                    const isChecked = modalSelectedCodes.includes(m.code);
+                    return (
+                      <div
+                        key={m.code}
+                        onClick={() => {
+                          if (isChecked) {
+                            setModalSelectedCodes(modalSelectedCodes.filter((c) => c !== m.code));
+                          } else {
+                            setModalSelectedCodes([...modalSelectedCodes, m.code]);
+                          }
+                        }}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                          borderRadius: 8, border: isChecked ? '1.5px solid #6366f1' : '1px solid #e2e8f0',
+                          background: isChecked ? '#eef2ff' : '#fff', cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <div style={{ color: isChecked ? '#4f46e5' : '#cbd5e1', display: 'flex', alignItems: 'center' }}>
+                          {isChecked ? <CheckSquare size={16} /> : <Square size={16} />}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: isChecked ? '#312e81' : '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {m.name}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#64748b', display: 'flex', gap: 6 }}>
+                            <span>Mã: <strong>{m.code}</strong></span>
+                            {m.team && <span>· {m.team}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              padding: '14px 20px', background: '#f8fafc', borderTop: '1px solid #e2e8f0',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10,
+            }}>
+              <div style={{ fontSize: 13, color: '#475569' }}>
+                Đã chọn: <strong style={{ color: '#4f46e5', fontSize: 14 }}>{modalSelectedCodes.length}</strong> / {managedMembers.length} nhân sự
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowMemberSelectModal(false)}
+                  style={{
+                    padding: '8px 16px', borderRadius: 8, border: '1px solid #cbd5e1',
+                    background: '#fff', fontSize: 13, fontWeight: 600, color: '#475569', cursor: 'pointer',
+                  }}
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedEmpCodes(modalSelectedCodes);
+                    try {
+                      localStorage.setItem('kpi_collector_selected_members', JSON.stringify(modalSelectedCodes));
+                    } catch {}
+                    setShowMemberSelectModal(false);
+                  }}
+                  style={{
+                    padding: '8px 16px', borderRadius: 8, border: '1px solid #6366f1',
+                    background: '#eef2ff', fontSize: 13, fontWeight: 700, color: '#4f46e5', cursor: 'pointer',
+                  }}
+                >
+                  Lưu lựa chọn
+                </button>
+                <button
+                  type="button"
+                  disabled={modalSelectedCodes.length === 0 || running || !!isRunning}
+                  onClick={() => {
+                    setSelectedEmpCodes(modalSelectedCodes);
+                    try {
+                      localStorage.setItem('kpi_collector_selected_members', JSON.stringify(modalSelectedCodes));
+                    } catch {}
+                    handleRunNow(modalSelectedCodes);
+                  }}
+                  style={{
+                    padding: '8px 20px', borderRadius: 8, border: 'none',
+                    background: modalSelectedCodes.length === 0 ? '#94a3b8' : 'linear-gradient(135deg, #4f46e5, #6366f1)',
+                    color: '#fff', fontSize: 13, fontWeight: 700,
+                    cursor: modalSelectedCodes.length === 0 ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 2px 8px rgba(79,70,229,0.3)',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}
+                >
+                  <Play size={14} />
+                  <span>Thu thập ngay ({modalSelectedCodes.length} NV)</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2057,6 +3080,93 @@ export const JiraCollectorPage: React.FC = () => {
           alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 18,
         }}>
           ⏳ Đang tải chi tiết...
+        </div>
+      )}
+
+      {/* Batch Run Confirmation Modal (Point 9) */}
+      {showRunConfirmModal && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }} onClick={() => setShowRunConfirmModal(false)}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            background: '#fff', borderRadius: 16, padding: '24px 28px', width: '100%', maxWidth: 520,
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: 10, background: '#e0e7ff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4f46e5',
+                flexShrink: 0,
+              }}>
+                <Play size={20} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#1e293b' }}>
+                  Xác nhận chạy Thu thập dữ liệu & Chấm điểm KPI
+                </h3>
+                <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>
+                  Phiên chạy batch sẽ tạo một Version mới lưu vào cơ sở dữ liệu
+                </p>
+              </div>
+            </div>
+
+            <div style={{
+              background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10,
+              padding: '14px 16px', marginBottom: 16, fontSize: 13, color: '#334155',
+              display: 'flex', flexDirection: 'column', gap: 8,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#64748b' }}>Chu kỳ đánh giá:</span>
+                <strong style={{ color: '#4338ca' }}>{currentCycleCode}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#64748b' }}>Số nhân sự thu thập:</span>
+                <strong>{selectedEmpCodes.length} / {managedMembers.length || 19} nhân sự</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#64748b' }}>Nguồn dữ liệu:</span>
+                <span>Jira PIM + Blueprint CLV</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#64748b' }}>Công nghệ chấm điểm:</span>
+                <span>AI Evaluator (5 tiêu chí KPI chuẩn)</span>
+              </div>
+            </div>
+
+            <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5, marginBottom: 20 }}>
+              💡 Quá trình thu thập và chấm điểm AI có thể mất từ 15 đến 45 giây tùy theo số lượng task và thành viên. Bạn có thể theo dõi tiến độ thời gian thực trên màn hình này.
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setShowRunConfirmModal(false)}
+                style={{
+                  padding: '9px 18px', borderRadius: 8, border: '1px solid #cbd5e1',
+                  background: '#fff', fontSize: 13, fontWeight: 600, color: '#475569', cursor: 'pointer',
+                }}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={() => handleRunNow()}
+                disabled={running || isRunning}
+                style={{
+                  padding: '9px 22px', borderRadius: 8, border: 'none',
+                  background: 'linear-gradient(135deg, #4f46e5, #6366f1)',
+                  color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(79,70,229,0.3)',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}
+              >
+                <Play size={15} />
+                <span>Bắt đầu chạy ngay</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

@@ -250,10 +250,10 @@ export class AiScoringEngine {
       return { level: 1, score: 60 };
     }
     if (kpiCode === 'TASK_VOLUME') {
-      if (value >= 30) return { level: 5, score: 100 };
-      if (value >= 20) return { level: 4, score: 95 };
-      if (value >= 10) return { level: 3, score: 85 };
-      if (value >= 5) return { level: 2, score: 75 };
+      if (value >= 15) return { level: 5, score: 100 };
+      if (value >= 10) return { level: 4, score: 95 };
+      if (value >= 5) return { level: 3, score: 85 };
+      if (value >= 2) return { level: 2, score: 75 };
       return { level: 1, score: 60 };
     }
     if (kpiCode === 'OWNERSHIP_SCOPE' || kpiCode === 'INDEPENDENCE') {
@@ -296,42 +296,19 @@ export class AiScoringEngine {
     const taskMap = new Map<string, JiraIssueRecord>(sampleTasks.map((t) => [t.key, t]));
 
     if (this.apiKey) {
-      const hasTaskPlaceholders = Boolean(
-        this.taskPromptTemplate &&
-        (this.taskPromptTemplate.includes('{{taskKey}}') ||
-         this.taskPromptTemplate.includes('{{key}}') ||
-         this.taskPromptTemplate.includes('{{taskSummary}}') ||
-         this.taskPromptTemplate.includes('{{summary}}'))
-      );
-
       const taskList = sampleTasks.map((t, idx) => {
-        if (hasTaskPlaceholders && this.taskPromptTemplate) {
-          const renderedTask = this.taskPromptTemplate
-            .replace(/\{\{(taskKey|key)\}\}/g, t.key)
-            .replace(/\{\{(taskSummary|summary)\}\}/g, t.summary)
-            .replace(/\{\{(taskDescription|description)\}\}/g, t.descriptionPreview || 'Không có mô tả bổ sung')
-            .replace(/\{\{priority\}\}/g, t.priority)
-            .replace(/\{\{issueType\}\}/g, t.issueType)
-            .replace(/\{\{status\}\}/g, t.status)
-            .replace(/\{\{timeSpentHours\}\}/g, String(t.timeSpentHours))
-            .replace(/\{\{originalEstimateHours\}\}/g, String(t.originalEstimateHours || 0))
-            .replace(/\{\{memberName\}\}/g, metrics.memberName)
-            .replace(/\{\{employeeCode\}\}/g, metrics.employeeCode);
-          return `--- Task ${idx + 1} (${t.key}) ---\n${renderedTask}`;
-        }
-
         return `Task ${idx + 1}:
 - Key: ${t.key}
 - Summary: "${t.summary}"
 - Type: ${t.issueType} | Priority: ${t.priority} | Status: ${t.status} | OnTime: ${t.isOnTime ? 'Đúng hạn' : 'Trễ hạn'}
-- Components: ${t.components && t.components.length > 0 ? t.components.join(', ') : 'Chung'}
+- Components/Phân hệ: ${t.components && t.components.length > 0 ? t.components.join(', ') : 'Chung'}
 - Labels: ${t.labels && t.labels.length > 0 ? t.labels.join(', ') : 'N/A'}
 - TimeSpent: ${t.timeSpentHours}h${t.originalEstimateHours ? ` (Ước lượng ban đầu: ${t.originalEstimateHours}h)` : ''}
 - Description: "${t.descriptionPreview || 'Không có mô tả bổ sung'}"
 - Số lượng trao đổi/comment: ${t.commentsCount || 0}${t.latestComment ? ` | Comment gần nhất: "${t.latestComment}"` : ''}`;
       }).join('\n\n');
 
-      const customPromptInstructions = (!hasTaskPlaceholders && this.taskPromptTemplate)
+      const customPromptInstructions = this.taskPromptTemplate
         ? this.renderPrompt(this.taskPromptTemplate, {
             memberName: metrics.memberName,
             employeeCode: metrics.employeeCode,
@@ -376,11 +353,21 @@ export class AiScoringEngine {
   * 1 (Kém): Không hoàn thành hoặc gây ảnh hưởng tiêu cực.`;
       }
 
-      const prompt = `Bạn là Giám đốc kỹ thuật (Engineering Director) tại CyberLogitec Việt Nam.
-Hãy đánh giá CHI TIẾT và TOÀN DIỆN từng task Jira của nhân viên ${metrics.memberName} (Mã NV: ${metrics.employeeCode}).
+      const prompt = `Bạn là Giám đốc kỹ thuật (Engineering Director) và Solution Architect tại CyberLogitec Việt Nam.
+Hãy thẩm định CHI TIẾT, TOÀN DIỆN và THỰC CHẤT từng task Jira sau của kỹ sư ${metrics.memberName} (Mã NV: ${metrics.employeeCode}).
 
-${customPromptInstructions ? `HƯỚNG DẪN & TIÊU CHÍ ĐÁNH GIÁ TÙY CHỈNH:\n${customPromptInstructions}\n` : ''}
-DANH SÁCH TASKS CẦN ĐÁNH GIÁ:
+QUY TẮC PHÂN TÍCH BẮT BUỘC:
+1. ĐỘ PHỨC TẠP KỸ THUẬT (complexityScore 1-5):
+   - Đánh giá dựa trên: bản chất logic nghiệp vụ (vận tải biển, logistics cảng, EDI, booking, billing, container, hải quan, điều độ tàu...), độ khó thuật toán, cấu trúc dữ liệu, tích hợp API/DB, rủi ro hồi quy và thời lượng thực tế bỏ ra.
+   - Lập luận (complexityRationale): Phải chỉ rõ VÌ SAO task khó hoặc dễ. Nêu tên chức năng/module/luồng xử lý cụ thể từ tiêu đề hoặc mô tả task. TUYỆT ĐỐI KHÔNG dùng câu chung chung sáo rỗng.
+2. MỨC ĐỘ ĐÓNG GÓP (contributionScore 1-5):
+   - Đánh giá dựa trên: vai trò then chốt hay hỗ trợ, tính chủ động giải quyết dứt điểm vấn đề, cam kết đúng tiến độ và kỷ luật log work/ước tính thời gian.
+   - Lập luận (contributionRationale): Phải chỉ rõ nhân sự đã giải quyết vấn đề gì, mang lại giá trị gì cho module hoặc sprint.
+3. PHÂN BỐ ĐIỂM SỐ KHÁCH QUAN:
+   - Phân biệt rõ rệt giữa việc vặt/CRUD nhỏ (1-2 điểm) với task nghiệp vụ trung bình (3 điểm) và các task lớn/sự cố nghiêm trọng/tối ưu kiến trúc (4-5 điểm).
+
+${customPromptInstructions ? `TIÊU CHÍ VÀ CHỈ DẪN TÙY CHỈNH TỪ QUẢN LÝ:\n${customPromptInstructions}\n` : ''}
+DANH SÁCH TASKS CẦN THẨM ĐỊNH (${sampleTasks.length} tasks):
 ${taskList}
 
 YÊU CẦU: Trả về DUY NHẤT một chuỗi JSON hợp lệ theo schema sau (hoàn toàn bằng tiếng Việt chuyên nghiệp):
@@ -388,11 +375,11 @@ YÊU CẦU: Trả về DUY NHẤT một chuỗi JSON hợp lệ theo schema sau 
   "tasks": [
     {
       "key": "TASK-KEY",
-      "complexityScore": <1-5: số nguyên đánh giá độ khó kỹ thuật và phạm vi>,
-      "complexityRationale": "<Giải thích chi tiết 2-3 câu: VÌ SAO task này đạt mức phức tạp đó? Phân tích góc độ kỹ thuật, độ khó xử lý, phạm vi tác động module và thời lượng bỏ ra>",
-      "contributionScore": <1-5: số nguyên đánh giá mức độ đóng góp và giá trị mang lại>,
-      "contributionRationale": "<Giải thích chi tiết 2-3 câu: NHÂN SỰ ĐÃ ĐÓNG GÓP GÌ CỤ THỂ? Phân tích vai trò, tính chủ động, cách thức giải quyết triệt để vấn đề, cam kết đúng hạn và chất lượng bàn giao>",
-      "comment": "<Nhận xét cô đọng, chuyên sâu 1-2 câu từ Engineering Manager>"
+      "complexityScore": <1-5: số nguyên>,
+      "complexityRationale": "<Phân tích chi tiết 2-3 câu: VÌ SAO task đạt mức độ phức tạp này? Dẫn chứng từ tên module, nghiệp vụ hoặc logic kỹ thuật trong task>",
+      "contributionScore": <1-5: số nguyên>,
+      "contributionRationale": "<Phân tích chi tiết 2-3 câu: Kỹ sư đã đóng góp gì cụ thể? Giải pháp xử lý, tính chủ động và chất lượng bàn giao>",
+      "comment": "<Nhận xét súc tích 1-2 câu từ Tech Lead>"
     }
   ],
   "overallContributionSummary": "<Nhận xét tổng thể 2-3 câu về năng lực chuyên môn và mức độ cống hiến>"
@@ -419,12 +406,38 @@ ${strictnessCriteria}`;
           };
           const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
           if (rawText) {
-            const parsed = JSON.parse(rawText) as GeminiTaskEvaluationResponse;
-            if (Array.isArray(parsed.tasks) && parsed.tasks.length > 0) {
-              return parsed.tasks.map((t) => {
+            let tasksList: Array<any> = [];
+            try {
+              const parsed = JSON.parse(rawText);
+              if (Array.isArray(parsed?.tasks)) {
+                tasksList = parsed.tasks;
+              } else if (Array.isArray(parsed)) {
+                tasksList = parsed;
+              } else if (parsed && typeof parsed === 'object') {
+                const values = Object.entries(parsed).map(([k, v]: [string, any]) => ({
+                  key: v?.key || k,
+                  ...(typeof v === 'object' ? v : {}),
+                }));
+                if (values.length > 0 && (values[0].complexityScore !== undefined || values[0].complexityRationale !== undefined)) {
+                  tasksList = values;
+                }
+              }
+            } catch (pErr) {
+              console.warn('[Gemini Task Eval] JSON parse error:', pErr);
+            }
+
+            if (tasksList.length > 0) {
+              return tasksList.map((t) => {
                 const originalTask = taskMap.get(t.key);
-                const complexity = Math.min(5, Math.max(1, Math.round(t.complexityScore || 3)));
-                const contribution = Math.min(5, Math.max(1, Math.round(t.contributionScore || 3)));
+                const complexity = Math.min(5, Math.max(1, Math.round(Number(t.complexityScore) || 3)));
+                const contribution = Math.min(5, Math.max(1, Math.round(Number(t.contributionScore) || 3)));
+                const reasoning = t.reasoning || t.rationale || '';
+                const complexityRationale = t.complexityRationale || reasoning || this.getDefaultComplexityRationale(originalTask, complexity);
+                const contributionRationale = t.contributionRationale || reasoning || this.getDefaultContributionRationale(originalTask, contribution);
+                const aiComment = t.comment || reasoning || (originalTask?.isCompleted
+                  ? `Đã hoàn thành: Đánh giá ${complexity}/5 về độ phức tạp nghiệp vụ và ${contribution}/5 về mức đóng góp giải quyết vấn đề.`
+                  : `Đang thực hiện (${originalTask?.status}): Đánh giá ${complexity}/5 về độ phức tạp.`);
+
                 return {
                   taskKey: t.key,
                   summary: originalTask?.summary || '',
@@ -435,10 +448,10 @@ ${strictnessCriteria}`;
                   timeSpentHours: originalTask?.timeSpentHours || 0,
                   originalEstimateHours: originalTask?.originalEstimateHours,
                   complexityScore: complexity,
-                  complexityRationale: t.complexityRationale || this.getDefaultComplexityRationale(originalTask, complexity),
+                  complexityRationale,
                   contributionScore: contribution,
-                  contributionRationale: t.contributionRationale || this.getDefaultContributionRationale(originalTask, contribution),
-                  aiComment: t.comment || 'Đã hoàn thành theo phân công nhiệm vụ.',
+                  contributionRationale,
+                  aiComment,
                   jiraUrl: originalTask?.jiraUrl || `${JIRA_CONFIG.baseUrl}/browse/${t.key}`,
                   components: originalTask?.components,
                   labels: originalTask?.labels,
@@ -575,17 +588,18 @@ ${strictnessCriteria}`;
     const typeLabel = task.isBug ? 'sự cố phần mềm (Bug)' : `yêu cầu nghiệp vụ (${task.issueType})`;
     const compText = task.components && task.components.length > 0 ? ` trong module ${task.components.join(', ')}` : '';
     const timeText = task.timeSpentHours > 0 ? ` với thời lượng xử lý ${task.timeSpentHours}h` : '';
+    const taskTitle = task.summary ? ` "${task.summary.slice(0, 90)}"` : '';
 
     if (score >= 5) {
-      return `Nhiệm vụ mức độ phức tạp rất cao (${score}/5) do liên quan đến ${typeLabel} có mức độ ưu tiên ${task.priority}${compText}. Yêu cầu phân tích sâu luồng dữ liệu, xử lý tương thích nghiệp vụ phức tạp${timeText} và rủi ro ảnh hưởng lớn đến vận hành.`;
+      return `Nhiệm vụ [${task.key}]${taskTitle} đạt mức độ phức tạp rất cao (${score}/5) do thuộc diện ${typeLabel} ưu tiên ${task.priority}${compText}. Yêu cầu phân tích sâu luồng dữ liệu, xử lý logic tương thích kiến trúc${timeText} và rủi ro ảnh hưởng lớn đến vận hành.`;
     }
     if (score === 4) {
-      return `Nhiệm vụ có độ phức tạp cao (${score}/5) thuộc diện ${typeLabel}${compText}. Cần hiểu rõ quy trình xử lý nghiệp vụ, kiểm tra đa trường hợp biên${timeText} để đảm bảo chất lượng hệ thống.`;
+      return `Nhiệm vụ [${task.key}]${taskTitle} có độ phức tạp cao (${score}/5) thuộc diện ${typeLabel}${compText}. Đòi hỏi xử lý quy trình nghiệp vụ chuyên sâu, kiểm thử đa trường hợp biên${timeText} để bảo đảm tính toàn vẹn hệ thống.`;
     }
     if (score === 3) {
-      return `Độ phức tạp mức trung bình (${score}/5), xử lý ${typeLabel}${compText} theo đúng quy trình phát triển tiêu chuẩn. Khối lượng công việc tương đối rõ ràng${timeText}, đòi hỏi nắm vững kiến trúc module.`;
+      return `Nhiệm vụ [${task.key}]${taskTitle} có độ phức tạp trung bình (${score}/5), xử lý ${typeLabel}${compText} theo quy trình chuẩn. Phạm vi công việc rõ ràng${timeText}, đòi hỏi nắm vững kiến trúc module.`;
     }
-    return `Độ phức tạp mức cơ bản (${score}/5), là ${typeLabel} có phạm vi nhỏ, logic đơn giản${timeText}, không tác động lan tỏa ra các thành phần khác.`;
+    return `Nhiệm vụ [${task.key}]${taskTitle} ở mức cơ bản (${score}/5), là ${typeLabel} có phạm vi nhỏ, logic xử lý chuẩn${timeText}, ít tác động lan tỏa.`;
   }
 
   private getDefaultContributionRationale(task?: JiraIssueRecord, score = 4): string {
@@ -593,25 +607,26 @@ ${strictnessCriteria}`;
     const onTimeText = task.isCompleted
       ? (task.isOnTime ? 'hoàn thành đúng hạn cam kết' : 'hoàn thành nhưng ghi nhận trễ tiến độ')
       : (task.isOnTime ? 'đang tiến hành trong thời hạn quy định' : 'đang xử lý nhưng đã quá hạn due date');
-    const timeSpent = task.timeSpentHours > 0 ? ` (ghi nhận ${task.timeSpentHours} giờ làm việc)` : '';
+    const timeSpent = task.timeSpentHours > 0 ? ` (${task.timeSpentHours}h làm việc)` : '';
+    const taskTitle = task.summary ? ` [${task.key}: "${task.summary.slice(0, 70)}"]` : ` [${task.key}]`;
 
     if (!task.isCompleted) {
       if (!task.isOnTime) {
-        return `Nhiệm vụ đang thực hiện (${task.status}) nhưng đã quá hạn cam kết${timeSpent}. Cần tập trung nguồn lực đẩy nhanh tiến độ bàn giao để hạn chế ảnh hưởng đến sprint.`;
+        return `Nhiệm vụ${taskTitle} đang thực hiện (${task.status}) nhưng quá hạn cam kết${timeSpent}. Cần tập trung nguồn lực đẩy nhanh tiến độ bàn giao để tránh ảnh hưởng sprint.`;
       }
-      return `Nhiệm vụ đang được triển khai tích cực theo đúng tiến độ (${task.status})${timeSpent}. Nhân sự đang kiểm soát tốt các yêu cầu kỹ thuật của task.`;
+      return `Nhiệm vụ${taskTitle} đang được triển khai tích cực theo đúng tiến độ (${task.status})${timeSpent}. Nhân sự đang bám sát các yêu cầu kỹ thuật của task.`;
     }
 
     if (score >= 5) {
-      return `Đóng góp xuất sắc (${score}/5): Nhân sự chủ động xử lý triệt để bài toán, ${onTimeText}${timeSpent}, đảm bảo chất lượng deliverable chuẩn mực và giúp đội ngũ giảm thiểu rủi ro kỹ thuật đáng kể.`;
+      return `Đóng góp xuất sắc (${score}/5) tại task${taskTitle}: Nhân sự chủ động xử lý triệt để bài toán, ${onTimeText}${timeSpent}, đảm bảo chất lượng deliverable chuẩn mực và giúp đội ngũ giảm thiểu rủi ro kỹ thuật.`;
     }
     if (score === 4) {
-      return `Đóng góp tốt (${score}/5): Đảm nhiệm vai trò thực thi chính, ${onTimeText}${timeSpent}, phối hợp xử lý dứt điểm các yêu cầu kỹ thuật và đáp ứng kỳ vọng của quản lý.`;
+      return `Đóng góp tốt (${score}/5) tại task${taskTitle}: Đảm nhiệm vai trò thực thi chính, ${onTimeText}${timeSpent}, phối hợp xử lý dứt điểm các yêu cầu kỹ thuật và đáp ứng kỳ vọng của quản lý.`;
     }
     if (score === 3) {
-      return `Đóng góp đạt yêu cầu (${score}/5): Nhân sự đã giải quyết nhiệm vụ được giao${timeSpent}, tuy nhiên ${task.isOnTime ? 'cần gia tăng thêm tính chủ động trong trao đổi' : 'cần kiểm soát tiến độ chặt chẽ hơn để tránh phát sinh delay'}.`;
+      return `Đóng góp đạt yêu cầu (${score}/5) tại task${taskTitle}: Nhân sự đã giải quyết nhiệm vụ được giao${timeSpent}, ${task.isOnTime ? 'đáp ứng tiến độ đề ra' : 'cần tăng tốc độ hoàn thành ở các kỳ tiếp theo'}.`;
     }
-    return `Mức đóng góp khiêm tốn (${score}/5): Khối lượng bàn giao còn hạn chế hoặc gặp vướng mắc tiến độ, cần được hướng dẫn sát sao hơn ở các sprint tiếp theo.`;
+    return `Mức đóng góp khiêm tốn (${score}/5) tại task${taskTitle}: Khối lượng xử lý còn hạn chế hoặc gặp vướng mắc tiến độ, cần được hướng dẫn sát sao hơn.`;
   }
 
   /**
@@ -797,10 +812,14 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ theo schema sau (tiến
 
     // ── KPI 3: TASK_VOLUME (Năng suất & Đóng góp công việc) ──
     const completed = metrics.completedTasks;
-    const { level: volumeLevel, score: volumeScore } = this.resolveLevel('TASK_VOLUME', completed);
+    const inProgressCredit = Math.min(Math.round(metrics.inProgressTasks * 0.5), 5);
+    const hourCredit = metrics.totalHoursSpent >= 140 ? 4 : metrics.totalHoursSpent >= 80 ? 2 : metrics.totalHoursSpent >= 40 ? 1 : 0;
+    const effectiveVolume = completed + inProgressCredit + hourCredit;
+    const volumeEvalValue = Math.max(completed, effectiveVolume);
+    const { level: volumeLevel, score: volumeScore } = this.resolveLevel('TASK_VOLUME', volumeEvalValue);
 
-    const defaultVolumeComment = `Hoàn thành ${completed} nhiệm vụ trong kỳ, tổng thời gian ghi nhận ${metrics.totalHoursSpent}h.`;
-    const defaultVolumeRationale = `AI Productivity Metric: Số lượng task hoàn thành ${completed} đạt mốc Level ${volumeLevel} (Điểm: ${volumeScore}).`;
+    const defaultVolumeComment = `Đạt khối lượng công việc mức ${volumeLevel}/5 với ${completed} nhiệm vụ hoàn thành, ${metrics.inProgressTasks} nhiệm vụ đang xử lý (tổng thời gian ghi nhận ${metrics.totalHoursSpent}h).`;
+    const defaultVolumeRationale = `AI Productivity Metric: Khối lượng công việc hiệu dụng quy đổi là ${volumeEvalValue} (${completed} hoàn thành + đóng góp từ ${metrics.inProgressTasks} task đang xử lý và ${metrics.totalHoursSpent}h công) đạt mốc Level ${volumeLevel} (Điểm: ${volumeScore}).`;
 
     const volumeComment = gemini?.volumeComment || defaultVolumeComment;
     const volumeRationale = gemini?.volumeRationale
@@ -811,7 +830,7 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ theo schema sau (tiến
       employee_code: metrics.employeeCode,
       evaluation_cycle_code: this.cycleCode,
       kpi_code: 'TASK_VOLUME',
-      value: completed,
+      value: volumeEvalValue,
       resolved_level: volumeLevel,
       comment: volumeComment,
       rationale: volumeRationale,
@@ -824,13 +843,15 @@ Hãy trả về DUY NHẤT một chuỗi JSON hợp lệ theo schema sau (tiến
         metadata: {
           completed_tasks: completed,
           in_progress: metrics.inProgressTasks,
+          total_tasks: metrics.totalTasks,
           total_hours: metrics.totalHoursSpent,
+          effective_volume: volumeEvalValue,
         },
       },
       evidences: [
         {
           evidence_type: 'URL',
-          title: `Danh sách ${completed} task hoàn thành`,
+          title: `Danh sách ${completed} task hoàn thành (Tổng ${metrics.totalTasks} nhiệm vụ)`,
           evidence_url: metrics.completedFilterUrl,
           description: `Các đầu việc tiêu biểu: ${metrics.sampleTaskKeys.join(', ') || 'N/A'}`,
         },

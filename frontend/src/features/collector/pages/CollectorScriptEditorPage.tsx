@@ -15,6 +15,9 @@ import {
   Clock,
   Zap,
   Check,
+  ChevronDown,
+  ChevronUp,
+  Sliders,
 } from 'lucide-react';
 import {
   getCollectorScript,
@@ -107,114 +110,26 @@ const JQL_PRESETS: PresetOption[] = [
   },
 ];
 
-const AI_PROMPT_PRESETS: PresetOption[] = [
-  {
-    id: 'prompt-easy',
-    name: 'Mức 1: Dễ (Tóm tắt nhanh)',
-    badge: 'Nhanh gọn',
-    badgeBg: '#dcfce7',
-    badgeColor: '#15803d',
-    chipBorder: '#86efac',
-    chipBg: '#f0fdf4',
-    chipColor: '#16a34a',
-    title: 'Mức độ Dễ — Đơn giản, ngắn gọn & tiết kiệm Token',
-    description: 'Prompt cơ bản tập trung vào điểm số và lý giải ngắn gọn trong 1-2 câu. Phản hồi tức thì, phù hợp chạy batch lớn.',
-    bullets: [
-      'Chỉ yêu cầu complexityScore (1-5), contributionScore (1-5) và reasoning ngắn 1-2 câu.',
-      'Thời gian phản hồi AI nhanh nhất (~1s/task), tiết kiệm quota API.',
-      'Thích hợp kiểm tra nhanh hoặc quét số lượng lớn hàng trăm task.',
-    ],
-    usage: 'Phù hợp khi cần rà soát nhanh tiến độ hoặc chạy crawl dữ liệu lịch sử dài ngày.',
-    template: `Bạn là chuyên gia đánh giá hiệu suất kỹ thuật.
-Hãy phân tích ngắn gọn task Jira sau và chấm điểm:
-- Task: {{taskKey}} - {{taskSummary}}
-- Loại: {{issueType}}, Độ ưu tiên: {{priority}}, Trạng thái: {{status}}
-- Thời gian: {{timeSpentHours}} giờ thực tế (Ước tính: {{originalEstimateHours}} giờ)
-- Tóm tắt mô tả: {{taskDescription}}
+export const STANDARD_AI_TASK_PROMPT = `Bạn là Giám đốc kỹ thuật (Tech Lead & Solution Architect) tại CyberLogitec Việt Nam.
+Hãy thẩm định khách quan, toàn diện và chính xác từng task Jira của kỹ sư theo các tiêu chí chuyên sâu:
 
-Chấm điểm trên thang 1-5 và trả về đúng định dạng JSON:
-{
-  "complexityScore": <1-5: Độ phức tạp kỹ thuật>,
-  "contributionScore": <1-5: Mức độ đóng góp và giá trị mang lại>,
-  "reasoning": "<Lý giải ngắn gọn súc tích trong 1-2 câu>"
-}`,
-  },
-  {
-    id: 'prompt-medium',
-    name: 'Mức 2: Vừa (Tiêu chuẩn Tech Lead)',
-    badge: 'Khuyên dùng',
-    badgeBg: '#fef3c7',
-    badgeColor: '#b45309',
-    chipBorder: '#fcd34d',
-    chipBg: '#fffbeb',
-    chipColor: '#d97706',
-    title: 'Mức độ Vừa — Tiêu chuẩn đánh giá của Tech Lead',
-    description: 'Cân bằng giữa độ sâu phân tích kỹ thuật và tốc độ xử lý. Đánh giá tính độc lập, khó khăn kỹ thuật và nhận xét 3-4 câu.',
-    bullets: [
-      'Phân tích chi tiết độ khó dựa trên mô tả công việc và thời gian thực hiện.',
-      'Đánh giá đóng góp tiến độ, khả năng xử lý vấn đề và độ tin cậy.',
-      'Nhận xét 3-4 câu có dẫn chứng cụ thể từ nội dung task.',
-    ],
-    usage: 'Lựa chọn tốt nhất cho các kỳ review định kỳ hàng tuần hoặc hàng chu kỳ sprint.',
-    template: `Bạn là Technical Lead đánh giá hiệu quả công việc của kỹ sư phần mềm.
-Hãy phân tích toàn diện task Jira sau của nhân viên {{memberName}}:
-- Task: [{{taskKey}}] {{taskSummary}}
-- Phân loại: {{issueType}} | Độ ưu tiên: {{priority}} | Trạng thái: {{status}}
-- Thời lượng: Ước tính {{originalEstimateHours}}h, Thực tế tiêu tốn {{timeSpentHours}}h
-- Chi tiết công việc: {{taskDescription}}
+1. ĐỘ PHỨC TẠP KỸ THUẬT (complexityScore 1-5):
+- Mức 5 (Rất cao): Thiết kế kiến trúc module, xử lý sự cố cấp bách Block/Critical hệ thống lớn, thuật toán hóc búa (điều độ cảng/tàu, tính cước tariff phức tạp), log work > 8h.
+- Mức 4 (Cao): Feature nghiệp vụ cốt lõi, tích hợp API/DB phức tạp, xử lý dữ liệu lớn hoặc luồng EDI, booking, billing.
+- Mức 3 (Trung bình): Nghiệp vụ tiêu chuẩn, bug thông thường, tối ưu truy vấn SQL vừa phải (2-6h).
+- Mức 1-2 (Thấp): Chỉnh sửa nhãn giao diện (label), cấu hình tham số, CRUD cơ bản hoặc việc phụ trợ (< 2h).
+* Lập luận độ phức tạp: Nêu rõ VÌ SAO task khó hoặc dễ, trích dẫn cụ thể tên module, nghiệp vụ hoặc logic kỹ thuật trong task.
 
-Yêu cầu phân tích:
-1. Đánh giá độ khó kỹ thuật dựa trên mô tả và thời gian thực hiện.
-2. Đánh giá đóng góp cho tiến độ dự án, tính độc lập và xử lý vấn đề.
-3. Chấm complexityScore (1-5) và contributionScore (1-5).
+2. MỨC ĐỘ ĐÓNG GÓP & TRÁCH NHIỆM (contributionScore 1-5):
+- Mức 5 (Xuất sắc): Chủ động dẫn dắt kỹ thuật, giải quyết triệt để vấn đề hóc búa, hỗ trợ đồng đội, bàn giao vượt kỳ vọng.
+- Mức 4 (Tốt): Hoàn thành độc lập, code chất lượng cao, bàn giao đúng hạn, tuân thủ kỷ luật log work.
+- Mức 3 (Đạt yêu cầu): Hoàn thành công việc được giao theo cam kết sprint.
+- Mức 1-2 (Cần cải thiện): Trễ hạn, giải pháp chưa dứt điểm còn phát sinh lỗi hồi quy, hoặc thiếu chủ động.
+* Lập luận đóng góp: Phân tích rõ kết quả cụ thể đạt được, giá trị đóng góp cho hệ thống và tính chủ động.
 
-Trả về định dạng JSON:
-{
-  "complexityScore": <1-5>,
-  "contributionScore": <1-5>,
-  "reasoning": "<Nhận xét chi tiết 3-4 câu: điểm mạnh, khó khăn kỹ thuật và giá trị thực tế của task>"
-}`,
-  },
-  {
-    id: 'prompt-hard',
-    name: 'Mức 3: Khó (Chuyên sâu & Khắt khe)',
-    badge: 'Chuyên sâu',
-    badgeBg: '#f3e8ff',
-    badgeColor: '#7e22ce',
-    chipBorder: '#d8b4fe',
-    chipBg: '#faf5ff',
-    chipColor: '#9333ea',
-    title: 'Mức độ Khó — Thẩm định nghiêm ngặt cấp Architect / Manager',
-    description: 'Thẩm định đa chiều với tiêu chí phân cấp chi tiết từng nấc điểm (1-5). So sánh sai lệch thời gian (Time Variance) và rủi ro kỹ thuật.',
-    bullets: [
-      'Quy chuẩn nghiêm ngặt: Phân biệt rõ task CRUD cơ bản (2) với tối ưu hiệu năng/kiến trúc (4-5).',
-      'Đánh giá tính kỷ luật ước tính thời gian (Time Variance) và rủi ro ảnh hưởng hệ thống.',
-      'Lý giải sắc bén, chỉ ra bằng chứng xác thực từ mô tả và log thời gian.',
-    ],
-    usage: 'Dùng cho kỳ review KPI tháng chính thức, xét duyệt tăng bậc, thưởng hoặc đánh giá nhân sự chủ chốt.',
-    template: `Bạn là Senior Engineering Manager và Solution Architect đánh giá hiệu suất nhân sự kỹ thuật cấp cao.
-Hãy thẩm định chuyên sâu và nghiêm ngặt task Jira sau đây của kỹ sư {{memberName}}:
-
-[THÔNG TIN TASK]
-- Mã task: {{taskKey}}
-- Tiêu đề: {{taskSummary}}
-- Phân loại: {{issueType}} | Độ ưu tiên: {{priority}} | Trạng thái hiện tại: {{status}}
-- Thời gian: Dự kiến {{originalEstimateHours}}h | Thực tế ghi nhận {{timeSpentHours}}h (Độ lệch: {{timeSpentHours}}h vs {{originalEstimateHours}}h)
-- Mô tả chi tiết: {{taskDescription}}
-
-[TIÊU CHÍ ĐÁNH GIÁ KHẮT KHE]
-1. complexityScore (1: Task cấu hình/tầm thường, 2: CRUD cơ bản, 3: Nghiệp vụ trung bình, 4: Logic phức tạp/tối ưu hiệu năng, 5: Nghiên cứu kiến trúc/sự cố hệ thống nghiêm trọng).
-2. contributionScore (1: Không ảnh hưởng, 2: Hỗ trợ nhỏ, 3: Đóng góp chuẩn tiến độ, 4: Tác động tích cực đến module chính, 5: Đột phá/giải cứu dự án).
-3. Đánh giá tính kỷ luật ước lượng thời gian (Time Variance) và mức độ rủi ro tiềm ẩn.
-
-Bắt buộc trả về đúng cấu trúc JSON:
-{
-  "complexityScore": <1-5>,
-  "contributionScore": <1-5>,
-  "reasoning": "<Phân tích chi tiết, khách quan, chỉ rõ bằng chứng từ mô tả và thời lượng thực tế>"
-}`,
-  },
-];
+3. NGUYÊN TẮC THẨM ĐỊNH:
+- Đánh giá thực chất, công bằng. Tuyệt đối không dùng câu từ sáo rỗng hoặc nhận xét chung chung.
+- Trừ điểm nếu task trễ hạn hoặc không có giải trình rõ ràng.`;
 
 interface PresetChipProps {
   preset: PresetOption;
@@ -392,6 +307,7 @@ export const CollectorScriptEditorPage: React.FC = () => {
   const [newStatusInput, setNewStatusInput] = useState<string>('');
   const [newBugInput, setNewBugInput] = useState<string>('');
   const [newPriorityInput, setNewPriorityInput] = useState<string>('');
+  const [showRawJql, setShowRawJql] = useState<boolean>(false);
 
   // Test Run states
   const [members, setMembers] = useState<ManagedMember[]>([]);
@@ -672,92 +588,40 @@ export const CollectorScriptEditorPage: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* 1. JQL Template */}
           <Card style={{ padding: '20px' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: TYPOGRAPHY.fontSize.base, fontWeight: TYPOGRAPHY.fontWeight.semibold }}>
-              1. Mẫu câu lệnh JQL (JQL Template)
-            </h3>
-
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, alignSelf: 'center' }}>
-                Chèn biến:
-              </span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.base, fontWeight: TYPOGRAPHY.fontWeight.semibold }}>
+                1. Bộ lọc phạm vi Task Jira (JQL Query Scope)
+              </h3>
               <button
                 type="button"
-                title="Mã số nhân viên đang duyệt (VD: 173232, 257130)"
-                onClick={() => insertPlaceholder('{{employee_code}}')}
+                onClick={() => setShowRawJql(!showRawJql)}
                 style={{
-                  padding: '3px 8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  background: showRawJql ? COLORS.primary[50] : '#f8fafc',
+                  border: `1px solid ${showRawJql ? COLORS.primary[300] : COLORS.neutral[300]}`,
                   borderRadius: RADII.sm,
-                  border: `1px solid ${COLORS.primary.DEFAULT}`,
-                  backgroundColor: COLORS.primary[50],
-                  color: COLORS.primary.DEFAULT,
-                  fontSize: '12px',
-                  cursor: 'pointer',
+                  padding: '4px 10px',
+                  fontSize: '11px',
                   fontWeight: 600,
+                  color: showRawJql ? COLORS.primary.DEFAULT : COLORS.neutral.textSecondary,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
                 }}
               >
-                + &#123;&#123;employee_code&#125;&#125;
+                <Sliders size={12} />
+                {showRawJql ? 'Thu gọn JQL nâng cao' : 'Tùy chỉnh JQL nâng cao'}
+                {showRawJql ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
               </button>
-              <button
-                type="button"
-                title="Mã Custom Field của PIC trong Jira (mặc định cf[11902])"
-                onClick={() => insertPlaceholder('cf[{{pic_field}}]')}
-                style={{
-                  padding: '3px 8px',
-                  borderRadius: RADII.sm,
-                  border: `1px solid ${COLORS.primary.DEFAULT}`,
-                  backgroundColor: COLORS.primary[50],
-                  color: COLORS.primary.DEFAULT,
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                }}
-              >
-                + cf[&#123;&#123;pic_field&#125;&#125;]
-              </button>
-              <button
-                type="button"
-                title="Bộ lọc khoảng ngày theo kỳ đánh giá (VD: AND (updated >= &quot;2026-03-24&quot; AND updated <= &quot;2026-09-24&quot;))"
-                onClick={() => insertPlaceholder('{{date_filter}}')}
-                style={{
-                  padding: '3px 8px',
-                  borderRadius: RADII.sm,
-                  border: `1px solid ${COLORS.primary.DEFAULT}`,
-                  backgroundColor: COLORS.primary[50],
-                  color: COLORS.primary.DEFAULT,
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                }}
-              >
-                + &#123;&#123;date_filter&#125;&#125;
-              </button>
-              <span style={{ fontSize: '11px', color: COLORS.neutral[400], fontStyle: 'italic' }}>
-                (Rê chuột xem ý nghĩa biến)
-              </span>
             </div>
 
-            <textarea
-              rows={4}
-              value={config.jqlTemplate}
-              onChange={(e) => setConfig({ ...config, jqlTemplate: e.target.value })}
-              style={{
-                width: '100%',
-                fontFamily: 'monospace',
-                fontSize: '13px',
-                padding: '12px',
-                borderRadius: RADII.md,
-                border: `1px solid ${COLORS.neutral[300]}`,
-                boxSizing: 'border-box',
-                lineHeight: 1.5,
-              }}
-            />
-
-            {/* 3 Mẫu JQL thường dùng nhất */}
-            <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Zap size={13} color={COLORS.primary.DEFAULT} />
-                <span style={{ fontSize: '11px', fontWeight: 600, color: COLORS.neutral.textSecondary }}>
-                  3 Mẫu JQL phổ biến (Rê chuột để xem chi tiết, bấm để áp dụng):
+            {/* Quick Presets selector: Accessible for all users without typing JQL */}
+            <div style={{ marginBottom: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                <Zap size={14} color={COLORS.primary.DEFAULT} />
+                <span style={{ fontSize: '12px', fontWeight: 600, color: COLORS.neutral.textPrimary }}>
+                  Mẫu truy vấn nhanh (Bấm để áp dụng tự động, không cần gõ lệnh):
                 </span>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
@@ -771,29 +635,121 @@ export const CollectorScriptEditorPage: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ marginTop: '16px' }}>
-              <label style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: TYPOGRAPHY.fontWeight.medium, color: COLORS.neutral.textSecondary }}>
-                Mã Custom Field của PIC (Person In Charge):
-              </label>
-              <input
-                type="text"
-                value={config.picCustomField}
-                onChange={(e) => setConfig({ ...config, picCustomField: e.target.value })}
-                placeholder="11902"
-                style={{
-                  width: '100%',
-                  marginTop: '4px',
-                  padding: '8px 12px',
-                  fontSize: '13px',
-                  borderRadius: RADII.md,
-                  border: `1px solid ${COLORS.neutral[300]}`,
-                  boxSizing: 'border-box',
-                }}
-              />
-              <span style={{ fontSize: '11px', color: COLORS.neutral[400], marginTop: '2px', display: 'block' }}>
-                Mặc định trong Jira PIM CyberLogitec là 11902 (tương ứng với cf[11902]).
-              </span>
+            {/* Current Active Scope Summary */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '10px 12px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: RADII.sm }}>
+              <CheckCircle2 size={16} color="#16a34a" style={{ marginTop: '2px', flexShrink: 0 }} />
+              <div style={{ fontSize: '12px', color: '#166534', lineHeight: 1.5, flex: 1 }}>
+                <b>Phạm vi thu thập hiện tại:</b> Tự động cào task theo PIC <code>cf[{config.picCustomField || '11902'}]</code> của từng nhân viên theo kỳ đánh giá.
+                <div style={{ marginTop: '4px', fontFamily: 'monospace', fontSize: '11px', color: '#15803d', background: '#dcfce7', padding: '4px 8px', borderRadius: '4px', wordBreak: 'break-all' }}>
+                  {config.jqlTemplate}
+                </div>
+              </div>
             </div>
+
+            {/* Advanced JQL Editor (Expandable for dev/admin) */}
+            {showRawJql && (
+              <div style={{ marginTop: '16px', borderTop: `1px solid ${COLORS.neutral[200]}`, paddingTop: '16px' }}>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, alignSelf: 'center' }}>
+                    Chèn biến:
+                  </span>
+                  <button
+                    type="button"
+                    title="Mã số nhân viên đang duyệt (VD: 173232, 257130)"
+                    onClick={() => insertPlaceholder('{{employee_code}}')}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: RADII.sm,
+                      border: `1px solid ${COLORS.primary.DEFAULT}`,
+                      backgroundColor: COLORS.primary[50],
+                      color: COLORS.primary.DEFAULT,
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                    }}
+                  >
+                    + &#123;&#123;employee_code&#125;&#125;
+                  </button>
+                  <button
+                    type="button"
+                    title="Mã Custom Field của PIC trong Jira (mặc định cf[11902])"
+                    onClick={() => insertPlaceholder('cf[{{pic_field}}]')}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: RADII.sm,
+                      border: `1px solid ${COLORS.primary.DEFAULT}`,
+                      backgroundColor: COLORS.primary[50],
+                      color: COLORS.primary.DEFAULT,
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                    }}
+                  >
+                    + cf[&#123;&#123;pic_field&#125;&#125;]
+                  </button>
+                  <button
+                    type="button"
+                    title="Bộ lọc khoảng ngày theo kỳ đánh giá (VD: AND (updated >= &quot;2026-03-24&quot; AND updated <= &quot;2026-09-24&quot;))"
+                    onClick={() => insertPlaceholder('{{date_filter}}')}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: RADII.sm,
+                      border: `1px solid ${COLORS.primary.DEFAULT}`,
+                      backgroundColor: COLORS.primary[50],
+                      color: COLORS.primary.DEFAULT,
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                    }}
+                  >
+                    + &#123;&#123;date_filter&#125;&#125;
+                  </button>
+                  <span style={{ fontSize: '11px', color: COLORS.neutral[400], fontStyle: 'italic' }}>
+                    (Rê chuột xem ý nghĩa biến)
+                  </span>
+                </div>
+
+                <textarea
+                  rows={4}
+                  value={config.jqlTemplate}
+                  onChange={(e) => setConfig({ ...config, jqlTemplate: e.target.value })}
+                  style={{
+                    width: '100%',
+                    fontFamily: 'monospace',
+                    fontSize: '13px',
+                    padding: '12px',
+                    borderRadius: RADII.md,
+                    border: `1px solid ${COLORS.neutral[300]}`,
+                    boxSizing: 'border-box',
+                    lineHeight: 1.5,
+                  }}
+                />
+
+                <div style={{ marginTop: '16px' }}>
+                  <label style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: TYPOGRAPHY.fontWeight.medium, color: COLORS.neutral.textSecondary }}>
+                    Mã Custom Field của PIC (Person In Charge):
+                  </label>
+                  <input
+                    type="text"
+                    value={config.picCustomField}
+                    onChange={(e) => setConfig({ ...config, picCustomField: e.target.value })}
+                    placeholder="11902"
+                    style={{
+                      width: '100%',
+                      marginTop: '4px',
+                      padding: '8px 12px',
+                      fontSize: '13px',
+                      borderRadius: RADII.md,
+                      border: `1px solid ${COLORS.neutral[300]}`,
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                  <span style={{ fontSize: '11px', color: COLORS.neutral[400], marginTop: '2px', display: 'block' }}>
+                    Mặc định trong Jira PIM CyberLogitec là 11902 (tương ứng với cf[11902]).
+                  </span>
+                </div>
+              </div>
+            )}
           </Card>
 
           {/* 2. Status & Bug & Priority Mapping */}
@@ -1072,84 +1028,85 @@ export const CollectorScriptEditorPage: React.FC = () => {
             </div>
 
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <label style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: TYPOGRAPHY.fontWeight.medium, color: COLORS.neutral.textSecondary }}>
-                  Mẫu Prompt AI phân tích chuyên sâu từng Task (aiTaskPromptTemplate):
+                  Chỉ đạo & Tiêu chí đánh giá AI (Prompt Tùy chỉnh):
                 </label>
-              </div>
-
-              <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                <span style={{ fontSize: '11px', color: COLORS.neutral[400], alignSelf: 'center' }}>Biến chèn:</span>
-                {[
-                  { tag: '{{memberName}}', tip: 'Tên nhân sự (VD: Nguyễn Minh Quang)' },
-                  { tag: '{{taskKey}}', tip: 'Mã task Jira (VD: PIM-1234)' },
-                  { tag: '{{taskSummary}}', tip: 'Tiêu đề tóm tắt của task' },
-                  { tag: '{{taskDescription}}', tip: 'Nội dung mô tả chi tiết của task' },
-                  { tag: '{{priority}}', tip: 'Độ ưu tiên (Critical, High, Medium, Low)' },
-                  { tag: '{{issueType}}', tip: 'Loại task (Bug, Task, Subtask, Story)' },
-                  { tag: '{{status}}', tip: 'Trạng thái Jira (Done, In Progress, Closed)' },
-                  { tag: '{{timeSpentHours}}', tip: 'Số giờ thực tế đã log' },
-                  { tag: '{{originalEstimateHours}}', tip: 'Số giờ ước lượng ban đầu' },
-                ].map((item) => (
-                  <button
-                    key={item.tag}
-                    type="button"
-                    title={item.tip}
-                    onClick={() => insertPromptPlaceholder(item.tag)}
-                    style={{
-                      padding: '2px 6px',
-                      borderRadius: RADII.sm,
-                      border: '1px solid #c7d2fe',
-                      backgroundColor: '#eef2ff',
-                      color: '#4338ca',
-                      fontSize: '11px',
-                      cursor: 'pointer',
-                      fontWeight: 600,
-                    }}
-                  >
-                    + {item.tag}
-                  </button>
-                ))}
+                <button
+                  type="button"
+                  title="Chèn biến tên nhân viên nếu muốn AI xưng hô/gọi tên nhân sự trong nhận xét"
+                  onClick={() => insertPromptPlaceholder('{{memberName}}')}
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: RADII.sm,
+                    border: '1px solid #c7d2fe',
+                    backgroundColor: '#eef2ff',
+                    color: '#4338ca',
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                    fontWeight: 500,
+                  }}
+                >
+                  + &#123;&#123;memberName&#125;&#125; (Tùy chọn)
+                </button>
               </div>
 
               <textarea
-                rows={6}
+                rows={10}
                 value={config.aiTaskPromptTemplate || ''}
                 onChange={(e) => setConfig({ ...config, aiTaskPromptTemplate: e.target.value })}
-                placeholder="Nhập prompt template đánh giá task..."
+                placeholder="Nhập tiêu chí hoặc chỉ đạo đánh giá bằng ngôn ngữ tự nhiên (tiếng Việt)..."
                 style={{
                   width: '100%',
                   fontFamily: 'monospace',
                   fontSize: '12px',
-                  padding: '10px',
+                  padding: '12px',
                   borderRadius: RADII.md,
                   border: `1px solid ${COLORS.neutral[300]}`,
                   boxSizing: 'border-box',
-                  lineHeight: 1.4,
+                  lineHeight: 1.5,
                 }}
               />
-              <div style={{ fontSize: '11px', color: COLORS.neutral[500], marginTop: '6px', lineHeight: 1.5, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '8px 12px' }}>
-                💡 <b>Cơ chế hoạt động của biến:</b> Khi AI phân tích từng task, hệ thống sẽ tự động thay thế các biến <code>&#123;&#123;taskKey&#125;&#125;</code>, <code>&#123;&#123;taskSummary&#125;&#125;</code>, <code>&#123;&#123;timeSpentHours&#125;&#125;</code>,... bằng dữ liệu Jira thực tế của task đó trước khi gửi sang Gemini chấm điểm (1-5).
+
+              <div style={{ fontSize: '11px', color: COLORS.neutral[600], marginTop: '8px', lineHeight: 1.5, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '10px 14px' }}>
+                💡 <b>Prompt hoàn toàn tự do (KHÔNG bắt buộc có biến, KHÔNG cần viết JSON):</b> Bạn chỉ cần viết hướng dẫn hoặc tiêu chí thẩm định mong muốn bằng ngôn ngữ tự nhiên. Hệ thống tự động trích xuất toàn bộ dữ liệu Jira thực tế (Mã task, Tên, Mô tả, Giờ log, Priority, Component,...) và cấu trúc dữ liệu trả về cho AI.
               </div>
 
-              {/* 3 Mẫu Prompt AI theo mức độ (Dễ, Vừa, Khó) */}
-              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Sparkles size={13} color="#7c3aed" />
-                  <span style={{ fontSize: '11px', fontWeight: 600, color: COLORS.neutral.textSecondary }}>
-                    3 Mẫu Prompt AI (Dễ - Vừa - Khó) tương ứng độ chi tiết (Rê chuột xem giải thích, bấm để áp dụng):
-                  </span>
+              {/* 1 Mẫu Prompt AI Chuẩn duy nhất */}
+              <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: RADII.md, flexWrap: 'wrap', gap: '10px' }}>
+                <div style={{ flex: 1, minWidth: '240px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Sparkles size={16} color="#9333ea" />
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#6b21a8' }}>
+                      Mẫu Prompt Chuẩn Khuyến Nghị (Tech Lead & Solution Architect)
+                    </span>
+                  </div>
+                  <p style={{ margin: '3px 0 0 0', fontSize: '11px', color: '#7e22ce', lineHeight: 1.4 }}>
+                    Đánh giá chính xác từng task theo Độ phức tạp (1-5) và Tính đóng góp (1-5) với lập luận kỹ thuật chuyên sâu, không dùng câu từ sáo rỗng.
+                  </p>
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                  {AI_PROMPT_PRESETS.map((preset) => (
-                    <PresetChip
-                      key={preset.id}
-                      preset={preset}
-                      onSelect={(tpl) => setConfig({ ...config, aiTaskPromptTemplate: tpl })}
-                      icon={<Sparkles size={13} color={preset.chipColor} />}
-                    />
-                  ))}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setConfig({ ...config, aiTaskPromptTemplate: STANDARD_AI_TASK_PROMPT })}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: RADII.md,
+                    border: '1px solid #7e22ce',
+                    backgroundColor: '#7e22ce',
+                    color: '#ffffff',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                  }}
+                >
+                  <RotateCcw size={13} />
+                  Áp dụng Mẫu Chuẩn
+                </button>
               </div>
             </div>
           </Card>
