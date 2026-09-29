@@ -6,14 +6,12 @@ import { useUiTranslation } from '@/shared/i18n/ui-i18n';
 import {
   Sparkles,
   FileSpreadsheet,
-  Activity,
   Code2,
   UploadCloud,
   History,
   ShieldAlert,
 } from 'lucide-react';
 
-import { CollectorPage } from '@/features/collector/pages/CollectorPage';
 import { JiraCollectorPage } from '@/features/collector/pages/JiraCollectorPage';
 import { CollectorScriptEditorPage } from '@/features/collector/pages/CollectorScriptEditorPage';
 import { ImportUploadPage } from '@/features/imports/pages/ImportUploadPage';
@@ -77,7 +75,7 @@ export const DataIngestionHubPage: React.FC = () => {
   const isManagerOnly = userRole === 'MANAGER';
 
   // Sub-tab states
-  const [collectorSubTab, setCollectorSubTab] = useState<'jira' | 'blueprint' | 'script'>('jira');
+  const [collectorSubTab, setCollectorSubTab] = useState<'jira' | 'script'>('jira');
   const [csvSubTab, setCsvSubTab] = useState<'upload' | 'history'>('upload');
 
   // Filter available tabs based on user's role
@@ -103,9 +101,8 @@ export const DataIngestionHubPage: React.FC = () => {
 
   // Handle URL deep-linking into sub-tabs
   useEffect(() => {
-    if (rawParam === 'blueprint') setCollectorSubTab('blueprint');
-    else if (rawParam === 'script') setCollectorSubTab('script');
-    else if (rawParam === 'jira') setCollectorSubTab('jira');
+    if (rawParam === 'script') setCollectorSubTab('script');
+    else if (rawParam === 'jira' || rawParam === 'blueprint') setCollectorSubTab('jira');
     else if (rawParam === 'history') setCsvSubTab('history');
   }, [rawParam]);
 
@@ -317,29 +314,6 @@ export const DataIngestionHubPage: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => setCollectorSubTab('blueprint')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '8px 18px',
-                  borderRadius: RADII.md,
-                  border: 'none',
-                  backgroundColor: collectorSubTab === 'blueprint' ? (isDark ? '#0f172a' : '#ffffff') : 'transparent',
-                  color: collectorSubTab === 'blueprint' ? (isDark ? '#60a5fa' : '#2563eb') : (isDark ? '#94a3b8' : '#64748b'),
-                  fontWeight: collectorSubTab === 'blueprint' ? 700 : 500,
-                  fontSize: TYPOGRAPHY.fontSize.sm,
-                  cursor: 'pointer',
-                  boxShadow: collectorSubTab === 'blueprint' ? SHADOWS.sm : 'none',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <Activity size={16} />
-                <span>{t('ingestion.subtab_blueprint', 'Blueprint CLV')}</span>
-              </button>
-
-              <button
-                type="button"
                 onClick={() => setCollectorSubTab('script')}
                 style={{
                   display: 'flex',
@@ -364,7 +338,6 @@ export const DataIngestionHubPage: React.FC = () => {
 
             {/* Sub-tab view */}
             {collectorSubTab === 'jira' && <JiraCollectorPage />}
-            {collectorSubTab === 'blueprint' && <CollectorPage />}
             {collectorSubTab === 'script' && <CollectorScriptEditorPage />}
           </div>
         )}

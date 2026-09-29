@@ -281,7 +281,8 @@ async function loadBlueprintSummaries(
 export async function executeBatchRun(
   pool: Pool,
   triggeredBy: 'CRON' | 'MANUAL' = 'MANUAL',
-  cycleCode = 'H2-2026'
+  cycleCode = 'H2-2026',
+  targetEmployeeCodes?: string[]
 ): Promise<BatchRunRecord> {
   await ensureBatchEvalTable(pool);
 
@@ -298,9 +299,13 @@ export async function executeBatchRun(
   }
 
   const now = new Date();
-  const versionTag = `Phiên bản #${versionNumber} (${now.toLocaleDateString('vi-VN')} ${now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })})`;
+  const allMembers = await getManagedMembersFromDb(pool);
+  const members = (targetEmployeeCodes && targetEmployeeCodes.length > 0)
+    ? allMembers.filter((m) => targetEmployeeCodes.includes(m.code))
+    : allMembers;
 
-  const members = await getManagedMembersFromDb(pool);
+  const memberScopeText = members.length < allMembers.length ? ` (${members.length}/${allMembers.length} NV)` : '';
+  const versionTag = `Phiên bản #${versionNumber}${memberScopeText} (${now.toLocaleDateString('vi-VN')} ${now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })})`;
 
   const run: BatchRunRecord = {
     id: runId,
@@ -714,6 +719,115 @@ export async function getBatchRunById(pool: Pool, id: string): Promise<BatchRunR
 }
 
 /**
+ * Chấm điểm lại (Rescore) một batch run có sẵn bằng Prompt và Rubric mới nhất
+ * Không cần cào lại Jira API, dùng dữ liệu snapshot đã lưu trong version
+ */
+export async function rescoreBatchRunRecord(pool: Pool, runId: string): Promise<BatchRunRecord> {
+  const existingRun = await getBatchRunById(pool, runId);
+  if (!existingRun) {
+    throw new Error(`Không tìm thấy batch run với id '${runId}'`);
+  }
+
+  const startTime = Date.now();
+  const scriptStore = new CollectorScriptStore(pool);
+  const scriptConfig = await scriptStore.getScript();
+  const engine = new AiScoringEngine(
+    existingRun.cycleCode,
+    process.env.GEMINI_API_KEY,
+    scriptConfig.scoringRubric,
+    scriptConfig.geminiModel,
+    scriptConfig.aiPromptTemplate,
+    scriptConfig.aiTaskPromptTemplate
+  );
+
+  let nextVersionNumber = 1;
+  try {
+    const verRes = await pool.query('SELECT COALESCE(MAX(version_number), 0) + 1 AS next_ver FROM batch_eval_run');
+    nextVersionNumber = Number(verRes.rows[0].next_ver) || 1;
+  } catch {
+    nextVersionNumber = (existingRun.versionNumber || 1) + 1;
+  }
+
+  const now = new Date();
+  const newRunId = generateRunId();
+  const versionTag = `Phiên bản #${nextVersionNumber} (⚡ Chấm lại từ #${existingRun.versionNumber}) (${now.toLocaleDateString('vi-VN')} ${now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })})`;
+
+  const updatedResults: MemberBatchResult[] = [];
+  const errorLog: string[] = [];
+
+  for (const mResult of existingRun.results) {
+    try {
+      const rescored = await engine.evaluateMemberFull(
+        mResult.metrics,
+        mResult.dateFrom || null,
+        mResult.dateTo || null
+      );
+      if (mResult.blueprintSummary) {
+        rescored.blueprintSummary = mResult.blueprintSummary;
+      }
+      updatedResults.push(rescored);
+    } catch (memberErr) {
+      errorLog.push(`Lỗi chấm lại ${mResult.memberName} (${mResult.employeeCode}): ${(memberErr as Error).message}`);
+      updatedResults.push(mResult);
+    }
+  }
+
+  const durationMs = Date.now() - startTime;
+  const newRun: BatchRunRecord = {
+    id: newRunId,
+    versionNumber: nextVersionNumber,
+    versionTag,
+    runAt: now.toISOString(),
+    cycleCode: existingRun.cycleCode,
+    triggeredBy: 'MANUAL',
+    status: 'DONE',
+    totalMembers: existingRun.totalMembers,
+    completedMembers: updatedResults.length,
+    failedMembers: existingRun.totalMembers - updatedResults.length,
+    cronExpression: currentCronExpression,
+    results: updatedResults,
+    errorLog,
+    durationMs,
+    createdAt: now.toISOString(),
+  };
+
+  cachedBatchRuns.unshift(newRun);
+  if (cachedBatchRuns.length > MAX_STORED_RUNS) {
+    cachedBatchRuns.splice(MAX_STORED_RUNS);
+  }
+
+  try {
+    await pool.query(
+      `INSERT INTO batch_eval_run (
+        id, version_number, version_tag, cycle_code, run_at, triggered_by, status,
+        cron_expression, total_members, completed_members, failed_members, duration_ms,
+        error_log, results, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())`,
+      [
+        newRun.id,
+        newRun.versionNumber,
+        newRun.versionTag,
+        newRun.cycleCode,
+        newRun.runAt,
+        newRun.triggeredBy,
+        newRun.status,
+        newRun.cronExpression,
+        newRun.totalMembers,
+        newRun.completedMembers,
+        newRun.failedMembers,
+        newRun.durationMs,
+        JSON.stringify(newRun.errorLog),
+        JSON.stringify(newRun.results),
+      ]
+    );
+  } catch (err) {
+    console.warn('[BatchScheduler] Lỗi lưu rescored run vào DB:', (err as Error).message);
+  }
+
+  return newRun;
+}
+
+/**
  * Generate human-friendly Vietnamese description for a cron expression
  */
 export function describeCronSchedule(cron: string): { description: string; nextDetail: string } {
@@ -743,6 +857,18 @@ export function describeCronSchedule(cron: string): { description: string; nextD
           nextDetail: `Hệ thống tự động chạy ngầm mỗi ngày vào đúng ${displayH}:${displayM} (${period}, Giờ Việt Nam GMT+7) để thu thập Jira & Blueprint cho toàn bộ 19 nhân viên`,
         };
       }
+    }
+    // Monthly schedule: dom !== '*', mon === '*', dow === '*'
+    if (dom !== '*' && mon === '*' && dow === '*') {
+      const h = parseInt(hour, 10);
+      const m = parseInt(min, 10);
+      const displayH = String(h).padStart(2, '0');
+      const displayM = String(m).padStart(2, '0');
+      const period = h < 12 ? 'sáng' : h < 18 ? 'chiều' : 'tối';
+      return {
+        description: `Ngày ${dom} hàng tháng lúc ${displayH}:${displayM} (${period}, 1 tháng/lần)`,
+        nextDetail: `Hệ thống tự động chạy ngầm định kỳ 1 tháng 1 lần vào đúng ngày ${dom} hàng tháng lúc ${displayH}:${displayM} (Asia/Ho_Chi_Minh GMT+7) để thu thập Jira & Blueprint`,
+      };
     }
   }
   return {

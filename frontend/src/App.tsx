@@ -171,7 +171,7 @@ function ProtectedLayout() {
         else if (id === 'templates') navigate('/admin/templates');
         else if (id === 'system-admin') navigate('/admin/system-admin');
         else if (id === 'imports') navigate('/admin/ingestion?tab=csv');
-        else if (id === 'collectors') navigate('/admin/ingestion?tab=blueprint');
+        else if (id === 'collectors') navigate('/admin/ingestion?tab=jira');
         else if (id === 'employee-search') navigate('/admin/evaluations?tab=search');
         else if (id === 'kpi-summary') navigate('/admin/reports?scope=summary');
         else navigate(`/admin/${id}`);
@@ -296,7 +296,7 @@ export default function App() {
                   <ImportDetailPage />
                 </ProtectedRoute>
               } />
-              <Route path="/admin/collectors" element={<Navigate to="/admin/ingestion?tab=blueprint" replace />} />
+              <Route path="/admin/collectors" element={<Navigate to="/admin/ingestion?tab=jira" replace />} />
               <Route path="/admin/jira-collector" element={<Navigate to="/admin/ingestion?tab=jira" replace />} />
               <Route path="/admin/jira-eval" element={<Navigate to="/admin/ingestion?tab=jira" replace />} />
               <Route path="/jira-collector" element={<Navigate to="/admin/ingestion?tab=jira" replace />} />

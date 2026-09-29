@@ -343,8 +343,11 @@ export async function testCollectorScript(payload: {
 
 // ── Batch Job APIs ──
 
-export async function triggerBatchRun(cycleCode = 'H2-2026'): Promise<{ status: string; message: string; totalMembers: number }> {
-  return postApi('/api/collector/jira/batch-run', { cycleCode });
+export async function triggerBatchRun(
+  cycleCode = 'H2-2026',
+  employeeCodes?: string[]
+): Promise<{ status: string; message: string; totalMembers: number }> {
+  return postApi('/api/collector/jira/batch-run', { cycleCode, employeeCodes });
 }
 
 export async function getBatchRuns(): Promise<BatchRunsResponse> {
@@ -374,6 +377,17 @@ export async function getBatchRunDetail(runId: string): Promise<FullBatchRunReco
 
 export async function getBatchSchedule(): Promise<ScheduleInfo> {
   return getApi<ScheduleInfo>('/api/collector/jira/batch-schedule');
+}
+
+export async function rescoreBatchRun(runId: string): Promise<{
+  status: string;
+  runId: string;
+  versionTag: string;
+  versionNumber: number;
+  completedMembers: number;
+  message?: string;
+}> {
+  return postApi(`/api/collector/jira/batch-runs/${runId}/rescore`, {});
 }
 
 export async function getMemberBatchDetail(runId: string, employeeCode: string): Promise<MemberBatchResult> {

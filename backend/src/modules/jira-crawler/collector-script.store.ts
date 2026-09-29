@@ -71,11 +71,11 @@ export const DEFAULT_SCORING_RUBRIC: ScoringRubricConfig = {
   TASK_VOLUME: {
     metric: 'completedTasks',
     thresholds: [
-      { min: 30, max: 999, level: 5, score: 100 },
-      { min: 20, max: 29,  level: 4, score: 95 },
-      { min: 10, max: 19,  level: 3, score: 85 },
-      { min: 5,  max: 9,   level: 2, score: 75 },
-      { min: 0,  max: 4,   level: 1, score: 60 }
+      { min: 15, max: 999, level: 5, score: 100 },
+      { min: 10, max: 14.99, level: 4, score: 95 },
+      { min: 5,  max: 9.99,  level: 3, score: 85 },
+      { min: 2,  max: 4.99,  level: 2, score: 75 },
+      { min: 0,  max: 1.99,  level: 1, score: 60 }
     ]
   },
   OWNERSHIP_SCOPE: {
@@ -107,34 +107,26 @@ export const DEFAULT_SCORING_RUBRIC: ScoringRubricConfig = {
   }
 };
 
-export const DEFAULT_AI_TASK_PROMPT = `Bạn là Technical Lead đánh giá task Jira của kỹ sư phần mềm.
-Hãy phân tích task sau và chấm 2 thang điểm từ 1 đến 5:
-- Task: {{key}} - {{summary}}
-- Loại: {{issueType}}, Độ ưu tiên: {{priority}}, Trạng thái: {{status}}
-- Thời gian ước tính: {{originalEstimateHours}}h, Thực tế: {{timeSpentHours}}h
-- Mô tả tóm tắt: {{description}}
+export const DEFAULT_AI_TASK_PROMPT = `Bạn là Giám đốc kỹ thuật (Tech Lead & Solution Architect) tại CyberLogitec Việt Nam.
+Hãy thẩm định khách quan, toàn diện và chính xác từng task Jira của kỹ sư theo các tiêu chí chuyên sâu:
 
-Thang điểm (1 đến 5):
-1. complexityScore (Độ phức tạp kỹ thuật):
-   1: Task rất đơn giản, sửa text, fix typo, thay đổi nhỏ
-   2: Task cơ bản, sửa bug đơn giản, UI tweak
-   3: Feature tiêu chuẩn, logic nghiệp vụ thông thường
-   4: Feature phức tạp, tích hợp nhiều module, tối ưu hiệu năng
-   5: Task kiến trúc hệ thống, giải pháp kỹ thuật cốt lõi, vấn đề nan giải
-2. contributionScore (Mức độ đóng góp và tự chủ):
-   1: Đóng góp tối thiểu hoặc cần hỗ trợ rất nhiều
-   2: Thực hiện với hướng dẫn chi tiết
-   3: Hoàn thành độc lập theo spec
-   4: Đề xuất giải pháp tốt, chủ động giải quyết phát sinh
-   5: Đóng vai trò then chốt, dẫn dắt hoặc giải quyết vấn đề lớn của team
+1. ĐỘ PHỨC TẠP KỸ THUẬT (complexityScore 1-5):
+- Mức 5 (Rất cao): Thiết kế kiến trúc module, xử lý sự cố cấp bách (Critical/Blocker), thuật toán hóc búa (điều độ cảng/tàu, tính cước tariff phức tạp), log work > 8h.
+- Mức 4 (Cao): Feature nghiệp vụ cốt lõi, tích hợp API/DB phức tạp, xử lý dữ liệu lớn hoặc luồng EDI, booking, billing.
+- Mức 3 (Trung bình): Nghiệp vụ tiêu chuẩn, bug thông thường, tối ưu truy vấn SQL vừa phải (2-6h).
+- Mức 1-2 (Thấp): Chỉnh sửa nhãn giao diện (label), cấu hình tham số, CRUD cơ bản hoặc việc phụ trợ (< 2h).
+* Lập luận độ phức tạp: Nêu rõ VÌ SAO task khó hoặc dễ, trích dẫn cụ thể tên module, nghiệp vụ hoặc logic kỹ thuật trong task.
 
-Trả về DUY NHẤT một chuỗi JSON hợp lệ theo schema:
-{
-  "complexityScore": <1-5>,
-  "complexityRationale": "<Lập luận ngắn gọn 1 câu>",
-  "contributionScore": <1-5>,
-  "contributionRationale": "<Lập luận ngắn gọn 1 câu>"
-}`;
+2. MỨC ĐỘ ĐÓNG GÓP & TRÁCH NHIỆM (contributionScore 1-5):
+- Mức 5 (Xuất sắc): Chủ động dẫn dắt kỹ thuật, giải quyết triệt để vấn đề hóc búa, hỗ trợ đồng đội, bàn giao vượt kỳ vọng.
+- Mức 4 (Tốt): Hoàn thành độc lập, code chất lượng cao, bàn giao đúng hạn, tuân thủ kỷ luật log work.
+- Mức 3 (Đạt yêu cầu): Hoàn thành công việc được giao theo cam kết sprint.
+- Mức 1-2 (Cần cải thiện): Trễ hạn, giải pháp chưa dứt điểm còn phát sinh lỗi hồi quy, hoặc thiếu chủ động.
+* Lập luận đóng góp: Phân tích rõ kết quả cụ thể đạt được, giá trị đóng góp cho hệ thống và tính chủ động.
+
+3. NGUYÊN TẮC THẨM ĐỊNH:
+- Đánh giá thực chất, công bằng. Tuyệt đối không dùng câu từ sáo rỗng hoặc nhận xét chung chung.
+- Trừ điểm nếu task trễ hạn hoặc không có giải trình rõ ràng.`;
 
 export const DEFAULT_JIRA_COLLECTOR_SCRIPT: CollectorScriptConfig = {
   scriptCode: 'jira-pim-clv',

@@ -36,6 +36,8 @@ export function createJiraCrawlerRouter(pool: Pool, jwtMiddleware?: RequestHandl
   router.get('/batch-runs', controller.getBatchRuns);
   // GET /api/collector/jira/batch-runs/:id  (single run detail)
   router.get('/batch-runs/:id', controller.getBatchRunDetail);
+  // POST /api/collector/jira/batch-runs/:id/rescore (rescore using latest prompt and rubric)
+  router.post('/batch-runs/:id/rescore', controller.rescoreBatchRun);
   // GET /api/collector/jira/batch-runs/:runId/member/:employeeCode
   router.get('/batch-runs/:runId/member/:employeeCode', controller.getMemberRunDetail);
   // GET /api/collector/jira/batch-schedule (get auto-collect schedule info)
