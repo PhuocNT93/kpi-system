@@ -220,19 +220,6 @@ export const TeamFormulaBuilderTab: React.FC<Props> = ({
     setComponents(next);
   };
 
-  // Handle sub-criteria weight change
-  const handleSubWeightChange = (compIndex: number, subIndex: number, newWeight: number) => {
-    if (!isCustomMode) return;
-    const next = [...components];
-    const comp = { ...next[compIndex] };
-    if (!comp.sub_criteria) return;
-
-    const subs = [...comp.sub_criteria];
-    subs[subIndex] = { ...subs[subIndex], weight: Math.max(0, newWeight) };
-    comp.sub_criteria = subs;
-    next[compIndex] = comp;
-    setComponents(next);
-  };
 
   // Run Simulator
   const runSimulation = useCallback(async () => {
@@ -934,66 +921,7 @@ export const TeamFormulaBuilderTab: React.FC<Props> = ({
                 </div>
               </div>
 
-              {/* Sub-criteria for Con.3 if present */}
-              {comp.sub_criteria && comp.sub_criteria.length > 0 && (
-                <div
-                  style={{
-                    marginTop: '4px',
-                    padding: '14px 18px',
-                    borderRadius: RADII.lg,
-                    backgroundColor: isDark ? '#0f172a' : '#f8fafc',
-                    border: `1px solid ${isDark ? '#334155' : '#f1f5f9'}`,
-                  }}
-                >
-                  <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: textColor, marginBottom: '10px' }}>
-                    Tiêu chí con (Sub-criteria) bên trong {comp.code}:
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
-                    {comp.sub_criteria.map((sub, subIdx) => (
-                      <div
-                        key={sub.code}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '8px 12px',
-                          borderRadius: RADII.md,
-                          backgroundColor: cardBg,
-                          border: `1px solid ${borderColor}`,
-                        }}
-                      >
-                        <span style={{ fontSize: '0.8125rem', color: textColor, fontWeight: 500 }}>
-                          {sub.name}
-                        </span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="1"
-                            value={sub.weight}
-                            disabled={!isCustomMode}
-                            onChange={(e) => handleSubWeightChange(idx, subIdx, Number(e.target.value))}
-                            style={{
-                              width: '50px',
-                              padding: '4px 6px',
-                              borderRadius: RADII.sm,
-                              border: `1px solid ${borderColor}`,
-                              backgroundColor: isDark ? '#0f172a' : '#fff',
-                              color: textColor,
-                              fontWeight: 700,
-                              textAlign: 'center',
-                              fontSize: '0.8125rem',
-                              cursor: isCustomMode ? 'text' : 'not-allowed',
-                            }}
-                          />
-                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: subTextColor }}>%</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+
             </div>
           );
         })}
