@@ -14,6 +14,7 @@ export function createEvaluationRouter(
   router.get('/:id', controller.getEvaluationDetail);
   router.put('/:id/items', controller.saveDraft);
   router.put('/:id/development-blocks', controller.saveDevelopmentBlocks);
+  router.put('/:id/comparison-notes', controller.saveComparisonNotes);
   router.put('/:id/items/:itemId', controller.saveItemDraft);
   router.post('/:id/submit', controller.submitEvaluation);
   router.post('/:id/self-submit', controller.selfSubmitEvaluation);

@@ -10,6 +10,8 @@ type EvaluationComparisonEditorPanelProps = {
   onCurrentChange: (value: string) => void;
   onCopyPreviousToCurrent: () => void;
   onClearCurrent: () => void;
+  onSave: () => void;
+  isSaving?: boolean;
 };
 
 export function EvaluationComparisonEditorPanel({
@@ -17,7 +19,10 @@ export function EvaluationComparisonEditorPanel({
   currentValue,
   onPreviousChange,
   onCurrentChange,
+  onSave,
+  isSaving,
 }: EvaluationComparisonEditorPanelProps) {
+  const showPreviousEvaluation = previousValue.trim().length > 0;
   const previousWords = previousValue.trim() ? previousValue.trim().split(/\s+/).length : 0;
   const currentWords = currentValue.trim() ? currentValue.trim().split(/\s+/).length : 0;
   const previousChars = previousValue.length;
@@ -35,11 +40,16 @@ export function EvaluationComparisonEditorPanel({
         </div>
 
         <div style={statsRowStyle}>
-          <div style={statPillStyle}>
-            <span style={statLabelStyle}>Previous</span>
-            <strong style={statValueStyle}>{previousChars} chars</strong>
-            <span style={statSubStyle}>{previousWords} words</span>
-          </div>
+          <button type="button" onClick={onSave} disabled={Boolean(isSaving)} style={saveButtonStyle}>
+            {isSaving ? 'Saving...' : 'Save Notes'}
+          </button>
+          {showPreviousEvaluation && (
+            <div style={statPillStyle}>
+              <span style={statLabelStyle}>Previous</span>
+              <strong style={statValueStyle}>{previousChars} chars</strong>
+              <span style={statSubStyle}>{previousWords} words</span>
+            </div>
+          )}
           <div style={statPillStyle}>
             <span style={statLabelStyle}>This</span>
             <strong style={statValueStyle}>{currentChars} chars</strong>
@@ -49,21 +59,23 @@ export function EvaluationComparisonEditorPanel({
       </div>
 
       <div style={gridStyle}>
-        <div style={{ ...editorCardStyle, borderColor: '#c7d2fe', background: 'linear-gradient(180deg, #ffffff 0%, #eef2ff 100%)' }}>
-          <div style={editorHeaderStyle}>
-            <div>
-              <div style={editorLabelStyle}>Previous Evaluation</div>
-              <div style={editorHintStyle}>Dùng để ghi lại nhận định, kết luận hoặc nội dung tham chiếu của kỳ trước.</div>
+        {showPreviousEvaluation && (
+          <div style={{ ...editorCardStyle, borderColor: '#c7d2fe', background: 'linear-gradient(180deg, #ffffff 0%, #eef2ff 100%)' }}>
+            <div style={editorHeaderStyle}>
+              <div>
+                <div style={editorLabelStyle}>Previous Evaluation</div>
+                <div style={editorHintStyle}>Dùng để ghi lại nhận định, kết luận hoặc nội dung tham chiếu của kỳ trước.</div>
+              </div>
+              <FileText size={16} color="#4f46e5" />
             </div>
-            <FileText size={16} color="#4f46e5" />
+            <textarea
+              value={previousValue}
+              onChange={(event) => onPreviousChange(event.target.value)}
+              placeholder="Paste or write the previous evaluation here..."
+              style={textareaStyle}
+            />
           </div>
-          <textarea
-            value={previousValue}
-            onChange={(event) => onPreviousChange(event.target.value)}
-            placeholder="Paste or write the previous evaluation here..."
-            style={textareaStyle}
-          />
-        </div>
+        )}
 
         <div style={{ ...editorCardStyle, borderColor: '#bbf7d0', background: 'linear-gradient(180deg, #ffffff 0%, #ecfdf5 100%)' }}>
           <div style={editorHeaderStyle}>
@@ -155,6 +167,18 @@ const statValueStyle: React.CSSProperties = {
 const statSubStyle: React.CSSProperties = {
   fontSize: TYPOGRAPHY.fontSize.xs,
   color: COLORS.neutral.textSecondary,
+};
+
+const saveButtonStyle: React.CSSProperties = {
+  alignSelf: 'flex-start',
+  padding: '10px 14px',
+  borderRadius: RADII.lg,
+  border: `1px solid ${COLORS.primary.DEFAULT}`,
+  background: COLORS.primary.DEFAULT,
+  color: COLORS.neutral.white,
+  fontSize: TYPOGRAPHY.fontSize.sm,
+  fontWeight: TYPOGRAPHY.fontWeight.semibold,
+  cursor: 'pointer',
 };
 
 const gridStyle: React.CSSProperties = {
