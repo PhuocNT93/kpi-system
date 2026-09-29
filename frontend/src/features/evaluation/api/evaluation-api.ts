@@ -27,6 +27,10 @@ export const evaluationApi = {
     return putApi(`${EVALUATIONS_BASE}/${id}/development-blocks`, { developmentBlocks });
   },
 
+  saveComparisonNotes: async (id: string, payload: { previous_evaluation: string; this_evaluation: string }): Promise<void> => {
+    return putApi(`${EVALUATIONS_BASE}/${id}/comparison-notes`, payload);
+  },
+
   saveItemDraft: async (id: string, itemId: string, item: { resolved_level?: number; comment?: string }): Promise<void> => {
     return putApi(`${EVALUATIONS_BASE}/${id}/items/${itemId}`, item);
   },

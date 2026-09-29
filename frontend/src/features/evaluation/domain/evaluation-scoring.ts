@@ -186,9 +186,9 @@ export function buildEvaluationScoringSummary(evaluationDetail?: EvaluationDetai
   const criteria = Array.from(criterionMap.values());
   const grouped = criterionCategoryConfig.map((config) => {
     const groupCriteria = criteria.filter((criterion) => criterion.category === config.key);
-    const max = groupCriteria.reduce((sum, criterion) => sum + normalizeStoredPercentValue(criterion.weightValue), 0);
-    const weightedScoreTotal = groupCriteria.reduce((sum, criterion) => sum + criterion.weightedScore, 0);
-    const average = max > 0 ? (weightedScoreTotal / max) * 5 : null;
+    const average = groupCriteria.length > 0
+      ? groupCriteria.reduce((sum, criterion) => sum + criterion.rawScore, 0) / groupCriteria.length
+      : null;
 
     return {
       ...config,

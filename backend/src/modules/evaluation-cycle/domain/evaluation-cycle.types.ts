@@ -90,7 +90,7 @@ export interface EvaluationItem {
   kpiCodeSnapshot?: string;
   kpiNameSnapshot?: string;
   kpiWeightSnapshot?: number;
-  scoringRuleSnapshot: Record<string, unknown>;
+  scoringRuleSnapshot: Record<string, unknown> | null;
   levelDefinitionSnapshot: Record<string, unknown>[];
   resolvedLevel: number | null;
   rawScore: number | null;

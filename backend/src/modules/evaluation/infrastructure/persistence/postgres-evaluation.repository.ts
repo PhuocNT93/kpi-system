@@ -20,6 +20,8 @@ export class PostgresEvaluationRepository implements IEvaluationRepository {
       final_score: row.final_score ? Number(row.final_score) : undefined,
       scoring_breakdown: typeof row.scoring_breakdown === 'string' ? JSON.parse(row.scoring_breakdown) : row.scoring_breakdown,
       development_blocks: typeof row.development_blocks === 'string' ? JSON.parse(row.development_blocks) : row.development_blocks,
+      previous_evaluation: row.previous_evaluation as string | null,
+      this_evaluation: row.this_evaluation as string | null,
       formula_snapshot: typeof row.formula_snapshot === 'string' ? JSON.parse(row.formula_snapshot) : row.formula_snapshot,
       calculated_rank: row.calculated_rank as string | undefined,
       salary_recommendation: typeof row.salary_recommendation === 'string' ? JSON.parse(row.salary_recommendation) : row.salary_recommendation,

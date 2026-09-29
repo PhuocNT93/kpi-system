@@ -4,6 +4,7 @@
  * Cleans up mock data and seeds real team/employee/user/evaluation data
  * Run: node src/modules/configuration/infrastructure/seed/seed-real-members.mjs
  */
+import 'dotenv/config';
 import pg from 'pg';
 import crypto from 'crypto';
 

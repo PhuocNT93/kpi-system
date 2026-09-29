@@ -29,6 +29,8 @@ export interface Evaluation {
   official_score?: number | null;
   scoring_breakdown?: Record<string, unknown>;
   development_blocks?: Array<Record<string, unknown>>;
+  previous_evaluation?: string | null;
+  this_evaluation?: string | null;
   formula_snapshot?: Record<string, unknown>;
   effective_formula?: Record<string, unknown>;
   calculated_rank?: string;
