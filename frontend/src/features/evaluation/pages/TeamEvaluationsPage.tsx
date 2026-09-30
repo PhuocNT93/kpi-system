@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { evaluationApi } from '../api/evaluation-api';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY } from '@/shared/theme';
-import { UserCheck, Calendar, ArrowRight, Filter, Search, CheckCircle2, Clock } from 'lucide-react';
+import { UserCheck, Calendar, ArrowRight, Filter, Search, CheckCircle2, Clock, SlidersHorizontal, XCircle } from 'lucide-react';
 import type { TeamEvaluation } from '../domain/evaluation-models';
 import { EvaluationStatus } from '../domain/evaluation-models';
 
@@ -25,14 +25,18 @@ export function TeamEvaluationsPage() {
     return <div style={{ padding: '24px' }}>Loading team reviews...</div>;
   }
 
+  // One distinct hue per status group so cards are easy to scan: blue = self-review,
+  // amber = waiting on the manager, violet = calibration, green = done, red = rejected.
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'OPEN':
       case 'SELF_ASSESSMENT':
         return {
-          bg: COLORS.neutral[100],
-          text: COLORS.neutral[700],
+          bg: '#EFF6FF',
+          text: '#1D4ED8',
+          border: '#BFDBFE',
           label: 'Self-Review In Progress',
+          shortLabel: 'Self-Review',
           icon: <Clock size={14} />,
         };
       case 'SUBMITTED':
@@ -40,25 +44,49 @@ export function TeamEvaluationsPage() {
       case 'MANAGER_REVIEW':
       case 'REVIEWING':
         return {
-          bg: (COLORS.semantic as Record<string, Record<number, string>>).warning[50],
-          text: (COLORS.semantic as Record<string, Record<number, string>>).warning[700],
+          bg: '#FFF7ED',
+          text: '#C2410C',
+          border: '#FED7AA',
           label: 'Ready for Manager Review',
-          icon: <Clock size={14} />,
+          shortLabel: 'Manager Review',
+          icon: <UserCheck size={14} />,
+        };
+      case 'CALIBRATION':
+        return {
+          bg: '#F5F3FF',
+          text: '#6D28D9',
+          border: '#DDD6FE',
+          label: 'In Calibration',
+          shortLabel: 'Calibration',
+          icon: <SlidersHorizontal size={14} />,
         };
       case 'APPROVED':
       case 'PUBLISHED':
       case 'LOCKED':
         return {
-          bg: (COLORS.semantic as Record<string, Record<number, string>>).success[50],
-          text: (COLORS.semantic as Record<string, Record<number, string>>).success[700],
+          bg: '#ECFDF5',
+          text: '#047857',
+          border: '#A7F3D0',
           label: 'Approved',
+          shortLabel: 'Approved',
           icon: <CheckCircle2 size={14} />,
+        };
+      case 'REJECTED':
+        return {
+          bg: '#FEF2F2',
+          text: '#B91C1C',
+          border: '#FECACA',
+          label: 'Rejected',
+          shortLabel: 'Rejected',
+          icon: <XCircle size={14} />,
         };
       default:
         return {
           bg: COLORS.neutral[100],
           text: COLORS.neutral[700],
+          border: COLORS.neutral[200],
           label: status,
+          shortLabel: status,
           icon: null,
         };
     }
@@ -124,9 +152,10 @@ export function TeamEvaluationsPage() {
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', padding: '24px' }}>
+    // Bounded to the hub content area: the header and filter bar stay put, only the card list scrolls.
+    <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', flexDirection: 'column', gap: '20px', padding: '24px 24px 0' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
         <div>
           <h1 style={{ margin: '0 0 8px 0', fontSize: TYPOGRAPHY.fontSize['2xl'], fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
             Team Reviews
@@ -145,7 +174,8 @@ export function TeamEvaluationsPage() {
         backgroundColor: COLORS.neutral.white,
         padding: '16px',
         borderRadius: RADII.xl,
-        border: `1px solid ${COLORS.neutral[200]}`
+        border: `1px solid ${COLORS.neutral[200]}`,
+        flexShrink: 0
       }}>
         <div style={{ position: 'relative', flex: 1 }}>
           <Search size={18} color={COLORS.neutral[400]} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
@@ -189,7 +219,8 @@ export function TeamEvaluationsPage() {
         </div>
       </div>
 
-      {/* Evaluations List grouped into In Progress and Upcoming */}
+      {/* Evaluations List grouped into In Progress and Upcoming - the only scrolling region */}
+      <div data-testid="team-reviews-list" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 4px 24px', margin: '0 -4px' }}>
       {filteredEvaluations.length === 0 ? (
         <div style={{ padding: '48px', textAlign: 'center', backgroundColor: COLORS.neutral.white, borderRadius: RADII.xl, border: `1px solid ${COLORS.neutral[200]}` }}>
           <UserCheck size={48} color={COLORS.neutral[400]} style={{ margin: '0 auto 16px' }} />
@@ -200,7 +231,7 @@ export function TeamEvaluationsPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {inProgress.length > 0 && (
             <div>
-              <h2 style={{ margin: '0 0 8px 0', fontSize: TYPOGRAPHY.fontSize.lg, color: COLORS.neutral.textPrimary }}>Currently in Review ({inProgress.length})</h2>
+              <h2 style={groupHeaderStyle}>Currently in Review ({inProgress.length})</h2>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '20px' }}>
                 {inProgress.map((item: TeamEvaluation) => {
                   const badge = getStatusBadge(item.evaluation.status);
@@ -232,17 +263,20 @@ export function TeamEvaluationsPage() {
                         e.currentTarget.style.transform = 'none';
                       }}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div>
-                          <h3 style={{ margin: '0 0 4px 0', fontSize: TYPOGRAPHY.fontSize.base, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <h3 title={item.employee?.full_name} style={{ margin: '0 0 4px 0', fontSize: TYPOGRAPHY.fontSize.base, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {item.employee?.full_name || 'Team Member'}
                           </h3>
-                          <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
-                            {item.employee?.employee_code} • {item.employee?.role_name || 'Member'} • {item.employee?.team_name || 'Team'}
+                          <div style={cardMetaLineStyle}>
+                            {[item.employee?.employee_code, item.employee?.role_name].filter(Boolean).join(' - ') || 'N/A'}
+                          </div>
+                          <div style={cardMetaLineStyle}>
+                            {item.employee?.team_name || 'N/A'}
                           </div>
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                           {(item.evaluation.final_score != null || item.evaluation.manager_score != null) && (
                             <span style={{
                               display: 'flex',
@@ -260,7 +294,7 @@ export function TeamEvaluationsPage() {
                             </span>
                           )}
                           {getRankBadge(item.evaluation.calculated_rank, item.evaluation.final_score ?? item.evaluation.manager_score)}
-                          <span style={{
+                          <span title={badge.label} style={{
                             display: 'flex',
                             alignItems: 'center',
                             gap: '4px',
@@ -269,10 +303,13 @@ export function TeamEvaluationsPage() {
                             fontSize: TYPOGRAPHY.fontSize.xs,
                             fontWeight: 600,
                             backgroundColor: badge.bg,
-                            color: badge.text
+                            color: badge.text,
+                            border: `1px solid ${badge.border}`,
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
                           }}>
                             {badge.icon}
-                            {badge.label}
+                            {badge.shortLabel}
                           </span>
                         </div>
                       </div>
@@ -308,7 +345,7 @@ export function TeamEvaluationsPage() {
 
           {completed.length > 0 && (
             <div>
-              <h2 style={{ margin: '0 0 8px 0', fontSize: TYPOGRAPHY.fontSize.lg, color: COLORS.neutral.textPrimary }}>Completed Reviews ({completed.length})</h2>
+              <h2 style={groupHeaderStyle}>Completed Reviews ({completed.length})</h2>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '20px' }}>
                 {completed.map((item: TeamEvaluation) => {
                   const badge = getStatusBadge(item.evaluation.status);
@@ -339,17 +376,20 @@ export function TeamEvaluationsPage() {
                         e.currentTarget.style.transform = 'none';
                       }}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div>
-                          <h3 style={{ margin: '0 0 4px 0', fontSize: TYPOGRAPHY.fontSize.base, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <h3 title={item.employee?.full_name} style={{ margin: '0 0 4px 0', fontSize: TYPOGRAPHY.fontSize.base, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {item.employee?.full_name || 'Team Member'}
                           </h3>
-                          <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
-                            {item.employee?.employee_code} • {item.employee?.role_name || 'Member'} • {item.employee?.team_name || 'Team'}
+                          <div style={cardMetaLineStyle}>
+                            {[item.employee?.employee_code, item.employee?.role_name].filter(Boolean).join(' - ') || 'N/A'}
+                          </div>
+                          <div style={cardMetaLineStyle}>
+                            {item.employee?.team_name || 'N/A'}
                           </div>
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                           {(item.evaluation.final_score != null || item.evaluation.manager_score != null) && (
                             <span style={{
                               display: 'flex',
@@ -367,7 +407,7 @@ export function TeamEvaluationsPage() {
                             </span>
                           )}
                           {getRankBadge(item.evaluation.calculated_rank, item.evaluation.final_score ?? item.evaluation.manager_score)}
-                          <span style={{
+                          <span title={badge.label} style={{
                             display: 'flex',
                             alignItems: 'center',
                             gap: '4px',
@@ -376,10 +416,13 @@ export function TeamEvaluationsPage() {
                             fontSize: TYPOGRAPHY.fontSize.xs,
                             fontWeight: 600,
                             backgroundColor: badge.bg,
-                            color: badge.text
+                            color: badge.text,
+                            border: `1px solid ${badge.border}`,
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
                           }}>
                             {badge.icon}
-                            {badge.label}
+                            {badge.shortLabel}
                           </span>
                         </div>
                       </div>
@@ -415,7 +458,7 @@ export function TeamEvaluationsPage() {
 
           {upcoming.length > 0 && (
             <div>
-              <h2 style={{ margin: '0 0 8px 0', fontSize: TYPOGRAPHY.fontSize.lg, color: COLORS.neutral.textPrimary }}>Upcoming Reviews ({upcoming.length})</h2>
+              <h2 style={groupHeaderStyle}>Upcoming Reviews ({upcoming.length})</h2>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '20px' }}>
                 {upcoming.map((item: TeamEvaluation) => {
                   const badge = getStatusBadge(item.evaluation.status);
@@ -436,17 +479,20 @@ export function TeamEvaluationsPage() {
                         position: 'relative'
                       }}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div>
-                          <h3 style={{ margin: '0 0 4px 0', fontSize: TYPOGRAPHY.fontSize.base, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <h3 title={item.employee?.full_name} style={{ margin: '0 0 4px 0', fontSize: TYPOGRAPHY.fontSize.base, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {item.employee?.full_name || 'Team Member'}
                           </h3>
-                          <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
-                            {item.employee?.employee_code} • {item.employee?.role_name || 'Member'} • {item.employee?.team_name || 'Team'}
+                          <div style={cardMetaLineStyle}>
+                            {[item.employee?.employee_code, item.employee?.role_name].filter(Boolean).join(' - ') || 'N/A'}
+                          </div>
+                          <div style={cardMetaLineStyle}>
+                            {item.employee?.team_name || 'N/A'}
                           </div>
                         </div>
 
-                        <span style={{
+                        <span title={badge.label} style={{
                           display: 'flex',
                           alignItems: 'center',
                           gap: '4px',
@@ -455,10 +501,13 @@ export function TeamEvaluationsPage() {
                           fontSize: TYPOGRAPHY.fontSize.xs,
                           fontWeight: 600,
                           backgroundColor: badge.bg,
-                          color: badge.text
+                          color: badge.text,
+                          border: `1px solid ${badge.border}`,
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0,
                         }}>
                           {badge.icon}
-                          {badge.label}
+                          {badge.shortLabel}
                         </span>
                       </div>
 
@@ -492,6 +541,28 @@ export function TeamEvaluationsPage() {
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }
+
+const cardMetaLineStyle: React.CSSProperties = {
+  fontSize: TYPOGRAPHY.fontSize.xs,
+  color: COLORS.neutral.textSecondary,
+  lineHeight: 1.5,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+};
+
+// Group title stays pinned at the top of the scrolling list while its cards scroll underneath.
+const groupHeaderStyle: React.CSSProperties = {
+  position: 'sticky',
+  top: 0,
+  zIndex: 1,
+  margin: '0 0 8px 0',
+  padding: '4px 0 8px',
+  fontSize: TYPOGRAPHY.fontSize.lg,
+  color: COLORS.neutral.textPrimary,
+  backgroundColor: COLORS.neutral.surfaceSubtle,
+};

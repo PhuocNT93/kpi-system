@@ -5,17 +5,23 @@ import { evaluationApi } from '../api/evaluation-api';
 import { employeeSearchApi } from '@/features/organization/api/employee-search.api';
 import { COLORS } from '@/lib/theme';
 import { RADII, SHADOWS, TYPOGRAPHY } from '@/shared/theme';
-import {
-  ArrowUpRight,
-  ChevronDown,
-  Search,
-} from 'lucide-react';
+import { ArrowUpRight, BarChart3, ChevronDown, ListChecks, PenLine } from 'lucide-react';
+import { SubTabs, type SubTabItem } from '@/shared/ui/SubTabs/SubTabs';
 import { useAuth } from '@/shared/auth/auth-context';
 import { type TeamEvaluation, buildEvaluationScoringSummary, deriveFormulaSourceLabel } from '../domain/evaluation-models';
 import type { EmployeeSearchResult } from '@/features/organization/api/employee-search.api';
 import { EvaluationOverviewPanel } from '../components/EvaluationOverviewPanel';
 import { EvaluationScoreSummaryPanel } from '../components/EvaluationScoreSummaryPanel';
 import { PersonalDevelopmentPlanPanel } from '../components/PersonalDevelopmentPlanPanel';
+import { EvaluationPickerList, type EvaluationPickerItem } from '../components/EvaluationPickerList';
+
+type EvaluationSectionId = 'overall' | 'criteria' | 'personal';
+
+const EVALUATION_SECTIONS: SubTabItem<EvaluationSectionId>[] = [
+  { id: 'overall', label: 'Overall', icon: <BarChart3 size={15} /> },
+  { id: 'criteria', label: 'Criteria', icon: <ListChecks size={15} /> },
+  { id: 'personal', label: 'Personal Development', icon: <PenLine size={15} /> },
+];
 
 type DevelopmentBlock = {
   title: string;
@@ -28,6 +34,7 @@ export function MyEvaluationPage() {
   const { user } = useAuth();
   const isHrAdmin = user?.role === 'HR_ADMIN' || user?.role === 'SYSTEM_ADMIN';
   const [openCriterion, setOpenCriterion] = useState(0);
+  const [activeSection, setActiveSection] = useState<EvaluationSectionId>('overall');
   const [saved] = useState(true);
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [selectedEvaluationId, setSelectedEvaluationId] = useState<string | null>(null);
@@ -51,7 +58,7 @@ export function MyEvaluationPage() {
       value: 'Sharpen prioritization for ambiguous roadmap requests and improve delegation.',
     },
     {
-      title: 'Suggestions / Requests',
+      title: 'Suggestion',
       desc: 'What support, resources, training or opportunities would help you grow?',
       accent: COLORS.secondary.DEFAULT,
       value: 'Access to strategy workshops, stakeholder shadowing, and a quarterly coaching session.',
@@ -63,7 +70,7 @@ export function MyEvaluationPage() {
     queryFn: evaluationApi.getMyEvaluations,
   });
 
-  const selfEvaluations = myEvaluations ?? [];
+  const selfEvaluations = useMemo(() => myEvaluations ?? [], [myEvaluations]);
 
   useEffect(() => {
     if (isHrAdmin) {
@@ -146,7 +153,8 @@ export function MyEvaluationPage() {
     enabled: Boolean(selectedEmployeeId),
   });
 
-  const selectedEmployeeProfile = employeeProfiles?.employees?.[0];
+  // The search endpoint may return other employees in scope, so only trust a row whose id matches.
+  const selectedEmployeeProfile = employeeProfiles?.employees?.find((profile) => profile.employeeId === selectedEmployeeId);
 
   const { data: managerProfiles } = useQuery<EmployeeSearchResult>({
     queryKey: ['employee-manager-profile', selectedManagerId],
@@ -154,7 +162,7 @@ export function MyEvaluationPage() {
     enabled: Boolean(selectedManagerId),
   });
 
-  const selectedManagerProfile = managerProfiles?.employees?.[0];
+  const selectedManagerProfile = managerProfiles?.employees?.find((profile) => profile.employeeId === selectedManagerId);
 
   const { data: evaluationDetail } = useQuery({
     queryKey: ['evaluation-detail', activeEvaluationId],
@@ -199,7 +207,7 @@ export function MyEvaluationPage() {
           value: 'Sharpen prioritization for ambiguous roadmap requests and improve delegation.',
         },
         {
-          title: 'Suggestions / Requests',
+          title: 'Suggestion',
           desc: 'What support, resources, training or opportunities would help you grow?',
           accent: COLORS.secondary.DEFAULT,
           value: 'Access to strategy workshops, stakeholder shadowing, and a quarterly coaching session.',
@@ -273,9 +281,9 @@ export function MyEvaluationPage() {
     ...selfEmployee,
     join_date: selectedEmployeeProfile?.joinDate ?? selectedEmployee?.join_date ?? selfEmployee?.join_date,
     next_review_due_date: selectedEmployee?.next_review_due_date ?? selfEmployee?.next_review_due_date,
-    employee_code: selectedEmployeeProfile?.employeeCode ?? selectedEmployee?.employee_code ?? selfEmployee?.employee_code,
-    full_name: selectedEmployeeProfile?.fullName ?? selectedEmployee?.full_name ?? selfEmployee?.full_name,
-    email: selectedEmployeeProfile?.email ?? selectedEmployee?.email ?? selfEmployee?.email,
+    employee_code: selectedEmployee?.employee_code ?? selfEmployee?.employee_code ?? selectedEmployeeProfile?.employeeCode,
+    full_name: selectedEmployee?.full_name ?? selfEmployee?.full_name ?? selectedEmployeeProfile?.fullName,
+    email: selectedEmployee?.email ?? selfEmployee?.email ?? selectedEmployeeProfile?.email,
     created_at: selectedEmployee?.created_at ?? selfEmployee?.created_at,
   };
   const selectedEvaluation = isHrAdmin ? selectedTeamEvaluation?.evaluation : selfEvaluation;
@@ -316,9 +324,9 @@ export function MyEvaluationPage() {
     ['Previous Review', formatDisplayDate(selectedEvaluation?.approved_at ?? selectedEvaluation?.submitted_at)],
     ['Next Review', formatDisplayDate(enrichedEmployee.next_review_due_date ?? activeCycle?.end_date)],
     ['Current Level', selectedEmployeeProfile?.role.name || enrichedEmployee.role_name || 'N/A'],
-    ['Team', selectedEmployeeProfile?.team.name || enrichedEmployee.team_name || 'N/A'],
-    ['Manager', selectedManagerProfile?.fullName || selectedEmployeeProfile?.manager?.name || 'N/A'],
   ];
+  const teamName = selectedEmployeeProfile?.team.name || enrichedEmployee.team_name || 'N/A';
+  const leaderName = selectedManagerProfile?.fullName || selectedEmployeeProfile?.manager?.name || 'N/A';
 
   const updateDevelopmentBlock = (index: number, value: string) => {
     setDevelopmentBlocks((current) =>
@@ -355,389 +363,297 @@ export function MyEvaluationPage() {
     },
   });
 
-  return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: 'radial-gradient(circle at top left, rgba(124,58,237,0.08), transparent 30%), #F7F8FC',
-        padding: '24px',
-        color: COLORS.neutral.textPrimary,
-        fontFamily: TYPOGRAPHY.fontFamily.body,
-      }}
-    >
-      <div style={{ maxWidth: '1440px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+  const filteredSelfEvaluations = useMemo(() => {
+    const term = employeeSearch.trim().toLowerCase();
+    if (!term) {
+      return selfEvaluations;
+    }
 
-        {isHrAdmin && (
-          <section style={panelStyle}>
-            <div style={sectionHeadingStyle}>
-              <div>
-                <div style={eyebrowStyle}>Admin / HR Workspace</div>
-                <h2 style={sectionTitleStyle}>Select an employee with an evaluation</h2>
+    return selfEvaluations.filter((item) => (
+      item.cycle?.name?.toLowerCase().includes(term) ||
+      item.employee?.full_name?.toLowerCase().includes(term) ||
+      item.employee?.employee_code?.toLowerCase().includes(term)
+    ));
+  }, [employeeSearch, selfEvaluations]);
+
+  const pickerItems: EvaluationPickerItem[] = isHrAdmin
+    ? filteredTeamEvaluations.map((item) => ({
+        id: item.evaluation.evaluation_id,
+        title: item.employee?.full_name || 'N/A',
+        subtitle: [item.employee?.employee_code, item.employee?.role_name, item.cycle?.name].filter(Boolean).join(' • '),
+        status: item.evaluation.status,
+      }))
+    : filteredSelfEvaluations.map((item) => ({
+        id: item.evaluation.evaluation_id,
+        title: item.cycle?.name || 'N/A',
+        subtitle: [item.employee?.employee_code, item.employee?.full_name].filter(Boolean).join(' • '),
+        status: item.evaluation.status,
+      }));
+
+  const displayName = enrichedEmployee.full_name || 'N/A';
+  const displayInitials = enrichedEmployee.full_name
+    ? enrichedEmployee.full_name.split(' ').filter(Boolean).map((part) => part[0]).slice(-2).join('').toUpperCase()
+    : '—';
+  const currentLevel = LEVELS.find((level) => level.rank === currentRank) ?? LEVELS[1];
+
+  return (
+    <div style={{ color: COLORS.neutral.textPrimary, fontFamily: TYPOGRAPHY.fontFamily.body, marginTop: '12px', flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
+      <div className="my-eval-layout" style={{ flex: '1 0 auto' }}>
+        <div className="my-eval-picker-slot">
+          <EvaluationPickerList
+            items={pickerItems}
+            activeId={activeEvaluationId}
+            searchValue={employeeSearch}
+            searchPlaceholder="Search"
+            emptyLabel={isHrAdmin ? 'No employees match your search.' : 'No evaluations found.'}
+            onSearchChange={setEmployeeSearch}
+            onSelect={setSelectedEvaluationId}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minWidth: 0 }}>
+          {/* Each tab body grows so the detail column reaches the bottom of the viewport. */}
+          <section style={{ ...panelStyle, padding: '12px 16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '16px', alignItems: 'center', minWidth: 0 }}>
+                <div style={avatarStyle}>{displayInitials}</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, marginBottom: '2px', lineHeight: 1.4 }}>
+                    Team: <strong style={{ color: COLORS.neutral.textPrimary }}>{teamName}</strong>
+                    <span style={{ margin: '0 6px', color: COLORS.neutral[400] }}>/</span>
+                    Leader: <strong style={{ color: COLORS.neutral.textPrimary }}>{leaderName}</strong>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <div style={{ fontSize: TYPOGRAPHY.fontSize.xl, fontWeight: TYPOGRAPHY.fontWeight.extrabold, lineHeight: 1.25 }}>{displayName}</div>
+                    <span
+                      title={selectedEvaluationStatusLabel}
+                      style={{ ...selectedEvaluationStatusStyle, padding: '4px 10px', borderRadius: RADII.full, fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: TYPOGRAPHY.fontWeight.semibold }}
+                    >
+                      {selectedEvaluationStatus}
+                    </span>
+                  </div>
+                  <div style={metaLineStyle}>Employee ID: {enrichedEmployee.employee_code || 'N/A'}</div>
+                </div>
               </div>
-              <div style={{ color: COLORS.neutral.textSecondary, fontSize: TYPOGRAPHY.fontSize.sm }}>
-                {filteredTeamEvaluations.length} employees matched
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
+                {profileFacts.map(([label, value]) => (
+                  <div key={label} style={miniFactCardStyle}>
+                    <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>{label}</div>
+                    <div style={{ fontSize: TYPOGRAPHY.fontSize.sm, fontWeight: TYPOGRAPHY.fontWeight.bold, marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</div>
+                  </div>
+                ))}
               </div>
             </div>
+          </section>
 
-            <div style={{ marginTop: '16px', display: 'grid', gap: '14px' }}>
-              <div style={{ position: 'relative' }}>
-                <Search size={18} color={COLORS.neutral[400]} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
-                <input
-                  type="text"
-                  value={employeeSearch}
-                  onChange={(e) => setEmployeeSearch(e.target.value)}
-                  placeholder="Search by employee name, code, email, or cycle..."
-                  style={{
-                    width: '100%',
-                    padding: '12px 14px 12px 42px',
-                    borderRadius: RADII.xl,
-                    border: `1px solid ${COLORS.neutral[200]}`,
-                    background: COLORS.neutral.white,
-                    fontSize: TYPOGRAPHY.fontSize.sm,
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                  }}
-                />
-              </div>
+          <SubTabs<EvaluationSectionId>
+            items={EVALUATION_SECTIONS}
+            value={activeSection}
+            onChange={setActiveSection}
+            ariaLabel="Evaluation sections"
+            flush
+          />
 
-              <div style={{ display: 'grid', gap: '10px', maxHeight: '280px', overflow: 'auto', paddingRight: '4px' }}>
-                {filteredTeamEvaluations.length === 0 ? (
-                  <div style={{ padding: '16px', borderRadius: RADII.xl, border: `1px dashed ${COLORS.neutral[200]}`, color: COLORS.neutral.textSecondary, fontSize: TYPOGRAPHY.fontSize.sm }}>
-                    No employees match your search.
+          {activeSection === 'overall' && (
+            <>
+              <section style={{ flex: '1 0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '12px' }}>
+                <div style={{ ...panelStyle, padding: '14px 18px', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', minWidth: 0 }}>
+                      <h2 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.lg, fontWeight: TYPOGRAPHY.fontWeight.bold }}>Overall Evaluation</h2>
+                      <div style={positiveBadgeStyle}><ArrowUpRight size={15} /> +6% vs previous review</div>
+                    </div>
+                    <div style={{ fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary, whiteSpace: 'nowrap' }}>Status: <strong style={{ color: COLORS.neutral.textPrimary }}>{currentLevel.label}</strong></div>
                   </div>
-                ) : (
-                  filteredTeamEvaluations.map((item) => {
-                    const isSelected = item.evaluation.evaluation_id === activeEvaluationId;
-                    return (
-                      <button
-                        key={item.evaluation.evaluation_id}
-                        type="button"
-                        onClick={() => setSelectedEvaluationId(item.evaluation.evaluation_id)}
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          gap: '12px',
-                          width: '100%',
-                          padding: '14px 16px',
-                          borderRadius: RADII.xl,
-                          border: `1px solid ${isSelected ? COLORS.primary.DEFAULT : COLORS.neutral[200]}`,
-                          background: isSelected ? 'rgba(99,102,241,0.06)' : COLORS.neutral.white,
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                        }}
-                      >
-                        <div>
-                          <div style={{ fontWeight: TYPOGRAPHY.fontWeight.semibold, color: COLORS.neutral.textPrimary }}>
-                            {item.employee?.full_name || 'Team Member'}
+
+                  <EvaluationOverviewPanel score={officialScore} cycleProgress={cycleProgress} />
+                </div>
+
+                <EvaluationScoreSummaryPanel
+                  score={officialScore}
+                  grouped={scoreFormula.grouped}
+                  formulaSource={formulaSourceLabel}
+                  compact
+                  note={currentLevel.description}
+                />
+              </section>
+
+              <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', alignItems: 'stretch' }}>
+                {LEVELS.map((level) => {
+                  const isActive = currentRank === level.rank;
+                  return (
+                    <div
+                      key={level.rank}
+                      style={{
+                        borderRadius: RADII['2xl'],
+                        padding: '10px 14px',
+                        border: `1px solid ${isActive ? level.tone : level.border}`,
+                        background: level.background,
+                        boxShadow: isActive ? level.activeShadow : '0 6px 16px rgba(15,23,42,0.05)',
+                        opacity: isActive ? 1 : 0.7,
+                        transition: 'opacity 0.2s ease, box-shadow 0.2s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                          <div style={{ width: '32px', height: '32px', borderRadius: RADII.md, display: 'grid', placeItems: 'center', background: `${level.tone}18`, color: level.tone, border: `1px solid ${level.border}`, flexShrink: 0 }}>
+                            <span style={{ fontSize: TYPOGRAPHY.fontSize.lg, fontWeight: TYPOGRAPHY.fontWeight.extrabold, lineHeight: 1 }}>{level.rank}</span>
                           </div>
-                          <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, marginTop: '4px' }}>
-                            {item.employee?.employee_code} • {item.employee?.role_name || 'Member'} • {item.cycle?.name || 'Current cycle'}
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: level.tone, fontWeight: TYPOGRAPHY.fontWeight.semibold, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{level.badge}</div>
+                            <div style={{ fontSize: TYPOGRAPHY.fontSize.base, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary, lineHeight: 1.2 }}>{level.label}</div>
                           </div>
                         </div>
-                        <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: isSelected ? COLORS.primary.DEFAULT : COLORS.neutral.textSecondary, fontWeight: TYPOGRAPHY.fontWeight.semibold }}>
-                          {item.evaluation.status}
+                        <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, whiteSpace: 'nowrap' }}>Level · {level.range}</div>
+                      </div>
+                      <div title={level.description} style={{ marginTop: '6px', fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textPrimary, lineHeight: 1.45, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{level.description}</div>
+                    </div>
+                  );
+                })}
+              </section>
+            </>
+          )}
+
+          {activeSection === 'criteria' && (
+            <section style={{ ...panelStyle, flex: '1 0 auto' }}>
+              <div style={sectionHeadingStyle}>
+                <div>
+                  <div style={eyebrowStyle}>Evaluation Criteria</div>
+                  <h2 style={sectionTitleStyle}>Understand how your overall evaluation is calculated.</h2>
+                </div>
+                <div style={{ color: COLORS.neutral.textSecondary, fontSize: TYPOGRAPHY.fontSize.sm }}>90–100% Excellent · 80–89% Strong · 70–79% Meets Expectations · Below 70% Needs Attention</div>
+              </div>
+
+              <div style={{ display: 'grid', gap: '14px', marginTop: '18px' }}>
+                {criteria.map((item, index) => {
+                  const expanded = openCriterion === index;
+                  return (
+                    <div key={item.title} style={{ border: `1px solid ${COLORS.neutral[200]}`, borderRadius: RADII['2xl'], overflow: 'hidden', background: COLORS.neutral.white }}>
+                      <button onClick={() => setOpenCriterion(expanded ? -1 : index)} style={accordionButtonStyle}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                          <div style={{ width: '12px', height: '12px', borderRadius: RADII.full, background: item.accent }} />
+                          <div>
+                            <div style={{ fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary }}>{String(index + 1).padStart(2, '0')} — {item.weightValue}</div>
+                            <div style={{ fontSize: TYPOGRAPHY.fontSize.lg, fontWeight: TYPOGRAPHY.fontWeight.semibold }}>{item.title}</div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: TYPOGRAPHY.fontSize['2xl'], fontWeight: TYPOGRAPHY.fontWeight.extrabold }}>{item.scoreValue} pts</div>
+                            <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>Raw {item.rawScoreValue}</div>
+                            <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: item.accent }}>{item.status}</div>
+                          </div>
+                          <ChevronDown size={18} style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }} />
                         </div>
                       </button>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          </section>
-        )}
 
-        <section style={panelStyle}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
-            <div style={{ display: 'flex', gap: '18px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <div style={avatarStyle}>{(selectedTeamEvaluation?.employee?.full_name || 'Alex Nguyen').split(' ').map((part) => part[0]).slice(0, 2).join('')}</div>
-              <div>
-                <div style={{ fontSize: TYPOGRAPHY.fontSize['3xl'], fontWeight: TYPOGRAPHY.fontWeight.extrabold, marginBottom: '6px' }}>
-                  {selectedTeamEvaluation?.employee?.full_name || 'Alex Nguyen'}
-                </div>
-                <div style={metaLineStyle}>Employee ID: {selectedTeamEvaluation?.employee?.employee_code || ''}</div>
-              </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-              {profileFacts.map(([label, value]) => (
-                <div key={label} style={miniFactCardStyle}>
-                  <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>{label}</div>
-                  <div style={{ fontSize: TYPOGRAPHY.fontSize.lg, fontWeight: TYPOGRAPHY.fontWeight.bold, marginTop: '6px' }}>{value}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {!isHrAdmin && selfEvaluations.length > 1 && (
-          <section style={panelStyle}>
-            <div style={sectionHeadingStyle}>
-              <div>
-                <div style={eyebrowStyle}>My Evaluations</div>
-                <h2 style={sectionTitleStyle}>Select an evaluation</h2>
-              </div>
-              <div style={{ color: COLORS.neutral.textSecondary, fontSize: TYPOGRAPHY.fontSize.sm }}>
-                {selfEvaluations.length} evaluations available
-              </div>
-            </div>
-
-            <div style={{ marginTop: '16px', display: 'grid', gap: '10px' }}>
-              {selfEvaluations.map((item) => {
-                const isSelected = item.evaluation.evaluation_id === activeEvaluationId;
-                const status = item.evaluation.status;
-                return (
-                  <button
-                    key={item.evaluation.evaluation_id}
-                    type="button"
-                    onClick={() => setSelectedEvaluationId(item.evaluation.evaluation_id)}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      gap: '12px',
-                      width: '100%',
-                      padding: '14px 16px',
-                      borderRadius: RADII.xl,
-                      border: `1px solid ${isSelected ? COLORS.primary.DEFAULT : COLORS.neutral[200]}`,
-                      background: isSelected ? 'rgba(99,102,241,0.06)' : COLORS.neutral.white,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: TYPOGRAPHY.fontWeight.semibold, color: COLORS.neutral.textPrimary }}>
-                        {item.cycle?.name || 'Evaluation'}
-                      </div>
-                      <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, marginTop: '4px' }}>
-                        {item.employee?.employee_code} • {item.employee?.full_name || 'Employee'}
-                      </div>
-                    </div>
-                    <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: isSelected ? COLORS.primary.DEFAULT : COLORS.neutral.textSecondary, fontWeight: TYPOGRAPHY.fontWeight.semibold }}>
-                      {status}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        {!isHrAdmin && (
-          <section style={{ ...panelStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-            <div>
-              <div style={eyebrowStyle}>Submission Status</div>
-              <h2 style={{ margin: '8px 0 0', fontSize: TYPOGRAPHY.fontSize['2xl'], fontWeight: TYPOGRAPHY.fontWeight.bold }}>
-                {selectedEvaluationStatusLabel}
-              </h2>
-            </div>
-            <div style={{ ...selectedEvaluationStatusStyle, padding: '8px 12px', borderRadius: RADII.full, fontSize: TYPOGRAPHY.fontSize.sm, fontWeight: TYPOGRAPHY.fontWeight.semibold }}>
-              {selectedEvaluationStatus}
-            </div>
-          </section>
-        )}
-
-        <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
-          <div style={{ ...panelStyle, padding: '28px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
-              <div>
-                <div style={eyebrowStyle}>Overall Evaluation</div>
-                <h2 style={{ margin: '8px 0', fontSize: TYPOGRAPHY.fontSize['2xl'], fontWeight: TYPOGRAPHY.fontWeight.bold }}>How am I performing overall?</h2>
-                <div style={{ color: COLORS.neutral.textSecondary, fontSize: TYPOGRAPHY.fontSize.sm }}>You are currently performing above the expected level for your role.</div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={positiveBadgeStyle}><ArrowUpRight size={15} /> +6% vs previous review</div>
-                <div style={{ marginTop: '10px', fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary }}>Status: <strong style={{ color: COLORS.neutral.textPrimary }}>Strong Performance</strong></div>
-              </div>
-            </div>
-
-            <EvaluationOverviewPanel score={officialScore} cycleProgress={cycleProgress} />
-          </div>
-
-          <EvaluationScoreSummaryPanel score={officialScore} grouped={scoreFormula.grouped} formulaSource={formulaSourceLabel} />
-        </section>
-      
-        <section>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '14px', alignItems: 'stretch' }}>
-              {[
-                {
-                  rank: 'B',
-                  label: 'Need Improvement',
-                  range: '< 3',
-                  tone: COLORS.semantic.warning.DEFAULT,
-                  background: 'linear-gradient(135deg, rgba(245,158,11,0.18), rgba(239,68,68,0.10))',
-                  border: 'rgba(239,68,68,0.35)',
-                  description: 'Nhân viên mới cần thời gian catch up hoặc nhân viên cũ nhưng vẫn chưa đạt yêu cầu.',
-                  badge: 'BÁO ĐỘNG',
-                },
-                {
-                  rank: 'A',
-                  label: 'Meet Expectation',
-                  range: '3 - 4.4',
-                  tone: COLORS.semantic.success.DEFAULT,
-                  background: 'linear-gradient(135deg, rgba(34,197,94,0.14), rgba(16,185,129,0.08))',
-                  border: 'rgba(34,197,94,0.30)',
-                  description: 'Đại đa số nhân viên hoàn thành tốt công việc và đạt mức kỳ vọng.',
-                  badge: 'AN TOÀN',
-                },
-                {
-                  rank: 'S',
-                  label: 'Exceed Expectation',
-                  range: '> 4.5',
-                  tone: COLORS.primary.DEFAULT,
-                  background: 'linear-gradient(135deg, rgba(99,102,241,0.18), rgba(139,92,246,0.12))',
-                  border: 'rgba(99,102,241,0.32)',
-                  description: 'Chỉ những người thực sự xuất sắc và vượt kỳ vọng rõ rệt.',
-                  badge: 'TỐT',
-                },
-              ].map((level) => {
-                const isActive = currentRank === level.rank;
-                return (
-                <div
-                  key={level.rank}
-                  style={{
-                    borderRadius: RADII['2xl'],
-                    padding: isActive ? '22px' : '15px',
-                    border: `1px solid ${level.border}`,
-                    background: level.background,
-                    boxShadow: isActive ? (level.rank === 'B' ? '0 22px 52px rgba(239,68,68,0.18)' : level.rank === 'A' ? '0 22px 52px rgba(34,197,94,0.16)' : '0 22px 52px rgba(99,102,241,0.18)') : '0 10px 24px rgba(15,23,42,0.06)',
-                    position: 'relative',
-                    overflow: 'hidden',
-                    opacity: isActive ? 1 : 0.55,
-                    transform: isActive ? 'translateY(-6px) scale(1.04)' : 'scale(0.94)',
-                    transition: 'transform 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease',
-                    minHeight: '100%',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'nowrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0, flex: 1 }}>
-                      <div style={{ width: isActive ? '60px' : '44px', height: isActive ? '60px' : '44px', borderRadius: '18px', display: 'grid', placeItems: 'center', background: `${level.tone}18`, color: level.tone, border: `1px solid ${level.border}`, opacity: isActive ? 1 : 0.72, flexShrink: 0 }}>
-                        <span style={{ fontSize: isActive ? TYPOGRAPHY.fontSize['3xl'] : TYPOGRAPHY.fontSize.xl, fontWeight: TYPOGRAPHY.fontWeight.extrabold, lineHeight: 1 }}>{level.rank}</span>
-                      </div>
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: isActive ? '4px 10px' : '3px 8px', borderRadius: RADII.full, background: `${level.tone}14`, color: level.tone, fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: TYPOGRAPHY.fontWeight.semibold, letterSpacing: '0.06em', textTransform: 'uppercase', opacity: isActive ? 1 : 0.68, whiteSpace: 'nowrap' }}>
-                          {level.badge}
+                      <div style={{ padding: '0 20px 18px', maxHeight: expanded ? '500px' : '0', overflow: 'hidden', transition: 'max-height 0.25s ease' }}>
+                        <div style={progressTrackStyle}>
+                          <div style={{ ...progressFillStyle, width: progress(item.rawScore), background: `linear-gradient(90deg, ${item.accent}, ${COLORS.primary.DEFAULT})` }} />
                         </div>
-                        <div style={{ marginTop: '8px', fontSize: isActive ? TYPOGRAPHY.fontSize['2xl'] : TYPOGRAPHY.fontSize.sm, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary, opacity: isActive ? 1 : 0.72, lineHeight: 1.15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{level.label}</div>
-                        <div style={{ marginTop: '4px', fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, opacity: isActive ? 1 : 0.6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Range rank: {level.range}</div>
-                      </div>
-                    </div>
-
-                    <div style={{ minWidth: '72px', textAlign: 'right', opacity: isActive ? 1 : 0.4, flexShrink: 0 }}>
-                      <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>Level</div>
-                      <div style={{ marginTop: '6px', fontSize: isActive ? TYPOGRAPHY.fontSize['3xl'] : TYPOGRAPHY.fontSize.xl, fontWeight: TYPOGRAPHY.fontWeight.extrabold, color: level.tone }}>{level.rank}</div>
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: '14px', display: 'grid', gap: '10px', opacity: isActive ? 1 : 0.45 }}>
-                    <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textPrimary, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{level.description}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
-                      <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>Mức ưu tiên</div>
-                      <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: TYPOGRAPHY.fontWeight.semibold, color: level.tone, whiteSpace: 'nowrap' }}>{level.rank === 'B' ? 'Cần xử lý ngay' : level.rank === 'A' ? 'Ổn định' : 'Nổi bật'}</div>
-                    </div>
-                  </div>
-                </div>
-                );
-              })}
-            </div>
-        </section>
-
-        <section style={panelStyle}>
-          <div style={sectionHeadingStyle}>
-            <div>
-              <div style={eyebrowStyle}>Evaluation Criteria</div>
-              <h2 style={sectionTitleStyle}>Understand how your overall evaluation is calculated.</h2>
-            </div>
-            <div style={{ color: COLORS.neutral.textSecondary, fontSize: TYPOGRAPHY.fontSize.sm }}>90–100% Excellent · 80–89% Strong · 70–79% Meets Expectations · Below 70% Needs Attention</div>
-          </div>
-
-          <div style={{ display: 'grid', gap: '14px', marginTop: '18px' }}>
-            {criteria.map((item, index) => {
-              const expanded = openCriterion === index;
-              return (
-                <div key={item.title} style={{ border: `1px solid ${COLORS.neutral[200]}`, borderRadius: RADII['2xl'], overflow: 'hidden', background: COLORS.neutral.white }}>
-                  <button onClick={() => setOpenCriterion(expanded ? -1 : index)} style={accordionButtonStyle}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                      <div style={{ width: '12px', height: '12px', borderRadius: RADII.full, background: item.accent }} />
-                      <div>
-                        <div style={{ fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.neutral.textSecondary }}>{String(index + 1).padStart(2, '0')} — {item.weightValue}</div>
-                        <div style={{ fontSize: TYPOGRAPHY.fontSize.lg, fontWeight: TYPOGRAPHY.fontWeight.semibold }}>{item.title}</div>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: TYPOGRAPHY.fontSize['2xl'], fontWeight: TYPOGRAPHY.fontWeight.extrabold }}>{item.scoreValue} pts</div>
-                        <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>Raw {item.rawScoreValue}</div>
-                        <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: item.accent }}>{item.status}</div>
-                      </div>
-                      <ChevronDown size={18} style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }} />
-                    </div>
-                  </button>
-
-                  <div style={{ padding: '0 20px 18px', maxHeight: expanded ? '500px' : '0', overflow: 'hidden', transition: 'max-height 0.25s ease' }}>
-                    <div style={progressTrackStyle}>
-                      <div style={{ ...progressFillStyle, width: progress(item.rawScore), background: `linear-gradient(90deg, ${item.accent}, ${COLORS.primary.DEFAULT})` }} />
-                    </div>
-                    <div style={{ display: 'grid', gap: '10px', paddingTop: '8px' }}>
-                      {item.kpis.map((kpi) => (
-                        <div key={`${item.title}-${kpi.label}`} style={{ ...kpiRowStyle, gridTemplateColumns: 'minmax(0, 1fr) 120px 64px' }}>
-                          <div>
-                            <div style={{ fontWeight: TYPOGRAPHY.fontWeight.semibold }}>{kpi.label}</div>
-                            <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>{kpi.weightValue} {kpi.weight}</div>
-                          </div>
-                          <div style={progressTrackStyle}>
-                            <div style={{ ...progressFillStyle, width: progress(kpi.rawScore), background: `linear-gradient(90deg, ${COLORS.primary.DEFAULT}, ${COLORS.semantic.success.DEFAULT})` }} />
-                          </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontWeight: TYPOGRAPHY.fontWeight.bold }}>{kpi.score}%</div>
-                            <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>Score {kpi.scoreValue}</div>
-                          </div>
+                        <div style={{ display: 'grid', gap: '10px', paddingTop: '8px' }}>
+                          {item.kpis.map((kpi) => (
+                            <div key={`${item.title}-${kpi.label}`} style={{ ...kpiRowStyle, gridTemplateColumns: 'minmax(0, 1fr) 120px 64px' }}>
+                              <div>
+                                <div style={{ fontWeight: TYPOGRAPHY.fontWeight.semibold }}>{kpi.label}</div>
+                                <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>{kpi.weightValue} {kpi.weight}</div>
+                              </div>
+                              <div style={progressTrackStyle}>
+                                <div style={{ ...progressFillStyle, width: progress(kpi.rawScore), background: `linear-gradient(90deg, ${COLORS.primary.DEFAULT}, ${COLORS.semantic.success.DEFAULT})` }} />
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontWeight: TYPOGRAPHY.fontWeight.bold }}>{kpi.score}%</div>
+                                <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>Score {kpi.scoreValue}</div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      </div>
                     </div>
-                  </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {activeSection === 'personal' && (
+            <>
+              <PersonalDevelopmentPlanPanel
+                blocks={developmentBlocks}
+                isSaving={saveDevelopmentBlocksMutation.isPending}
+                isSaved={saved}
+                canSave={!!activeEvaluationId}
+                showSubmit={!isHrAdmin}
+                canSubmit={!isHrAdmin && isDevelopmentPlanComplete && selectedEvaluation?.status !== 'SUBMITTED'}
+                submitLabel={selfSubmitMutation.isPending ? 'Đang nộp...' : 'Nộp tự đánh giá'}
+                submitDisabledReason={
+                  !isDevelopmentPlanComplete
+                    ? 'Hãy hoàn tất đầy đủ Personal Development Plan trước khi nộp tự đánh giá.'
+                    : selectedEvaluation?.status === 'SUBMITTED'
+                    ? 'Bản tự đánh giá đã được nộp.'
+                    : undefined
+                }
+                onSave={() => saveDevelopmentBlocksMutation.mutate()}
+                onSubmit={() => selfSubmitMutation.mutate()}
+                onChangeBlock={updateDevelopmentBlock}
+                fill
+              />
+
+              {!isHrAdmin && !isDevelopmentPlanComplete && (
+                <div style={{ marginTop: '-8px', fontSize: TYPOGRAPHY.fontSize.xs, color: '#b45309' }}>
+                  Hãy điền đầy đủ cả 4 mục PDP thì nút nộp mới được mở.
                 </div>
-              );
-            })}
-          </div>
-        </section>
-
-        <PersonalDevelopmentPlanPanel
-          blocks={developmentBlocks}
-          isSaving={saveDevelopmentBlocksMutation.isPending}
-          isSaved={saved}
-          canSave={!!activeEvaluationId}
-          showSubmit={!isHrAdmin}
-          canSubmit={!isHrAdmin && isDevelopmentPlanComplete && selectedEvaluation?.status !== 'SUBMITTED'}
-          submitLabel={selfSubmitMutation.isPending ? 'Đang nộp...' : 'Nộp tự đánh giá'}
-          submitDisabledReason={
-            !isDevelopmentPlanComplete
-              ? 'Hãy hoàn tất đầy đủ Personal Development Plan trước khi nộp tự đánh giá.'
-              : selectedEvaluation?.status === 'SUBMITTED'
-              ? 'Bản tự đánh giá đã được nộp.'
-              : undefined
-          }
-          onSave={() => saveDevelopmentBlocksMutation.mutate()}
-          onSubmit={() => selfSubmitMutation.mutate()}
-          onChangeBlock={updateDevelopmentBlock}
-        />
-
-        {!isHrAdmin && !isDevelopmentPlanComplete && (
-          <div style={{ marginTop: '-8px', fontSize: TYPOGRAPHY.fontSize.xs, color: '#b45309' }}>
-            Hãy điền đầy đủ cả 4 mục PDP thì nút nộp mới được mở.
-          </div>
-        )}
-
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
 }
+
+const LEVELS = [
+  {
+    rank: 'B',
+    label: 'Needs Attention',
+    range: '< 3',
+    tone: COLORS.semantic.warning.DEFAULT,
+    background: 'linear-gradient(135deg, rgba(245,158,11,0.16), rgba(239,68,68,0.08))',
+    border: 'rgba(239,68,68,0.30)',
+    activeShadow: '0 16px 36px rgba(239,68,68,0.16)',
+    description: 'Nhân viên mới cần thời gian catch up hoặc nhân viên cũ nhưng vẫn chưa đạt yêu cầu.',
+    badge: 'BÁO ĐỘNG',
+  },
+  {
+    rank: 'A',
+    label: 'Good Standing',
+    range: '3 - 4.4',
+    tone: COLORS.semantic.success.DEFAULT,
+    background: 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(16,185,129,0.06))',
+    border: 'rgba(34,197,94,0.28)',
+    activeShadow: '0 16px 36px rgba(34,197,94,0.14)',
+    description: 'Đại đa số nhân viên hoàn thành tốt công việc và đạt mức kỳ vọng.',
+    badge: 'AN TOÀN',
+  },
+  {
+    rank: 'S',
+    label: 'Exceeds Expectations',
+    range: '> 4.5',
+    tone: COLORS.primary.DEFAULT,
+    background: 'linear-gradient(135deg, rgba(99,102,241,0.14), rgba(139,92,246,0.10))',
+    border: 'rgba(99,102,241,0.30)',
+    activeShadow: '0 16px 36px rgba(99,102,241,0.16)',
+    description: 'Chỉ những người thực sự xuất sắc và vượt kỳ vọng rõ rệt.',
+    badge: 'VƯỢT MONG ĐỢI',
+  },
+] as const;
 
 const panelStyle: React.CSSProperties = {
   background: COLORS.neutral.white,
   border: `1px solid ${COLORS.neutral[200]}`,
   borderRadius: RADII['2xl'],
   boxShadow: SHADOWS.card,
-  padding: '22px',
+  padding: '18px',
 };
 
 const positiveBadgeStyle: React.CSSProperties = {
@@ -753,12 +669,13 @@ const positiveBadgeStyle: React.CSSProperties = {
 };
 
 const avatarStyle: React.CSSProperties = {
-  width: '96px',
-  height: '96px',
-  borderRadius: '28px',
+  width: '56px',
+  height: '56px',
+  borderRadius: '18px',
+  flexShrink: 0,
   display: 'grid',
   placeItems: 'center',
-  fontSize: TYPOGRAPHY.fontSize['2xl'],
+  fontSize: TYPOGRAPHY.fontSize.lg,
   fontWeight: TYPOGRAPHY.fontWeight.extrabold,
   color: COLORS.primary.DEFAULT,
   background: 'linear-gradient(135deg, rgba(99,102,241,0.10), rgba(139,92,246,0.16))',
@@ -766,15 +683,15 @@ const avatarStyle: React.CSSProperties = {
 };
 
 const metaLineStyle: React.CSSProperties = {
-  fontSize: TYPOGRAPHY.fontSize.sm,
+  fontSize: TYPOGRAPHY.fontSize.xs,
   color: COLORS.neutral.textSecondary,
-  marginTop: '4px',
+  marginTop: '2px',
 };
 
 const miniFactCardStyle: React.CSSProperties = {
   border: `1px solid ${COLORS.neutral[200]}`,
-  borderRadius: RADII.xl,
-  padding: '14px',
+  borderRadius: RADII.lg,
+  padding: '8px 12px',
   background: COLORS.neutral[50],
 };
 

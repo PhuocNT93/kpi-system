@@ -106,11 +106,13 @@ export const UnifiedEvaluationsHubPage: React.FC = () => {
   useHeaderTrail(activeLabelConfig ? t(activeLabelConfig.labelKey, activeLabelConfig.defaultLabel) : '');
 
   return (
-    <div style={{ width: '100%', boxSizing: 'border-box', padding: '0 0 40px 0', marginTop: '8px' }}>
+    // The hub is bounded to the layout's height: the banner and tabs stay put, only the tab content scrolls.
+    <div style={{ width: '100%', boxSizing: 'border-box', padding: '0 0 8px 0', marginTop: '8px', flex: '1 1 0', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       {/* Top Banner & Tab Switcher Hub */}
       <div
         className="unified-hub-banner"
         style={{
+          flexShrink: 0,
           backgroundColor: isDark ? '#111827' : '#ffffff',
           borderRadius: RADII.xl,
           border: `1px solid ${isDark ? '#1f2937' : '#e2e8f0'}`,
@@ -216,8 +218,11 @@ export const UnifiedEvaluationsHubPage: React.FC = () => {
         {tooltip}
       </div>
 
-      {/* Tab Content Display Area */}
-      <div>
+      {/* Tab Content Display Area - fills the remaining height and is the only scrolling region */}
+      <div
+        data-testid="evaluation-hub-content"
+        style={{ flex: '1 1 0', minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', padding: '0 4px 4px' }}
+      >
         {activeTab === 'my' && <MyEvaluationPage />}
         {activeTab === 'team' && <TeamEvaluationsPage />}
         {activeTab === 'search' && <EmployeeSearchPage />}

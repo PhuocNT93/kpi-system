@@ -22,6 +22,8 @@ type PersonalDevelopmentPlanPanelProps = {
   onSave: () => void;
   onSubmit: () => void;
   onChangeBlock: (index: number, value: string) => void;
+  /** Grow to the parent's height; the response boxes take the extra space. */
+  fill?: boolean;
 };
 
 export function PersonalDevelopmentPlanPanel({
@@ -36,9 +38,10 @@ export function PersonalDevelopmentPlanPanel({
   onSave,
   onSubmit,
   onChangeBlock,
+  fill = false,
 }: PersonalDevelopmentPlanPanelProps) {
   return (
-    <section style={panelStyle}>
+    <section style={fill ? { ...panelStyle, flex: '1 0 auto', display: 'flex', flexDirection: 'column' } : panelStyle}>
       <div style={sectionHeadingStyle}>
         <div>
           <div style={eyebrowStyle}>Personal Development Plan</div>
@@ -94,24 +97,19 @@ export function PersonalDevelopmentPlanPanel({
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginTop: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginTop: '16px', flex: fill ? 1 : undefined }}>
         {blocks.map((block, index) => {
           const characterCount = block.value.length;
           return (
-            <div key={block.title} style={{ border: `1px solid ${COLORS.neutral[200]}`, borderTop: `4px solid ${block.accent}`, borderRadius: RADII['2xl'], padding: '18px', background: COLORS.neutral.white }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ width: '36px', height: '36px', borderRadius: RADII.lg, display: 'grid', placeItems: 'center', background: `${block.accent}14`, color: block.accent }}><PenLine size={16} /></div>
-                    <div>
-                      <div style={{ fontWeight: TYPOGRAPHY.fontWeight.semibold }}>{block.title}</div>
-                      <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>{block.desc}</div>
-                    </div>
-                  </div>
-                </div>
-                <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>{isSaved ? 'Autosaved' : 'Saving...'}</span>
+            <div key={block.title} style={{ border: `1px solid ${COLORS.neutral[200]}`, borderTop: `4px solid ${block.accent}`, borderRadius: RADII['2xl'], padding: '18px', background: COLORS.neutral.white, display: fill ? 'flex' : undefined, flexDirection: 'column' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: RADII.lg, display: 'grid', placeItems: 'center', background: `${block.accent}14`, color: block.accent, flexShrink: 0 }}><PenLine size={16} /></div>
+                <div title={block.title} style={{ flex: 1, minWidth: 0, fontWeight: TYPOGRAPHY.fontWeight.semibold, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{block.title}</div>
+                <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, whiteSpace: 'nowrap', flexShrink: 0 }}>{isSaved ? 'Autosaved' : 'Saving...'}</span>
               </div>
-              <div style={{ marginTop: '14px', border: `1px solid ${COLORS.neutral[200]}`, borderRadius: RADII.xl, padding: '14px', minHeight: '120px', background: COLORS.neutral[50] }}>
+              {/* Full-width description, at most two lines (full text in the tooltip). */}
+              <div title={block.desc} style={{ ...blockDescStyle, marginTop: '10px' }}>{block.desc}</div>
+              <div style={{ marginTop: '10px', border: `1px solid ${COLORS.neutral[200]}`, borderRadius: RADII.xl, padding: '14px', minHeight: '120px', background: COLORS.neutral[50], flex: fill ? 1 : undefined, display: fill ? 'flex' : undefined }}>
                 <textarea
                   value={block.value}
                   maxLength={2000}
@@ -120,7 +118,8 @@ export function PersonalDevelopmentPlanPanel({
                   style={{
                     width: '100%',
                     minHeight: '92px',
-                    resize: 'vertical',
+                    flex: fill ? 1 : undefined,
+                    resize: fill ? 'none' : 'vertical',
                     border: 'none',
                     outline: 'none',
                     background: 'transparent',
@@ -150,6 +149,18 @@ const panelStyle: React.CSSProperties = {
   borderRadius: RADII['2xl'],
   boxShadow: SHADOWS.card,
   padding: '22px',
+};
+
+const blockDescStyle: React.CSSProperties = {
+  fontSize: TYPOGRAPHY.fontSize.xs,
+  color: COLORS.neutral.textSecondary,
+  lineHeight: 1.45,
+  // At most two lines; the height is reserved so every response box starts at the same height.
+  height: '2.9em',
+  display: '-webkit-box',
+  WebkitLineClamp: 2,
+  WebkitBoxOrient: 'vertical',
+  overflow: 'hidden',
 };
 
 const sectionHeadingStyle: React.CSSProperties = {

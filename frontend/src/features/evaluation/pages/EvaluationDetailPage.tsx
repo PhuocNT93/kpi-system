@@ -112,7 +112,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
       value: 'Sharpen prioritization for ambiguous roadmap requests and improve delegation.',
     },
     {
-      title: 'Suggestions / Requests',
+      title: 'Suggestion',
       desc: 'What support, resources, training or opportunities would help you grow?',
       accent: COLORS.secondary.DEFAULT,
       value: 'Access to strategy workshops, stakeholder shadowing, and a quarterly coaching session.',
@@ -609,7 +609,7 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
           value: 'Sharpen prioritization for ambiguous roadmap requests and improve delegation.',
         },
         {
-          title: 'Suggestions / Requests',
+          title: 'Suggestion',
           desc: 'What support, resources, training or opportunities would help you grow?',
           accent: COLORS.secondary.DEFAULT,
           value: 'Access to strategy workshops, stakeholder shadowing, and a quarterly coaching session.',

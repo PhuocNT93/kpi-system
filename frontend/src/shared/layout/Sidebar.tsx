@@ -339,8 +339,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         />
       </div>
 
-      {/* Navigation Items Tree - Scrollable if content overflows */}
+      {/* Navigation Items Tree - Scrollable if content overflows, scrollbar hidden */}
       <nav
+        className="no-scrollbar"
         style={{
           flex: 1,
           display: 'flex',
@@ -350,7 +351,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           overflowX: 'hidden',
           paddingTop: '8px',
           paddingRight: isCollapsed ? '0' : '2px',
-          scrollbarWidth: 'thin',
         }}
       >
         {navSections.map((section, sIdx) => {
