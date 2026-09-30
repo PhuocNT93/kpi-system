@@ -52,6 +52,10 @@ export function ReviewCadenceTable({ createControl }: { createControl?: CreateCo
     fontSize: '0.8125rem',
     fontWeight: 600,
     color: isDark ? '#cbd5e1' : '#4b5563',
+    position: 'sticky',
+    top: 0,
+    backgroundColor: isDark ? '#0f172a' : '#f8fafc',
+    zIndex: 1,
   };
 
   const tdStyle: React.CSSProperties = {
@@ -65,13 +69,13 @@ export function ReviewCadenceTable({ createControl }: { createControl?: CreateCo
       {isAdmin && !createControl && (
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <Button id="create-cadence-btn" onClick={() => setIsCreateOpen(true)} size="sm">
-            {t('btn_create_cadence', '+ Create Cadence')}
+            {t('btn_create_cadence', '+ Thêm chu kỳ đánh giá')}
           </Button>
         </div>
       )}
 
       {cadences.length === 0 ? (
-        <EmptyState message={t('empty_cadences', 'No review cadences found.')} />
+        <EmptyState message={t('empty_cadences', 'Không tìm thấy chu kỳ đánh giá nào.')} />
       ) : (
         <div ref={tableFrameRef} className="table-scroll-frame">
           <table style={{ width: '100%', minWidth: '640px', borderCollapse: 'collapse', textAlign: 'left' }}>
@@ -79,7 +83,6 @@ export function ReviewCadenceTable({ createControl }: { createControl?: CreateCo
               <tr
                 style={{
                   borderBottom: `2px solid ${isDark ? '#334155' : '#e5e7eb'}`,
-                  backgroundColor: isDark ? '#0f172a' : '#f8fafc',
                 }}
               >
                 <th style={thStyle}>{t('col_code', 'Code')}</th>

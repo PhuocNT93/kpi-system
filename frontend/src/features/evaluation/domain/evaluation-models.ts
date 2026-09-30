@@ -154,6 +154,8 @@ export interface EvaluationDetail {
   calculated_rank?: string;
   salary_recommendation?: Record<string, unknown>;
   scoring_breakdown?: EvaluationScoringBreakdown;
+  previous_evaluation?: string | null;
+  this_evaluation?: string | null;
   development_blocks?: Array<{
     title: string;
     desc?: string;
@@ -434,9 +436,9 @@ export function buildEvaluationScoringSummary(
       const cfgRaw = config.rawName.toLowerCase();
       return cat === cfgKey || cat === cfgCode || cfgRaw.includes(cat) || cat.includes(cfgKey);
     });
-    const max = groupCriteria.reduce((sum, criterion) => sum + (criterion.rawWeightValue ?? 0), 0);
-    const weightedScoreTotal = groupCriteria.reduce((sum, criterion) => sum + criterion.weightedScore, 0);
-    const average = max > 0 ? (weightedScoreTotal / max) * 5 : null;
+    const average = groupCriteria.length > 0
+      ? groupCriteria.reduce((sum, criterion) => sum + criterion.rawScore, 0) / groupCriteria.length
+      : null;
 
     return {
       key: config.key,
@@ -464,29 +466,23 @@ export function buildEvaluationScoringSummary(
     if (grouped.length > 0) {
       // Fold into the last group (increment count; their weighted scores will affect totalScore via the last group's weight)
       const last = grouped[grouped.length - 1];
-      const extraWeightedTotal = uncategorizedCriteria.reduce((sum, c) => sum + c.weightedScore, 0);
-      const extraMax = uncategorizedCriteria.reduce((sum, c) => sum + (c.rawWeightValue ?? 0), 0);
       const combinedCount = last.criteriaCount + uncategorizedCriteria.length;
-      const combinedMax = (last.average != null ? (last.average * (last.weight / 100)) : 0) + (extraMax > 0 ? extraWeightedTotal / extraMax * (last.weight / 100) : 0);
       grouped[grouped.length - 1] = {
         ...last,
         criteriaCount: combinedCount,
-        // Keep average unchanged if we can't accurately recalculate without max context; just add to count
+        // Keep average unchanged if we can't accurately recalculate without raw detail; just add to count
         average: last.average,
       };
-      // Suppress unused var lint: combinedMax is for future accuracy improvement
-      void combinedMax;
-      void extraWeightedTotal;
     } else {
       // No formula defined — show all criteria as a single group
-      const totalW = uncategorizedCriteria.reduce((sum, c) => sum + (c.rawWeightValue ?? 0), 0);
-      const totalWScore = uncategorizedCriteria.reduce((sum, c) => sum + c.weightedScore, 0);
       grouped.push({
         key: 'Criteria',
         weight: 100,
         accent: COLORS.primary.DEFAULT,
         description: 'Tất cả các tiêu chí đánh giá',
-        average: totalW > 0 ? (totalWScore / totalW) * 5 : null,
+        average: uncategorizedCriteria.length > 0
+          ? uncategorizedCriteria.reduce((sum, c) => sum + c.rawScore, 0) / uncategorizedCriteria.length
+          : null,
         criteriaCount: uncategorizedCriteria.length,
       });
     }

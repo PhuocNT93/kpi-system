@@ -81,6 +81,21 @@ export class EvaluationController {
     }
   };
 
+  saveComparisonNotes = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const actor = this.getActor(req);
+      const id = req.params.id as string;
+      const { previous_evaluation, this_evaluation } = req.body;
+      await this.evaluationService.saveComparisonNotes(id, actor, {
+        previous_evaluation: typeof previous_evaluation === 'string' ? previous_evaluation : '',
+        this_evaluation: typeof this_evaluation === 'string' ? this_evaluation : '',
+      });
+      sendSuccess(res, 200, 'Comparison notes saved successfully.', null);
+    } catch (err) {
+      next(err);
+    }
+  };
+
   saveItemDraft = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const actor = this.getActor(req);
