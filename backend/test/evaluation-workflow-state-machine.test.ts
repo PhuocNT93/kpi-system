@@ -297,5 +297,29 @@ describe('Task 43: Evaluation Workflow State Machine', () => {
         new AppError(403, 'FORBIDDEN', 'Access denied.')
       );
     });
+
+    it('does not infer employeeId from the user id when the request user payload omits it', async () => {
+      mockEvaluationRepo.findMyEvaluations.mockResolvedValue([]);
+
+      await controller.getMyEvaluations(
+        {
+          user: {
+            id: 'user-nhan',
+            role: 'EMPLOYEE',
+          },
+        } as never,
+        {
+          status: vi.fn(),
+          json: vi.fn(),
+        } as never,
+        vi.fn()
+      );
+
+      expect(mockEvaluationRepo.findMyEvaluations).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user-nhan',
+        })
+      );
+    });
   });
 });

@@ -240,8 +240,6 @@ export class EvaluationService {
       ? rawItems
       : rawItems.map((item) => ({
           ...item,
-          resolved_level: undefined,
-          comment: undefined,
           weighted_score: undefined,
           manual_override_score: undefined,
         }));

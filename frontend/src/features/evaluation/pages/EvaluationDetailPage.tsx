@@ -386,7 +386,8 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
     return activeCriteria
       .filter((item) => {
         const draft = draftItems[item.evaluation_item_id];
-        return draft?.resolved_level === null || draft?.resolved_level === undefined;
+        const resolvedLevel = draft?.resolved_level ?? item.resolved_level;
+        return resolvedLevel === null || resolvedLevel === undefined;
       })
       .map((item) => ({
         id: item.evaluation_item_id,

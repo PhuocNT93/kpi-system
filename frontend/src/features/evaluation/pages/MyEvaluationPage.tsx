@@ -33,6 +33,7 @@ type DevelopmentBlock = {
 export function MyEvaluationPage() {
   const { user } = useAuth();
   const isHrAdmin = user?.role === 'HR_ADMIN' || user?.role === 'SYSTEM_ADMIN';
+  const currentUserScope = user?.employeeId ?? user?.id ?? 'anonymous';
   const [openCriterion, setOpenCriterion] = useState(0);
   const [activeSection, setActiveSection] = useState<EvaluationSectionId>('overall');
   const [saved] = useState(true);
@@ -66,11 +67,15 @@ export function MyEvaluationPage() {
   ]);
 
   const { data: myEvaluations } = useQuery({
-    queryKey: ['my-evaluations'],
+    queryKey: ['my-evaluations', currentUserScope],
     queryFn: evaluationApi.getMyEvaluations,
   });
 
   const selfEvaluations = useMemo(() => myEvaluations ?? [], [myEvaluations]);
+
+  useEffect(() => {
+    setSelectedEvaluationId(null);
+  }, [currentUserScope]);
 
   useEffect(() => {
     if (isHrAdmin) {
