@@ -18,7 +18,7 @@ import { useAuth } from '@/shared/auth/auth-context';
 import { OverrideScoreModal } from '../components/OverrideScoreModal';
 import { invalidateAfterEvaluationPublish } from '../hooks/evaluation-publish-invalidation';
 import { ReviewActionModal, type ReviewActionType } from '../components/ReviewActionModal';
-import { buildEvaluationScoringSummary, getLocalizedText, deriveFormulaSourceLabel, type EvaluationItem, type ScoringKpiResult } from '../domain/evaluation-models';
+import { buildEvaluationScoringSummary, getLocalizedText, deriveFormulaSourceLabel, getCriterionCategory, type EvaluationItem, type ScoringKpiResult } from '../domain/evaluation-models';
 
 type EvaluationDetailMode = 'self' | 'manager';
 
@@ -478,6 +478,34 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
     return Array.from(groupsMap.values());
   }, [detail?.items, detail?.scoring_breakdown]);
 
+  const criterionCategoryGroups = useMemo(() => {
+    if (!detail?.items) return [];
+
+    const categoryMap = new Map<string, { categoryName: string; criteria: CriterionGroup[] }>();
+
+    criterionGroups.forEach((criterionGroup) => {
+      const criterionItems = detail.items.filter((item) => {
+        const criterionId = item.template_criterion_id || item.criterion_code_snapshot || formatCriterionName(item.criterion_name_snapshot);
+        return criterionId === criterionGroup.criterionId;
+      });
+      const representativeItem = criterionItems[0];
+      const categoryName = representativeItem ? getCriterionCategory(representativeItem) : 'Uncategorized';
+      const categoryKey = categoryName.toLowerCase();
+
+      if (!categoryMap.has(categoryKey)) {
+        categoryMap.set(categoryKey, { categoryName, criteria: [] });
+      }
+
+      categoryMap.get(categoryKey)!.criteria.push(criterionGroup);
+    });
+
+    return Array.from(categoryMap.entries()).map(([categoryKey, value]) => ({
+      categoryKey,
+      categoryName: value.categoryName,
+      criteria: value.criteria,
+    }));
+  }, [criterionGroups, detail?.items]);
+
   const cycleProgress = useMemo(() => {
     const resolvedCycle = detail?.cycle ?? cycles.find((cycle) => cycle.id === detail?.evaluation_cycle_id);
     const startDate = resolvedCycle && 'period' in resolvedCycle ? resolvedCycle.period.startDate : resolvedCycle?.start_date;
@@ -899,6 +927,10 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
         score={scoreFormula.totalScore}
         grouped={scoreFormula.grouped}
         formulaSource={formulaSourceLabel}
+        onGroupClick={(groupKey) => {
+          const target = document.getElementById(`criteria-category-${groupKey.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`);
+          target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }}
       />
 
       <section>
@@ -1221,25 +1253,45 @@ export function EvaluationDetailContent({ mode }: { mode: EvaluationDetailMode }
           </div>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {criterionGroups.map((criterionGroup, criterionIdx) => (
-            <KpiEvaluationCard
-              key={criterionGroup.criterionId}
-              kpiGroup={criterionGroup}
-              index={criterionIdx}
-              draftItems={draftItems}
-              isEditable={isEditable}
-              savingItemId={savingItemId}
-              mode={mode}
-              canOverride={isHrAdmin && (detail.status === EvaluationStatus.APPROVED || detail.status === EvaluationStatus.PUBLISHED) && !detail.is_locked}
-              onLevelChange={handleLevelChange}
-              onCommentChange={handleCommentChange}
-              onSaveSingle={handleSaveSingle}
-              onOverrideKpi={(kpiItemId) => {
-                setTargetOverrideKpiId(kpiItemId);
-                setIsOverrideModalOpen(true);
-              }}
-            />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {criterionCategoryGroups.map((categoryGroup) => (
+            <section
+              key={categoryGroup.categoryKey}
+              id={`criteria-category-${categoryGroup.categoryKey}`}
+              aria-label={categoryGroup.categoryName}
+              style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: RADII.md, backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', fontSize: TYPOGRAPHY.fontSize.xs, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Category
+                </span>
+                <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.base, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.neutral.textPrimary }}>
+                  {categoryGroup.categoryName}
+                </h3>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {categoryGroup.criteria.map((criterionGroup, criterionIdx) => (
+                  <KpiEvaluationCard
+                    key={criterionGroup.criterionId}
+                    kpiGroup={criterionGroup}
+                    index={criterionIdx}
+                    draftItems={draftItems}
+                    isEditable={isEditable}
+                    savingItemId={savingItemId}
+                    mode={mode}
+                    canOverride={isHrAdmin && (detail.status === EvaluationStatus.APPROVED || detail.status === EvaluationStatus.PUBLISHED) && !detail.is_locked}
+                    onLevelChange={handleLevelChange}
+                    onCommentChange={handleCommentChange}
+                    onSaveSingle={handleSaveSingle}
+                    onOverrideKpi={(kpiItemId) => {
+                      setTargetOverrideKpiId(kpiItemId);
+                      setIsOverrideModalOpen(true);
+                    }}
+                  />
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       </section>

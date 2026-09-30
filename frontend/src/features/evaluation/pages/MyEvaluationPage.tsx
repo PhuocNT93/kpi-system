@@ -33,6 +33,8 @@ type DevelopmentBlock = {
 export function MyEvaluationPage() {
   const { user } = useAuth();
   const isHrAdmin = user?.role === 'HR_ADMIN' || user?.role === 'SYSTEM_ADMIN';
+  const isManager = user?.role === 'MANAGER';
+  const canViewTeamEvaluations = isHrAdmin || isManager;
   const currentUserScope = user?.employeeId ?? user?.id ?? 'anonymous';
   const [openCriterion, setOpenCriterion] = useState(0);
   const [activeSection, setActiveSection] = useState<EvaluationSectionId>('overall');
@@ -78,7 +80,7 @@ export function MyEvaluationPage() {
   }, [currentUserScope]);
 
   useEffect(() => {
-    if (isHrAdmin) {
+    if (canViewTeamEvaluations) {
       return;
     }
 
@@ -90,12 +92,12 @@ export function MyEvaluationPage() {
     if (selectedEvaluationId && !selfEvaluations.some((item) => item.evaluation.evaluation_id === selectedEvaluationId)) {
       setSelectedEvaluationId(selfEvaluations[0]?.evaluation.evaluation_id ?? null);
     }
-  }, [isHrAdmin, selectedEvaluationId, selfEvaluations]);
+  }, [canViewTeamEvaluations, selectedEvaluationId, selfEvaluations]);
 
   const { data: teamEvaluations = [] } = useQuery({
     queryKey: ['team-evaluations', 'my-evaluation-picker'],
     queryFn: evaluationApi.getTeamEvaluations,
-    enabled: isHrAdmin,
+    enabled: canViewTeamEvaluations,
   });
 
   const filteredTeamEvaluations = useMemo(() => {
@@ -115,7 +117,7 @@ export function MyEvaluationPage() {
   }, [employeeSearch, teamEvaluations]);
 
   useEffect(() => {
-    if (!isHrAdmin) {
+    if (!canViewTeamEvaluations) {
       return;
     }
 
@@ -127,34 +129,36 @@ export function MyEvaluationPage() {
     if (selectedEvaluationId && !teamEvaluations.some((item) => item.evaluation.evaluation_id === selectedEvaluationId)) {
       setSelectedEvaluationId(filteredTeamEvaluations[0]?.evaluation.evaluation_id ?? teamEvaluations[0]?.evaluation.evaluation_id ?? null);
     }
-  }, [filteredTeamEvaluations, isHrAdmin, selectedEvaluationId, teamEvaluations]);
+  }, [canViewTeamEvaluations, filteredTeamEvaluations, selectedEvaluationId, teamEvaluations]);
 
-  const activeEvaluationId = isHrAdmin
+  const activeEvaluationId = canViewTeamEvaluations
     ? selectedEvaluationId ?? filteredTeamEvaluations[0]?.evaluation.evaluation_id
     : selectedEvaluationId ?? selfEvaluations[0]?.evaluation.evaluation_id;
 
   const selectedSelfEvaluation = useMemo(() => {
-    if (isHrAdmin) {
+    if (canViewTeamEvaluations) {
       return null;
     }
 
     return selfEvaluations.find((item) => item.evaluation.evaluation_id === (selectedEvaluationId ?? selfEvaluations[0]?.evaluation.evaluation_id)) ?? null;
-  }, [isHrAdmin, selfEvaluations, selectedEvaluationId]);
+  }, [canViewTeamEvaluations, selfEvaluations, selectedEvaluationId]);
 
   const selectedTeamEvaluation = useMemo(() => {
-    if (!isHrAdmin || !activeEvaluationId) {
+    if (!canViewTeamEvaluations || !activeEvaluationId) {
       return null;
     }
 
     return teamEvaluations.find((item) => item.evaluation.evaluation_id === activeEvaluationId) ?? null;
-  }, [activeEvaluationId, isHrAdmin, teamEvaluations]);
+  }, [activeEvaluationId, canViewTeamEvaluations, teamEvaluations]);
 
-  const selectedEmployeeId = selectedTeamEvaluation?.employee?.employee_id ?? selectedSelfEvaluation?.employee?.employee_id ?? selfEvaluations[0]?.employee?.employee_id;
+  const selectedEmployeeId = canViewTeamEvaluations
+    ? selectedTeamEvaluation?.evaluation.employee_id ?? selectedTeamEvaluation?.employee?.employee_id ?? null
+    : user?.employeeId ?? selectedSelfEvaluation?.employee?.employee_id ?? selfEvaluations[0]?.employee?.employee_id;
   const selectedManagerId = selectedTeamEvaluation?.evaluation.manager_id_snapshot ?? null;
 
   const { data: employeeProfiles } = useQuery<EmployeeSearchResult>({
     queryKey: ['employee-profiles', selectedEmployeeId],
-    queryFn: () => employeeSearchApi.search({ employeeId: selectedEmployeeId, size: 1 }),
+    queryFn: () => employeeSearchApi.search({ employeeId: selectedEmployeeId ?? undefined, size: 1 }),
     enabled: Boolean(selectedEmployeeId),
   });
 
@@ -278,20 +282,34 @@ export function MyEvaluationPage() {
     return parsed.toLocaleDateString('vi-VN');
   };
 
-  const selectedEmployee = selectedTeamEvaluation?.employee ?? selectedSelfEvaluation?.employee ?? selfEvaluations[0]?.employee;
+  const selectedEmployee = canViewTeamEvaluations
+    ? selectedTeamEvaluation?.employee ?? null
+    : selectedSelfEvaluation?.employee ?? selfEvaluations[0]?.employee ?? null;
   const selfEmployee = selectedSelfEvaluation?.employee;
   const selfEvaluation = selectedSelfEvaluation?.evaluation;
-  const enrichedEmployee = {
-    ...selectedEmployee,
-    ...selfEmployee,
-    join_date: selectedEmployeeProfile?.joinDate ?? selectedEmployee?.join_date ?? selfEmployee?.join_date,
-    next_review_due_date: selectedEmployee?.next_review_due_date ?? selfEmployee?.next_review_due_date,
-    employee_code: selectedEmployee?.employee_code ?? selfEmployee?.employee_code ?? selectedEmployeeProfile?.employeeCode,
-    full_name: selectedEmployee?.full_name ?? selfEmployee?.full_name ?? selectedEmployeeProfile?.fullName,
-    email: selectedEmployee?.email ?? selfEmployee?.email ?? selectedEmployeeProfile?.email,
-    created_at: selectedEmployee?.created_at ?? selfEmployee?.created_at,
-  };
-  const selectedEvaluation = isHrAdmin ? selectedTeamEvaluation?.evaluation : selfEvaluation;
+  const selectedEmployeeIdentity = canViewTeamEvaluations
+    ? selectedTeamEvaluation?.employee ?? null
+    : selectedEmployee;
+  const enrichedEmployee = canViewTeamEvaluations
+    ? {
+        ...selectedEmployeeIdentity,
+        join_date: selectedEmployeeProfile?.joinDate ?? selectedEmployeeIdentity?.join_date,
+        next_review_due_date: selectedEmployeeIdentity?.next_review_due_date,
+        employee_code: selectedEmployeeIdentity?.employee_code,
+        full_name: selectedEmployeeIdentity?.full_name,
+        email: selectedEmployeeProfile?.email ?? selectedEmployeeIdentity?.email,
+        created_at: selectedEmployeeIdentity?.created_at,
+      }
+    : {
+        ...selectedEmployee,
+        join_date: selectedEmployeeProfile?.joinDate ?? selectedEmployee?.join_date ?? selfEmployee?.join_date,
+        next_review_due_date: selectedEmployee?.next_review_due_date ?? selfEmployee?.next_review_due_date,
+        employee_code: selectedEmployeeProfile?.employeeCode ?? selectedEmployee?.employee_code ?? selfEmployee?.employee_code,
+        full_name: selectedEmployeeProfile?.fullName ?? selectedEmployee?.full_name ?? selfEmployee?.full_name,
+        email: selectedEmployeeProfile?.email ?? selectedEmployee?.email ?? selfEmployee?.email,
+        created_at: selectedEmployee?.created_at ?? selfEmployee?.created_at,
+      };
+  const selectedEvaluation = canViewTeamEvaluations ? selectedTeamEvaluation?.evaluation : selfEvaluation;
   const selectedEvaluationStatus = selectedEvaluation?.status ?? 'OPEN';
   const selectedEvaluationStatusLabel =
     selectedEvaluationStatus === 'SUBMITTED'

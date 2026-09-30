@@ -1,4 +1,3 @@
-import type React from 'react';
 import { useMemo } from 'react';
 import { COLORS } from '@/lib/theme';
 import { RADII, SHADOWS, TYPOGRAPHY } from '@/shared/theme';
@@ -20,9 +19,10 @@ export type EvaluationScoreSummaryPanelProps = {
   compact?: boolean;
   /** Compact only: assessment note shown under the total score in a fixed-height box. */
   note?: string;
+  onGroupClick?: (groupKey: string) => void;
 };
 
-export function EvaluationScoreSummaryPanel({ score, grouped, formulaText, formulaSource, compact = false, note }: EvaluationScoreSummaryPanelProps) {
+export function EvaluationScoreSummaryPanel({ score, grouped, formulaText, formulaSource, compact = false, note, onGroupClick }: EvaluationScoreSummaryPanelProps) {
   const dynamicFormulaText = useMemo(() => {
     if (formulaText) return formulaText;
     if (!grouped || grouped.length === 0) {
@@ -101,7 +101,29 @@ export function EvaluationScoreSummaryPanel({ score, grouped, formulaText, formu
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
             {grouped.map((group) => (
-              <div key={group.key} style={{ ...groupCardStyle, padding: '14px' }}>
+              <div
+                key={group.key}
+                role={onGroupClick ? 'button' : undefined}
+                tabIndex={onGroupClick ? 0 : undefined}
+                onClick={onGroupClick ? () => onGroupClick(group.key) : undefined}
+                onKeyDown={
+                  onGroupClick
+                    ? (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          onGroupClick(group.key);
+                        }
+                      }
+                    : undefined
+                }
+                style={{
+                  background: COLORS.neutral.white,
+                  borderRadius: RADII.xl,
+                  padding: '14px',
+                  border: `1px solid ${COLORS.neutral[200]}`,
+                  cursor: onGroupClick ? 'pointer' : 'default',
+                }}
+              >
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center' }}>
                   <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary, fontWeight: TYPOGRAPHY.fontWeight.semibold }}>{group.key}</div>
                   <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: group.accent, fontWeight: TYPOGRAPHY.fontWeight.semibold }}>{group.criteriaCount} criteria</div>
