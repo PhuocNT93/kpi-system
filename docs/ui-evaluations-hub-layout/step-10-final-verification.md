@@ -81,6 +81,13 @@ DONE
 
 - `frontend-user-guide.md` rewritten to match the final implementation (hub scrolling, three My Evaluations tabs, PDP block layout, Team Reviews statuses, Employee Directory, known limitations).
 
+## Sync with develop and PR (user request after Step 10)
+
+- Committed the task as `202c1a6` (frontend + this docs folder only; `CLAUDE.md`, `.agents/`, `.vscode/` left uncommitted).
+- `git fetch origin` → `origin/develop` @ `f8fc0db`, 8 new commits (PRs #152–#154).
+- `git merge origin/develop` → one conflict, `frontend/src/index.css`. The whole-file conflict came from line endings; by content, develop changed hub styles (`button svg`, `.unified-hub-header`, removed `.unified-hub-description` / tab-label rules, added `.unified-hub-hint`) and this branch only added a new block before `.unified-hub-tabs`. Resolved by taking develop's file and inserting this branch's block (`.no-scrollbar`, `.my-eval-*`) before `.unified-hub-tabs {` — `git diff --ignore-cr-at-eol -w origin/develop` shows 0 removed lines, 37 added. `Sidebar.tsx` and `EvaluationDetailPage.tsx` auto-merged with this branch's edits intact. Merge commit `9091bf3`.
+- Checks on the merged tree: frontend typecheck exit 0, lint exit 0, tests 60 files / 240 passed, build exit 0; backend (changed by develop) typecheck exit 0, tests 73 files passed / 6 skipped (787 passed, 30 skipped), build exit 0.
+
 ## Next Step
 
-None — task complete. Commit / push / PR only on the user's request.
+None — task complete; PR opened against `develop`.
