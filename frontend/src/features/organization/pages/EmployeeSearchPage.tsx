@@ -141,7 +141,6 @@ export function EmployeeSearchPage() {
         maxWidth: '1440px',
         margin: '0 auto',
         color: isDark ? '#f8fafc' : 'var(--text-primary)',
-        minHeight: '100vh',
         width: '100%',
         boxSizing: 'border-box',
       }}

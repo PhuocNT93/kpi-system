@@ -19,9 +19,11 @@ interface SubTabsProps<T extends string> {
   // Buttons for the active sub-tab (e.g. "+ Create"), aligned right on the same row.
   actions?: React.ReactNode;
   level?: SubTabLevel;
+  // Drop the built-in bottom margin when the parent already spaces its children (e.g. flex gap).
+  flush?: boolean;
 }
 
-export function SubTabs<T extends string>({ items, value, onChange, ariaLabel, actions, level = 2 }: SubTabsProps<T>) {
+export function SubTabs<T extends string>({ items, value, onChange, ariaLabel, actions, level = 2, flush = false }: SubTabsProps<T>) {
   const { isDark } = useTheme();
   const accent = isDark ? '#a5b4fc' : '#4f46e5';
   const mutedText = isDark ? '#94a3b8' : '#64748b';
@@ -72,7 +74,7 @@ export function SubTabs<T extends string>({ items, value, onChange, ariaLabel, a
         gap: '12px',
         // Never shrink inside a height-filling flex column.
         flexShrink: 0,
-        marginBottom: isSegmented ? '1.25rem' : '1rem',
+        marginBottom: flush ? 0 : isSegmented ? '1.25rem' : '1rem',
       }}
     >
       <div style={{ minWidth: 0, overflowX: 'auto', overflowY: 'hidden' }}>

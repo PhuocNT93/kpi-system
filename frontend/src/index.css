@@ -216,6 +216,51 @@ body,
   user-select: none;
 }
 
+/* Hides the scrollbar while keeping wheel, keyboard and touch scrolling. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* My Evaluation: picker column + detail column, single column on narrow screens. */
+.my-eval-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+/* The picker takes the height of the detail column and scrolls its cards internally,
+   so a long list never makes the page taller than the detail content. */
+.my-eval-picker-slot {
+  position: relative;
+  min-height: 240px;
+}
+
+.my-eval-picker {
+  position: absolute;
+  inset: 0;
+}
+
+@media (max-width: 1024px) {
+  .my-eval-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .my-eval-picker-slot {
+    min-height: 0;
+  }
+
+  .my-eval-picker {
+    position: static;
+    max-height: 360px;
+  }
+}
+
 .unified-hub-tabs {
   display: flex;
   gap: 6px;
