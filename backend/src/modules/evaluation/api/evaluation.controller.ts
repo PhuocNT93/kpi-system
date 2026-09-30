@@ -20,7 +20,7 @@ export class EvaluationController {
       return {
         userId,
         role: (validRoles.includes(rawRole) ? rawRole : 'EMPLOYEE') as import('../../../shared/auth/types.js').UserRole,
-        employeeId: user.employeeId ?? user.id,
+        employeeId: user.employeeId,
         managedTeamIds: user.managedTeamIds ?? [],
       };
     }
