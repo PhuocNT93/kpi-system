@@ -6,10 +6,12 @@ export type ImportStatus =
   | 'APPLYING'
   | 'APPLIED'
   | 'PARTIALLY_APPLIED'
+  | 'REJECTED'
   | 'FAILED';
 
 export type RecordStatus =
   | 'VALID'
+  | 'PENDING_REVIEW'
   | 'INVALID'
   | 'CONFLICT'
   | 'APPLIED'
@@ -71,6 +73,7 @@ export type PatchResolutionChoice =
 export interface PatchDraftRecord {
   value?: number;
   comment?: string | null;
+  reviewer_comment?: string | null;
   rationale?: string;
   resolution?: PatchResolutionChoice;
   evidences?: StagedEvidenceInput[];
@@ -119,6 +122,14 @@ export interface EvaluationDataImportRecord {
   evidences?: EvaluationDataImportEvidence[];
   created_at: string;
   updated_at: string;
+  source_comment?: string | null;
+  reviewer_comment?: string | null;
+  crawl_job_execution_id?: string | null;
+  collected_at?: string | null;
+  measurement_from?: string | null;
+  measurement_to?: string | null;
+  source_updated_at?: string | null;
+  raw_payload_reference?: string | null;
 }
 
 export interface EvaluationDataImport {
@@ -135,6 +146,7 @@ export interface EvaluationDataImport {
   created_at: string;
   applied_at?: string | null;
   updated_at: string;
+  crawl_job_execution_id?: string | null;
 }
 
 export interface ImportPreviewResponse {

@@ -38,6 +38,13 @@ describe('EvaluationDataImportService', () => {
     managedTeamIds: [],
   };
 
+  const managerActor: Actor = {
+    userId: 'manager-123',
+    role: 'MANAGER',
+    employeeId: 'emp-manager',
+    managedTeamIds: ['team-a'],
+  };
+
   const validCycleId = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
 
   beforeEach(() => {
@@ -355,9 +362,87 @@ describe('EvaluationDataImportService', () => {
         expect.objectContaining({ conflict_count: 0 })
       );
     });
+
+    it('requires a 20-character reviewer comment for crawl rows', async () => {
+      const importId = 'crawl-import-1';
+      const recordId = 'crawl-record-1';
+      mockRepo.findRecordById.mockResolvedValue({
+        record_id: recordId,
+        import_id: importId,
+        employee_code: 'EMP001',
+        cycle_id: validCycleId,
+        kpi_code: 'KPI_DELIVERY',
+        value: 95,
+        rationale: 'Source data',
+        source_snapshot: { source_type: 'JIRA', source_name: 'Jira', collected_at: new Date().toISOString() },
+        status: 'PENDING_REVIEW',
+        crawl_job_execution_id: 'execution-1',
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as unknown as EvaluationDataImportRecord);
+      mockRepo.findById.mockResolvedValue({
+        import_id: importId,
+        source_system: 'JIRA',
+        status: 'PENDING_REVIEW',
+        raw_payload: {} as unknown as CreateImportPayload,
+        record_count: 1,
+        success_count: 0,
+        error_count: 0,
+        conflict_count: 0,
+        created_by: 'CRAWL_WORKER',
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as unknown as EvaluationDataImport);
+
+      await expect(service.updateDraft(importId, recordId, { reviewer_comment: 'Too short' }, hrActor))
+        .rejects.toThrow('Reviewer comment must contain at least 20 characters.');
+      expect(mockRepo.updateRecordDraft).not.toHaveBeenCalled();
+    });
+
+    it('rejects Manager review for employees outside managed teams', async () => {
+      const importId = 'crawl-import-2';
+      const recordId = 'crawl-record-2';
+      mockRepo.findRecordById.mockResolvedValue({
+        record_id: recordId,
+        import_id: importId,
+        employee_code: 'EMP002',
+        crawl_job_execution_id: 'execution-2',
+        status: 'PENDING_REVIEW',
+      } as unknown as EvaluationDataImportRecord);
+      mockRepo.findById.mockResolvedValue({ import_id: importId, status: 'PENDING_REVIEW' } as EvaluationDataImport);
+      mockPool.query.mockResolvedValue({ rows: [{ team_id: 'team-b' }] });
+
+      await expect(service.updateDraft(importId, recordId, { reviewer_comment: 'Reviewed but outside my team.' }, managerActor))
+        .rejects.toMatchObject({ code: 'UNAUTHORIZED_SCOPE' });
+      expect(mockRepo.updateRecordDraft).not.toHaveBeenCalled();
+    });
   });
 
   describe('applyImport', () => {
+    it('rejects crawl Apply while review rows are still pending', async () => {
+      const importId = 'crawl-pending-import';
+      mockRepo.findRecordsByImportId.mockResolvedValue({
+        records: [{ status: 'PENDING_REVIEW', crawl_job_execution_id: 'execution-3' } as unknown as EvaluationDataImportRecord],
+        total: 1,
+      });
+      mockRepo.findByIdForUpdate.mockResolvedValue({
+        import_id: importId,
+        crawl_job_execution_id: 'execution-3',
+        source_system: 'JIRA',
+        status: 'PENDING_REVIEW',
+        raw_payload: {} as unknown as CreateImportPayload,
+        record_count: 1,
+        success_count: 0,
+        error_count: 0,
+        conflict_count: 0,
+        created_by: 'CRAWL_WORKER',
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as unknown as EvaluationDataImport);
+
+      await expect(service.applyImport(importId, hrActor)).rejects.toMatchObject({ code: 'REVIEW_REQUIRED' });
+      expect(mockRepo.updateImportStatus).not.toHaveBeenCalled();
+    });
     it('should be idempotent and return 200 summary if already APPLIED (TC-IDEMP-01)', async () => {
       const importId = 'imp-applied';
       mockRepo.findByIdForUpdate.mockResolvedValue({

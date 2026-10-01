@@ -78,9 +78,6 @@ export const AuditDetailModal = ({ log, onClose }: AuditDetailModalProps) => {
         zIndex: 1000,
         padding: '1rem',
       }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
     >
       <div
         style={{

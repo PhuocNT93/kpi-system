@@ -59,3 +59,16 @@ services:
         value: kyluong
       - key: BLUEPRINT_PASSWORD
         sync: false
+      - key: CRAWL_WORKER_POLL_INTERVAL_MS
+        value: "1000"
+      - key: CRAWL_WORKER_LEASE_MS
+        value: "60000"
+      - key: CRAWL_ALLOWED_HOSTS_BLUEPRINT
+        sync: false
+      - key: CRAWL_ALLOWED_HOSTS_JIRA
+        sync: false
+      - key: CRAWL_ALLOWED_HOSTS_GOOGLE_SHEET
+        sync: false
+      - key: CRAWL_RAW_PAYLOAD_RETENTION_DAYS
+        value: "90"
+

@@ -8,18 +8,24 @@ export interface AuditCollector {
   getPendingRecords(): AuditRecordParams[];
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const DEFAULT_SYSTEM_USER_ID = 'd3a986c4-1a7a-4a06-8710-7abb2513c831';
+
 export class TransactionalAuditCollector implements AuditCollector {
   private pendingRecords: AuditRecordParams[] = [];
-  private defaultPerformedBy: string | null;
+  private defaultPerformedBy: string;
 
-  constructor(defaultPerformedBy: string | null = null) {
+  constructor(defaultPerformedBy: string = DEFAULT_SYSTEM_USER_ID) {
     this.defaultPerformedBy = defaultPerformedBy;
   }
 
   record(params: Omit<AuditRecordParams, 'source'> & { source?: string }): void {
+    const performedBy = (params.performedBy && UUID_REGEX.test(params.performedBy))
+      ? params.performedBy
+      : this.defaultPerformedBy;
     this.pendingRecords.push({
       ...params,
-      performedBy: params.performedBy !== undefined ? params.performedBy : this.defaultPerformedBy,
+      performedBy,
       source: params.source ?? 'APPLICATION_SERVICE',
     });
   }
@@ -45,8 +51,23 @@ export async function withAuditedTransaction<T>(
 ): Promise<T> {
   const client = await connection.connect();
   const actor = getActorFromContext();
-  const performedBy = actorUserId !== undefined ? actorUserId : (actor?.userId ?? null);
-  const collector = new TransactionalAuditCollector(performedBy);
+  let performedBy: string | null = (actorUserId && UUID_REGEX.test(actorUserId))
+    ? actorUserId
+    : (actor?.userId && UUID_REGEX.test(actor?.userId))
+      ? actor?.userId
+      : null;
+
+  if (!performedBy) {
+    try {
+      const fallback = await client.query('SELECT id FROM app_user ORDER BY created_at ASC LIMIT 1');
+      const fallbackRow = fallback.rows[0] as { id?: string } | undefined;
+      performedBy = (fallbackRow && typeof fallbackRow.id === 'string') ? fallbackRow.id : DEFAULT_SYSTEM_USER_ID;
+    } catch {
+      performedBy = DEFAULT_SYSTEM_USER_ID;
+    }
+  }
+
+  const collector = new TransactionalAuditCollector(performedBy || DEFAULT_SYSTEM_USER_ID);
 
   try {
     await client.query('BEGIN');

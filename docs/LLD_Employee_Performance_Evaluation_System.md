@@ -1025,68 +1025,75 @@ Unique: `(crawl_job_definition_id, criterion_id)`. **Validate ở service layer*
 
 > **Quan hệ tổng thể:** `crawl_script` (code) 1—N `crawl_job_definition` (đăng ký script+source) N—N `criterion` (qua `crawl_job_criterion`) và N—N `evaluation_cycle` (qua `evaluation_cycle_crawl_job`). 1 job đăng ký 1 lần có thể tái sử dụng ở nhiều cycle khác nhau (HR không phải đăng ký lại job mỗi kỳ, chỉ cần "enable" nó cho cycle mới).
 
-### 15.1.3 Thực thi tuần tự — Sequential Execution Queue, chỉ chạy cho Cycle đang `OPEN`
+### 15.1.3 PostgreSQL-backed execution queue — chỉ chạy cho Cycle đang `OPEN`
 
-**Quyết định:** dùng **cùng hạ tầng Job Queue đã có** (BullMQ — mục 27), tạo 1 **queue riêng `crawl-jobs` với `concurrency=1`** — cơ chế đảm bảo "chạy tuần tự". ✅ **Cập nhật (v2.0):** bổ sung điều kiện lọc theo trạng thái Cycle — **chỉ trigger crawl cho `evaluation_cycle.status = 'OPEN'`**, mọi status khác (DRAFT/IN_PROGRESS/REVIEWING/CALIBRATION/APPROVED/PUBLISHED/LOCKED) **đều bị bỏ qua**, kể cả khi job vẫn `enabled=true` cho cycle đó.
+**Quyết định (2026-09-29):** `crawl_job_execution` là nguồn dữ liệu có thẩm quyền cho cả execution history và hàng đợi Crawl Job. Không thêm Redis/BullMQ cho crawler. Scheduler/manual trigger ghi execution `QUEUED`; worker instance claim trực tiếp từ PostgreSQL bằng transaction row locking. Có thể chạy nhiều worker instance an toàn.
 
+```sql
+BEGIN;
+SELECT crawl_job_execution_id
+FROM crawl_job_execution
+WHERE status = 'QUEUED' AND next_retry_at <= NOW()
+ORDER BY next_retry_at, scheduled_at NULLS LAST, created_at
+LIMIT 1 FOR UPDATE SKIP LOCKED;
+-- Re-check cycle OPEN, job active and cycle mapping enabled while claim is locked.
+UPDATE crawl_job_execution
+SET status = 'RUNNING', claimed_by = :worker_id,
+    heartbeat_at = NOW(), lease_expires_at = NOW() + :lease_duration
+WHERE crawl_job_execution_id = :execution_id AND status = 'QUEUED';
+COMMIT;
 ```
-Scheduler tick (theo default_schedule_cron của từng crawl_job_definition, hoặc 1 tick hệ thống chung — vd mỗi giờ):
-  for each evaluation_cycle WHERE status = 'OPEN':
-      for each evaluation_cycle_crawl_job
-            WHERE evaluation_cycle_id = cycle.id
-              AND enabled = true
-              AND crawl_job_definition.active = true          -- kill-switch toàn cục vẫn tôn trọng
-            ORDER BY sequence_order:
-          enqueue (cycle_id, crawl_job_definition_id) vào queue "crawl-jobs"
-  → Worker (concurrency=1) lấy job kế tiếp, thực thi trong sandbox (mục 15.1.6)
-  → Ghi kết quả vào evaluation_data_import (kèm evaluation_cycle_id) + evaluation_data_import_row
-  → Job tiếp theo trong queue chỉ bắt đầu sau khi job hiện tại kết thúc (thành công/timeout/lỗi)
-```
+
+Sau `COMMIT`, worker thực thi script trong sandbox và gia hạn lease. Không giữ transaction trong lúc gọi source ngoài. Worker recovery xử lý lease hết hạn; retries được lưu thành execution mới với `attempt_no`, `max_attempts`, `next_retry_at`, và chỉ đủ điều kiện claim khi `next_retry_at <= NOW()`.
+
+Scheduler tick (theo `default_schedule_cron` của job):
+  for each Evaluation Cycle WHERE status = 'OPEN':
+      for each enabled cycle-job mapping with active job:
+          create one QUEUED crawl_job_execution using a deterministic idempotency key
+  → PostgreSQL worker claims due rows using FOR UPDATE SKIP LOCKED
+  → Worker re-checks cycle/job eligibility, then runs the stored snapshot in sandbox
+  → Stage results in evaluation_data_import and link the batch to the execution
+
+✅ Điều kiện Cycle không đổi: chỉ trigger/claim khi `evaluation_cycle.status = 'OPEN'`; mọi status khác đều bị bỏ qua.
 
 **Why lọc theo `status=OPEN` (Decision → Why → Alternative → Trade-off):**
 **Why:** crawl dữ liệu cho 1 cycle không còn `OPEN` là vô nghĩa hoặc nguy hiểm — nếu cycle đã `LOCKED`, ghi thêm `evaluation_data_import` mới sẽ tạo dữ liệu "mồ côi" không bao giờ Apply được (evaluation đã khóa); nếu cycle đang `REVIEWING`/`APPROVED`, crawl thêm dữ liệu mới có thể gây hiểu lầm "sao điểm chưa cập nhật" trong khi thực ra employee đã submit xong.
 **Alternative:** cho phép crawl ở mọi trạng thái, chỉ chặn ở bước Apply.
 **Trade-off:** cách đã chọn có thể bỏ lỡ dữ liệu nếu Manager cố tình muốn bổ sung số liệu **sau khi** đã REVIEWING (vd phát hiện thiếu) — trường hợp này cần trigger **thủ công** qua `POST /crawl-job-definitions/{id}/trigger` (mục 15.1.7), endpoint này **vẫn tôn trọng cùng điều kiện `status=OPEN`** để nhất quán, trả lỗi `422 CYCLE_NOT_OPEN` nếu vi phạm — không có đường vòng nào bỏ qua rule này kể cả trigger thủ công.
 
-**Why tuần tự (không đổi so với v1.9):**
-(1) tránh gọi đồng thời nhiều API bên ngoài (Jira/Google Sheets) gây vượt rate-limit; (2) đơn giản hóa mô hình concurrency cho execution sandbox; (3) tránh race condition khi nhiều job cùng ghi `evaluation_data_import` cho cùng 1 cycle.
-**Trade-off:** nếu nhiều cycle `OPEN` cùng lúc, mỗi cycle nhiều job enabled, tổng thời gian 1 vòng quét sẽ dài — chấp nhận được vì đây là job nền, không ảnh hưởng trải nghiệm real-time.
+**Concurrency:** `FOR UPDATE SKIP LOCKED` prevents multiple workers from claiming the same execution. Jobs remain ordered by `sequence_order` for scheduler creation; failure policy controls whether following jobs continue. Staging serializes the short same-cycle deduplication transaction. External calls and sandbox work occur outside database transactions.
 
 ### 15.1.4 Data flow & Status lifecycle
 
 ```mermaid
 sequenceDiagram
     participant Scheduler
-    participant Queue as Queue "crawl-jobs" (concurrency=1)
+    participant DB as PostgreSQL execution queue
     participant Sandbox as Script Sandbox (isolated-vm)
     participant Source as BLUEPRINT/JIRA/GOOGLE_SHEET
-    participant DB
 
     Scheduler->>DB: đọc evaluation_cycle WHERE status='OPEN' (mọi status khác bị bỏ qua)
     loop mỗi cycle OPEN
         Scheduler->>DB: đọc evaluation_cycle_crawl_job WHERE enabled=true AND crawl_job_definition.active=true, ORDER BY sequence_order
-        Scheduler->>Queue: enqueue (cycle_id, crawl_job_definition_id) theo thứ tự
+        Scheduler->>DB: insert crawl_job_execution QUEUED + idempotency key
     end
-    loop mỗi (cycle, job) trong queue (tuần tự)
-        Queue->>DB: re-check cycle.status='OPEN' (phòng cycle đổi trạng thái trong lúc chờ trong queue)
+    loop mỗi worker claim
+        DB->>DB: SELECT due QUEUED row FOR UPDATE SKIP LOCKED
+        DB->>DB: re-check cycle OPEN, job active/enabled; set RUNNING + lease; COMMIT
         alt cycle không còn OPEN
-            Queue->>DB: bỏ qua job, ghi log SKIPPED_CYCLE_NOT_OPEN
+            DB->>DB: mark execution SKIPPED and audit
         else vẫn OPEN
-            Queue->>DB: tạo evaluation_data_import (status=DRAFT, source_system, crawl_job_definition_id, evaluation_cycle_id)
-            Queue->>Sandbox: thực thi crawl_script.source_code (timeout N giây, network whitelist theo source_system)
+            DB->>Sandbox: execute stored script/configuration snapshot
             Sandbox->>Source: gọi API (credential lấy qua connector_credential, KHÔNG lộ raw secret cho script)
             Source-->>Sandbox: raw data
-            Sandbox-->>Queue: trả về mảng record đã chuẩn hóa (employee_code, criterion_code, measurement_value, measurement_unit) — có thể chứa NHIỀU criterion_code khác nhau
-            Queue->>DB: lưu raw_payload (nguyên văn), status=VALIDATING
-            Queue->>DB: parse từng record; check criterion_code ∈ tập crawl_job_criterion của job (Rule 22) → PARSED/INVALID/CONFLICT
-            Queue->>DB: sinh source_comment cho mỗi row (mục 15.1.5)
-            Queue->>DB: evaluation_data_import.status=PENDING_REVIEW, cập nhật record_count/success_count/error_count/conflict_count
+            Sandbox-->>DB: normalized records + raw payload references
+            DB->>DB: validate mappings, detect conflicts, stage PENDING_REVIEW
         end
     end
-    Note over DB: Job kế tiếp trong queue chỉ bắt đầu sau khi job này ghi xong PENDING_REVIEW/FAILED/SKIPPED
+      Note over DB: Execution records remain authoritative; retries are new rows with next_retry_at
 ```
 
-> **Vì sao re-check `status='OPEN'` lần nữa ở Worker (không chỉ ở Scheduler):** giữa lúc job được enqueue và lúc worker thực sự lấy ra chạy có thể có độ trễ (queue tuần tự, có thể chờ nhiều job phía trước). Nếu trong khoảng đó cycle bị chuyển sang `LOCKED`/`REVIEWING`, chỉ check ở Scheduler sẽ để lọt job chạy cho cycle không còn hợp lệ. Check lại ngay trước khi thực thi đảm bảo Rule 25 đúng tuyệt đối (time-of-check vs time-of-use).
+    > **Vì sao re-check `status='OPEN'` ở worker claim:** cycle có thể đổi trạng thái sau khi scheduler ghi execution `QUEUED`. Worker kiểm tra cycle trong transaction claim để tránh chạy dữ liệu cho cycle không còn hợp lệ.
 
 Sau đó luồng **review & apply do con người thực hiện** (không tự động), xem mục 15.1.5.
 
@@ -1163,6 +1170,19 @@ Yêu cầu trước đó (`Import_Center_Feature_Definition.md`, Rule E1) bắt 
 - **Rule 27 (🆕):** Không cho phép 2 job **cùng `enabled=true`** trong cùng 1 cycle phủ trùng 1 Criterion (validate ở service layer khi bật `enabled`, xem mục 15.1.2) — trả lỗi rõ ràng nêu tên job đang xung đột.
 - **Rule 23:** Timeout hoặc lỗi runtime trong sandbox → `evaluation_data_import.status=FAILED`, ghi `error_message`, **không** làm crash worker/queue — job tiếp theo trong hàng đợi vẫn chạy bình thường.
 - **Rule 24:** Xóa/deactivate 1 `connector_credential` đang được `crawl_job_definition` active sử dụng → cảnh báo trước, không cho xóa cứng (soft-delete + chặn job liên quan tự động `active=false`).
+
+### 15.1.11 Execution history extension — accepted feature decision
+
+> **Decision (2026-09-29):** `evaluation_data_import` remains the staging/review mechanism and is not the runtime execution history. A separate `crawl_job_execution` record is authoritative for queue state, attempts, immutable configuration snapshot, idempotency and operational metrics. A crawl import references the execution that produced it.
+
+> **Queue decision (2026-09-29, supersedes the initial BullMQ proposal in 15.1.3):** PostgreSQL is the only Crawl Job queue authority. Do not add Redis/BullMQ solely for this feature. Workers claim with `FOR UPDATE SKIP LOCKED`; retry eligibility is persisted with `next_retry_at`, `attempt_no`, and `max_attempts`.
+
+- The execution snapshot stores the published script version/checksum, source system/configuration, credential reference, criteria and cycle assignment. PostgreSQL is authoritative; workers load the snapshot from `crawl_job_execution`.
+- Each retry creates a new execution row linked through `retry_of_execution_id`; historical executions are immutable. `attempt_no`, `max_attempts` and `next_retry_at` persist retry state; a worker can claim only when `next_retry_at <= NOW()`.
+- Manual and scheduled triggers create `QUEUED` executions. Scheduler code never runs crawler scripts. PostgreSQL workers claim with `FOR UPDATE SKIP LOCKED`, atomically set `RUNNING` plus a lease, and recheck `evaluation_cycle.status = 'OPEN'`.
+- The worker runs in a separate Node process with `isolated-vm`. No Redis/BullMQ dependency is introduced for Crawl Job execution.
+- Crawl output uses schema version `1.0`, is validated and staged into `evaluation_data_import` as `PENDING_REVIEW`. Reviewer comments and explicit conflict decisions are required before Apply. Crawl never calculates evaluation scores.
+- This section extends the legacy status flow in 15.1.4. Existing CSV upload/import behavior remains unchanged and must retain regression coverage.
 
 ---
 

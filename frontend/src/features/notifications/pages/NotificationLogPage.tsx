@@ -439,7 +439,6 @@ export function NotificationLogPage() {
             justifyContent: 'center',
             zIndex: 50,
           }}
-          onClick={() => setSelectedError(null)}
         >
           <div
             style={{
@@ -451,7 +450,6 @@ export function NotificationLogPage() {
               padding: '1.5rem',
               boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
             }}
-            onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
               <h3 style={{ margin: 0, fontSize: '1.125rem', color: isDark ? '#f87171' : '#991b1b', fontWeight: 600 }}>

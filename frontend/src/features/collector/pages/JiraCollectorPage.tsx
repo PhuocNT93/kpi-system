@@ -202,9 +202,8 @@ function MemberDetailPanel({
       background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: 24,
-    }} onClick={onClose}>
+    }}>
       <div
-        onClick={(e) => e.stopPropagation()}
         style={{
           background: '#fff', borderRadius: 16, width: '100%', maxWidth: 860,
           maxHeight: '90vh', overflowY: 'auto',
@@ -1692,8 +1691,8 @@ export const JiraCollectorPage: React.FC = () => {
           position: 'fixed', inset: 0, zIndex: 1000,
           background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(3px)', display: 'flex',
           alignItems: 'center', justifyContent: 'center', padding: 16,
-        }} onClick={() => setShowCronEdit(false)}>
-          <div onClick={(e) => e.stopPropagation()} style={{
+        }}>
+          <div style={{
             background: '#fff', borderRadius: 16, padding: '24px 28px', width: '100%', maxWidth: 560,
             maxHeight: '90vh', overflowY: 'auto',
             boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
@@ -1951,8 +1950,8 @@ export const JiraCollectorPage: React.FC = () => {
           position: 'fixed', inset: 0, zIndex: 1000,
           background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(3px)', display: 'flex',
           alignItems: 'center', justifyContent: 'center', padding: 16,
-        }} onClick={() => setShowScriptModal(false)}>
-          <div onClick={(e) => e.stopPropagation()} style={{
+        }}>
+          <div style={{
             background: '#fff', borderRadius: 16, padding: '24px 28px', width: '100%', maxWidth: 640,
             maxHeight: '90vh', overflowY: 'auto',
             boxShadow: '0 20px 60px rgba(0,0,0,0.25)',

@@ -74,7 +74,6 @@ export const CreateSessionModal: React.FC<Props> = ({
         zIndex: 1050,
         padding: '16px',
       }}
-      onClick={onClose}
     >
       <div
         style={{
@@ -86,7 +85,6 @@ export const CreateSessionModal: React.FC<Props> = ({
           overflow: 'hidden',
           border: '1px solid #e2e8f0',
         }}
-        onClick={(e) => e.stopPropagation()}
       >
         <div
           style={{

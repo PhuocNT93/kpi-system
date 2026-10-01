@@ -4,6 +4,27 @@ import { CriterionCategory, ScoringRuleType } from '../../domain/configuration.t
 
 export async function clearConfigurationData(pool: Pool): Promise<void> {
   await pool.query(`
+    DO $$ BEGIN
+      IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'crawl_scoring_execution') THEN
+        DELETE FROM crawl_scoring_execution;
+      END IF;
+      IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'evaluation_data_import_record') THEN
+        DELETE FROM evaluation_data_import_record;
+      END IF;
+      IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'evaluation_data_import') THEN
+        DELETE FROM evaluation_data_import;
+      END IF;
+      IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'crawl_job_execution') THEN
+        DELETE FROM crawl_job_execution;
+      END IF;
+      IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'evaluation_cycle_crawl_job') THEN
+        DELETE FROM evaluation_cycle_crawl_job;
+      END IF;
+      IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'crawl_job_criterion') THEN
+        DELETE FROM crawl_job_criterion;
+      END IF;
+    END $$;
+
     DELETE FROM import_row;
     DELETE FROM import_job;
     DELETE FROM evidence;

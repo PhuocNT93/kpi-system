@@ -3,17 +3,20 @@ import { z } from 'zod';
 export const ImportStatusEnum = z.enum([
   'DRAFT',
   'VALIDATING',
+  'PENDING_REVIEW',
   'READY',
   'CONFLICT',
   'APPLYING',
   'APPLIED',
   'PARTIALLY_APPLIED',
+  'REJECTED',
   'FAILED'
 ]);
 export type ImportStatus = z.infer<typeof ImportStatusEnum>;
 
 export const RecordStatusEnum = z.enum([
   'VALID',
+  'PENDING_REVIEW',
   'INVALID',
   'CONFLICT',
   'APPLIED',
@@ -92,6 +95,7 @@ export type PatchResolutionChoice = z.infer<typeof PatchResolutionChoiceEnum>;
 export const PatchDraftRecordSchema = z.object({
   value: z.number().optional(),
   comment: z.string().nullable().optional(),
+  reviewer_comment: z.string().nullable().optional(),
   rationale: z.string().min(1).optional(),
   resolution: PatchResolutionChoiceEnum.optional(),
   evidences: z.array(StagedEvidenceSchema).optional(),
@@ -132,6 +136,8 @@ export interface EvaluationDataImportRecord {
   kpi_code: string;
   value: number;
   comment?: string | null;
+  source_comment?: string | null;
+  reviewer_comment?: string | null;
   rationale: string;
   source_snapshot: SourceSnapshot;
   status: RecordStatus;
@@ -139,6 +145,12 @@ export interface EvaluationDataImportRecord {
   conflicts?: ConflictDetails | null;
   evaluation_item_id?: string | null;
   evidences?: EvaluationDataImportEvidence[];
+  crawl_job_execution_id?: string | null;
+  collected_at?: Date | null;
+  measurement_from?: Date | null;
+  measurement_to?: Date | null;
+  source_updated_at?: Date | null;
+  raw_payload_reference?: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -157,6 +169,7 @@ export interface EvaluationDataImport {
   created_at: Date;
   applied_at?: Date | null;
   updated_at: Date;
+    crawl_job_execution_id?: string | null;
 }
 
 export interface ImportPreviewResponse {

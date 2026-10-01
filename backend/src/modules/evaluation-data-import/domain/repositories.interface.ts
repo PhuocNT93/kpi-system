@@ -23,6 +23,7 @@ export interface IEvaluationDataImportRepository {
       error_count: number;
       conflict_count: number;
       created_by: string;
+        crawl_job_execution_id?: string | null;
     },
     records: Array<{
       record_id: string;
@@ -31,6 +32,14 @@ export interface IEvaluationDataImportRepository {
       kpi_code: string;
       value: number;
       comment?: string | null;
+      source_comment?: string | null;
+      reviewer_comment?: string | null;
+      collected_at?: Date | null;
+      measurement_from?: Date | null;
+      measurement_to?: Date | null;
+      source_updated_at?: Date | null;
+      raw_payload_reference?: string | null;
+      crawl_job_execution_id?: string | null;
       rationale: string;
       source_snapshot: SourceSnapshot;
       status: RecordStatus;
@@ -55,21 +64,25 @@ export interface IEvaluationDataImportRepository {
 
   findRecordsByImportId(
     importId: string,
-    options?: { page?: number; limit?: number; status?: RecordStatus }
+    options?: { page?: number; limit?: number; status?: RecordStatus; teamIds?: string[] },
+    client?: PoolClient
   ): Promise<{ records: EvaluationDataImportRecord[]; total: number }>;
 
-  findRecordById(recordId: string): Promise<EvaluationDataImportRecord | null>;
+  findRecordById(recordId: string, client?: PoolClient): Promise<EvaluationDataImportRecord | null>;
 
   updateRecordDraft(
     recordId: string,
     patch: {
       value?: number;
       comment?: string | null;
+      reviewer_comment?: string | null;
       rationale?: string;
       status?: RecordStatus;
       conflicts?: ConflictDetails | null;
     },
-    evidences?: StagedEvidenceInput[]
+    evidences?: StagedEvidenceInput[],
+    reviewedBy?: string,
+    client?: PoolClient
   ): Promise<EvaluationDataImportRecord>;
 
   updateImportStatus(
@@ -92,7 +105,8 @@ export interface IEvaluationDataImportRepository {
     client?: PoolClient
   ): Promise<void>;
 
-  listImports(options?: { page?: number; limit?: number }): Promise<{ items: EvaluationDataImport[]; total: number }>;
+  listImports(options?: { page?: number; limit?: number; crawlOnly?: boolean; teamIds?: string[] }): Promise<{ items: EvaluationDataImport[]; total: number }>;
+  isImportVisibleToTeams(importId: string, teamIds: string[]): Promise<boolean>;
 
   findPendingConflictingRecords(
     cycleId: string,

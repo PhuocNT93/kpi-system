@@ -75,9 +75,6 @@ export const ReviewActionModal: React.FC<ReviewActionModalProps> = ({
         zIndex: 9999,
         padding: '20px',
       }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget && !isSubmitting) onClose();
-      }}
     >
       <div
         role="dialog"

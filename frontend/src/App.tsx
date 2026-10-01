@@ -21,6 +21,7 @@ import { UnifiedKpiTemplateStudioPage } from './features/templates';
 import { AppLayout } from '@/shared/layout';
 import { ImportDetailPage } from './features/imports/pages/ImportDetailPage';
 import { DataIngestionHubPage } from './features/imports/pages/DataIngestionHubPage';
+import { CrawlJobsPage } from './features/crawl-jobs/pages/CrawlJobsPage';
 // Lazy-loaded: pulls in react-markdown/remark-gfm, kept out of the main bundle
 const UserGuidePage = lazy(() =>
   import('./features/help/pages/UserGuidePage').then((m) => ({ default: m.UserGuidePage }))
@@ -52,6 +53,7 @@ const ADMIN_PAGE_TITLES: Record<string, string> = {
   'kpi-summary': 'Performance Reports',
   reports: 'Performance Reports',
   ingestion: 'KPI Data Ingestion Hub',
+  'crawl-jobs': 'Automated KPI Crawling',
   templates: 'KPI & Templates Studio',
   criteria: 'Criteria',
   i18n: 'Translation Settings',
@@ -92,6 +94,8 @@ function ProtectedLayout() {
     ? 'reports'
     : pathParts.includes('ingestion') || pathParts.includes('collectors') || pathParts.includes('imports') || pathParts.includes('evaluation-data-imports')
     ? 'ingestion'
+    : pathParts.includes('crawl-jobs') || pathParts.includes('crawl-executions')
+    ? 'crawl-jobs'
     : pathParts.includes('notifications') || pathParts.includes('notification-preferences') || pathParts.includes('notification-templates') || pathParts.includes('notification-logs')
     ? 'notifications'
     : pathParts.includes('evaluations') || pathParts.includes('my-evaluations') || pathParts.includes('team-evaluations') || pathParts.includes('employee-search')
@@ -163,6 +167,7 @@ function ProtectedLayout() {
       onSelectMenuItem={(id) => {
         if (id === 'dashboard') navigate('/admin/dashboard');
         else if (id === 'ingestion') navigate('/admin/ingestion');
+        else if (id === 'crawl-jobs') navigate('/admin/crawl-jobs');
         else if (id === 'jira-eval') navigate('/admin/ingestion?tab=jira');
         else if (id === 'reports') navigate('/admin/reports');
         else if (id === 'notifications') navigate('/admin/notifications');
@@ -289,6 +294,11 @@ export default function App() {
               <Route path="/admin/ingestion" element={
                 <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER']}>
                   <DataIngestionHubPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/crawl-jobs" element={
+                <ProtectedRoute allowedRoles={['SYSTEM_ADMIN', 'HR_ADMIN', 'MANAGER']}>
+                  <CrawlJobsPage />
                 </ProtectedRoute>
               } />
               <Route path="/admin/imports/:id" element={

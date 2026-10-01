@@ -1287,7 +1287,7 @@ export class EvaluationService {
 
         // 1. Resolve employee
         const empRes = await repositoryClient.query(
-          'SELECT employee_id FROM employee WHERE employee_code = $1',
+          'SELECT employee_id, team_id FROM employee WHERE employee_code = $1 FOR UPDATE',
           [rec.employee_code]
         );
         if (empRes.rows.length === 0) {
@@ -1295,6 +1295,13 @@ export class EvaluationService {
           continue;
         }
         const employeeId = empRes.rows[0].employee_id;
+        if (actor.role === 'MANAGER') {
+          const employeeTeamId = empRes.rows[0].team_id as string | null;
+          if (!employeeTeamId || !actor.managedTeamIds?.includes(employeeTeamId)) {
+            rejected.push({ recordId: rec.record_id, reason: 'UNAUTHORIZED_SCOPE' });
+            continue;
+          }
+        }
 
         // 2. Resolve (cycle_id, employee_id, kpi_code) -> evaluation & evaluation_item
         const evalRes = await repositoryClient.query(

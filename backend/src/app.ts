@@ -45,6 +45,7 @@ import { createCalibrationModule } from './modules/calibration/calibration.modul
 import { createNotificationModule } from './modules/notification/notification.module.js';
 import { createJiraCrawlerRouter } from './modules/jira-crawler/jira-crawler.routes.js';
 import { createReviewCadenceModule } from './modules/review-cadence/review-cadence.module.js';
+import { createCrawlJobModule } from './modules/crawl-job/crawl-job.module.js';
 
 export interface AppOptions {
   userRepository?: UserRepository;
@@ -126,7 +127,9 @@ export function createApp(options: AppOptions = {}) {
   const importModule = pool && evaluationModule ? createImportModule(pool, evaluationModule.evaluationService, notificationModule?.notificationService) : undefined;
   const importController = importModule?.importController;
 
-  const evaluationDataImportModule = pool && evaluationModule ? createEvaluationDataImportModule(pool, evaluationModule.evaluationService) : undefined;
+  const evaluationDataImportModule = pool && evaluationModule
+    ? createEvaluationDataImportModule(pool, evaluationModule.evaluationService, auditModule?.auditService)
+    : undefined;
   const evaluationDataImportController = evaluationDataImportModule?.importController;
 
   const collectorModule = pool ? createCollectorModule(pool, jwtMiddleware) : undefined;
@@ -138,6 +141,9 @@ export function createApp(options: AppOptions = {}) {
 
   const jiraCrawlerRouter = pool ? createJiraCrawlerRouter(pool, jwtMiddleware) : undefined;
   const reviewCadenceModule = pool && auditModule ? createReviewCadenceModule(pool, auditModule.auditService, reviewScheduleService) : undefined;
+  const crawlJobModule = pool && auditModule
+    ? createCrawlJobModule(pool, auditModule.auditService, jwtMiddleware)
+    : undefined;
 
   // ── Global Middlewares ────────────────────────────────────────────────────
   app.use(requestIdMiddleware);
@@ -203,6 +209,7 @@ export function createApp(options: AppOptions = {}) {
         notificationRouter: notificationModule?.router,
         reviewCadenceController: reviewCadenceModule?.reviewCadenceController,
         reviewDueController: reviewCadenceModule?.reviewDueController,
+        crawlJobRouter: crawlJobModule?.router,
       })
     );
   }

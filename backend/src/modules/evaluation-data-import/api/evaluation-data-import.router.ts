@@ -30,12 +30,25 @@ export function createEvaluationDataImportRouter(
       sendFailure(res, 401, 'Authentication required', 'UNAUTHENTICATED');
       return;
     }
-    if (actor.role !== 'HR_ADMIN' && actor.role !== 'SYSTEM_ADMIN') {
-      sendFailure(res, 403, 'Forbidden. Access restricted to HR and System Admins.', 'FORBIDDEN');
+    if (actor.role !== 'HR_ADMIN' && actor.role !== 'SYSTEM_ADMIN' && actor.role !== 'MANAGER') {
+      sendFailure(res, 403, 'Forbidden. Access restricted to HR, System Admins and scoped Managers.', 'FORBIDDEN');
       return;
     }
     next();
   };
+
+    const requireReviewRole: RequestHandler = (req, res, next) => {
+      const actor = getActorFromContext(req);
+      if (!actor) {
+        sendFailure(res, 401, 'Authentication required', 'UNAUTHENTICATED');
+        return;
+      }
+      if (actor.role !== 'HR_ADMIN' && actor.role !== 'MANAGER') {
+        sendFailure(res, 403, 'Forbidden. Only HR Admin or Manager can review crawl data.', 'FORBIDDEN');
+        return;
+      }
+      next();
+    };
 
   // 1. Create staging import (HR_ADMIN only)
   router.post('/', requireHrMutation, (req, res, next) => {
@@ -62,13 +75,17 @@ export function createEvaluationDataImportRouter(
     controller.updateDraft(req, res).catch(next);
   });
 
-  router.patch('/:id/records/:recordId', requireHrMutation, (req, res, next) => {
+  router.patch('/:id/records/:recordId', requireReviewRole, (req, res, next) => {
     controller.updateDraft(req, res).catch(next);
   });
 
   // 6. Confirm and apply batch (HR_ADMIN only)
-  router.post('/:id/apply', requireHrMutation, (req, res, next) => {
+  router.post('/:id/apply', requireReviewRole, (req, res, next) => {
     controller.applyImport(req, res).catch(next);
+  });
+
+  router.post('/:id/reject', requireReviewRole, (req, res, next) => {
+    controller.rejectCrawlImport(req, res).catch(next);
   });
 
   return router;

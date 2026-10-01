@@ -78,7 +78,6 @@ export const KpiExplainabilityDrawer: React.FC<KpiExplainabilityDrawerProps> = (
         backdropFilter: 'blur(3px)',
         transition: 'all 0.3s ease',
       }}
-      onClick={onClose}
     >
       <div
         style={{
@@ -92,7 +91,6 @@ export const KpiExplainabilityDrawer: React.FC<KpiExplainabilityDrawerProps> = (
           overflowY: 'auto',
           animation: 'slideIn 0.25s ease-out',
         }}
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div

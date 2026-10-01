@@ -1,0 +1,15 @@
+# Step 5: Test Cases
+
+Status: reconstructed from approved response
+
+## Deliverable
+
+| Case ID | Category | Description | Setup / Preconditions | Actions / Inputs | Expected Result | Invariant / Security Check |
+|---|---|---|---|---|---|---|
+| TC-01 | Integration | Vô hiệu hóa (Disable) một script đang ở trạng thái `PUBLISHED` | Script tồn tại với status `PUBLISHED` | Gọi `POST /api/crawl-scripts/:id/disable` với quyền HR/System Admin | Trả về 200, status đổi thành `DISABLED`, ghi audit event `CRAWL_SCRIPT_DISABLED` | Không làm mất hay thay đổi source_code / checksum của script |
+| TC-02 | Integration | Kích hoạt lại (Enable) một script đang ở trạng thái `DISABLED` | Script tồn tại với status `DISABLED` | Gọi `POST /api/crawl-scripts/:id/enable` với quyền HR/System Admin | Trả về 200, status đổi thành `PUBLISHED`, ghi audit event `CRAWL_SCRIPT_ENABLED` | Quyền truy cập được bảo vệ bởi `CRAWL_ADMIN_ROLES` |
+| TC-03 | Unit / Validation | Ngăn chặn tạo hoặc kích hoạt Crawl Job với script đang bị `DISABLED` | Script có status `DISABLED` | Gửi request `POST /api/crawl-jobs` hoặc trigger chạy job với scriptId này | Trả về lỗi 400/409 kèm thông điệp giải thích rõ ràng không thể dùng script đã vô hiệu hóa | Đảm bảo hệ thống không chạy job với script không được phép |
+| TC-04 | Integration / Edge | Từ chối xóa script khi đang được liên kết với một Crawl Job Definition | Script đang được gán cho một `crawl_job_definition` | Gửi request `DELETE /api/crawl-scripts/:id` | Trả về mã lỗi 409 `CANNOT_DELETE_SCRIPT_IN_USE` kèm tên và mã của Crawl Job đang liên kết | Toàn vẹn dữ liệu: không cho phép tạo mồ côi (orphan) job definition |
+| TC-05 | Integration / DB | Xóa thành công script đã publish/disable khi không còn job nào liên kết, bảo toàn lịch sử chạy | Script không bị ràng buộc bởi job definition nào, nhưng đã có các lần chạy trong `crawl_job_execution` | Gửi request `DELETE /api/crawl-scripts/:id` | Trả về 200 thành công. Bản ghi script bị xóa, cột `crawl_script_version_id` trong `crawl_job_execution` được chuyển thành `NULL` | Bất biến lịch sử: Các cột snapshot `script_version`, `script_checksum`, `source_config_snapshot` trong execution vẫn nguyên vẹn 100% |
+| TC-06 | Unit / Sandbox | Sandbox và Worker tự động ghi nhận từng bước chạy của script vào log | Worker kích hoạt thực thi một crawl job | Script gọi `fetchSource('/api/v1/...')` và `console.log('[Script Step: 1/3] Filtering issues')` | Bảng `crawl_job_execution_log` ghi nhận đầy đủ các dòng log bước: `[Script Step: Gửi yêu cầu API]`, `[Script Step: Nhận dữ liệu nguồn]`, và `[Script Step: 1/3]...` | Giới hạn ký tự log tối đa 2000 ký tự per entry, bảo vệ an toàn bộ nhớ |
+| TC-07 | Frontend UI | Giao diện hiển thị nút Disable/Enable/Delete và hiển thị nổi bật các bước Script trong Log Viewer | Mở tab Scripts và mở Execution Drawer xem log | Quan sát nút thao tác trên từng trạng thái script; mở log của job vừa chạy | Hiển thị đúng nút theo trạng thái; log viewer gắn huy hiệu Step Badge trực quan cho từng bước thực thi | Trải nghiệm trực quan, rõ ràng cho người dùng |
