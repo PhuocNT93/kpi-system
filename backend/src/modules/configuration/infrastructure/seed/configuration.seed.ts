@@ -8,6 +8,9 @@ export async function clearConfigurationData(pool: Pool): Promise<void> {
       IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'crawl_scoring_execution') THEN
         DELETE FROM crawl_scoring_execution;
       END IF;
+      IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'evaluation_data_import_evidence') THEN
+        DELETE FROM evaluation_data_import_evidence;
+      END IF;
       IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'evaluation_data_import_record') THEN
         DELETE FROM evaluation_data_import_record;
       END IF;
@@ -23,6 +26,21 @@ export async function clearConfigurationData(pool: Pool): Promise<void> {
       IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'crawl_job_criterion') THEN
         DELETE FROM crawl_job_criterion;
       END IF;
+      IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'employee_kpi_score_read_model') THEN
+        DELETE FROM employee_kpi_score_read_model;
+      END IF;
+      IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'employee_evaluation_score_read_model') THEN
+        DELETE FROM employee_evaluation_score_read_model;
+      END IF;
+      IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'team_kpi_aggregate_read_model') THEN
+        DELETE FROM team_kpi_aggregate_read_model;
+      END IF;
+      IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'team_evaluation_aggregate_read_model') THEN
+        DELETE FROM team_evaluation_aggregate_read_model;
+      END IF;
+      IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'organization_aggregate_read_model') THEN
+        DELETE FROM organization_aggregate_read_model;
+      END IF;
     END $$;
 
     DELETE FROM import_row;
@@ -36,6 +54,7 @@ export async function clearConfigurationData(pool: Pool): Promise<void> {
     DELETE FROM calibration_adjustment;
     DELETE FROM calibration_session;
     DELETE FROM evaluation;
+    DELETE FROM evaluation_cycle;
     DELETE FROM template_criteria;
     DELETE FROM template_criterion;
     DELETE FROM template_kpi;
@@ -617,5 +636,52 @@ export async function seedConfigurationModule(pool: Pool, options?: { clearOld?:
       applicableRoleIds: c.applicableRoleIds,
       applicableTeamIds: c.applicableTeamIds,
     });
+  }
+
+  // 4. Default Template (ENGINEERING_EVALUATION) with all 18 criteria (total weight = 100%)
+  let defaultTemplate = await configModule.templateRepo.findByCode('ENGINEERING_EVALUATION');
+  if (!defaultTemplate) {
+    const createdTemplate = await configModule.templateService.createTemplate({
+      code: 'ENGINEERING_EVALUATION',
+      name: 'Engineering Evaluation Framework 2026',
+      description: 'Standard 2026 performance evaluation framework for engineering teams (AllegroNX Middle Level Framework).',
+    });
+
+    defaultTemplate = createdTemplate.template;
+    const versionId = createdTemplate.initialVersion.id;
+
+    const criteriaPayload = criteriaDefs.map((c, idx) => {
+      const item = criterionVersionMap.get(c.code)!;
+      return {
+        criterion_version_id: item.versionId,
+        weight: item.weight,
+        display_order: idx + 1,
+        required: true,
+        enabled: true,
+        applicability: { rules: [] },
+      };
+    });
+
+    await configModule.templateService.bulkUpdateTemplateCriteria(versionId, criteriaPayload);
+    await configModule.templateService.publishTemplateVersion(versionId);
+  } else {
+    const versions = await configModule.templateVersionRepo.findByTemplateId(defaultTemplate.id);
+    const published = versions.find((v) => v.status === 'PUBLISHED');
+    if (!published && versions.length > 0 && versions[0]) {
+      const draftVersion = versions[0];
+      const criteriaPayload = criteriaDefs.map((c, idx) => {
+        const item = criterionVersionMap.get(c.code)!;
+        return {
+          criterion_version_id: item.versionId,
+          weight: item.weight,
+          display_order: idx + 1,
+          required: true,
+          enabled: true,
+          applicability: { rules: [] },
+        };
+      });
+      await configModule.templateService.bulkUpdateTemplateCriteria(draftVersion.id, criteriaPayload);
+      await configModule.templateService.publishTemplateVersion(draftVersion.id);
+    }
   }
 }

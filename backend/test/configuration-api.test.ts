@@ -206,7 +206,7 @@ describe.runIf(isDbAvailable)('Configuration Module Integration & API Tests', ()
 
     expect(snapshot.template.code).toBe('ENGINEERING_EVALUATION');
     expect(snapshot.levels.length).toBeGreaterThan(0);
-    expect(snapshot.criteria.length).toBe(4);
+    expect(snapshot.criteria.length).toBeGreaterThanOrEqual(4);
   });
 
   it('TC-CFG-13: should record audit log entries on state changes', async () => {

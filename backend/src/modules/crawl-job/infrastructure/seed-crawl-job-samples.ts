@@ -276,7 +276,7 @@ export async function seedCrawlJobSamples(): Promise<void> {
       console.log('No OPEN cycle found. Creating default OPEN evaluation cycle CYC-2026-H1...');
       const createdCycle = await pool.query<{ evaluation_cycle_id: string; code: string; name: string }>(`
         INSERT INTO evaluation_cycle (
-          evaluation_cycle_id, code, name, status, start_date, end_date, created_by
+          evaluation_cycle_id, code, name, status, start_date, end_date, created_by, evaluation_template_version_id
         )
         VALUES (
           'a0000000-0000-0000-0000-000000000001',
@@ -285,7 +285,8 @@ export async function seedCrawlJobSamples(): Promise<void> {
           'OPEN',
           '2026-01-01',
           '2026-06-30',
-          COALESCE((SELECT id FROM app_user WHERE email = 'hradmin@kpi.com' LIMIT 1), 'd3a986c4-1a7a-4a06-8710-7abb2513c831')
+          COALESCE((SELECT id FROM app_user WHERE email = 'hradmin@kpi.com' LIMIT 1), 'd3a986c4-1a7a-4a06-8710-7abb2513c831'),
+          COALESCE((SELECT id FROM evaluation_template_versions WHERE status = 'PUBLISHED' ORDER BY created_at DESC LIMIT 1), (SELECT id FROM evaluation_template_versions LIMIT 1))
         )
         ON CONFLICT (code) DO UPDATE SET status = 'OPEN'
         RETURNING evaluation_cycle_id, code, name;

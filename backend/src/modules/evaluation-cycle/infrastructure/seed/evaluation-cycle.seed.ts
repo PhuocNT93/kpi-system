@@ -127,4 +127,46 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
     [sysEmployeeId, deptId, teamId, roleId, jobLevelId, null]
   );
 
+  // 3. Ensure Evaluation Cycle (2026-Q2 OPEN) exists with a valid published template version
+  const tplVersionRes = await pool.query(
+    `SELECT id FROM evaluation_template_versions WHERE status = 'PUBLISHED' ORDER BY created_at DESC LIMIT 1;`
+  );
+  if (tplVersionRes.rows.length === 0) {
+    console.log('Skipping evaluation cycle seed: no PUBLISHED evaluation template version found.');
+    return;
+  }
+  const templateVersionId = tplVersionRes.rows[0].id;
+
+  await pool.query(
+    `INSERT INTO evaluation_cycle (
+      code, name, start_date, end_date, status, evaluation_template_version_id, cycle_type, calibration_enabled
+    ) VALUES (
+      '2026-Q2', '2026 Q2 Performance Evaluation', '2026-04-01', '2026-06-30', 'OPEN', $1, 'STANDARD', false
+    )
+    ON CONFLICT (code) DO UPDATE SET
+      status = 'OPEN',
+      evaluation_template_version_id = EXCLUDED.evaluation_template_version_id;`,
+    [templateVersionId]
+  );
+  console.log('Seeded evaluation cycle: 2026-Q2 (OPEN)');
+
+  await pool.query(
+    `INSERT INTO evaluation_cycle (
+      code, name, start_date, end_date, status, evaluation_template_version_id, cycle_type, calibration_enabled
+    ) VALUES (
+      '2026-Q1', '2026 Q1 Performance Evaluation', '2026-01-01', '2026-03-31', 'LOCKED', $1, 'STANDARD', false
+    )
+    ON CONFLICT (code) DO NOTHING;`,
+    [templateVersionId]
+  );
+
+  await pool.query(
+    `INSERT INTO evaluation_cycle (
+      code, name, start_date, end_date, status, evaluation_template_version_id, cycle_type, calibration_enabled
+    ) VALUES (
+      '2026-Q3', '2026 Q3 Performance Evaluation', '2026-07-01', '2026-09-30', 'DRAFT', $1, 'STANDARD', false
+    )
+    ON CONFLICT (code) DO NOTHING;`,
+    [templateVersionId]
+  );
 }
