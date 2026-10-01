@@ -16,6 +16,7 @@ import {
   Award,
   X,
   Bell,
+  Workflow,
   LogOut,
 } from 'lucide-react';
 import { COLORS } from '@/lib/theme';
@@ -170,6 +171,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 id: 'ingestion',
                 label: t('nav.ingestion', 'Data Ingestion Hub'),
                 icon: <Activity size={18} />,
+              },
+              {
+                id: 'crawl-jobs',
+                label: t('nav.crawl_jobs', 'Crawl Jobs'),
+                icon: <Workflow size={18} />,
               },
               ...(canViewConfig
                 ? [

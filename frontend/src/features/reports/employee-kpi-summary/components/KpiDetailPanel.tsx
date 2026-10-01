@@ -63,7 +63,6 @@ export const KpiDetailPanel: React.FC<KpiDetailPanelProps> = ({
         display: 'flex',
         justifyContent: 'flex-end',
       }}
-      onClick={onClose}
     >
       <div
         style={{
@@ -78,7 +77,6 @@ export const KpiDetailPanel: React.FC<KpiDetailPanelProps> = ({
           overflowY: 'auto',
           color: palette.textPrimary,
         }}
-        onClick={(e) => e.stopPropagation()}
       >
         <div
           style={{

@@ -14,10 +14,11 @@ export class EvaluationDataImportController {
   }
 
   async listImports(req: Request, res: Response): Promise<void> {
+    const actor = getActorOrThrow(req);
     const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
 
-    const { items, total } = await this.importService.listImports({ page, limit });
+    const { items, total } = await this.importService.listImports({ page, limit }, actor);
     sendCollection(res, 'Imports retrieved successfully.', items, {
       number: page,
       size: limit,
@@ -28,17 +29,18 @@ export class EvaluationDataImportController {
 
   async getImportById(req: Request, res: Response): Promise<void> {
     const id = req.params.id as string;
-    const result = await this.importService.getImportById(id);
+    const result = await this.importService.getImportById(id, getActorOrThrow(req));
     sendSuccess(res, 200, 'Import details retrieved successfully.', result);
   }
 
   async previewImport(req: Request, res: Response): Promise<void> {
+    const actor = getActorOrThrow(req);
     const id = req.params.id as string;
     const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 100;
     const status = req.query.status ? (req.query.status as RecordStatus) : undefined;
 
-    const result = await this.importService.previewImport(id, { page, limit, status });
+    const result = await this.importService.previewImport(id, { page, limit, status }, actor);
     sendSuccess(res, 200, 'Import preview retrieved successfully.', result);
   }
 
@@ -57,5 +59,12 @@ export class EvaluationDataImportController {
     const actor = getActorOrThrow(req);
     const result = await this.importService.applyImport(id, actor);
     sendSuccess(res, 200, result.message, result);
+  }
+
+  async rejectCrawlImport(req: Request, res: Response): Promise<void> {
+    const id = req.params.id as string;
+    const actor = getActorOrThrow(req);
+    const result = await this.importService.rejectCrawlImport(id, actor, String(req.body.comment ?? ''));
+    sendSuccess(res, 200, 'Crawl batch rejected.', result);
   }
 }

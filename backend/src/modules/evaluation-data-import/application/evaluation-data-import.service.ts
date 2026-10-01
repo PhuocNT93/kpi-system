@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import { IEvaluationDataImportRepository } from '../domain/repositories.interface.js';
 import {
   CreateImportPayload,
@@ -14,12 +14,16 @@ import {
 import { Actor } from '../../../shared/auth/types.js';
 import { AppError, NotFound } from '../../../api/app-error.js';
 import { EvaluationService } from '../../evaluation/application/services/evaluation.service.js';
+import { AuditService } from '../../audit/application/audit.service.js';
+import { withAuditedTransaction } from '../../audit/application/audit-transaction.js';
+import type { AuditCollector } from '../../audit/application/audit-transaction.js';
 
 export class EvaluationDataImportService {
   constructor(
     private importRepo: IEvaluationDataImportRepository,
     private evaluationService: EvaluationService,
-    private pool: Pool
+    private pool: Pool,
+    private auditService?: AuditService
   ) {}
 
   async createImport(payload: CreateImportPayload, actor: Actor): Promise<EvaluationDataImport> {
@@ -192,22 +196,32 @@ export class EvaluationDataImportService {
     );
   }
 
-  async listImports(options?: { page?: number; limit?: number }): Promise<{ items: EvaluationDataImport[]; total: number }> {
+  async listImports(options: { page?: number; limit?: number } = {}, actor?: Actor): Promise<{ items: EvaluationDataImport[]; total: number }> {
+    if (actor?.role === 'MANAGER') {
+      return this.importRepo.listImports({ ...options, crawlOnly: true, teamIds: actor.managedTeamIds ?? [] });
+    }
     return this.importRepo.listImports(options);
   }
 
-  async getImportById(id: string): Promise<EvaluationDataImport> {
+  async getImportById(id: string, actor?: Actor): Promise<EvaluationDataImport> {
     const item = await this.importRepo.findById(id);
     if (!item) throw new NotFound(`Import ${id}`);
+    if (actor?.role === 'MANAGER' && !(await this.importRepo.isImportVisibleToTeams(id, actor.managedTeamIds ?? []))) {
+      throw new NotFound(`Import ${id}`);
+    }
     return item;
   }
 
   async previewImport(
     id: string,
-    options?: { page?: number; limit?: number; status?: RecordStatus }
+    options?: { page?: number; limit?: number; status?: RecordStatus },
+    actor?: Actor
   ): Promise<ImportPreviewResponse> {
-    const importData = await this.getImportById(id);
-    const { records } = await this.importRepo.findRecordsByImportId(id, options);
+    const importData = await this.getImportById(id, actor);
+    const scopedOptions = actor?.role === 'MANAGER'
+      ? { ...options, teamIds: actor.managedTeamIds ?? [] }
+      : options;
+    const { records } = await this.importRepo.findRecordsByImportId(id, scopedOptions);
 
     const valid_records = records.filter((r) => r.status === 'VALID').length;
     const conflict_records = records.filter((r) => r.status === 'CONFLICT').length;
@@ -231,18 +245,31 @@ export class EvaluationDataImportService {
     patch: PatchDraftRecord,
     actor: Actor
   ): Promise<EvaluationDataImportRecord> {
-    if (actor.role !== 'HR_ADMIN') {
-      throw new AppError(403, 'FORBIDDEN', 'Only HR Admin can edit import drafts.');
-    }
-
     const record = await this.importRepo.findRecordById(recordId);
     if (!record || record.import_id !== id) {
       throw new NotFound(`Record ${recordId} in import ${id}`);
     }
 
     const importJob = await this.getImportById(id);
+    const isCrawlImport = Boolean(record.crawl_job_execution_id);
+    if (actor.role !== 'HR_ADMIN' && !(isCrawlImport && actor.role === 'MANAGER')) {
+      throw new AppError(403, 'FORBIDDEN', 'Only HR Admin or an authorized Manager can review this import.');
+    }
+    if (isCrawlImport && actor.role === 'MANAGER') {
+      const employee = await this.pool.query(
+        `SELECT team_id FROM employee WHERE employee_code = $1`,
+        [record.employee_code]
+      );
+      const teamId = employee.rows[0]?.team_id as string | undefined;
+      if (!teamId || !actor.managedTeamIds?.includes(teamId)) {
+        throw new AppError(403, 'UNAUTHORIZED_SCOPE', 'This crawl row is outside your managed team scope.');
+      }
+    }
     if (importJob.status === 'APPLIED' || importJob.status === 'APPLYING') {
       throw new AppError(400, 'INVALID_STATUS', 'Cannot modify an import that has already been applied or is applying.');
+    }
+    if (isCrawlImport && patch.reviewer_comment !== undefined && (patch.reviewer_comment ?? '').trim().length < 20) {
+      throw new AppError(422, 'REVIEWER_COMMENT_REQUIRED', 'Reviewer comment must contain at least 20 characters.');
     }
 
     let newStatus: RecordStatus = record.status;
@@ -269,35 +296,84 @@ export class EvaluationDataImportService {
       }
     }
 
-    const updated = await this.importRepo.updateRecordDraft(
-      recordId,
-      {
-        value: newValue,
-        comment: patch.comment,
-        rationale: newRationale,
-        status: newStatus,
-        conflicts,
-      },
-      patch.evidences
-    );
-
-    // Check remaining conflicts on import
-    const allRecordsRes = await this.importRepo.findRecordsByImportId(id, { limit: 10000 });
-    const remainingConflicts = allRecordsRes.records.filter((r) => r.status === 'CONFLICT').length;
-    const remainingInvalid = allRecordsRes.records.filter((r) => r.status === 'INVALID').length;
-
-    let updatedImportStatus: ImportStatus = 'READY';
-    if (remainingConflicts > 0) {
-      updatedImportStatus = 'CONFLICT';
-    } else if (allRecordsRes.records.length > 0 && remainingInvalid === allRecordsRes.records.length) {
-      updatedImportStatus = 'FAILED';
+    const reviewerComment = patch.reviewer_comment ?? record.reviewer_comment ?? '';
+    if (isCrawlImport && record.status === 'PENDING_REVIEW' && reviewerComment.trim().length >= 20) {
+      newStatus = 'VALID';
+    }
+    if (isCrawlImport && record.status === 'CONFLICT' && patch.resolution && reviewerComment.trim().length < 20) {
+      newStatus = 'CONFLICT';
     }
 
-    await this.importRepo.updateImportStatus(id, updatedImportStatus, {
-      conflict_count: remainingConflicts,
-    });
+    const draftPatch = {
+      value: newValue,
+      comment: patch.comment,
+      ...(patch.reviewer_comment !== undefined ? { reviewer_comment: patch.reviewer_comment } : {}),
+      rationale: newRationale,
+      status: newStatus,
+      conflicts,
+    };
+    const persistReview = async (client?: PoolClient, audit?: AuditCollector): Promise<EvaluationDataImportRecord> => {
+      if (client && isCrawlImport) {
+        const lockedImport = await client.query(
+          `SELECT status, crawl_job_execution_id FROM evaluation_data_import WHERE import_id = $1 FOR UPDATE`,
+          [id]
+        );
+        const currentImport = lockedImport.rows[0] as { status: string; crawl_job_execution_id: string | null } | undefined;
+        if (!currentImport || !currentImport.crawl_job_execution_id) throw new NotFound(`Crawl Import ${id}`);
+        if (currentImport.status === 'APPLIED' || currentImport.status === 'PARTIALLY_APPLIED'
+          || currentImport.status === 'APPLYING' || currentImport.status === 'REJECTED') {
+          throw new AppError(409, 'IMPORT_NOT_REVIEWABLE', 'This crawl batch is already being finalized or is terminal.');
+        }
+        const lockedRecord = await client.query(
+          `SELECT status FROM evaluation_data_import_record WHERE record_id = $1 AND import_id = $2 FOR UPDATE`,
+          [recordId, id]
+        );
+        if (lockedRecord.rows.length === 0) throw new NotFound(`Record ${recordId} in import ${id}`);
+        if (actor.role === 'MANAGER') {
+          const scopedEmployee = await client.query(
+            `SELECT team_id FROM employee WHERE UPPER(employee_code) = UPPER($1)`,
+            [record.employee_code]
+          );
+          const currentTeamId = scopedEmployee.rows[0]?.team_id as string | undefined;
+          if (!currentTeamId || !actor.managedTeamIds?.includes(currentTeamId)) {
+            throw new AppError(403, 'UNAUTHORIZED_SCOPE', 'This crawl row is outside your managed team scope.');
+          }
+        }
+      }
+      const updated = client
+        ? await this.importRepo.updateRecordDraft(recordId, draftPatch, patch.evidences, actor.userId, client)
+        : patch.reviewer_comment !== undefined
+          ? await this.importRepo.updateRecordDraft(recordId, draftPatch, patch.evidences, actor.userId)
+          : await this.importRepo.updateRecordDraft(recordId, draftPatch, patch.evidences);
+      const allRecordsRes = await this.importRepo.findRecordsByImportId(id, { limit: 10000 }, client);
+      const remainingConflicts = allRecordsRes.records.filter((r) => r.status === 'CONFLICT').length;
+      const remainingInvalid = allRecordsRes.records.filter((r) => r.status === 'INVALID').length;
+      const remainingReview = allRecordsRes.records.filter((r) => r.status === 'PENDING_REVIEW').length;
 
-    return updated;
+      let updatedImportStatus: ImportStatus = 'READY';
+      if (remainingReview > 0) updatedImportStatus = 'PENDING_REVIEW';
+      else if (remainingConflicts > 0) updatedImportStatus = 'CONFLICT';
+      else if (allRecordsRes.records.length > 0 && remainingInvalid === allRecordsRes.records.length) updatedImportStatus = 'FAILED';
+
+      if (client) {
+        await this.importRepo.updateImportStatus(id, updatedImportStatus, { conflict_count: remainingConflicts }, client);
+      } else {
+        await this.importRepo.updateImportStatus(id, updatedImportStatus, { conflict_count: remainingConflicts });
+      }
+      if (isCrawlImport && audit && record.crawl_job_execution_id) {
+        audit.record({
+          entityType: 'CRAWL_EXECUTION', entityId: record.crawl_job_execution_id,
+          action: 'CRAWL_REVIEWED', oldValue: record.status, newValue: updated.status,
+        });
+      }
+      return updated;
+    };
+
+    if (isCrawlImport && this.auditService) {
+      return withAuditedTransaction(this.pool, this.auditService, (client, audit) =>
+        persistReview(client as unknown as PoolClient, audit), actor.userId);
+    }
+    return persistReview();
   }
 
   async applyImport(
@@ -312,10 +388,8 @@ export class EvaluationDataImportService {
     error_count: number;
     rejected_records?: Array<{ record_id: string; reason: string }>;
   }> {
-    if (actor.role !== 'HR_ADMIN') {
-      throw new AppError(403, 'FORBIDDEN', 'Only HR Admin can apply imports.');
-    }
-
+    let { records: initialRecords } = await this.importRepo.findRecordsByImportId(id, { limit: 10000 });
+    const isCrawlImport = initialRecords.some((record) => Boolean(record.crawl_job_execution_id));
     // Atomic idempotency check with SELECT ... FOR UPDATE
     const client = await this.pool.connect();
     let importJob: EvaluationDataImport | null = null;
@@ -324,6 +398,38 @@ export class EvaluationDataImportService {
       importJob = await this.importRepo.findByIdForUpdate(id, client);
       if (!importJob) {
         throw new NotFound(`Import ${id}`);
+      }
+
+      if (actor.role !== 'HR_ADMIN' && !(isCrawlImport && actor.role === 'MANAGER')) {
+        throw new AppError(403, 'FORBIDDEN', 'Only HR Admin or an authorized Manager can apply this import.');
+      }
+      if (isCrawlImport) {
+        const freshRecords = await this.importRepo.findRecordsByImportId(id, { limit: 10000 }, client);
+        initialRecords = freshRecords.records;
+        const crawlRows = initialRecords;
+        const pendingRows = crawlRows.filter((record) => record.status === 'PENDING_REVIEW');
+        if (pendingRows.length > 0) {
+          throw new AppError(422, 'REVIEW_REQUIRED', 'Every applicable crawl row must be reviewed before Apply.');
+        }
+        if (crawlRows.some((record) => record.status === 'CONFLICT')) {
+          throw new AppError(409, 'UNRESOLVED_CONFLICTS', 'Resolve or reject all crawl conflicts before Apply.');
+        }
+        if (!crawlRows.some((record) => record.status === 'VALID')) {
+          throw new AppError(422, 'NO_VALID_RECORDS', 'This crawl batch has no valid reviewed rows to apply.');
+        }
+        if (crawlRows.some((record) => record.status === 'VALID' && (record.reviewer_comment ?? '').trim().length < 20)) {
+          throw new AppError(422, 'REVIEWER_COMMENT_REQUIRED', 'Every crawl row requires a reviewer comment of at least 20 characters.');
+        }
+        if (actor.role === 'MANAGER') {
+          const employeeCodes = [...new Set(crawlRows.filter((record) => record.status === 'VALID').map((record) => record.employee_code))];
+          const employees = await client.query(
+            `SELECT employee_code, team_id FROM employee WHERE employee_code = ANY($1::text[])`,
+            [employeeCodes]
+          );
+          if (employees.rows.some((employee) => !actor.managedTeamIds?.includes(employee.team_id as string))) {
+            throw new AppError(403, 'UNAUTHORIZED_SCOPE', 'One or more crawl rows are outside your managed team scope.');
+          }
+        }
       }
 
       // Idempotency: Already applied
@@ -378,7 +484,7 @@ export class EvaluationDataImportService {
         cycle_id: r.cycle_id,
         kpi_code: r.kpi_code,
         value: r.value,
-        comment: r.comment,
+        comment: isCrawlImport ? r.reviewer_comment : r.comment,
         rationale: r.rationale,
         source_snapshot: r.source_snapshot,
         import_id: id,
@@ -424,10 +530,31 @@ export class EvaluationDataImportService {
       finalStatus = 'FAILED';
     }
 
-    await this.importRepo.updateImportStatus(id, finalStatus, {
-      success_count: totalSuccess,
-      error_count: totalError,
-    });
+    if (isCrawlImport && this.auditService && totalSuccess > 0) {
+      const executionId = initialRecords.find((record) => record.crawl_job_execution_id)?.crawl_job_execution_id;
+      await withAuditedTransaction(this.pool, this.auditService, async (client, audit) => {
+        await this.importRepo.updateImportStatus(id, finalStatus, {
+          success_count: totalSuccess,
+          error_count: totalError,
+        }, client as unknown as PoolClient);
+        if (executionId) {
+          await client.query(
+            `UPDATE crawl_job_execution SET records_applied = $2, updated_at = NOW()
+             WHERE crawl_job_execution_id = $1`,
+            [executionId, totalSuccess]
+          );
+          audit.record({
+            entityType: 'CRAWL_EXECUTION', entityId: executionId, action: 'CRAWL_APPLIED',
+            newValue: JSON.stringify({ import_id: id, applied_count: totalSuccess, rejected_count: totalError }),
+          });
+        }
+      }, actor.userId);
+    } else {
+      await this.importRepo.updateImportStatus(id, finalStatus, {
+        success_count: totalSuccess,
+        error_count: totalError,
+      });
+    }
 
     return {
       message: finalStatus === 'APPLIED' ? 'Import applied successfully.' : 'Import partially applied with errors.',
@@ -438,5 +565,63 @@ export class EvaluationDataImportService {
       error_count: totalError,
       rejected_records: allRejected.length > 0 ? allRejected : undefined,
     };
+  }
+
+  async rejectCrawlImport(id: string, actor: Actor, comment: string): Promise<{ import_id: string; status: 'REJECTED'; rejected_count: number }> {
+    if (actor.role !== 'HR_ADMIN' && actor.role !== 'MANAGER') {
+      throw new AppError(403, 'FORBIDDEN', 'Only HR Admin or Manager can reject crawl data.');
+    }
+    if (comment.trim().length < 20) {
+      throw new AppError(422, 'REVIEWER_COMMENT_REQUIRED', 'A rejection comment of at least 20 characters is required.');
+    }
+    if (!this.auditService) throw new AppError(503, 'AUDIT_UNAVAILABLE', 'Crawl review audit is not configured.');
+
+    return withAuditedTransaction(this.pool, this.auditService, async (client, audit) => {
+      const importResult = await client.query(
+        `SELECT import_id, crawl_job_execution_id, status
+         FROM evaluation_data_import WHERE import_id = $1 FOR UPDATE`,
+        [id]
+      );
+      const importRow = importResult.rows[0] as { import_id: string; crawl_job_execution_id: string | null; status: string } | undefined;
+      if (!importRow) throw new NotFound(`Import ${id}`);
+      if (!importRow.crawl_job_execution_id) throw new AppError(422, 'NOT_CRAWL_IMPORT', 'Only Crawl Job batches can be rejected here.');
+      if (importRow.status === 'APPLIED' || importRow.status === 'PARTIALLY_APPLIED' || importRow.status === 'REJECTED') {
+        throw new AppError(409, 'IMPORT_NOT_REJECTABLE', 'This crawl batch is already finalized.');
+      }
+
+      const rows = await client.query(
+        `SELECT record.record_id, employee.team_id
+         FROM evaluation_data_import_record record
+         LEFT JOIN employee ON UPPER(employee.employee_code) = UPPER(record.employee_code)
+         WHERE record.import_id = $1 AND record.status NOT IN ('APPLIED', 'REJECTED')
+         FOR UPDATE OF record`,
+        [id]
+      );
+      if (actor.role === 'MANAGER') {
+        const managedTeams = new Set(actor.managedTeamIds ?? []);
+        if (rows.rows.some((row) => typeof row.team_id !== 'string' || !managedTeams.has(row.team_id))) {
+          throw new AppError(403, 'UNAUTHORIZED_SCOPE', 'This crawl batch includes data outside your managed team scope.');
+        }
+      }
+      const recordIds = rows.rows.map((row) => row.record_id as string);
+      if (recordIds.length > 0) {
+        await client.query(
+          `UPDATE evaluation_data_import_record SET status = 'REJECTED', reviewer_comment = $2,
+             reviewed_by = $3, reviewed_at = NOW(), error_message = $2, updated_at = NOW()
+           WHERE record_id = ANY($1::uuid[])`,
+          [recordIds, comment.trim(), actor.userId]
+        );
+      }
+      await client.query(
+        `UPDATE evaluation_data_import SET status = 'REJECTED', updated_at = NOW() WHERE import_id = $1`,
+        [id]
+      );
+      audit.record({
+        entityType: 'CRAWL_EXECUTION', entityId: importRow.crawl_job_execution_id,
+        action: 'CRAWL_REJECTED', oldValue: importRow.status,
+        newValue: JSON.stringify({ import_id: id, rejected_count: recordIds.length, comment: comment.trim() }),
+      });
+      return { import_id: id, status: 'REJECTED', rejected_count: recordIds.length };
+    }, actor.userId);
   }
 }

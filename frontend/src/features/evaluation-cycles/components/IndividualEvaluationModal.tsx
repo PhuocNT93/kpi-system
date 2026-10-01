@@ -109,8 +109,8 @@ export function IndividualEvaluationModal({
   };
 
   return (
-    <div style={modalOverlayStyle} onClick={handleClose}>
-      <div style={modalCardStyle} onClick={(e) => e.stopPropagation()}>
+    <div style={modalOverlayStyle}>
+      <div style={modalCardStyle}>
         {/* Header */}
         <div
           style={{

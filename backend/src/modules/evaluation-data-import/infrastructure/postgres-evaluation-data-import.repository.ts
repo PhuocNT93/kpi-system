@@ -32,6 +32,7 @@ export class PostgresEvaluationDataImportRepository implements IEvaluationDataIm
       error_count: number;
       conflict_count: number;
       created_by: string;
+        crawl_job_execution_id?: string | null;
     },
     records: Array<{
       record_id: string;
@@ -40,6 +41,14 @@ export class PostgresEvaluationDataImportRepository implements IEvaluationDataIm
       kpi_code: string;
       value: number;
       comment?: string | null;
+      source_comment?: string | null;
+      reviewer_comment?: string | null;
+      collected_at?: Date | null;
+      measurement_from?: Date | null;
+      measurement_to?: Date | null;
+      source_updated_at?: Date | null;
+      raw_payload_reference?: string | null;
+      crawl_job_execution_id?: string | null;
       rationale: string;
       source_snapshot: SourceSnapshot;
       status: RecordStatus;
@@ -63,8 +72,8 @@ export class PostgresEvaluationDataImportRepository implements IEvaluationDataIm
     const importRes = await exec.query(
       `INSERT INTO evaluation_data_import (
         import_id, source_system, batch_reference, status, raw_payload,
-        record_count, success_count, error_count, conflict_count, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        record_count, success_count, error_count, conflict_count, created_by, crawl_job_execution_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *`,
       [
         importData.import_id,
@@ -77,6 +86,7 @@ export class PostgresEvaluationDataImportRepository implements IEvaluationDataIm
         importData.error_count,
         importData.conflict_count,
         importData.created_by,
+          importData.crawl_job_execution_id ?? null,
       ]
     );
 
@@ -85,8 +95,10 @@ export class PostgresEvaluationDataImportRepository implements IEvaluationDataIm
       await exec.query(
         `INSERT INTO evaluation_data_import_record (
           record_id, import_id, employee_code, cycle_id, kpi_code, value,
-          comment, rationale, source_snapshot, status, error_message, conflicts
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          comment, rationale, source_snapshot, status, error_message, conflicts,
+          source_comment, reviewer_comment, collected_at, measurement_from, measurement_to,
+          source_updated_at, raw_payload_reference, crawl_job_execution_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
         [
           rec.record_id,
           importData.import_id,
@@ -100,6 +112,14 @@ export class PostgresEvaluationDataImportRepository implements IEvaluationDataIm
           rec.status,
           rec.error_message || null,
           rec.conflicts ? JSON.stringify(rec.conflicts) : null,
+          rec.source_comment ?? null,
+          rec.reviewer_comment ?? null,
+          rec.collected_at ?? null,
+          rec.measurement_from ?? null,
+          rec.measurement_to ?? null,
+          rec.source_updated_at ?? null,
+          rec.raw_payload_reference ?? null,
+          rec.crawl_job_execution_id ?? null,
         ]
       );
 
@@ -149,34 +169,43 @@ export class PostgresEvaluationDataImportRepository implements IEvaluationDataIm
 
   async findRecordsByImportId(
     importId: string,
-    options?: { page?: number; limit?: number; status?: RecordStatus }
+    options?: { page?: number; limit?: number; status?: RecordStatus; teamIds?: string[] },
+    client?: PoolClient
   ): Promise<{ records: EvaluationDataImportRecord[]; total: number }> {
+    const exec = this.getExecutor(client);
     const page = options?.page || 1;
     const limit = options?.limit || 100;
     const offset = (page - 1) * limit;
 
-    const whereClauses = [`import_id = $1`];
+    if (options?.teamIds && options.teamIds.length === 0) return { records: [], total: 0 };
+    const whereClauses = [`r.import_id = $1`];
     const params: unknown[] = [importId];
 
     if (options?.status) {
       params.push(options.status);
-      whereClauses.push(`status = $${params.length}`);
+      whereClauses.push(`r.status = $${params.length}`);
+    }
+    const teamJoin = options?.teamIds ? 'JOIN employee scoped_employee ON UPPER(scoped_employee.employee_code) = UPPER(r.employee_code)' : '';
+    if (options?.teamIds) {
+      params.push(options.teamIds);
+      whereClauses.push(`scoped_employee.team_id = ANY($${params.length}::uuid[])`);
     }
 
     const whereSql = whereClauses.join(' AND ');
 
-    const countRes = await this.pool.query(
-      `SELECT COUNT(*)::int as total FROM evaluation_data_import_record WHERE ${whereSql}`,
+    const countRes = await exec.query(
+      `SELECT COUNT(*)::int as total FROM evaluation_data_import_record r ${teamJoin} WHERE ${whereSql}`,
       params
     );
     const total = countRes.rows[0]?.total || 0;
 
     params.push(limit, offset);
-    const recordsRes = await this.pool.query(
+    const recordsRes = await exec.query(
       `SELECT r.*, ec.code as cycle_code
-       FROM evaluation_data_import_record r
+      FROM evaluation_data_import_record r
+      ${teamJoin}
        LEFT JOIN evaluation_cycle ec ON r.cycle_id = ec.evaluation_cycle_id
-       WHERE ${whereSql.replace(/\bstatus\b/g, 'r.status').replace(/\bimport_id\b/g, 'r.import_id')}
+      WHERE ${whereSql}
        ORDER BY r.created_at ASC
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params
@@ -187,7 +216,7 @@ export class PostgresEvaluationDataImportRepository implements IEvaluationDataIm
     }
 
     const recordIds = recordsRes.rows.map((r) => r.record_id);
-    const evidenceRes = await this.pool.query(
+    const evidenceRes = await exec.query(
       `SELECT * FROM evaluation_data_import_evidence WHERE record_id = ANY($1::uuid[])`,
       [recordIds]
     );
@@ -210,8 +239,9 @@ export class PostgresEvaluationDataImportRepository implements IEvaluationDataIm
     return { records, total };
   }
 
-  async findRecordById(recordId: string): Promise<EvaluationDataImportRecord | null> {
-    const res = await this.pool.query(
+  async findRecordById(recordId: string, client?: PoolClient): Promise<EvaluationDataImportRecord | null> {
+    const exec = this.getExecutor(client);
+    const res = await exec.query(
       `SELECT r.*, ec.code as cycle_code
        FROM evaluation_data_import_record r
        LEFT JOIN evaluation_cycle ec ON r.cycle_id = ec.evaluation_cycle_id
@@ -221,7 +251,7 @@ export class PostgresEvaluationDataImportRepository implements IEvaluationDataIm
     if (res.rows.length === 0) return null;
 
     const rec = this.mapRecordRow(res.rows[0]);
-    const evidenceRes = await this.pool.query(
+    const evidenceRes = await exec.query(
       `SELECT * FROM evaluation_data_import_evidence WHERE record_id = $1`,
       [recordId]
     );
@@ -234,12 +264,16 @@ export class PostgresEvaluationDataImportRepository implements IEvaluationDataIm
     patch: {
       value?: number;
       comment?: string | null;
+      reviewer_comment?: string | null;
       rationale?: string;
       status?: RecordStatus;
       conflicts?: ConflictDetails | null;
     },
-    evidences?: StagedEvidenceInput[]
+    evidences?: StagedEvidenceInput[],
+    reviewedBy?: string,
+    client?: PoolClient
   ): Promise<EvaluationDataImportRecord> {
+    const exec = this.getExecutor(client);
     const fields: string[] = ['updated_at = CURRENT_TIMESTAMP'];
     const values: unknown[] = [];
     let idx = 1;
@@ -251,6 +285,13 @@ export class PostgresEvaluationDataImportRepository implements IEvaluationDataIm
     if (patch.comment !== undefined) {
       fields.push(`comment = $${idx++}`);
       values.push(patch.comment);
+    }
+    if (patch.reviewer_comment !== undefined) {
+      fields.push(`reviewer_comment = $${idx++}`);
+      values.push(patch.reviewer_comment);
+      fields.push(`reviewed_by = $${idx++}`);
+      values.push(reviewedBy ?? null);
+      fields.push(`reviewed_at = CURRENT_TIMESTAMP`);
     }
     if (patch.rationale !== undefined) {
       fields.push(`rationale = $${idx++}`);
@@ -266,7 +307,7 @@ export class PostgresEvaluationDataImportRepository implements IEvaluationDataIm
     }
 
     values.push(recordId);
-    await this.pool.query(
+    await exec.query(
       `UPDATE evaluation_data_import_record
        SET ${fields.join(', ')}
        WHERE record_id = $${idx}`,
@@ -275,12 +316,12 @@ export class PostgresEvaluationDataImportRepository implements IEvaluationDataIm
 
     if (evidences) {
       // Replace staged evidence for this draft record
-      await this.pool.query(
+      await exec.query(
         `DELETE FROM evaluation_data_import_evidence WHERE record_id = $1`,
         [recordId]
       );
       for (const ev of evidences) {
-        await this.pool.query(
+        await exec.query(
           `INSERT INTO evaluation_data_import_evidence (
             staging_evidence_id, record_id, evidence_type, title,
             evidence_url, file_reference, description, metadata
@@ -298,7 +339,7 @@ export class PostgresEvaluationDataImportRepository implements IEvaluationDataIm
       }
     }
 
-    const updated = await this.findRecordById(recordId);
+    const updated = await this.findRecordById(recordId, client);
     if (!updated) {
       throw new Error(`Record ${recordId} not found after draft update`);
     }
@@ -377,25 +418,51 @@ export class PostgresEvaluationDataImportRepository implements IEvaluationDataIm
     );
   }
 
-  async listImports(options?: { page?: number; limit?: number }): Promise<{ items: EvaluationDataImport[]; total: number }> {
+  async listImports(options?: { page?: number; limit?: number; crawlOnly?: boolean; teamIds?: string[] }): Promise<{ items: EvaluationDataImport[]; total: number }> {
     const page = options?.page || 1;
     const limit = options?.limit || 20;
     const offset = (page - 1) * limit;
 
+    if (options?.teamIds && options.teamIds.length === 0) return { items: [], total: 0 };
+    const where: string[] = [];
+    const params: unknown[] = [];
+    if (options?.crawlOnly || options?.teamIds) where.push('i.crawl_job_execution_id IS NOT NULL');
+    if (options?.teamIds) {
+      params.push(options.teamIds);
+      where.push(`EXISTS (SELECT 1 FROM evaluation_data_import_record scoped_record JOIN employee scoped_employee
+        ON UPPER(scoped_employee.employee_code) = UPPER(scoped_record.employee_code)
+        WHERE scoped_record.import_id = i.import_id AND scoped_employee.team_id = ANY($${params.length}::uuid[]))`);
+    }
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
     const countRes = await this.pool.query(
-      `SELECT COUNT(*)::int as total FROM evaluation_data_import`
+      `SELECT COUNT(*)::int as total FROM evaluation_data_import i ${whereSql}`,
+      params
     );
     const total = countRes.rows[0]?.total || 0;
 
+    const pageParams = [...params, limit, offset];
     const res = await this.pool.query(
-      `SELECT * FROM evaluation_data_import ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
-      [limit, offset]
+      `SELECT i.* FROM evaluation_data_import i ${whereSql} ORDER BY i.created_at DESC LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}`,
+      pageParams
     );
 
     return {
       items: res.rows.map((r) => this.mapImportRow(r)),
       total,
     };
+  }
+
+  async isImportVisibleToTeams(importId: string, teamIds: string[]): Promise<boolean> {
+    if (teamIds.length === 0) return false;
+    const result = await this.pool.query(
+      `SELECT 1 FROM evaluation_data_import i
+       WHERE i.import_id = $1 AND i.crawl_job_execution_id IS NOT NULL
+         AND EXISTS (SELECT 1 FROM evaluation_data_import_record record JOIN employee
+           ON UPPER(employee.employee_code) = UPPER(record.employee_code)
+           WHERE record.import_id = i.import_id AND employee.team_id = ANY($2::uuid[]))`,
+      [importId, teamIds]
+    );
+    return result.rows.length > 0;
   }
 
   async findPendingConflictingRecords(
@@ -408,7 +475,7 @@ export class PostgresEvaluationDataImportRepository implements IEvaluationDataIm
       SELECT r.* FROM evaluation_data_import_record r
       JOIN evaluation_data_import i ON r.import_id = i.import_id
       WHERE r.cycle_id = $1 AND r.employee_code = $2 AND r.kpi_code = $3
-        AND i.status IN ('READY', 'CONFLICT', 'VALIDATING')
+        AND i.status IN ('READY', 'CONFLICT', 'VALIDATING', 'PENDING_REVIEW')
         ${excludeImportId ? 'AND r.import_id != $4' : ''}
     `;
     const params = excludeImportId
@@ -434,6 +501,7 @@ export class PostgresEvaluationDataImportRepository implements IEvaluationDataIm
       created_at: row.created_at as Date,
       applied_at: (row.applied_at as Date) || null,
       updated_at: row.updated_at as Date,
+        crawl_job_execution_id: (row.crawl_job_execution_id as string) || null,
     };
   }
 
@@ -448,6 +516,8 @@ export class PostgresEvaluationDataImportRepository implements IEvaluationDataIm
       kpi_code: row.kpi_code as string,
       value: parseFloat(row.value as string),
       comment: (row.comment as string) || null,
+      source_comment: (row.source_comment as string) || null,
+      reviewer_comment: (row.reviewer_comment as string) || null,
       rationale: row.rationale as string,
       source_snapshot: typeof row.source_snapshot === 'string' ? JSON.parse(row.source_snapshot) : row.source_snapshot as SourceSnapshot,
       status: row.status as RecordStatus,
@@ -456,6 +526,12 @@ export class PostgresEvaluationDataImportRepository implements IEvaluationDataIm
       evaluation_item_id: (row.evaluation_item_id as string) || null,
       created_at: row.created_at as Date,
       updated_at: row.updated_at as Date,
+      crawl_job_execution_id: (row.crawl_job_execution_id as string) || null,
+      collected_at: (row.collected_at as Date) || null,
+      measurement_from: (row.measurement_from as Date) || null,
+      measurement_to: (row.measurement_to as Date) || null,
+      source_updated_at: (row.source_updated_at as Date) || null,
+      raw_payload_reference: (row.raw_payload_reference as string) || null,
     };
   }
 

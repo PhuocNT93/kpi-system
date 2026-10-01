@@ -95,7 +95,6 @@ export const KpiExplainabilityDrawer: React.FC<KpiExplainabilityDrawerProps> = (
         backgroundColor: 'rgba(15, 23, 42, 0.5)',
         backdropFilter: 'blur(3px)',
       }}
-      onClick={onClose}
     >
       <div
         role="dialog"
@@ -113,7 +112,6 @@ export const KpiExplainabilityDrawer: React.FC<KpiExplainabilityDrawerProps> = (
           overflowY: 'auto',
           animation: 'slideIn 0.25s ease-out',
         }}
-        onClick={(e) => e.stopPropagation()}
       >
         <div
           style={{

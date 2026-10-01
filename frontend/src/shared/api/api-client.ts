@@ -85,12 +85,17 @@ async function parseResponseEnvelope<T>(response: Response): Promise<ApiEnvelope
     throw err;
   }
 
-  // Handle 401 Unauthorized globally by clearing auth state and redirecting to login
+  // Handle 401 Unauthorized globally by clearing auth state and redirecting to login,
+  // but avoid redirect loops or wiping form error state when on login page or calling auth endpoints.
   if (response.status === 401) {
     if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
       localStorage.removeItem(TOKEN_STORAGE_KEY);
       localStorage.removeItem('kpi_auth_user');
-      window.location.href = '/login';
+      const isAuthEndpoint = typeof response.url === 'string' && (response.url.includes('/auth/login') || response.url.includes('/auth/google'));
+      const isLoginPage = window.location && window.location.pathname === '/login';
+      if (!isAuthEndpoint && !isLoginPage) {
+        window.location.href = '/login';
+      }
     }
   }
 

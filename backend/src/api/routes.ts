@@ -52,6 +52,7 @@ export interface RegisterRoutesOptions {
   reportsController?: ReportsController;
   calibrationController?: CalibrationController;
   notificationRouter?: Router;
+  crawlJobRouter?: Router;
   reviewCadenceController?: ReviewCadenceController;
   reviewDueController?: ReviewDueController;
 }
@@ -72,6 +73,11 @@ export function createApiRouter(options: RegisterRoutesOptions): Router {
   // ── Auth Module Routes ───────────────────────────────────────────────────
   if (options.authController) {
     router.use('/auth', createAuthRouter(options.authController, options.jwtMiddleware));
+  }
+
+  // ── Crawl Job Module Routes ───────────────────────────────────────────────
+  if (options.crawlJobRouter) {
+    router.use('/', options.crawlJobRouter);
   }
 
   // ── IAM Module Routes ────────────────────────────────────────────────────

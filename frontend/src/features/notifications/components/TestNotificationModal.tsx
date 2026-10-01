@@ -146,7 +146,6 @@ export const TestNotificationModal: React.FC = () => {
             zIndex: 9999,
             padding: '16px',
           }}
-          onClick={() => setIsOpen(false)}
         >
           <div
             style={{
@@ -160,7 +159,6 @@ export const TestNotificationModal: React.FC = () => {
               display: 'flex',
               flexDirection: 'column',
             }}
-            onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
             <div

@@ -70,3 +70,11 @@ export async function applyEvaluationDataImport(
 }> {
   return postApi(`/api/evaluation-data/imports/${importId}/apply`, {});
 }
+
+export async function rejectEvaluationDataImport(importId: string, comment: string): Promise<{
+  import_id: string;
+  status: 'REJECTED';
+  rejected_count: number;
+}> {
+  return postApi(`/api/evaluation-data/imports/${importId}/reject`, { comment });
+}

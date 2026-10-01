@@ -283,7 +283,6 @@ export const OverrideScoreModal: React.FC<OverrideScoreModalProps> = ({
         padding: '16px',
         animation: 'fadeIn 0.2s ease-out',
       }}
-      onClick={!isSubmitting ? onClose : undefined}
     >
       <div
         style={{
@@ -299,7 +298,6 @@ export const OverrideScoreModal: React.FC<OverrideScoreModalProps> = ({
           animation: 'slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
           border: '1px solid #e2e8f0',
         }}
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div
