@@ -35,12 +35,20 @@ import {
   UnifiedNotificationsPage,
 } from './features/notifications';
 import { COLORS } from '@/lib/theme';
-import { RADII, TYPOGRAPHY, ThemeProvider, useTheme } from '@/shared/theme';
+import { RADII, TYPOGRAPHY, ThemeProvider } from '@/shared/theme';
 import { LayoutTemplate } from 'lucide-react';
 
 import { useAuth } from './shared/auth/auth-context';
 import { useUiTranslation } from '@/shared/i18n/ui-i18n';
-import { LogOut } from 'lucide-react';
+
+const PAGE_SECTIONS: Record<string, [string, string]> = {
+  notifications: ['nav.overview', 'Overview'],
+  evaluations: ['nav.performance', 'Performance'],
+  reports: ['nav.reporting', 'Reporting'],
+  cycles: ['nav.configuration', 'Configuration'],
+  templates: ['nav.configuration', 'Configuration'],
+  'system-admin': ['nav.configuration', 'Configuration'],
+};
 
 const ADMIN_PAGE_TITLES: Record<string, string> = {
   dashboard: 'Dashboard',
@@ -82,8 +90,6 @@ const ADMIN_PAGE_TITLES: Record<string, string> = {
 function ProtectedLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
-  const { isDark } = useTheme();
   const { t } = useUiTranslation();
 
   // Extract active menu from URL
@@ -109,57 +115,9 @@ function ProtectedLayout() {
     : pathParts.length > 2 ? pathParts[2] : 'dashboard';
   const defaultPageTitle = ADMIN_PAGE_TITLES[activeMenu] ?? 'System Layout';
   const pageTitle = t(`title.${activeMenu.replace(/-/g, '_')}`, defaultPageTitle);
-
-  const headerActions = (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-      {user && (
-        <div style={{ textAlign: 'right' }} className="hide-on-mobile">
-          <div
-            style={{
-              fontSize: '0.875rem',
-              fontWeight: 600,
-              color: isDark ? '#F9FAFB' : COLORS.neutral.textPrimary,
-              transition: 'color 0.2s ease',
-            }}
-          >
-            {user.name}
-          </div>
-          <div
-            style={{
-              fontSize: '0.75rem',
-              color: isDark ? '#9CA3AF' : COLORS.neutral.textSecondary,
-              transition: 'color 0.2s ease',
-            }}
-          >
-            {user.role}
-          </div>
-        </div>
-      )}
-      <button
-        type="button"
-        onClick={logout}
-        title={t('common.logout', 'Log out')}
-        aria-label={t('common.logout', 'Log out')}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '8px 12px',
-          background: isDark ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
-          border: `1px solid ${isDark ? '#374151' : COLORS.neutral[300]}`,
-          borderRadius: RADII.md,
-          cursor: 'pointer',
-          color: isDark ? '#F9FAFB' : COLORS.neutral.textPrimary,
-          fontSize: '0.875rem',
-          fontWeight: 500,
-          transition: 'all 0.15s ease',
-        }}
-      >
-        <LogOut size={16} />
-        <span className="hide-on-mobile">{t('common.logout', 'Log out')}</span>
-      </button>
-    </div>
-  );
+  // Sidebar section of each hub, shown as the first breadcrumb step in the header.
+  const sectionEntry = PAGE_SECTIONS[activeMenu];
+  const pageSection = sectionEntry ? t(sectionEntry[0], sectionEntry[1]) : undefined;
 
   return (
     <AppLayout
@@ -176,13 +134,13 @@ function ProtectedLayout() {
         else if (id === 'templates') navigate('/admin/templates');
         else if (id === 'system-admin') navigate('/admin/system-admin');
         else if (id === 'imports') navigate('/admin/ingestion?tab=csv');
-        else if (id === 'collectors') navigate('/admin/ingestion?tab=blueprint');
+        else if (id === 'collectors') navigate('/admin/ingestion?tab=jira');
         else if (id === 'employee-search') navigate('/admin/evaluations?tab=search');
         else if (id === 'kpi-summary') navigate('/admin/reports?scope=summary');
         else navigate(`/admin/${id}`);
       }}
       pageTitle={pageTitle}
-      headerActions={headerActions}
+      pageSection={pageSection}
       onGenerateReport={() => alert('Generate Report clicked')}
       footerProps={{}}
     >
@@ -306,7 +264,7 @@ export default function App() {
                   <ImportDetailPage />
                 </ProtectedRoute>
               } />
-              <Route path="/admin/collectors" element={<Navigate to="/admin/ingestion?tab=blueprint" replace />} />
+              <Route path="/admin/collectors" element={<Navigate to="/admin/ingestion?tab=jira" replace />} />
               <Route path="/admin/jira-collector" element={<Navigate to="/admin/ingestion?tab=jira" replace />} />
               <Route path="/admin/jira-eval" element={<Navigate to="/admin/ingestion?tab=jira" replace />} />
               <Route path="/jira-collector" element={<Navigate to="/admin/ingestion?tab=jira" replace />} />

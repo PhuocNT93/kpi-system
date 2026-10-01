@@ -9,6 +9,10 @@ import { TeamFormulaBuilderTab } from './TeamFormulaBuilderTab';
 import { formulaApi } from '../api/formula-api';
 import { Building, Users, ChevronRight, ChevronDown, Folder, Sliders, Shield, Award } from 'lucide-react';
 import { LoadingSpinner, ErrorAlert } from '../../../shared/components/ui';
+import { SubTabs, type SubTabItem } from '../../../shared/ui/SubTabs/SubTabs';
+import { Button } from '../../../shared/ui/Button/Button';
+import { useAuth } from '../../../shared/auth/auth-context';
+import type { CreateControl } from './create-control';
 import { useTheme } from '../../../shared/theme';
 import { useOrganizationTranslation } from '../hooks/useOrganizationTranslation';
 
@@ -16,6 +20,10 @@ export type SelectionNode =
   | { type: 'root' }
   | { type: 'department'; id: string; name: string }
   | { type: 'team'; id: string; name: string; departmentId: string };
+
+// One sub-tab choice shared by every tree level, so switching department or team keeps
+// the same view when it exists there and falls back to the level's first sub-tab otherwise.
+export type OrgStructureSubTabId = 'departments' | 'teams' | 'employees' | 'members' | 'formula';
 
 export function OrgStructureTab() {
   const departmentsQuery = useDepartments();
@@ -25,8 +33,11 @@ export function OrgStructureTab() {
 
   const [selection, setSelection] = useState<SelectionNode>({ type: 'root' });
   const [expandedDepts, setExpandedDepts] = useState<Set<string>>(new Set());
-  const [deptSubTab, setDeptSubTab] = useState<'overview' | 'formula'>('overview');
-  const [teamSubTab, setTeamSubTab] = useState<'members' | 'formula'>('members');
+  const [preferredSubTab, setPreferredSubTab] = useState<OrgStructureSubTabId>('departments');
+  // The create button sits beside the sub-tabs; the active table still owns its create dialog.
+  const [createOpenFor, setCreateOpenFor] = useState<OrgStructureSubTabId | null>(null);
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'HR_ADMIN' || user?.role === 'SYSTEM_ADMIN';
 
   // Query formula summary to know which team / department has custom formula
   const formulasSummaryQuery = useQuery({
@@ -78,9 +89,54 @@ export function OrgStructureTab() {
   const panelBg = isDark ? '#1e293b' : '#ffffff';
   const panelBorder = isDark ? '1px solid #334155' : '1px solid #e5e7eb';
   const headingColor = isDark ? '#f8fafc' : '#111827';
-  const subHeadingColor = isDark ? '#cbd5e1' : '#374151';
   const mutedTextColor = isDark ? '#94a3b8' : '#6b7280';
-  const dividerColor = isDark ? '#334155' : '#e5e7eb';
+
+  const formulaTab: SubTabItem<OrgStructureSubTabId> = {
+    id: 'formula',
+    label: t('org.subtab.formula', 'Evaluation Formula'),
+    icon: <Sliders size={14} />,
+  };
+  const subTabItems: SubTabItem<OrgStructureSubTabId>[] =
+    selection.type === 'root'
+      ? [
+          { id: 'departments', label: t('org.subtab.departments', 'Departments'), icon: <Building size={14} /> },
+          { id: 'employees', label: t('org.subtab.employees', 'Employees'), icon: <Users size={14} /> },
+        ]
+      : selection.type === 'department'
+        ? [
+            { id: 'teams', label: t('org.subtab.teams', 'Teams'), icon: <Folder size={14} /> },
+            { id: 'employees', label: t('org.subtab.employees', 'Employees'), icon: <Users size={14} /> },
+            formulaTab,
+          ]
+        : [{ id: 'members', label: t('org.subtab.members', 'Members'), icon: <Users size={14} /> }, formulaTab];
+  const activeSubTab = subTabItems.some((item) => item.id === preferredSubTab) ? preferredSubTab : subTabItems[0].id;
+  const createControlFor = (subTab: OrgStructureSubTabId): CreateControl => ({
+    isOpen: createOpenFor === subTab,
+    onOpenChange: (isOpen) => setCreateOpenFor(isOpen ? subTab : null),
+  });
+  const createLabels: Partial<Record<OrgStructureSubTabId, string>> = {
+    departments: t('org.action.create_department', '+ Create Department'),
+    teams: t('org.action.create_team', '+ Create Team'),
+    employees: t('org.action.add_employee', '+ Add Employee'),
+    members: t('org.action.add_employee', '+ Add Employee'),
+  };
+  const createLabel = isAdmin ? createLabels[activeSubTab] : undefined;
+  const subTabBar = (
+    <SubTabs<OrgStructureSubTabId>
+      level={3}
+      ariaLabel={t('tab_org_structure', 'Org Structure')}
+      value={activeSubTab}
+      onChange={setPreferredSubTab}
+      items={subTabItems}
+      actions={
+        createLabel && (
+          <Button id={`create-${activeSubTab}-btn`} size="sm" onClick={() => setCreateOpenFor(activeSubTab)}>
+            {createLabel}
+          </Button>
+        )
+      }
+    />
+  );
 
   const getTreeItemStyle = (active: boolean) => ({
     padding: '0.5rem 0.75rem',
@@ -110,7 +166,12 @@ export function OrgStructureTab() {
           onClick={() => setSelection({ type: 'root' })}
         >
           <Building size={16} />
-          <span>{t('all_departments', 'All Organization')}</span>
+          <span
+            title={t('org.structure.root', 'Organization Overview')}
+            style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}
+          >
+            {t('org.structure.root', 'Organization Overview')}
+          </span>
         </div>
 
         <div style={{ marginTop: '0.5rem' }}>
@@ -239,48 +300,35 @@ export function OrgStructureTab() {
         </div>
       </div>
 
-      {/* Right Panel: Content based on selection */}
-      <div className="org-content-panel org-card" style={{ backgroundColor: panelBg, border: panelBorder }}>
+      {/* Right Panel: Content based on selection. Only the active table (or the formula editor) scrolls. */}
+      <div className="org-content-panel org-card fill-column" style={{ backgroundColor: panelBg, border: panelBorder }}>
         {/* ROOT: All Organization (Organization Structure overview) */}
         {selection.type === 'root' && (
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
-              <Building size={20} color={isDark ? '#94a3b8' : '#6b7280'} />
-              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, color: headingColor }}>{t('all_departments', 'All Organization')}</h2>
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', flexShrink: 0 }}>
+              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, color: headingColor }}>{t('org.structure.root', 'Organization Overview')}</h2>
             </div>
-            
-            <div style={{ marginBottom: '2rem' }}>
-              <h3 style={{ margin: '0 0 1rem', fontSize: '1rem', color: subHeadingColor, borderBottom: `1px solid ${dividerColor}`, paddingBottom: '0.5rem' }}>
-                {t('all_departments', 'Departments')}
-              </h3>
-              <DepartmentTable />
-            </div>
-
-            <div>
-              <h3 style={{ margin: '0 0 1rem', fontSize: '1rem', color: subHeadingColor, borderBottom: `1px solid ${dividerColor}`, paddingBottom: '0.5rem' }}>
-                {t('employees', 'All Employees')}
-              </h3>
-              <EmployeeTable />
-            </div>
-          </div>
+            {subTabBar}
+            {activeSubTab === 'departments' && <DepartmentTable createControl={createControlFor('departments')} />}
+            {activeSubTab === 'employees' && <EmployeeTable createControl={createControlFor('employees')} />}
+          </>
         )}
 
         {/* DEPARTMENT: Department View (Has Formula Tab applying to ALL teams in Department) */}
         {selection.type === 'department' && (
-          <div>
+          <>
             {/* Breadcrumb */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem', color: mutedTextColor, fontSize: '0.875rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', color: mutedTextColor, fontSize: '0.875rem', flexShrink: 0 }}>
               <Building size={16} />
-              <span style={{ cursor: 'pointer' }} onClick={() => setSelection({ type: 'root' })}>{t('all_departments', 'All Organization')}</span>
+              <span style={{ cursor: 'pointer' }} onClick={() => setSelection({ type: 'root' })}>{t('org.structure.root', 'Organization Overview')}</span>
               <ChevronRight size={14} />
               <Folder size={16} color={isDark ? '#60a5fa' : '#1d4ed8'} />
               <span style={{ color: headingColor, fontWeight: 500 }}>{selection.name}</span>
             </div>
             
-            {/* Header & Sub-tabs */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '12px' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '12px', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Folder size={22} color={isDark ? '#38bdf8' : '#0284c7'} />
                 <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 700, color: headingColor }}>
                   Department: {selection.name}
                 </h2>
@@ -322,87 +370,29 @@ export function OrgStructureTab() {
                   </span>
                 )}
               </div>
-
-              {/* Department subtabs */}
-              <div style={{ display: 'flex', gap: '8px', backgroundColor: isDark ? '#0f172a' : '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
-                <button
-                  type="button"
-                  onClick={() => setDeptSubTab('overview')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 16px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    fontWeight: 600,
-                    fontSize: '0.8125rem',
-                    cursor: 'pointer',
-                    backgroundColor: deptSubTab === 'overview' ? (isDark ? '#1e293b' : '#fff') : 'transparent',
-                    color: deptSubTab === 'overview' ? (isDark ? '#60a5fa' : '#2563eb') : mutedTextColor,
-                    boxShadow: deptSubTab === 'overview' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
-                  }}
-                >
-                  <Users size={14} />
-                  Teams & Nhân sự
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeptSubTab('formula')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 16px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    fontWeight: 700,
-                    fontSize: '0.8125rem',
-                    cursor: 'pointer',
-                    backgroundColor: deptSubTab === 'formula' ? (isDark ? '#1e293b' : '#fff') : 'transparent',
-                    color: deptSubTab === 'formula' ? (isDark ? '#60a5fa' : '#2563eb') : mutedTextColor,
-                    boxShadow: deptSubTab === 'formula' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
-                  }}
-                >
-                  <Sliders size={14} />
-                  Công thức đánh giá: Department {selection.name}
-                </button>
-              </div>
             </div>
-
-            {deptSubTab === 'overview' ? (
-              <>
-                <div style={{ marginBottom: '2rem' }}>
-                  <h3 style={{ margin: '0 0 1rem', fontSize: '1rem', color: subHeadingColor, borderBottom: `1px solid ${dividerColor}`, paddingBottom: '0.5rem' }}>
-                    Teams in this Department
-                  </h3>
-                  <TeamTable departmentId={selection.id} />
-                </div>
-
-                <div>
-                  <h3 style={{ margin: '0 0 1rem', fontSize: '1rem', color: subHeadingColor, borderBottom: `1px solid ${dividerColor}`, paddingBottom: '0.5rem' }}>
-                    Employees in {selection.name}
-                  </h3>
-                  <EmployeeTable departmentId={selection.id} />
-                </div>
-              </>
-            ) : (
-              <TeamFormulaBuilderTab
-                departmentId={selection.id}
-                departmentName={selection.name}
-                onFormulaUpdated={() => formulasSummaryQuery.refetch()}
-              />
+            {subTabBar}
+            {activeSubTab === 'teams' && <TeamTable departmentId={selection.id} createControl={createControlFor('teams')} />}
+            {activeSubTab === 'employees' && <EmployeeTable departmentId={selection.id} createControl={createControlFor('employees')} />}
+            {activeSubTab === 'formula' && (
+              <div className="table-scroll-frame">
+                <TeamFormulaBuilderTab
+                  departmentId={selection.id}
+                  departmentName={selection.name}
+                  onFormulaUpdated={() => formulasSummaryQuery.refetch()}
+                />
+              </div>
             )}
-          </div>
+          </>
         )}
 
         {/* TEAM: When clicking into a specific team -> ALLOW CREATING & MANAGING TEAM FORMULA */}
         {selection.type === 'team' && (
-          <div>
+          <>
             {/* Breadcrumbs */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem', color: mutedTextColor, fontSize: '0.875rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', color: mutedTextColor, fontSize: '0.875rem', flexShrink: 0 }}>
               <Building size={16} />
-              <span style={{ cursor: 'pointer' }} onClick={() => setSelection({ type: 'root' })}>{t('all_departments', 'All Organization')}</span>
+              <span style={{ cursor: 'pointer' }} onClick={() => setSelection({ type: 'root' })}>{t('org.structure.root', 'Organization Overview')}</span>
               <ChevronRight size={14} />
               <Folder size={16} />
               <span
@@ -419,11 +409,10 @@ export function OrgStructureTab() {
               <span style={{ color: headingColor, fontWeight: 600 }}>{selection.name}</span>
             </div>
             
-            {/* Team Title & Sub-tabs */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '12px' }}>
+            {/* Team Title */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '12px', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Users size={22} color={isDark ? '#60a5fa' : '#2563eb'} />
                   <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 700, color: headingColor }}>
                     Team: {selection.name}
                   </h2>
@@ -485,73 +474,23 @@ export function OrgStructureTab() {
                   </span>
                 )}
               </div>
-
-              {/* Sub-tabs for Team */}
-              <div style={{ display: 'flex', gap: '8px', backgroundColor: isDark ? '#0f172a' : '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
-                <button
-                  type="button"
-                  onClick={() => setTeamSubTab('members')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 16px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    fontWeight: 600,
-                    fontSize: '0.8125rem',
-                    cursor: 'pointer',
-                    backgroundColor: teamSubTab === 'members' ? (isDark ? '#1e293b' : '#fff') : 'transparent',
-                    color: teamSubTab === 'members' ? (isDark ? '#60a5fa' : '#2563eb') : mutedTextColor,
-                    boxShadow: teamSubTab === 'members' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <Users size={14} />
-                  Thành viên nhóm ({t('employees', 'Members')})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTeamSubTab('formula')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 16px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    fontWeight: 700,
-                    fontSize: '0.8125rem',
-                    cursor: 'pointer',
-                    backgroundColor: teamSubTab === 'formula' ? (isDark ? '#1e293b' : '#fff') : 'transparent',
-                    color: teamSubTab === 'formula' ? (isDark ? '#60a5fa' : '#2563eb') : mutedTextColor,
-                    boxShadow: teamSubTab === 'formula' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <Sliders size={14} />
-                  Công thức đánh giá riêng của {selection.name}
-                </button>
-              </div>
             </div>
-
-            {teamSubTab === 'members' ? (
-              <div>
-                <h3 style={{ margin: '0 0 1rem', fontSize: '1rem', color: subHeadingColor, borderBottom: `1px solid ${dividerColor}`, paddingBottom: '0.5rem' }}>
-                  Danh sách thành viên thuộc Team {selection.name}
-                </h3>
-                <EmployeeTable departmentId={selection.departmentId} teamId={selection.id} />
-              </div>
-            ) : (
-              <TeamFormulaBuilderTab
-                teamId={selection.id}
-                teamName={selection.name}
-                departmentId={selection.departmentId}
-                departmentName={departments.find((d) => d.id === selection.departmentId)?.name}
-                onFormulaUpdated={() => formulasSummaryQuery.refetch()}
-              />
+            {subTabBar}
+            {activeSubTab === 'members' && (
+              <EmployeeTable departmentId={selection.departmentId} teamId={selection.id} createControl={createControlFor('members')} />
             )}
-          </div>
+            {activeSubTab === 'formula' && (
+              <div className="table-scroll-frame">
+                <TeamFormulaBuilderTab
+                  teamId={selection.id}
+                  teamName={selection.name}
+                  departmentId={selection.departmentId}
+                  departmentName={departments.find((d) => d.id === selection.departmentId)?.name}
+                  onFormulaUpdated={() => formulasSummaryQuery.refetch()}
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

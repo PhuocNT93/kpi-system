@@ -17,10 +17,19 @@ import {
   X,
   Bell,
   Workflow,
+  LogOut,
 } from 'lucide-react';
 import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY, SHADOWS } from '@/shared/theme';
 import { BrandLogo } from './BrandLogo';
+import { UserProfileModal } from '../components/UserProfileModal';
+
+function getInitials(name?: string): string {
+  if (!name) return 'U';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
 export interface NavItemType {
   id: string;
@@ -61,7 +70,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [toggleHovered, setToggleHovered] = useState(false);
   const [isCollapsedUncontrolled, setIsCollapsedUncontrolled] = useState(defaultCollapsed);
-  const { user } = useAuth();
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const { user, logout } = useAuth();
   const { isDark } = useTheme();
   const { t } = useUiTranslation();
 
@@ -335,8 +345,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         />
       </div>
 
-      {/* Navigation Items Tree - Scrollable if content overflows */}
+      {/* Navigation Items Tree - Scrollable if content overflows, scrollbar hidden */}
       <nav
+        className="no-scrollbar"
         style={{
           flex: 1,
           display: 'flex',
@@ -346,7 +357,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           overflowX: 'hidden',
           paddingTop: '8px',
           paddingRight: isCollapsed ? '0' : '2px',
-          scrollbarWidth: 'thin',
         }}
       >
         {navSections.map((section, sIdx) => {
@@ -534,6 +544,130 @@ export const Sidebar: React.FC<SidebarProps> = ({
           );
         })}
       </nav>
+
+      {/* Bottom User Profile & Logout Area (Góc trái dưới) */}
+      {user && (
+        <div
+          style={{
+            marginTop: 'auto',
+            paddingTop: '12px',
+            borderTop: `1px solid ${isDark ? '#1F2937' : '#e5e7eb'}`,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+          }}
+        >
+          {/* User profile card */}
+          <div
+            onClick={() => setShowProfileModal(true)}
+            title={t('user.view_profile_tooltip', 'Bấm để xem hồ sơ, đổi avatar hoặc đổi mật khẩu')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: isCollapsed ? 0 : '10px',
+              justifyContent: isCollapsed ? 'center' : 'flex-start',
+              padding: isCollapsed ? '6px 0' : '8px 10px',
+              borderRadius: RADII.lg,
+              cursor: 'pointer',
+              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.03)' : '#f8fafc',
+              border: `1px solid ${isDark ? '#374151' : '#e2e8f0'}`,
+              transition: 'all 0.15s ease',
+            }}
+          >
+            {/* Avatar image or Initials */}
+            <div
+              style={{
+                width: '34px',
+                height: '34px',
+                borderRadius: '50%',
+                background: user.avatarUrl ? undefined : 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ffffff',
+                fontWeight: 700,
+                fontSize: '13px',
+                flexShrink: 0,
+                overflow: 'hidden',
+                boxShadow: '0 2px 5px rgba(79, 70, 229, 0.25)',
+              }}
+            >
+              {user.avatarUrl ? (
+                <img
+                  src={user.avatarUrl}
+                  alt={user.name}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                getInitials(user.name)
+              )}
+            </div>
+
+            {!isCollapsed && (
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    color: isDark ? '#F9FAFB' : '#0f172a',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {user.name}
+                </div>
+                <div
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: isDark ? '#818cf8' : '#4f46e5',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {user.role}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Logout button (Chuyển về góc trái dưới) */}
+          <button
+            type="button"
+            onClick={logout}
+            title={t('common.logout', 'Đăng xuất')}
+            aria-label={t('common.logout', 'Đăng xuất')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: isCollapsed ? 'center' : 'flex-start',
+              gap: '8px',
+              padding: isCollapsed ? '8px 0' : '8px 12px',
+              borderRadius: RADII.lg,
+              border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.25)' : '#fee2e2'}`,
+              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.08)' : '#fff5f5',
+              color: isDark ? '#f87171' : '#dc2626',
+              cursor: 'pointer',
+              fontSize: '12.5px',
+              fontWeight: 600,
+              transition: 'all 0.15s ease',
+              width: '100%',
+              boxSizing: 'border-box',
+            }}
+          >
+            <LogOut size={16} />
+            {!isCollapsed && <span>{t('common.logout', 'Đăng xuất')}</span>}
+          </button>
+        </div>
+      )}
+
+      {/* User Profile Modal */}
+      <UserProfileModal
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+      />
     </aside>
   );
 };

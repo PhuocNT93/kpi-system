@@ -10,16 +10,19 @@ import { AutoCodeButton } from '../../../shared/components/AutoCodeButton';
 import { generateCode } from '../../../shared/utils/code-generator';
 import { useTheme } from '@/shared/theme';
 import { useUiTranslation } from '@/shared/i18n/ui-i18n';
+import { useTableHeaderOffset } from '@/shared/hooks/use-table-header-offset';
 import {
   Search,
   X,
   Shield,
   ShieldCheck,
-  Plus,
   LayoutGrid,
   Table as TableIcon,
   Edit2,
+  Plus,
 } from 'lucide-react';
+import { FilterField } from '@/shared/ui/FilterField/FilterField';
+import { FILTER_CONTROL_HEIGHT, useFilterControlStyle } from '@/shared/ui/FilterField/use-filter-control-style';
 
 const roleSchema = z.object({
   code: z.string().min(1, 'Code is required').regex(/^[A-Z_]+$/, 'Code must be UPPERCASE_SNAKE_CASE'),
@@ -218,6 +221,8 @@ function RoleFormDialog({ isOpen, role, onClose }: RoleFormDialogProps) {
 }
 
 export function RoleTable() {
+  const tableFrameRef = useTableHeaderOffset<HTMLDivElement>();
+  const { controlStyle } = useFilterControlStyle();
   const { isDark } = useTheme();
   const { t } = useUiTranslation();
 
@@ -268,7 +273,7 @@ export function RoleTable() {
   };
 
   return (
-    <div style={{ width: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+    <div style={{ width: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '1.25rem', flex: 1 }}>
       {/* ── Top Header Toolbar ──────────────────────────────────────── */}
       <div
         style={{
@@ -307,10 +312,9 @@ export function RoleTable() {
           id="create-role-btn"
           onClick={() => setIsCreateOpen(true)}
           size="sm"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+          icon={<Plus size={15} />}
         >
-          <Plus size={15} />
-          <span>{t('iam.roles.create_btn', 'Create Role')}</span>
+          {t('iam.roles.create_btn', 'Create Role')}
         </Button>
       </div>
 
@@ -320,12 +324,13 @@ export function RoleTable() {
           display: 'flex',
           flexWrap: 'wrap',
           gap: '0.75rem',
-          alignItems: 'center',
+          alignItems: 'flex-end',
           justifyContent: 'space-between',
         }}
       >
         {/* Search Input */}
-        <div style={{ position: 'relative', flex: '1 1 240px', maxWidth: '380px' }}>
+        <FilterField id="iam-role-search" label={t('iam.filter.search', 'Search')} flex="1 1 260px" maxWidth="420px">
+          <div style={{ position: 'relative' }}>
           <Search
             size={16}
             style={{
@@ -342,18 +347,9 @@ export function RoleTable() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={t('iam.roles.search_placeholder', 'Search by code, name, description...')}
-            aria-label="Search roles"
-            style={{
-              width: '100%',
-              boxSizing: 'border-box',
-              padding: '0.5rem 2.25rem 0.5rem 2.25rem',
-              fontSize: '0.85rem',
-              borderRadius: '8px',
-              border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
-              backgroundColor: isDark ? '#0f172a' : '#ffffff',
-              color: isDark ? '#f8fafc' : '#0f172a',
-              outline: 'none',
-            }}
+            id="iam-role-search"
+          aria-label="Search roles"
+            style={{ ...controlStyle, padding: '0 2.25rem' }}
           />
           {searchQuery && (
             <button
@@ -378,11 +374,16 @@ export function RoleTable() {
             </button>
           )}
         </div>
+        </FilterField>
 
         {/* View Mode Switcher */}
         <div
           style={{
             display: 'flex',
+            // Same height as the filter controls so it lines up with them.
+            height: FILTER_CONTROL_HEIGHT,
+            boxSizing: 'border-box',
+            alignItems: 'stretch',
             borderRadius: '8px',
             padding: '2px',
             backgroundColor: isDark ? '#0f172a' : '#f1f5f9',
@@ -442,10 +443,10 @@ export function RoleTable() {
       ) : viewMode === 'table' ? (
         /* Desktop / Tablet Table View */
         <div
+          ref={tableFrameRef}
+          className="table-scroll-frame"
           style={{
             width: '100%',
-            overflowX: 'auto',
-            WebkitOverflowScrolling: 'touch',
             border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
             borderRadius: '12px',
             backgroundColor: isDark ? '#1e293b' : '#ffffff',
@@ -547,12 +548,12 @@ export function RoleTable() {
                       <Button
                         variant="outlined"
                         size="sm"
+                        icon={<Edit2 size={12} />}
                         aria-label={`Edit ${role.name}`}
                         onClick={() => setEditingRole(role)}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                        style={{ padding: '0.25rem 0.55rem', fontSize: '0.75rem' }}
                       >
-                        <Edit2 size={12} />
-                        <span>{t('common.edit', 'Edit')}</span>
+                        {t('common.edit', 'Edit')}
                       </Button>
                     </td>
                   </tr>
@@ -564,7 +565,9 @@ export function RoleTable() {
       ) : (
         /* Mobile / Cards View */
         <div
+          className="table-scroll-frame"
           style={{
+            alignContent: 'start',
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
             gap: '1rem',
@@ -638,11 +641,11 @@ export function RoleTable() {
                   <Button
                     variant="outlined"
                     size="sm"
+                    icon={<Edit2 size={12} />}
                     onClick={() => setEditingRole(role)}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                    style={{ padding: '0.25rem 0.55rem', fontSize: '0.75rem' }}
                   >
-                    <Edit2 size={12} />
-                    <span>{t('common.edit', 'Edit')}</span>
+                    {t('common.edit', 'Edit')}
                   </Button>
                 </div>
               </div>

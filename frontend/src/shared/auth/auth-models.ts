@@ -10,6 +10,10 @@ export interface AuthUser {
   role: UserRole;
   employeeId?: string;
   managedTeamIds?: string[];
+  avatarUrl?: string;
+  phone?: string;
+  department?: string;
+  title?: string;
 }
 
 export interface AuthState {

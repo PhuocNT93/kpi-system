@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { TYPOGRAPHY, RADII } from '@/shared/theme';
 import { useTheme } from '@/shared/theme';
-import { Sun, Moon, Languages, Menu, X } from 'lucide-react';
+import { Sun, Moon, Languages, Menu, X, ChevronRight } from 'lucide-react';
+import { useHeaderTrailValue } from './header-trail';
 import { NotificationBell } from '@/features/notifications';
 import { getUiLocale, LOCALE_STORAGE_KEY, LOCALE_CHANGE_EVENT } from '@/shared/i18n/ui-i18n';
 import { patchApi } from '@/shared/api/api-client';
@@ -9,6 +10,7 @@ import { patchApi } from '@/shared/api/api-client';
 export interface HeaderProps {
   title?: string;
   subtitle?: string;
+  section?: string;
   actions?: React.ReactNode;
   showThemeToggle?: boolean;
   showNotificationBell?: boolean;
@@ -20,6 +22,7 @@ export interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   title = 'Configure Evaluation',
   subtitle,
+  section,
   actions,
   showThemeToggle = true,
   showNotificationBell = true,
@@ -28,6 +31,7 @@ export const Header: React.FC<HeaderProps> = ({
   isMobileMenuOpen = false,
 }) => {
   const { isDark, toggleTheme } = useTheme();
+  const trail = useHeaderTrailValue();
   const [toggleHovered, setToggleHovered] = useState(false);
   const [currentLocale, setCurrentLocale] = useState<string>(() => getUiLocale());
 
@@ -86,42 +90,81 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         )}
 
-        <div className="header-title-container" style={{ minWidth: 0, overflow: 'hidden' }}>
-          <h1
-            className="header-title-text"
-            style={{
-              margin: 0,
-              fontFamily: TYPOGRAPHY.fontFamily.headline,
-              fontWeight: TYPOGRAPHY.fontWeight.bold,
-              color: isDark ? '#F9FAFB' : '#0F172A',
-              letterSpacing: '-0.02em',
-              lineHeight: 1.25,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              transition: 'color 0.2s ease',
-            }}
-          >
-            {title}
-          </h1>
-          {subtitle && (
-            <p
-              className="hide-on-mobile"
+        {trail ? (
+          // Hub pages show their title in the hub banner; the header only locates the open tab.
+          <nav aria-label="Breadcrumb" className="header-title-container" style={{ minWidth: 0, overflow: 'hidden' }}>
+            <ol
               style={{
-                margin: '3px 0 0 0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                margin: 0,
+                padding: 0,
+                listStyle: 'none',
                 fontFamily: TYPOGRAPHY.fontFamily.body,
-                fontSize: TYPOGRAPHY.fontSize.xs,
-                color: isDark ? '#9CA3AF' : '#64748B',
+                fontSize: TYPOGRAPHY.fontSize.sm,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {section && (
+                <>
+                  <li style={{ color: isDark ? '#94A3B8' : '#64748B' }}>{section}</li>
+                  <li aria-hidden="true" style={{ display: 'inline-flex', color: isDark ? '#64748B' : '#94A3B8' }}>
+                    <ChevronRight size={14} />
+                  </li>
+                </>
+              )}
+              <li
+                aria-current="page"
+                style={{
+                  color: isDark ? '#E2E8F0' : '#334155',
+                  fontWeight: TYPOGRAPHY.fontWeight.semibold,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {trail}
+              </li>
+            </ol>
+          </nav>
+        ) : (
+          <div className="header-title-container" style={{ minWidth: 0, overflow: 'hidden' }}>
+            <h1
+              className="header-title-text"
+              style={{
+                margin: 0,
+                fontFamily: TYPOGRAPHY.fontFamily.headline,
+                fontWeight: TYPOGRAPHY.fontWeight.bold,
+                color: isDark ? '#F9FAFB' : '#0F172A',
+                letterSpacing: '-0.02em',
+                lineHeight: 1.25,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 transition: 'color 0.2s ease',
               }}
             >
-              {subtitle}
-            </p>
-          )}
-        </div>
+              {title}
+            </h1>
+            {subtitle && (
+              <p
+                className="hide-on-mobile"
+                style={{
+                  margin: '3px 0 0 0',
+                  fontFamily: TYPOGRAPHY.fontFamily.body,
+                  fontSize: TYPOGRAPHY.fontSize.xs,
+                  color: isDark ? '#9CA3AF' : '#64748B',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  transition: 'color 0.2s ease',
+                }}
+              >
+                {subtitle}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Right-hand Controls: Language Switcher, Dark Mode Switch, Notification Bell & Page Actions */}

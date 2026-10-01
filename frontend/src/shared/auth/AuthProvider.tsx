@@ -53,6 +53,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!parsed.employeeId && storedToken) {
           parsed.employeeId = extractEmployeeIdFromToken(storedToken);
         }
+        const cachedAvatar = localStorage.getItem(`kpi_user_avatar_${parsed.id}`);
+        if (cachedAvatar) {
+          parsed.avatarUrl = cachedAvatar;
+        }
         return parsed;
       } catch {
         return null;
@@ -79,6 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Extracted role from token or defaults
     const role: UserRole = extractRoleFromToken(result.accessToken) ?? 'EMPLOYEE';
     const userWithEmp = result.user as unknown as { id: string; email: string; name: string; employeeId?: string };
+    const cachedAvatar = localStorage.getItem(`kpi_user_avatar_${result.user.id}`) || undefined;
     const authUser: AuthUser = {
       id: result.user.id,
       email: result.user.email,
@@ -86,6 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       role,
       employeeId: userWithEmp.employeeId || extractEmployeeIdFromToken(result.accessToken),
       managedTeamIds: extractManagedTeamIdsFromToken(result.accessToken),
+      avatarUrl: cachedAvatar,
     };
     
     setUser(authUser);
@@ -111,9 +117,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem(UI_TRANSLATIONS_STORAGE_KEY);
   }, []);
 
+  const updateUserProfile = useCallback((updates: Partial<AuthUser>) => {
+    setUser((prev) => {
+      if (!prev) return null;
+      const updated = { ...prev, ...updates };
+      try {
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updated));
+        if (updates.avatarUrl !== undefined) {
+          if (updates.avatarUrl) {
+            localStorage.setItem(`kpi_user_avatar_${prev.id}`, updates.avatarUrl);
+          } else {
+            localStorage.removeItem(`kpi_user_avatar_${prev.id}`);
+          }
+        }
+      } catch (_err) {
+        // ignore storage error
+        void _err;
+      }
+      return updated;
+    });
+  }, []);
+
   const value = useMemo<AuthContextValue>(
-    () => ({ user, isAuthenticated: user !== null, login, loginWithGoogle, logout }),
-    [user, login, loginWithGoogle, logout],
+    () => ({ user, isAuthenticated: user !== null, login, loginWithGoogle, logout, updateUserProfile }),
+    [user, login, loginWithGoogle, logout, updateUserProfile],
   );
 
   if (isInitializing) {

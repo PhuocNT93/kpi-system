@@ -1,4 +1,5 @@
-import React, { useLayoutEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
+import { useScrollbarWidth } from '@/shared/hooks/use-scrollbar-width';
 import type { WireAuditLog } from '../api/audit-types';
 import { Button } from '../../../shared/ui/Button/Button';
 import { COLORS } from '../../../lib/theme';
@@ -27,20 +28,8 @@ export const AuditTable = ({ logs, onSelectLog }: AuditTableProps) => {
   const { isDark } = useTheme();
   const { t, currentLocale } = useUiTranslation();
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
-  const bodyRef = useRef<HTMLDivElement>(null);
-  const [scrollbarWidth, setScrollbarWidth] = useState(0);
-
-  // The header's scrollbar lane must match the body's real scrollbar width, which varies by OS/browser.
-  useLayoutEffect(() => {
-    const body = bodyRef.current;
-    if (!body) return;
-    const measure = () => setScrollbarWidth(body.offsetWidth - body.clientWidth);
-    measure();
-    if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(body);
-    return () => observer.disconnect();
-  }, []);
+  // The header's scrollbar lane must match the body's real scrollbar width.
+  const [bodyRef, scrollbarWidth] = useScrollbarWidth<HTMLDivElement>();
 
   const scrollTrackColor = isDark ? '#0f172a' : '#f1f5f9';
   const scrollThumbColor = isDark ? '#475569' : '#cbd5e1';

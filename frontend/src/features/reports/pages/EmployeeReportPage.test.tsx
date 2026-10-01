@@ -13,16 +13,18 @@ import type { EvaluationCycleDTO } from '../../evaluation-cycles/types/cycle-typ
 vi.mock('../api/reports.api');
 vi.mock('../../evaluation-cycles/api/cycle-api');
 
+const authState = vi.hoisted(() => ({
+  user: {
+    id: 'emp-001',
+    employeeId: 'emp-001' as string | undefined,
+    name: 'Nguyen Van A',
+    email: 'a.nguyen@example.com',
+    role: 'EMPLOYEE',
+  },
+}));
+
 vi.mock('@/shared/auth/auth-context', () => ({
-  useAuth: () => ({
-    user: {
-      id: 'emp-001',
-      name: 'Nguyen Van A',
-      email: 'a.nguyen@example.com',
-      role: 'EMPLOYEE',
-    },
-    isAuthenticated: true,
-  }),
+  useAuth: () => ({ user: authState.user, isAuthenticated: true }),
 }));
 
 describe('EmployeeReportPage', () => {
@@ -130,5 +132,69 @@ describe('EmployeeReportPage', () => {
     await waitFor(() => {
       expect(screen.getByText('No Evaluation Record')).toBeInTheDocument();
     }, { timeout: 3000 });
+  });
+
+  it('explains instead of erroring when the account has no linked employee profile', async () => {
+    authState.user.employeeId = undefined;
+    try {
+      render(
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter>
+            <EmployeeReportPage isEmbedded />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+
+      expect(await screen.findByText('No employee profile linked')).toBeInTheDocument();
+      expect(reportsApi.fetchEmployeeReport).not.toHaveBeenCalled();
+    } finally {
+      authState.user.employeeId = 'emp-001';
+    }
+  });
+
+  it('hides its own page title when embedded in the hub', async () => {
+    vi.mocked(reportsApi.fetchEmployeeReport).mockResolvedValue(null);
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <EmployeeReportPage isEmbedded />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    expect(await screen.findByText('No Evaluation Record')).toBeInTheDocument();
+    expect(screen.queryByText('Performance Report')).not.toBeInTheDocument();
+    expect(screen.getByText('Report Filters')).toBeInTheDocument();
+  });
+
+  it('renders filter and empty-state text in Vietnamese when the locale is vi', async () => {
+    vi.mocked(reportsApi.fetchEmployeeReport).mockResolvedValue(null);
+    localStorage.setItem('kpi_locale', 'vi');
+    localStorage.setItem(
+      'kpi_ui_translations',
+      JSON.stringify({
+        vi: {
+          'reports.common.filters': 'Bộ lọc báo cáo',
+          'reports.my.empty_title': 'Chưa có bản ghi đánh giá',
+        },
+      })
+    );
+
+    try {
+      render(
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter>
+            <EmployeeReportPage isEmbedded />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+
+      expect(await screen.findByText('Chưa có bản ghi đánh giá')).toBeInTheDocument();
+      expect(screen.getByText('Bộ lọc báo cáo')).toBeInTheDocument();
+    } finally {
+      localStorage.removeItem('kpi_locale');
+      localStorage.removeItem('kpi_ui_translations');
+    }
   });
 });

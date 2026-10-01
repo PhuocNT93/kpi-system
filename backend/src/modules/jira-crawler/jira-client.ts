@@ -262,9 +262,16 @@ export class JiraPimClient {
         : (issueTypeName.toLowerCase().includes('bug') || issueTypeName.toLowerCase().includes('defect'));
 
       const completedStatuses = scriptConfig?.completedStatuses;
+      const standardDoneWords = ['done', 'closed', 'resolved', 'complete', 'completed', 'deployed', 'delivered', 'verified', 'finish', 'finished'];
       const isCompleted = completedStatuses && completedStatuses.length > 0
-        ? (statusCat.toLowerCase() === 'done' || completedStatuses.some((st) => statusName.toLowerCase().includes(st.toLowerCase())))
-        : (statusCat.toLowerCase() === 'done');
+        ? (statusCat.toLowerCase() === 'done' ||
+           completedStatuses.some((st) => statusName.toLowerCase().includes(st.toLowerCase())) ||
+           Boolean(f.resolutiondate) ||
+           Boolean(f.resolution?.name && !f.resolution.name.toLowerCase().includes('unresolved')))
+        : (statusCat.toLowerCase() === 'done' ||
+           standardDoneWords.some((w) => statusName.toLowerCase().includes(w)) ||
+           Boolean(f.resolutiondate) ||
+           Boolean(f.resolution?.name && !f.resolution.name.toLowerCase().includes('unresolved')));
 
       let isOnTime = true;
       if (isCompleted) {

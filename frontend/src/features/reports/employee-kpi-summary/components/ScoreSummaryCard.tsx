@@ -1,33 +1,73 @@
 import React from 'react';
 import type { ScoreSummary } from '../types/kpi-summary.types';
 import { resolveLocalizedText } from '../api/kpi-summary.api';
+import { useUiTranslation } from '@/shared/i18n/ui-i18n';
+import { useReportPalette } from '../../hooks/use-report-palette';
 import { Award, CheckCircle2, TrendingUp, HelpCircle } from 'lucide-react';
 
 interface ScoreSummaryCardProps {
   scoreSummary: ScoreSummary;
 }
 
+const OFFICIAL_SCORE_TOKEN = '{official_score}';
+
 export const ScoreSummaryCard: React.FC<ScoreSummaryCardProps> = ({ scoreSummary }) => {
+  const { t } = useUiTranslation();
+  const palette = useReportPalette();
   const completionPercentage = scoreSummary.kpiCount > 0
     ? Math.round((scoreSummary.completedCount / scoreSummary.kpiCount) * 100)
     : 0;
 
+  const officialScoreText = t('reports.summary.official_score', 'Official Score');
+  // The token is left unreplaced so the bolded term can sit anywhere in the translated sentence.
+  const semanticsParts = t(
+    'reports.summary.score_semantics_description',
+    'The {official_score} is the authoritative result determined by the evaluation lifecycle/calibration. It is distinct from the unweighted arithmetic average.'
+  ).split(OFFICIAL_SCORE_TOKEN);
+
+  const secondaryCardStyle: React.CSSProperties = {
+    backgroundColor: palette.surface,
+    border: `1px solid ${palette.border}`,
+    borderRadius: '12px',
+    padding: '20px',
+    boxShadow: palette.shadow,
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+  };
+  const cardLabelStyle: React.CSSProperties = {
+    fontSize: '0.82rem',
+    fontWeight: 600,
+    color: palette.textSecondary,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    marginBottom: '8px',
+  };
+  const cardValueStyle: React.CSSProperties = { fontSize: '2rem', fontWeight: 700, color: palette.textPrimary, lineHeight: 1 };
+  const cardFootnoteStyle: React.CSSProperties = { marginTop: '12px', fontSize: '0.78rem', color: palette.textSecondary };
+
   return (
-    <div style={{ marginBottom: '24px' }}>
-      {/* Visual Notice: Official Score != Average */}
+    <div>
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: '8px',
           fontSize: '0.8rem',
-          color: 'var(--text-secondary)',
+          color: palette.textSecondary,
           marginBottom: '10px',
         }}
       >
         <HelpCircle size={14} />
         <span>
-          <strong>Score Semantics:</strong> The <strong>Official Score</strong> is the authoritative result determined by the evaluation lifecycle/calibration. It is distinct from the unweighted arithmetic average.
+          <strong>{t('reports.summary.score_semantics_label', 'Score Semantics:')}</strong>{' '}
+          {semanticsParts.map((part, index) => (
+            <React.Fragment key={index}>
+              {index > 0 && <strong>{officialScoreText}</strong>}
+              {part}
+            </React.Fragment>
+          ))}
         </span>
       </div>
 
@@ -38,10 +78,9 @@ export const ScoreSummaryCard: React.FC<ScoreSummaryCardProps> = ({ scoreSummary
           gap: '16px',
         }}
       >
-        {/* Official Score Card - Strongest Visual Prominence */}
         <div
           style={{
-            backgroundColor: 'var(--bg-surface)',
+            backgroundColor: palette.surface,
             border: '2px solid var(--primary, #3b82f6)',
             borderRadius: '12px',
             padding: '20px 22px',
@@ -72,129 +111,93 @@ export const ScoreSummaryCard: React.FC<ScoreSummaryCardProps> = ({ scoreSummary
                   fontWeight: 700,
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
-                  color: 'var(--primary, #3b82f6)',
+                  color: palette.tones.info.fg,
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
                 }}
               >
                 <Award size={18} />
-                Official Score
+                {officialScoreText}
               </span>
               <span
                 style={{
                   fontSize: '0.7rem',
                   padding: '2px 8px',
                   borderRadius: '10px',
-                  backgroundColor: 'rgba(59, 130, 246, 0.12)',
-                  color: 'var(--primary, #3b82f6)',
+                  backgroundColor: palette.tones.info.bg,
+                  color: palette.tones.info.fg,
                   fontWeight: 600,
                 }}
               >
-                Authoritative
+                {t('reports.summary.authoritative', 'Authoritative')}
               </span>
             </div>
 
-            <div style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>
+            <div style={{ fontSize: '2.5rem', fontWeight: 800, color: palette.textPrimary, lineHeight: 1 }}>
               {scoreSummary.officialScore != null ? scoreSummary.officialScore.toFixed(2) : '—'}
             </div>
           </div>
 
-          <div style={{ marginTop: '12px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-            {resolveLocalizedText(scoreSummary.officialScoreLabel, 'Official Score')}
+          <div style={cardFootnoteStyle}>
+            {resolveLocalizedText(scoreSummary.officialScoreLabel, officialScoreText)}
           </div>
         </div>
 
-        {/* Overall Weighted Score */}
-        <div
-          style={{
-            backgroundColor: 'var(--bg-surface)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '12px',
-            padding: '20px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-          }}
-        >
+        <div style={secondaryCardStyle}>
           <div>
-            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+            <div style={cardLabelStyle}>
               <TrendingUp size={16} />
-              Overall Weighted Score
+              {t('reports.summary.overall_weighted_score', 'Overall Weighted Score')}
             </div>
-            <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>
+            <div style={cardValueStyle}>
               {scoreSummary.overallWeightedScore != null ? scoreSummary.overallWeightedScore.toFixed(2) : '—'}
             </div>
           </div>
-          <div style={{ marginTop: '12px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-            Sum of weighted criteria scores
+          <div style={cardFootnoteStyle}>
+            {t('reports.summary.overall_weighted_score_hint', 'Sum of weighted criteria scores')}
           </div>
         </div>
 
-        {/* Overall Unweighted Score */}
-        <div
-          style={{
-            backgroundColor: 'var(--bg-surface)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '12px',
-            padding: '20px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-          }}
-        >
+        <div style={secondaryCardStyle}>
           <div>
-            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+            <div style={cardLabelStyle}>
               <TrendingUp size={16} />
-              Overall Score (Raw Average)
+              {t('reports.summary.overall_raw_score', 'Overall Score (Raw Average)')}
             </div>
-            <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>
+            <div style={cardValueStyle}>
               {scoreSummary.overallScore != null ? scoreSummary.overallScore.toFixed(2) : '—'}
             </div>
           </div>
-          <div style={{ marginTop: '12px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-            Unweighted average across criteria
+          <div style={cardFootnoteStyle}>
+            {t('reports.summary.overall_raw_score_hint', 'Unweighted average across criteria')}
           </div>
         </div>
 
-        {/* Completed vs Total Count */}
-        <div
-          style={{
-            backgroundColor: 'var(--bg-surface)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '12px',
-            padding: '20px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-          }}
-        >
+        <div style={secondaryCardStyle}>
           <div>
-            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+            <div style={cardLabelStyle}>
               <CheckCircle2 size={16} />
-              Completion Progress
+              {t('reports.summary.completion_progress', 'Completion Progress')}
             </div>
-            <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>
+            <div style={cardValueStyle}>
               {scoreSummary.completedCount}{' '}
-              <span style={{ fontSize: '1.1rem', fontWeight: 500, color: 'var(--text-secondary)' }}>
-                / {scoreSummary.kpiCount} KPIs
+              <span style={{ fontSize: '1.1rem', fontWeight: 500, color: palette.textSecondary }}>
+                {t('reports.summary.kpi_total', '/ {count} KPIs', { count: scoreSummary.kpiCount })}
               </span>
             </div>
           </div>
 
           <div style={{ marginTop: '12px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
-              <span>Completion Rate</span>
-              <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{completionPercentage}%</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: palette.textSecondary, marginBottom: '4px' }}>
+              <span>{t('reports.summary.completion_rate', 'Completion Rate')}</span>
+              <span style={{ fontWeight: 600, color: palette.textPrimary }}>{completionPercentage}%</span>
             </div>
             <div
               style={{
                 height: '6px',
                 width: '100%',
-                backgroundColor: 'var(--border-subtle)',
+                backgroundColor: palette.border,
                 borderRadius: '3px',
                 overflow: 'hidden',
               }}

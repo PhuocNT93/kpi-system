@@ -6,6 +6,7 @@
  *
  * Run: node src/modules/configuration/infrastructure/seed/seed-employee-review-cadence.mjs
  */
+import 'dotenv/config';
 import pg from 'pg';
 
 const { Pool } = pg;

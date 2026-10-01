@@ -1,104 +1,82 @@
 import React from 'react';
-import { Card } from '@/shared/components/Card';
-import { SHADOWS, RADII, TYPOGRAPHY } from '@/shared/theme';
-import { COLORS } from '@/lib/theme';
+import { RADII, TYPOGRAPHY } from '@/shared/theme';
 import { TrendingUp } from 'lucide-react';
+import { useReportPalette, type ReportTone } from '../hooks/use-report-palette';
 
 interface ScoreCardProps {
   title: string;
   score: number | string;
   subtitle?: string;
   icon?: React.ReactNode;
-  theme?: 'primary' | 'success' | 'warning' | 'info';
+  theme?: Exclude<ReportTone, 'neutral'>;
 }
 
-export const ScoreCard: React.FC<ScoreCardProps> = ({ 
-  title, 
-  score, 
-  subtitle, 
-  icon = <TrendingUp size={24} />, 
-  theme = 'primary' 
+export const ScoreCard: React.FC<ScoreCardProps> = ({
+  title,
+  score,
+  subtitle,
+  icon = <TrendingUp size={24} />,
+  theme = 'primary',
 }) => {
-  const getThemeColor = () => {
-    switch (theme) {
-      case 'success': return COLORS.semantic.success[500];
-      case 'warning': return COLORS.semantic.warning[500];
-      case 'info': return COLORS.primary[500];
-      default: return COLORS.primary[500];
-    }
-  };
-
-  const getThemeBg = () => {
-    switch (theme) {
-      case 'success': return COLORS.semantic.success[100];
-      case 'warning': return COLORS.semantic.warning[100];
-      case 'info': return COLORS.primary[100];
-      default: return COLORS.primary[100];
-    }
-  };
+  const palette = useReportPalette();
+  const tone = palette.tones[theme];
 
   return (
-    <Card 
-      style={{ 
-        padding: '24px', 
-        display: 'flex', 
-        alignItems: 'center', 
+    <div
+      style={{
+        padding: '20px 24px',
+        display: 'flex',
+        alignItems: 'center',
         gap: '20px',
-        boxShadow: SHADOWS.sm,
-        border: `1px solid ${COLORS.neutral[200]}`,
-        borderRadius: RADII.xl,
-        transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-        cursor: 'default',
-      }}
-      onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => {
-        e.currentTarget.style.transform = 'translateY(-2px)';
-        e.currentTarget.style.boxShadow = SHADOWS.md;
-      }}
-      onMouseLeave={(e: React.MouseEvent<HTMLDivElement>) => {
-        e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = SHADOWS.sm;
+        background: palette.surface,
+        border: `1px solid ${palette.border}`,
+        borderRadius: RADII.lg,
+        boxShadow: palette.shadow,
       }}
     >
-      <div 
-        style={{ 
-          backgroundColor: getThemeBg(), 
-          color: getThemeColor(),
-          padding: '16px', 
+      <div
+        aria-hidden="true"
+        style={{
+          backgroundColor: tone.bg,
+          color: tone.fg,
+          padding: '14px',
           borderRadius: RADII.lg,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center'
+          justifyContent: 'center',
+          flexShrink: 0,
         }}
       >
         {icon}
       </div>
-      <div>
-        <h3 style={{ 
-          margin: 0, 
-          fontSize: TYPOGRAPHY.fontSize.sm, 
-          color: COLORS.neutral.textSecondary,
-          fontWeight: TYPOGRAPHY.fontWeight.medium
-        }}>
+      <div style={{ minWidth: 0 }}>
+        <h3
+          style={{
+            margin: 0,
+            fontSize: TYPOGRAPHY.fontSize.sm,
+            color: palette.textMuted,
+            fontWeight: TYPOGRAPHY.fontWeight.medium,
+          }}
+        >
           {title}
         </h3>
-        <div style={{ 
-          fontSize: TYPOGRAPHY.fontSize['3xl'], 
-          fontWeight: TYPOGRAPHY.fontWeight.bold, 
-          color: COLORS.neutral.textPrimary,
-          marginTop: '4px'
-        }}>
+        <div
+          style={{
+            fontSize: TYPOGRAPHY.fontSize['3xl'],
+            fontWeight: TYPOGRAPHY.fontWeight.bold,
+            color: palette.textPrimary,
+            marginTop: '4px',
+            lineHeight: 1.2,
+          }}
+        >
           {score}
         </div>
         {subtitle && (
-          <div style={{ 
-            fontSize: TYPOGRAPHY.fontSize.xs, 
-            color: COLORS.neutral.textSecondary,
-            marginTop: '4px'
-          }}>
+          <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: palette.textMuted, marginTop: '4px' }}>
             {subtitle}
           </div>
         )}
       </div>
-    </Card>
+    </div>
   );
 };

@@ -36,7 +36,6 @@ export async function clearConfigurationData(pool: Pool): Promise<void> {
     DELETE FROM calibration_adjustment;
     DELETE FROM calibration_session;
     DELETE FROM evaluation;
-    DELETE FROM evaluation_cycle;
     DELETE FROM template_criteria;
     DELETE FROM template_criterion;
     DELETE FROM template_kpi;

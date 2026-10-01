@@ -4,6 +4,7 @@
  * Cleans up mock data and seeds real team/employee/user/evaluation data
  * Run: node src/modules/configuration/infrastructure/seed/seed-real-members.mjs
  */
+import 'dotenv/config';
 import pg from 'pg';
 import crypto from 'crypto';
 
@@ -342,149 +343,8 @@ async function main() {
       }
     }
 
-    // ── Step 8: Get template version first (required by cycle) ────────────
-    console.log('📅 Step 7: Creating evaluation cycle...');
-
-    // Get latest template version from the legacy table (evaluation_template_versions.id)
-    // that evaluation_cycle.evaluation_template_version_id FK references
-    const tvRes = await client.query(`
-      SELECT etv.id AS evaluation_template_version_id
-      FROM evaluation_template_versions etv
-      ORDER BY etv.created_at DESC LIMIT 1
-    `);
-    const templateVersionId = tvRes.rows[0]?.evaluation_template_version_id;
-
-    if (!templateVersionId) {
-      throw new Error('No evaluation_template_versions found. Please run configuration seed first.');
-    }
-    console.log(`  Using template version: ${templateVersionId}`);
-
-    // Get template criteria from evaluation_template_version (new table) for evaluation_items
-    const tvNewRes = await client.query(`
-      SELECT evaluation_template_version_id AS new_version_id
-      FROM evaluation_template_version
-      ORDER BY created_at DESC LIMIT 1
-    `);
-    const newTemplateVersionId = tvNewRes.rows[0]?.new_version_id;
-
-    let templateCriteria = [];
-    if (newTemplateVersionId) {
-      const tcRes = await client.query(`
-        SELECT tc.template_criterion_id
-        FROM template_criterion tc
-        WHERE tc.evaluation_template_version_id = $1
-      `, [newTemplateVersionId]);
-      templateCriteria = tcRes.rows;
-      console.log(`  Found ${templateCriteria.length} criteria in template`);
-    } else {
-      console.log('  No criteria found, evaluations will have no items (manager can add manually)');
-    }
-
-
-    // Create cycle
-    const cycleRes = await client.query(`
-      INSERT INTO evaluation_cycle (code, name, start_date, end_date, status, evaluation_template_version_id)
-      VALUES ($1, $2, $3, $4, 'OPEN', $5)
-      RETURNING evaluation_cycle_id
-    `, [
-      'H2-2026',
-      '2026 H2 KPI — Jul–Dec 2026',
-      '2026-07-01',
-      '2026-12-31',
-      templateVersionId
-    ]);
-    const cycleId = cycleRes.rows[0].evaluation_cycle_id;
-    console.log(`  Created cycle: ${cycleId}`);
-
-    // Get default role for snapshot
-    const defaultRoleSnapshotId = defaultRoleId || (await client.query(`SELECT role_id FROM role LIMIT 1`)).rows[0]?.role_id;
-
-    // ── Step 9: Create evaluations for all members ────────────────────────
-    console.log('📋 Step 8: Creating evaluations for all members...');
-
-    // Enrich templateCriteria with all required snapshot fields for evaluation_item
-    const enrichedCriteria = [];
-    for (const tc of templateCriteria) {
-      const snapRes = await client.query(`
-        SELECT
-          c.code AS criterion_code,
-          cv.default_weight,
-          -- Build name snapshot as jsonb {en, vi} — use criterion name or code
-          jsonb_build_object('en', COALESCE(c.name, c.code), 'vi', COALESCE(c.name, c.code)) AS name_snapshot,
-          -- Build scoring_rule snapshot
-          jsonb_build_object('rule_type', sr.rule_type, 'rule_config', sr.rule_config) AS scoring_rule_snapshot,
-          -- Build level_definition snapshot from criterion levels
-          COALESCE(
-            (SELECT jsonb_agg(jsonb_build_object('level', cl.level_no, 'score', cl.score_value, 'label_en', cl.label_en, 'label_vn', cl.label_vn))
-             FROM criterion_level cl WHERE cl.criterion_version_id = cv.criterion_version_id),
-            '[]'::jsonb
-          ) AS level_definition_snapshot,
-          tc2.effective_weight
-        FROM template_criterion tc2
-        JOIN criterion_version cv ON tc2.criterion_version_id = cv.criterion_version_id
-        JOIN criterion c ON cv.criterion_id = c.criterion_id
-        JOIN scoring_rule sr ON cv.scoring_rule_id = sr.scoring_rule_id
-        WHERE tc2.template_criterion_id = $1
-      `, [tc.template_criterion_id]);
-
-
-      if (snapRes.rows.length > 0) {
-        const snap = snapRes.rows[0];
-        enrichedCriteria.push({
-          ...tc,
-          criterionCode: snap.criterion_code,
-          nameSnapshot: snap.name_snapshot,
-          weightSnapshot: snap.effective_weight || snap.default_weight,
-          scoringRuleSnapshot: snap.scoring_rule_snapshot,
-          levelDefinitionSnapshot: snap.level_definition_snapshot,
-        });
-      }
-    }
-    console.log(`  Enriched ${enrichedCriteria.length} criteria with snapshot data`);
-
-    for (const m of allMembers) {
-      const isAllegro = allegroEmployeeIds.find(x => x.code === m.code);
-      const teamSnapId = isAllegro ? allegroTeamId : maritimeTeamId;
-
-      const evalRes = await client.query(`
-        INSERT INTO evaluation (
-          evaluation_cycle_id, employee_id, manager_id_snapshot,
-          team_id_snapshot, role_id_snapshot, status, version, created_by
-        )
-        VALUES ($1, $2, $3, $4, $5, 'OPEN', 1, $6)
-        RETURNING evaluation_id
-      `, [cycleId, m.employeeId, managerEmployeeId, teamSnapId, defaultRoleSnapshotId, managerEmployeeId]);
-      const evaluationId = evalRes.rows[0].evaluation_id;
-
-
-      // Create evaluation_item for each template criterion with all required snapshot fields
-      for (const tc of enrichedCriteria) {
-        await client.query(`
-          INSERT INTO evaluation_item (
-            evaluation_id, template_criterion_id,
-            criterion_code_snapshot, criterion_name_snapshot,
-            weight_snapshot, scoring_rule_snapshot, level_definition_snapshot,
-            version, created_by
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, 1, $8)
-          ON CONFLICT DO NOTHING
-        `, [
-          evaluationId,
-          tc.template_criterion_id,
-          tc.criterionCode,
-          JSON.stringify(tc.nameSnapshot),
-          tc.weightSnapshot,
-          JSON.stringify(tc.scoringRuleSnapshot),
-          JSON.stringify(tc.levelDefinitionSnapshot),
-          managerEmployeeId,
-
-        ]);
-      }
-
-      console.log(`  Created evaluation for: ${m.name} → ${evaluationId} (${enrichedCriteria.length} items)`);
-    }
-
-    // ── Step 8: Seed custom evaluation formula for ALLEGRO NX team ─────────
-    console.log('📐 Step 8: Seeding custom evaluation formula for ALLEGRO NX...');
+    // ── Step 7: Seed custom evaluation formula for ALLEGRO NX team ─────────
+    console.log('📐 Step 7: Seeding custom evaluation formula for ALLEGRO NX...');
     const allegroFormulaComponents = [
       {
         code: 'Con.1',
@@ -576,7 +436,6 @@ async function main() {
     console.log('\n✅ All done! Summary:');
     console.log(`  Teams: ALLEGRO-NX (${allegroEmployeeIds.length} members), MARITIME-SOL (${maritimeEmployeeIds.length} members)`);
     console.log(`  Total members: ${allMembers.length}`);
-    console.log(`  Cycle: 2026 H2 KPI (${cycleId})`);
     console.log(`  Manager account: ${MANAGER.email} / password: ${DEFAULT_PASSWORD}`);
     console.log(`  Member accounts: <email>@cyberlogitec.com / password: ${DEFAULT_PASSWORD}`);
   } catch (err) {

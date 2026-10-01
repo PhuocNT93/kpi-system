@@ -4,6 +4,13 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Header } from '../Header';
 import { ThemeProvider } from '@/shared/theme';
+import { HeaderTrailProvider } from '../HeaderTrailProvider';
+import { useHeaderTrail } from '../header-trail';
+
+function HubTab({ label }: { label: string }) {
+  useHeaderTrail(label);
+  return null;
+}
 
 describe('Header Component', () => {
   beforeEach(() => {
@@ -62,5 +69,31 @@ describe('Header Component', () => {
 
     expect(langSelect.value).toBe('vi');
     expect(localStorage.getItem('kpi_locale')).toBe('vi');
+  });
+
+  it('shows a "Section › Tab" breadcrumb instead of the title while a hub sets a trail', () => {
+    const { rerender } = render(
+      <ThemeProvider>
+        <HeaderTrailProvider>
+          <Header title="System & Security Hub" section="Configuration" />
+          <HubTab label="IAM & Roles" />
+        </HeaderTrailProvider>
+      </ThemeProvider>
+    );
+
+    const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(breadcrumb).toHaveTextContent('Configuration');
+    expect(screen.getByText('IAM & Roles')).toHaveAttribute('aria-current', 'page');
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
+
+    // Leaving the hub clears the trail and brings the title back.
+    rerender(
+      <ThemeProvider>
+        <HeaderTrailProvider>
+          <Header title="System & Security Hub" section="Configuration" />
+        </HeaderTrailProvider>
+      </ThemeProvider>
+    );
+    expect(screen.getByRole('heading', { level: 1, name: 'System & Security Hub' })).toBeInTheDocument();
   });
 });

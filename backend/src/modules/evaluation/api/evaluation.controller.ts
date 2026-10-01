@@ -20,7 +20,7 @@ export class EvaluationController {
       return {
         userId,
         role: (validRoles.includes(rawRole) ? rawRole : 'EMPLOYEE') as import('../../../shared/auth/types.js').UserRole,
-        employeeId: user.employeeId ?? user.id,
+        employeeId: user.employeeId,
         managedTeamIds: user.managedTeamIds ?? [],
       };
     }
@@ -76,6 +76,21 @@ export class EvaluationController {
       const { developmentBlocks } = req.body;
       await this.evaluationService.saveDevelopmentBlocks(id, actor, Array.isArray(developmentBlocks) ? developmentBlocks : []);
       sendSuccess(res, 200, 'Development blocks saved successfully.', null);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  saveComparisonNotes = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const actor = this.getActor(req);
+      const id = req.params.id as string;
+      const { previous_evaluation, this_evaluation } = req.body;
+      await this.evaluationService.saveComparisonNotes(id, actor, {
+        previous_evaluation: typeof previous_evaluation === 'string' ? previous_evaluation : '',
+        this_evaluation: typeof this_evaluation === 'string' ? this_evaluation : '',
+      });
+      sendSuccess(res, 200, 'Comparison notes saved successfully.', null);
     } catch (err) {
       next(err);
     }

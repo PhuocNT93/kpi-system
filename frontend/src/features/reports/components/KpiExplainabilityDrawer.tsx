@@ -9,11 +9,12 @@ import {
   HelpCircle,
   MessageSquare,
 } from 'lucide-react';
-import { COLORS } from '@/lib/theme';
 import { RADII, TYPOGRAPHY, SHADOWS } from '@/shared/theme';
+import { useUiTranslation } from '@/shared/i18n/ui-i18n';
 import { EvidenceViewer } from '@/features/imports/components/EvidenceViewer';
 import { fetchKpiEvidence } from '../api/reports.api';
 import type { ExplainabilityViewDto } from '../types/reports.types';
+import { useReportPalette } from '../hooks/use-report-palette';
 
 interface KpiExplainabilityDrawerProps {
   isOpen: boolean;
@@ -30,6 +31,8 @@ export const KpiExplainabilityDrawer: React.FC<KpiExplainabilityDrawerProps> = (
   kpiCode,
   kpiName,
 }) => {
+  const palette = useReportPalette();
+  const { t, currentLocale } = useUiTranslation();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<ExplainabilityViewDto | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +57,7 @@ export const KpiExplainabilityDrawer: React.FC<KpiExplainabilityDrawerProps> = (
       })
       .catch((err) => {
         if (isMounted) {
-          setError(err?.message || 'Failed to load KPI explanation & evidence.');
+          setError(err?.message ?? '');
           setLoading(false);
         }
       });
@@ -66,6 +69,21 @@ export const KpiExplainabilityDrawer: React.FC<KpiExplainabilityDrawerProps> = (
 
   if (!isOpen) return null;
 
+  const panel: React.CSSProperties = {
+    padding: '12px 14px',
+    backgroundColor: palette.surfaceSubtle,
+    border: `1px solid ${palette.border}`,
+    borderRadius: RADII.lg,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: palette.textPrimary,
+  };
+  const sectionTitle: React.CSSProperties = {
+    margin: 0,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: palette.textPrimary,
+  };
+
   return (
     <div
       style={{
@@ -74,17 +92,20 @@ export const KpiExplainabilityDrawer: React.FC<KpiExplainabilityDrawerProps> = (
         zIndex: 1000,
         display: 'flex',
         justifyContent: 'flex-end',
-        backgroundColor: 'rgba(15, 23, 42, 0.4)',
+        backgroundColor: 'rgba(15, 23, 42, 0.5)',
         backdropFilter: 'blur(3px)',
-        transition: 'all 0.3s ease',
       }}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('reports.explain.title', 'KPI Explainability & Lineage')}
         style={{
           width: '100%',
           maxWidth: '560px',
           height: '100%',
-          backgroundColor: COLORS.neutral.white,
+          backgroundColor: palette.surface,
+          color: palette.textPrimary,
           boxShadow: SHADOWS.lg,
           display: 'flex',
           flexDirection: 'column',
@@ -92,15 +113,14 @@ export const KpiExplainabilityDrawer: React.FC<KpiExplainabilityDrawerProps> = (
           animation: 'slideIn 0.25s ease-out',
         }}
       >
-        {/* Header */}
         <div
           style={{
             padding: '20px 24px',
-            borderBottom: `1px solid ${COLORS.neutral[200]}`,
+            borderBottom: `1px solid ${palette.border}`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            backgroundColor: COLORS.neutral[50],
+            backgroundColor: palette.surfaceSubtle,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -109,62 +129,48 @@ export const KpiExplainabilityDrawer: React.FC<KpiExplainabilityDrawerProps> = (
                 width: '36px',
                 height: '36px',
                 borderRadius: RADII.md,
-                backgroundColor: COLORS.primary[100],
+                backgroundColor: palette.tones.primary.bg,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: COLORS.primary.DEFAULT,
+                color: palette.tones.primary.fg,
               }}
             >
-              <Sparkles size={20} />
+              <Sparkles size={20} aria-hidden="true" />
             </div>
             <div>
-              <h3
-                style={{
-                  margin: 0,
-                  fontSize: TYPOGRAPHY.fontSize.base,
-                  fontWeight: TYPOGRAPHY.fontWeight.bold,
-                  color: COLORS.neutral.textPrimary,
-                }}
-              >
-                KPI Explainability & Lineage
+              <h3 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.base, fontWeight: TYPOGRAPHY.fontWeight.bold, color: palette.textPrimary }}>
+                {t('reports.explain.title', 'KPI Explainability & Lineage')}
               </h3>
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: TYPOGRAPHY.fontSize.xs,
-                  color: COLORS.neutral.textSecondary,
-                }}
-              >
+              <p style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.xs, color: palette.textMuted }}>
                 {kpiCode} {kpiName ? `— ${kpiName}` : ''}
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('reports.explain.close', 'Close')}
             style={{
               background: 'none',
               border: 'none',
               padding: '6px',
               borderRadius: RADII.md,
               cursor: 'pointer',
-              color: COLORS.neutral[500],
+              color: palette.textMuted,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = COLORS.neutral[200])}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
           >
             <X size={20} />
           </button>
         </div>
 
-        {/* Body Content */}
         <div style={{ flex: 1, padding: '24px', overflowY: 'auto' }}>
           {loading && (
             <div
+              role="status"
               style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -172,180 +178,151 @@ export const KpiExplainabilityDrawer: React.FC<KpiExplainabilityDrawerProps> = (
                 justifyContent: 'center',
                 padding: '64px 0',
                 gap: '12px',
-                color: COLORS.neutral.textSecondary,
+                color: palette.textMuted,
               }}
             >
-              <Loader2 size={32} className="animate-spin" color={COLORS.primary.DEFAULT} />
-              <span>Fetching KPI calculation lineage & evidence...</span>
+              <Loader2 size={32} className="animate-spin" color={palette.tones.primary.fg} />
+              <span>{t('reports.explain.loading', 'Fetching KPI calculation lineage & evidence...')}</span>
             </div>
           )}
 
-          {error && (
+          {error !== null && (
             <div
+              role="alert"
               style={{
                 padding: '16px',
-                backgroundColor: '#fef2f2',
-                border: '1px solid #fecaca',
+                backgroundColor: palette.tones.warning.bg,
+                border: `1px solid ${palette.border}`,
                 borderRadius: RADII.lg,
-                color: '#b91c1c',
+                color: palette.tones.warning.fg,
                 display: 'flex',
                 alignItems: 'center',
                 gap: '10px',
               }}
             >
-              <AlertTriangle size={20} />
-              <span style={{ fontSize: TYPOGRAPHY.fontSize.sm }}>{error}</span>
+              <AlertTriangle size={20} aria-hidden="true" />
+              <span style={{ fontSize: TYPOGRAPHY.fontSize.sm }}>
+                {error || t('reports.explain.load_error', 'Failed to load KPI explanation & evidence.')}
+              </span>
             </div>
           )}
 
-          {!loading && !error && data && (
+          {!loading && error === null && data && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              {/* Score & Measurement Highlight Card */}
               <div
                 style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(2, 1fr)',
                   gap: '12px',
-                  backgroundColor: COLORS.primary[50],
+                  backgroundColor: palette.tones.primary.bg,
                   padding: '16px',
-                  borderRadius: RADII.xl,
-                  border: `1px solid ${COLORS.primary[100]}`,
+                  borderRadius: RADII.lg,
+                  border: `1px solid ${palette.border}`,
                 }}
               >
                 <div>
-                  <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.primary[700], fontWeight: 500 }}>
-                    Final Score
+                  <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: palette.tones.primary.fg, fontWeight: 500 }}>
+                    {t('reports.explain.final_score', 'Final Score')}
                   </div>
-                  <div style={{ fontSize: TYPOGRAPHY.fontSize['2xl'], fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.primary[900] }}>
+                  <div style={{ fontSize: TYPOGRAPHY.fontSize['2xl'], fontWeight: TYPOGRAPHY.fontWeight.bold, color: palette.textPrimary }}>
                     {data.score !== undefined && data.score !== null ? Number(data.score).toFixed(1) : '—'}
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.primary[700], fontWeight: 500 }}>
-                    Raw Measurement
+                  <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: palette.tones.primary.fg, fontWeight: 500 }}>
+                    {t('reports.explain.raw_measurement', 'Raw Measurement')}
                   </div>
-                  <div style={{ fontSize: TYPOGRAPHY.fontSize['2xl'], fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.primary[900] }}>
+                  <div style={{ fontSize: TYPOGRAPHY.fontSize['2xl'], fontWeight: TYPOGRAPHY.fontWeight.bold, color: palette.textPrimary }}>
                     {data.measurement !== undefined && data.measurement !== null ? data.measurement : '—'}
                   </div>
                 </div>
               </div>
 
-              {/* Rationale & Comment Section */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <HelpCircle size={16} color={COLORS.primary.DEFAULT} />
-                  <h4 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.sm, fontWeight: TYPOGRAPHY.fontWeight.semibold }}>
-                    Calculation Rationale
-                  </h4>
+                  <HelpCircle size={16} color={palette.tones.primary.fg} aria-hidden="true" />
+                  <h4 style={sectionTitle}>{t('reports.explain.rationale', 'Calculation Rationale')}</h4>
                 </div>
-                <div
-                  style={{
-                    padding: '12px 14px',
-                    backgroundColor: COLORS.neutral[50],
-                    border: `1px solid ${COLORS.neutral[200]}`,
-                    borderRadius: RADII.lg,
-                    fontSize: TYPOGRAPHY.fontSize.sm,
-                    color: COLORS.neutral.textPrimary,
-                    lineHeight: '1.5',
-                  }}
-                >
-                  {data.rationale || 'No automated rationale provided for this measurement.'}
+                <div style={{ ...panel, lineHeight: 1.5 }}>
+                  {data.rationale || t('reports.explain.no_rationale', 'No automated rationale provided for this measurement.')}
                 </div>
 
                 {data.comment && (
                   <div style={{ marginTop: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                      <MessageSquare size={16} color={COLORS.neutral.textSecondary} />
-                      <h4 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.sm, fontWeight: TYPOGRAPHY.fontWeight.semibold }}>
-                        Evaluator Comment
-                      </h4>
+                      <MessageSquare size={16} color={palette.textMuted} aria-hidden="true" />
+                      <h4 style={sectionTitle}>{t('reports.explain.comment', 'Evaluator Comment')}</h4>
                     </div>
-                    <div
-                      style={{
-                        padding: '12px 14px',
-                        backgroundColor: COLORS.neutral[50],
-                        border: `1px solid ${COLORS.neutral[200]}`,
-                        borderRadius: RADII.lg,
-                        fontSize: TYPOGRAPHY.fontSize.sm,
-                        color: COLORS.neutral.textPrimary,
-                      }}
-                    >
-                      {data.comment}
-                    </div>
+                    <div style={panel}>{data.comment}</div>
                   </div>
                 )}
               </div>
 
-              {/* Source & Import Lineage */}
               <div
                 style={{
+                  ...panel,
                   padding: '16px',
-                  backgroundColor: COLORS.neutral[50],
-                  borderRadius: RADII.xl,
-                  border: `1px solid ${COLORS.neutral[200]}`,
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '10px',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Database size={16} color={COLORS.neutral.textSecondary} />
-                  <h4 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.sm, fontWeight: TYPOGRAPHY.fontWeight.semibold }}>
-                    Data Source & Ingestion Lineage
-                  </h4>
+                  <Database size={16} color={palette.textMuted} aria-hidden="true" />
+                  <h4 style={sectionTitle}>{t('reports.explain.lineage', 'Data Source & Ingestion Lineage')}</h4>
                 </div>
 
                 {data.source ? (
                   <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <div>
-                      <span style={{ color: COLORS.neutral.textSecondary }}>Source System:</span>{' '}
+                      <span style={{ color: palette.textMuted }}>{t('reports.explain.source_system', 'Source System:')}</span>{' '}
                       <strong>{data.source.sourceName || data.source.sourceType}</strong>
                     </div>
                     {data.source.sourceReference && (
                       <div>
-                        <span style={{ color: COLORS.neutral.textSecondary }}>Reference:</span>{' '}
+                        <span style={{ color: palette.textMuted }}>{t('reports.explain.reference', 'Reference:')}</span>{' '}
                         <code>{data.source.sourceReference}</code>
                       </div>
                     )}
                     {data.source.collectedAt && (
                       <div>
-                        <span style={{ color: COLORS.neutral.textSecondary }}>Collected At:</span>{' '}
-                        {new Date(data.source.collectedAt).toLocaleString()}
+                        <span style={{ color: palette.textMuted }}>{t('reports.explain.collected_at', 'Collected At:')}</span>{' '}
+                        {new Date(data.source.collectedAt).toLocaleString(currentLocale === 'vi' ? 'vi-VN' : 'en-US')}
                       </div>
                     )}
                   </div>
                 ) : (
-                  <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
-                    Directly entered or legacy measurement without source snapshot.
+                  <div style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: palette.textMuted }}>
+                    {t('reports.explain.no_source', 'Directly entered or legacy measurement without source snapshot.')}
                   </div>
                 )}
 
                 {data.import && (
                   <div
                     style={{
-                      borderTop: `1px solid ${COLORS.neutral[200]}`,
+                      borderTop: `1px solid ${palette.border}`,
                       paddingTop: '8px',
                       marginTop: '4px',
                       fontSize: TYPOGRAPHY.fontSize.xs,
-                      color: COLORS.neutral.textSecondary,
+                      color: palette.textMuted,
                     }}
                   >
-                    Import Batch ID: <code>{data.import.id}</code> (by {data.import.createdBy})
+                    {t('reports.explain.import_batch', 'Import Batch ID:')} <code>{data.import.id}</code>{' '}
+                    {t('reports.explain.import_by', '(by {name})', { name: data.import.createdBy })}
                   </div>
                 )}
               </div>
 
-              {/* Evidence Section */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <FileCheck2 size={16} color={COLORS.primary.DEFAULT} />
-                    <h4 style={{ margin: 0, fontSize: TYPOGRAPHY.fontSize.sm, fontWeight: TYPOGRAPHY.fontWeight.semibold }}>
-                      Evidence ({data.evidences?.length || 0})
+                    <FileCheck2 size={16} color={palette.tones.primary.fg} aria-hidden="true" />
+                    <h4 style={sectionTitle}>
+                      {t('reports.explain.evidence', 'Evidence ({count})', { count: data.evidences?.length || 0 })}
                     </h4>
                   </div>
-                  <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: COLORS.neutral.textSecondary }}>
-                    Append-only audit trail
+                  <span style={{ fontSize: TYPOGRAPHY.fontSize.xs, color: palette.textMuted }}>
+                    {t('reports.explain.append_only', 'Append-only audit trail')}
                   </span>
                 </div>
 

@@ -12,6 +12,7 @@ import {
   executeBatchRun,
   getBatchRuns,
   getBatchRunById,
+  rescoreBatchRunRecord,
   updateCronExpression,
   getCurrentCronExpression,
   startScheduler,
@@ -639,14 +640,14 @@ export class JiraCrawlerController {
    */
   public triggerBatchRun = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { cycleCode = 'H2-2026' } = req.body as { cycleCode?: string };
+      const { cycleCode = 'H2-2026', employeeCodes } = req.body as { cycleCode?: string; employeeCodes?: string[] };
 
       // Start batch in background, return immediately with run ID
       const runId = `batch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-      console.log(`[BatchRun] Manual trigger by user — starting run ${runId}`);
+      console.log(`[BatchRun] Manual trigger by user — starting run ${runId} (Selected: ${employeeCodes?.length ?? 'all'})`);
 
       // Execute in background (don't await)
-      executeBatchRun(this.pool, 'MANUAL', cycleCode)
+      executeBatchRun(this.pool, 'MANUAL', cycleCode, employeeCodes)
         .then((run) => {
           console.log(`[BatchRun] Completed run ${run.id}: ${run.completedMembers}/${run.totalMembers} succeeded`);
         })
@@ -654,17 +655,22 @@ export class JiraCrawlerController {
           console.error(`[BatchRun] Fatal error:`, err.message);
         });
 
-      const managerCode = process.env.JIRA_MANAGER_CODE || '163188';
-      const memberCountRes = await this.pool.query(
-        `SELECT COUNT(*) as cnt FROM employee WHERE manager_id = (SELECT employee_id FROM employee WHERE employee_code = $1) OR (employee_code != $1 AND manager_id IS NOT NULL)`,
-        [managerCode]
-      );
-      const totalCount = parseInt(memberCountRes.rows[0]?.cnt || '19', 10);
+      let totalCount = 19;
+      if (Array.isArray(employeeCodes) && employeeCodes.length > 0) {
+        totalCount = employeeCodes.length;
+      } else {
+        const managerCode = process.env.JIRA_MANAGER_CODE || '163188';
+        const memberCountRes = await this.pool.query(
+          `SELECT COUNT(*) as cnt FROM employee WHERE manager_id = (SELECT employee_id FROM employee WHERE employee_code = $1) OR (employee_code != $1 AND manager_id IS NOT NULL)`,
+          [managerCode]
+        );
+        totalCount = parseInt(memberCountRes.rows[0]?.cnt || '19', 10);
+      }
 
       // Return immediately
       sendSuccess(res, 202, 'Batch run started in background', {
         status: 'STARTED',
-        message: `Đang chạy batch cho ${totalCount} thành viên. Tải lại danh sách để xem kết quả.`,
+        message: `Đang chạy batch cho ${totalCount} thành viên được chọn. Hệ thống đang thu thập dữ liệu ngầm...`,
         totalMembers: totalCount,
         cycleCode,
       });
@@ -747,6 +753,26 @@ export class JiraCrawlerController {
         return;
       }
       sendSuccess(res, 200, 'Batch run detail retrieved', run);
+    } catch (err) {
+      sendFailure(res, 500, (err as Error).message, 'SERVER_ERROR');
+    }
+  };
+
+  /**
+   * POST /api/collector/jira/batch-runs/:id/rescore
+   * Rescore an existing batch run with latest AI prompt and rubric
+   */
+  public rescoreBatchRun = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const id = req.params['id'] as string;
+      const run = await rescoreBatchRunRecord(this.pool, id);
+      sendSuccess(res, 200, `Đã chấm điểm lại thành công: ${run.versionTag}`, {
+        status: 'DONE',
+        runId: run.id,
+        versionTag: run.versionTag,
+        versionNumber: run.versionNumber,
+        completedMembers: run.completedMembers,
+      });
     } catch (err) {
       sendFailure(res, 500, (err as Error).message, 'SERVER_ERROR');
     }

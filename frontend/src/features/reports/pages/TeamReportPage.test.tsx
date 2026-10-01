@@ -1,8 +1,8 @@
 /** @vitest-environment jsdom */
 import '@testing-library/jest-dom/vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TeamReportPage } from './TeamReportPage';
 import * as reportsApi from '../api/reports.api';
@@ -46,6 +46,10 @@ vi.mock('@/shared/auth/auth-context', () => ({
 
 describe('TeamReportPage', () => {
   let queryClient: QueryClient;
+
+  afterEach(() => {
+    cleanup();
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -110,6 +114,137 @@ describe('TeamReportPage', () => {
       expect(screen.getByText('82.50')).toBeInTheDocument();
       expect(screen.getByText('60.0%')).toBeInTheDocument();
       expect(screen.getByText('Engineering Alpha')).toBeInTheDocument();
+    });
+  });
+
+  it('shows both tables without sub-tabs on the standalone route', async () => {
+    vi.mocked(reportsApi.fetchTeamReport).mockResolvedValue({
+      aggregate: {
+        id: 'agg-1',
+        evaluationCycleId: 'cycle-1',
+        teamId: 'team-1',
+        employeeCount: 5,
+        completedEmployeeCount: 3,
+        lastRefreshedAt: '2026-06-01T00:00:00.000Z',
+      },
+      kpis: [],
+      dataAsOf: '2026-06-01T00:00:00.000Z',
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/admin/team-report/team-1']}>
+          <Routes>
+            <Route path="/admin/team-report/:teamId" element={<TeamReportPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    expect(await screen.findByText('Team KPI Averages')).toBeInTheDocument();
+    expect(screen.getByText('Cross-cycle KPI Trend')).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'KPI Trend' })).not.toBeInTheDocument();
+  });
+
+  describe('embedded in the reports hub', () => {
+    const LocationProbe = () => {
+      const location = useLocation();
+      return <div data-testid="location">{`${location.pathname}${location.search}`}</div>;
+    };
+
+    const renderEmbedded = () =>
+      render(
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter initialEntries={['/admin/reports?scope=team']}>
+            <Routes>
+              <Route
+                path="/admin/reports"
+                element={
+                  <>
+                    <TeamReportPage isEmbedded />
+                    <LocationProbe />
+                  </>
+                }
+              />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+
+    beforeEach(() => {
+      vi.mocked(orgApi.organizationApi.getTeams).mockResolvedValue([
+        { id: 'team-1', name: 'Engineering Alpha', code: 'ENG_ALPHA', active: true } as unknown as OrgTeam,
+        { id: 'team-2', name: 'Engineering Beta', code: 'ENG_BETA', active: true } as unknown as OrgTeam,
+      ]);
+      vi.mocked(reportsApi.fetchTeamReport).mockResolvedValue({
+        aggregate: {
+          id: 'agg-1',
+          evaluationCycleId: 'cycle-1',
+          teamId: 'team-1',
+          employeeCount: 5,
+          completedEmployeeCount: 0,
+          completionRate: 0,
+          lastRefreshedAt: '2026-06-01T00:00:00.000Z',
+        },
+        kpis: [],
+        dataAsOf: '2026-06-01T00:00:00.000Z',
+      });
+    });
+
+    it('hides its own page title', async () => {
+      renderEmbedded();
+      await screen.findByText('Engineering Alpha');
+      expect(screen.queryByText('Team Dashboard')).not.toBeInTheDocument();
+      expect(screen.getByText('Report Filters')).toBeInTheDocument();
+    });
+
+    it('keeps the team in the hub URL instead of navigating away', async () => {
+      renderEmbedded();
+      await screen.findByText('Engineering Beta');
+
+      fireEvent.change(screen.getByLabelText('Team'), { target: { value: 'team-2' } });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('location')).toHaveTextContent('/admin/reports?scope=team&team=team-2');
+        expect(reportsApi.fetchTeamReport).toHaveBeenCalledWith('team-2', 'cycle-1');
+      });
+    });
+
+    it('starts without a comparison cycle and only loads trends once one is chosen', async () => {
+      renderEmbedded();
+      await waitFor(() => expect(reportsApi.fetchTeamReport).toHaveBeenCalledWith('team-1', 'cycle-1'));
+
+      const compare = screen.getByLabelText('Compare with (Previous Cycle)') as HTMLSelectElement;
+      expect(compare.value).toBe('');
+      fireEvent.click(await screen.findByRole('tab', { name: 'KPI Trend' }));
+      expect(await screen.findByText('Choose a comparison cycle to see KPI trends.')).toBeInTheDocument();
+      expect(reportsApi.fetchKpiTrend).not.toHaveBeenCalled();
+
+      fireEvent.change(compare, { target: { value: 'cycle-1' } });
+      await waitFor(() => {
+        expect(reportsApi.fetchKpiTrend).toHaveBeenCalledWith('cycle-1', 'cycle-1', 'team-1', undefined);
+      });
+    });
+
+    it('switches between the KPI averages and the KPI trend with sub-tabs (TC45)', async () => {
+      renderEmbedded();
+      const averagesTab = await screen.findByRole('tab', { name: 'KPI Averages' });
+      expect(averagesTab).toHaveAttribute('aria-selected', 'true');
+      expect(screen.getByText('Team KPI Averages')).toBeInTheDocument();
+      expect(screen.queryByText('Cross-cycle KPI Trend')).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('tab', { name: 'KPI Trend' }));
+      expect(screen.getByText('Cross-cycle KPI Trend')).toBeInTheDocument();
+      expect(screen.queryByText('Team KPI Averages')).not.toBeInTheDocument();
+      // Filters and the summary cards stay visible on both sub-tabs.
+      expect(screen.getByLabelText('Compare with (Previous Cycle)')).toBeInTheDocument();
+      expect(screen.getByText('Team Average Score')).toBeInTheDocument();
+    });
+
+    it('shows a dash with an explanation when the team has no average score yet', async () => {
+      renderEmbedded();
+      expect(await screen.findByText('—')).toBeInTheDocument();
+      expect(screen.getAllByText('Scores appear once evaluations are completed.').length).toBeGreaterThan(0);
     });
   });
 });

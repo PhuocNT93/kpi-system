@@ -8,8 +8,12 @@ import type { OrgJobRole } from '../domain/organization-models';
 import { BulkActionBar } from './BulkActionBar';
 import { useTheme } from '../../../shared/theme';
 import { useOrganizationTranslation } from '../hooks/useOrganizationTranslation';
+import { Search } from 'lucide-react';
+import { useTableHeaderOffset } from '@/shared/hooks/use-table-header-offset';
+import type { CreateControl } from './create-control';
 
-export function OrgRoleTable() {
+export function OrgRoleTable({ createControl }: { createControl?: CreateControl } = {}) {
+  const tableFrameRef = useTableHeaderOffset<HTMLDivElement>();
   const { user } = useAuth();
   const { isDark } = useTheme();
   const { t } = useOrganizationTranslation();
@@ -17,7 +21,9 @@ export function OrgRoleTable() {
   
   const rolesQuery = useJobRoles();
   const [editingRole, setEditingRole] = useState<OrgJobRole | undefined>();
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [ownCreateOpen, setOwnCreateOpen] = useState(false);
+  const isCreateOpen = createControl?.isOpen ?? ownCreateOpen;
+  const setIsCreateOpen = createControl?.onOpenChange ?? setOwnCreateOpen;
 
   // Bulk action state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -25,7 +31,14 @@ export function OrgRoleTable() {
   const bulkUpdateMutation = useBulkUpdateJobRoles();
   const headerCheckboxRef = useRef<HTMLInputElement>(null);
 
-  const roles = rolesQuery.data ?? [];
+  const [search, setSearch] = useState('');
+  const roles = (rolesQuery.data ?? []).filter(
+    (r) =>
+      !search ||
+      r.name.toLowerCase().includes(search.toLowerCase()) ||
+      r.code.toLowerCase().includes(search.toLowerCase()) ||
+      (r.description && r.description.toLowerCase().includes(search.toLowerCase()))
+  );
 
   const isAllSelected = roles.length > 0 && selectedIds.size === roles.length;
   const isIndeterminate = selectedIds.size > 0 && selectedIds.size < roles.length;
@@ -83,6 +96,10 @@ export function OrgRoleTable() {
     fontSize: '0.8125rem',
     fontWeight: 600,
     color: isDark ? '#cbd5e1' : '#4b5563',
+    position: 'sticky',
+    top: 0,
+    backgroundColor: isDark ? '#0f172a' : '#f9fafb',
+    zIndex: 1,
   };
 
   const tdStyle: React.CSSProperties = {
@@ -91,26 +108,47 @@ export function OrgRoleTable() {
     color: isDark ? '#f8fafc' : '#111827',
   };
 
+  // Only the table scrolls; the extra bottom space keeps the last row clear of the fixed bulk action bar.
   return (
-    <div style={{ paddingBottom: '6rem' }}>
-      {isAdmin && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
-          <Button id="create-role-btn" onClick={() => setIsCreateOpen(true)} size="sm">
-            {t('btn_create_role', '+ Create Role')}
-          </Button>
+    <div style={{ paddingBottom: selectedIds.size > 0 ? '5rem' : '0.5rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '1rem', flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', width: '220px' }}>
+          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('search_roles', 'Tìm chức danh...')}
+            style={{
+              width: '100%',
+              padding: '6px 12px 6px 30px',
+              fontSize: '0.8125rem',
+              borderRadius: '8px',
+              border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+              backgroundColor: isDark ? '#0f172a' : '#ffffff',
+              color: isDark ? '#f8fafc' : '#111827',
+              outline: 'none',
+              boxSizing: 'border-box',
+            }}
+          />
         </div>
-      )}
+
+        {isAdmin && (
+          <Button id="create-role-btn" onClick={() => setIsCreateOpen(true)} size="sm">
+            {t('btn_create_role', '+ Thêm chức danh')}
+          </Button>
+        )}
+      </div>
 
       {roles.length === 0 ? (
-        <EmptyState message={t('empty_roles', 'No job roles found.')} />
+        <EmptyState message={t('empty_roles', 'Không tìm thấy chức danh nào.')} />
       ) : (
-        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <div ref={tableFrameRef} className="table-scroll-frame" style={{ paddingBottom: selectedIds.size > 0 ? '6rem' : 0 }}>
           <table style={{ width: '100%', minWidth: '540px', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr
                 style={{
                   borderBottom: `2px solid ${isDark ? '#334155' : '#e5e7eb'}`,
-                  backgroundColor: isDark ? '#0f172a' : '#f9fafb',
                 }}
               >
                 {isAdmin && (
@@ -127,8 +165,8 @@ export function OrgRoleTable() {
                 )}
                 <th style={thStyle}>{t('col_code', 'Code')}</th>
                 <th style={thStyle}>{t('col_name', 'Name')}</th>
-                <th style={thStyle}>{t('col_status', 'Status')}</th>
-                {isAdmin && <th style={{ ...thStyle, width: '150px' }}>{t('col_actions', 'Actions')}</th>}
+                <th style={thStyle}>{t('org.col.status', 'Status')}</th>
+                {isAdmin && <th style={{ ...thStyle, width: '150px' }}>{t('org.col.actions', 'Actions')}</th>}
               </tr>
             </thead>
             <tbody>
