@@ -141,7 +141,7 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
     `INSERT INTO evaluation_cycle (
       code, name, start_date, end_date, status, evaluation_template_version_id, cycle_type, calibration_enabled
     ) VALUES (
-      '2026-Q2', '2026 Q2 Performance Evaluation', '2026-04-01', '2026-06-30', 'OPEN', $1, 'STANDARD', false
+      '2026-Q2', '2026 Q2 Performance Evaluation', '2026-04-01', '2026-06-30', 'OPEN', $1, 'BATCH', false
     )
     ON CONFLICT (code) DO UPDATE SET
       status = 'OPEN',
@@ -154,7 +154,7 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
     `INSERT INTO evaluation_cycle (
       code, name, start_date, end_date, status, evaluation_template_version_id, cycle_type, calibration_enabled
     ) VALUES (
-      '2026-Q1', '2026 Q1 Performance Evaluation', '2026-01-01', '2026-03-31', 'LOCKED', $1, 'STANDARD', false
+      '2026-Q1', '2026 Q1 Performance Evaluation', '2026-01-01', '2026-03-31', 'LOCKED', $1, 'BATCH', false
     )
     ON CONFLICT (code) DO NOTHING;`,
     [templateVersionId]
@@ -164,7 +164,7 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
     `INSERT INTO evaluation_cycle (
       code, name, start_date, end_date, status, evaluation_template_version_id, cycle_type, calibration_enabled
     ) VALUES (
-      '2026-Q3', '2026 Q3 Performance Evaluation', '2026-07-01', '2026-09-30', 'DRAFT', $1, 'STANDARD', false
+      '2026-Q3', '2026 Q3 Performance Evaluation', '2026-07-01', '2026-09-30', 'DRAFT', $1, 'BATCH', false
     )
     ON CONFLICT (code) DO NOTHING;`,
     [templateVersionId]
