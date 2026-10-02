@@ -461,6 +461,11 @@ export async function seedCrawlJobSamples(): Promise<void> {
 
     // 10. Seed Sample Crawl Job Execution for the OPEN Evaluation Cycle
     const sampleExecutionId = '20000000-0000-0000-0000-000000000001';
+    const jiraScriptRow = await pool.query<{ crawl_script_version_id: string }>(`
+      SELECT crawl_script_version_id FROM crawl_script_version WHERE code = 'JIRA_TASK_METRICS_CRAWLER' ORDER BY version_no DESC LIMIT 1;
+    `).then((r) => r.rows[0]);
+    const jiraScriptVersionId = jiraScriptRow?.crawl_script_version_id || 'd0000000-0000-0000-0000-000000000011';
+
     await pool.query(`
       INSERT INTO crawl_job_execution (
         crawl_job_execution_id, crawl_job_definition_id, evaluation_cycle_id, status, attempt_no, max_attempts,
@@ -481,8 +486,8 @@ export async function seedCrawlJobSamples(): Promise<void> {
         NOW() - INTERVAL '15 minutes',
         NOW() - INTERVAL '14 minutes',
         60000,
-        'd0000000-0000-0000-0000-000000000001',
-        1,
+        $4,
+        2,
         $3,
         'JIRA',
         '{"base_url": "https://pim.cyberlogitec.com/jira", "project_key": "KPI"}'::jsonb,
@@ -492,7 +497,7 @@ export async function seedCrawlJobSamples(): Promise<void> {
         'seed-sample-execution-jira-01'
       )
       ON CONFLICT (crawl_job_execution_id) DO NOTHING;
-    `, [sampleExecutionId, openCycle.evaluation_cycle_id, jiraChecksum]);
+    `, [sampleExecutionId, openCycle.evaluation_cycle_id, jiraChecksum, jiraScriptVersionId]);
 
     // 11. Seed Staged Raw Records (evaluation_data_import & evaluation_data_import_record)
     const sampleImportId = '30000000-0000-0000-0000-000000000001';
