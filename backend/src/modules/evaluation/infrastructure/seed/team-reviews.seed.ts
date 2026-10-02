@@ -217,7 +217,10 @@ export async function ensureLegacyTemplateTables(pool: Pool, templateVersionId: 
      WHERE tv.id = $1;`,
     [templateVersionId]
   );
-  if (tplInfo.rows.length === 0) return;
+  if (tplInfo.rows.length === 0) {
+    console.warn(`[ensureLegacyTemplateTables] Template version ${templateVersionId} not found in evaluation_template_versions.`);
+    return;
+  }
   const tpl = tplInfo.rows[0];
 
   let legacyTplId = tpl.template_id;
@@ -235,8 +238,8 @@ export async function ensureLegacyTemplateTables(pool: Pool, templateVersionId: 
          ON CONFLICT (code) DO NOTHING;`,
         [legacyTplId, tpl.code, tpl.name, tpl.description]
       );
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error('[ensureLegacyTemplateTables] Error ensuring evaluation_template:', err);
     }
   }
 
@@ -264,19 +267,25 @@ export async function ensureLegacyTemplateTables(pool: Pool, templateVersionId: 
         );
       }
     }
-  } catch {
-    // ignore
+  } catch (err) {
+    console.error('[ensureLegacyTemplateTables] Error ensuring evaluation_template_version:', err);
   }
 
   try {
     await pool.query(`
       INSERT INTO scoring_rule (scoring_rule_id, rule_type, rule_config, description)
-      SELECT sr.id, sr.rule_type, sr.config, sr.name
+      VALUES ('00000000-0000-0000-0000-000000000001', 'ORDINAL_MANUAL', '{}'::jsonb, 'Default fallback rule')
+      ON CONFLICT (scoring_rule_id) DO NOTHING;
+    `);
+
+    await pool.query(`
+      INSERT INTO scoring_rule (scoring_rule_id, rule_type, rule_config, description)
+      SELECT sr.id, SUBSTRING(sr.rule_type FROM 1 FOR 30), sr.config, sr.name
       FROM scoring_rules sr
       ON CONFLICT (scoring_rule_id) DO NOTHING;
     `);
-  } catch {
-    // ignore
+  } catch (err) {
+    console.error('[ensureLegacyTemplateTables] Error ensuring scoring_rule:', err);
   }
 
   try {
@@ -286,49 +295,45 @@ export async function ensureLegacyTemplateTables(pool: Pool, templateVersionId: 
       FROM criteria c
       ON CONFLICT (code) DO NOTHING;
     `);
-  } catch {
-    // ignore
-  }
-
-  try {
-    const cvRows = await pool.query(`
-      SELECT cv.id AS version_id, cr.criterion_id, cv.version_no, cv.default_weight, cv.status, cv.scoring_rule_id
-      FROM criterion_versions cv
-      JOIN criteria c ON cv.criterion_id = c.id
-      JOIN criterion cr ON cr.code = c.code;
-    `);
-
-    for (const cv of cvRows.rows) {
-      const existingCv = await pool.query(
-        `SELECT criterion_version_id FROM criterion_version WHERE criterion_version_id = $1;`,
-        [cv.version_id]
-      );
-      if (existingCv.rows.length === 0) {
-        const existingByNum = await pool.query(
-          `SELECT criterion_version_id FROM criterion_version WHERE criterion_id = $1 AND version_no = $2;`,
-          [cv.criterion_id, cv.version_no]
-        );
-        if (existingByNum.rows.length > 0) {
-          await pool.query(
-            `UPDATE criterion_version SET criterion_version_id = $1 WHERE criterion_id = $2 AND version_no = $3;`,
-            [cv.version_id, cv.criterion_id, cv.version_no]
-          );
-        } else {
-          await pool.query(
-            `INSERT INTO criterion_version (criterion_version_id, criterion_id, version_no, default_weight, scoring_rule_id, effective_from, status)
-             VALUES ($1, $2, $3, $4, $5, NOW(), $6)
-             ON CONFLICT (criterion_version_id) DO NOTHING;`,
-            [cv.version_id, cv.criterion_id, cv.version_no, cv.default_weight, cv.scoring_rule_id, cv.status]
-          );
-        }
-      }
-    }
-  } catch {
-    // ignore
+  } catch (err) {
+    console.error('[ensureLegacyTemplateTables] Error ensuring criterion:', err);
   }
 
   try {
     await pool.query(`
+      INSERT INTO criterion_version (
+        criterion_version_id,
+        criterion_id,
+        version_no,
+        default_weight,
+        measurement_unit,
+        measurement_source_label,
+        scoring_rule_id,
+        effective_from,
+        status
+      )
+      SELECT
+        cv.id,
+        cr.criterion_id,
+        cv.version_no,
+        COALESCE(cv.default_weight, 0),
+        SUBSTRING(COALESCE(cv.measurement_unit, '%') FROM 1 FOR 30),
+        cv.measurement_source_label,
+        COALESCE(sr.scoring_rule_id, '00000000-0000-0000-0000-000000000001'),
+        NOW(),
+        COALESCE(cv.status, 'PUBLISHED')
+      FROM criterion_versions cv
+      JOIN criteria c ON cv.criterion_id = c.id
+      JOIN criterion cr ON cr.code = c.code
+      LEFT JOIN scoring_rule sr ON sr.scoring_rule_id = cv.scoring_rule_id
+      ON CONFLICT (criterion_version_id) DO NOTHING;
+    `);
+  } catch (err) {
+    console.error('[ensureLegacyTemplateTables] Error ensuring criterion_version:', err);
+  }
+
+  try {
+    const tcRes = await pool.query(`
       INSERT INTO template_criterion (
         template_criterion_id,
         evaluation_template_version_id,
@@ -350,9 +355,12 @@ export async function ensureLegacyTemplateTables(pool: Pool, templateVersionId: 
       ON CONFLICT (template_criterion_id) DO UPDATE SET
         effective_weight = EXCLUDED.effective_weight,
         is_disabled = EXCLUDED.is_disabled,
-        display_order = EXCLUDED.display_order;
+        display_order = EXCLUDED.display_order
+      RETURNING template_criterion_id;
     `, [templateVersionId]);
+
+    console.log(`[ensureLegacyTemplateTables] Synced ${tcRes.rowCount ?? 0} template_criterion rows.`);
   } catch (err) {
-    console.error('Error ensuring legacy template_criterion rows:', err);
+    console.error('[ensureLegacyTemplateTables] Error ensuring template_criterion rows:', err);
   }
 }
