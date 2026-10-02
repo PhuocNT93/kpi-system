@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import { ensureLegacyTemplateTables } from '../../../evaluation/infrastructure/seed/team-reviews.seed.js';
 
 export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
   // 1. Ensure active Department, Team, Role, Job Level exist in singular tables
@@ -148,6 +149,7 @@ export async function seedEvaluationCycleModule(pool: Pool): Promise<void> {
       evaluation_template_version_id = EXCLUDED.evaluation_template_version_id;`,
     [templateVersionId]
   );
+  await ensureLegacyTemplateTables(pool, templateVersionId);
   console.log('Seeded evaluation cycle: 2026-Q2 (OPEN)');
 
   await pool.query(

@@ -30,6 +30,8 @@ export async function seedTeamReviewsModule(pool: Pool): Promise<void> {
   const cycleId: string = cycleRes.rows[0].evaluation_cycle_id;
   const templateVersionId: string = cycleRes.rows[0].evaluation_template_version_id;
 
+  await ensureLegacyTemplateTables(pool, templateVersionId);
+
   // 1. Ensure additional direct-report employees exist under the manager
   const reportSpecs = [
     { code: 'EMP_DEV_02', name: 'Alex Nguyen', email: 'alex.nguyen@kpi.com' },
@@ -97,7 +99,7 @@ export async function seedTeamReviewsModule(pool: Pool): Promise<void> {
     });
   }
 
-  // 3. Ensure an OPEN evaluation + items exists for each new employee in the 2026-Q2 cycle
+  // 3. Ensure an OPEN evaluation + items exists for each employee in the 2026-Q2 cycle
   async function ensureEvaluation(employeeId: string): Promise<string> {
     const existing = await pool.query(
       `SELECT evaluation_id FROM evaluation WHERE evaluation_cycle_id = $1 AND employee_id = $2;`,
@@ -123,7 +125,7 @@ export async function seedTeamReviewsModule(pool: Pool): Promise<void> {
       };
       const levelDefinitionSnapshot = levelsByCvId[tc.criterion_version_id] || [];
       
-      const legacyTcId = legacyTcIdByCode.get(tc.criterion_code) || tc.template_criterion_id;
+      const legacyTcId = tc.template_criterion_id;
 
       await pool.query(
         `INSERT INTO evaluation_item (evaluation_id, template_criterion_id, criterion_code_snapshot, criterion_name_snapshot, weight_snapshot, scoring_rule_snapshot, level_definition_snapshot, is_disabled_for_employee, is_missing_score, created_by, updated_by)
@@ -145,19 +147,8 @@ export async function seedTeamReviewsModule(pool: Pool): Promise<void> {
 
   const janeRes = await pool.query(`SELECT employee_id FROM employee WHERE employee_code = 'EMP_DEV_01';`);
   const janeEvaluationId: string | null = janeRes.rows.length > 0
-    ? (await pool.query(
-        `SELECT evaluation_id FROM evaluation WHERE evaluation_cycle_id = $1 AND employee_id = $2;`,
-        [cycleId, janeRes.rows[0].employee_id]
-      )).rows[0]?.evaluation_id ?? null
+    ? await ensureEvaluation(janeRes.rows[0].employee_id)
     : null;
-
-  const legacyTcIdByCode = new Map<string, string>();
-  if (janeEvaluationId) {
-    const janeItems = await pool.query(`SELECT template_criterion_id, criterion_code_snapshot FROM evaluation_item WHERE evaluation_id = $1;`, [janeEvaluationId]);
-    for (const item of janeItems.rows) {
-      legacyTcIdByCode.set(item.criterion_code_snapshot, item.template_criterion_id);
-    }
-  }
 
   const alexEvaluationId = await ensureEvaluation(reportIds['EMP_DEV_02']!);
   const minhEvaluationId = await ensureEvaluation(reportIds['EMP_DEV_03']!);
@@ -210,4 +201,158 @@ export async function seedTeamReviewsModule(pool: Pool): Promise<void> {
   }
 
   console.log('Seeded Team Reviews demo data: Alex Nguyen (SUBMITTED), Minh Tran (APPROVED), Jane Developer (MANAGER_REVIEW).');
+}
+
+/**
+ * Ensures legacy schema tables (evaluation_template, evaluation_template_version,
+ * scoring_rule, criterion, criterion_version, template_criterion) have rows mirroring
+ * the current configuration tables. This satisfies foreign key constraints on
+ * evaluation_item.template_criterion_id while preserving the current template definition.
+ */
+export async function ensureLegacyTemplateTables(pool: Pool, templateVersionId: string): Promise<void> {
+  const tplInfo = await pool.query(
+    `SELECT t.id AS template_id, t.code, t.name, t.description, tv.version_no, tv.status
+     FROM evaluation_templates t
+     JOIN evaluation_template_versions tv ON tv.template_id = t.id
+     WHERE tv.id = $1;`,
+    [templateVersionId]
+  );
+  if (tplInfo.rows.length === 0) return;
+  const tpl = tplInfo.rows[0];
+
+  let legacyTplId = tpl.template_id;
+  const existingTpl = await pool.query(
+    `SELECT evaluation_template_id FROM evaluation_template WHERE code = $1;`,
+    [tpl.code]
+  );
+  if (existingTpl.rows.length > 0) {
+    legacyTplId = existingTpl.rows[0].evaluation_template_id;
+  } else {
+    try {
+      await pool.query(
+        `INSERT INTO evaluation_template (evaluation_template_id, code, name, description, active)
+         VALUES ($1, $2, $3, $4, true)
+         ON CONFLICT (code) DO NOTHING;`,
+        [legacyTplId, tpl.code, tpl.name, tpl.description]
+      );
+    } catch {
+      // ignore
+    }
+  }
+
+  try {
+    const existingTv = await pool.query(
+      `SELECT evaluation_template_version_id FROM evaluation_template_version WHERE evaluation_template_version_id = $1;`,
+      [templateVersionId]
+    );
+    if (existingTv.rows.length === 0) {
+      const existingByNum = await pool.query(
+        `SELECT evaluation_template_version_id FROM evaluation_template_version WHERE evaluation_template_id = $1 AND version_no = $2;`,
+        [legacyTplId, tpl.version_no]
+      );
+      if (existingByNum.rows.length > 0) {
+        await pool.query(
+          `UPDATE evaluation_template_version SET evaluation_template_version_id = $1 WHERE evaluation_template_id = $2 AND version_no = $3;`,
+          [templateVersionId, legacyTplId, tpl.version_no]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO evaluation_template_version (evaluation_template_version_id, evaluation_template_id, version_no, status, published_at)
+           VALUES ($1, $2, $3, $4, NOW())
+           ON CONFLICT (evaluation_template_version_id) DO NOTHING;`,
+          [templateVersionId, legacyTplId, tpl.version_no, tpl.status]
+        );
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    await pool.query(`
+      INSERT INTO scoring_rule (scoring_rule_id, rule_type, rule_config, description)
+      SELECT sr.id, sr.rule_type, sr.config, sr.name
+      FROM scoring_rules sr
+      ON CONFLICT (scoring_rule_id) DO NOTHING;
+    `);
+  } catch {
+    // ignore
+  }
+
+  try {
+    await pool.query(`
+      INSERT INTO criterion (criterion_id, code, category, name, description, active)
+      SELECT c.id, c.code, COALESCE(c.category, 'PERFORMANCE'), c.name, c.description, true
+      FROM criteria c
+      ON CONFLICT (code) DO NOTHING;
+    `);
+  } catch {
+    // ignore
+  }
+
+  try {
+    const cvRows = await pool.query(`
+      SELECT cv.id AS version_id, cr.criterion_id, cv.version_no, cv.default_weight, cv.status, cv.scoring_rule_id
+      FROM criterion_versions cv
+      JOIN criteria c ON cv.criterion_id = c.id
+      JOIN criterion cr ON cr.code = c.code;
+    `);
+
+    for (const cv of cvRows.rows) {
+      const existingCv = await pool.query(
+        `SELECT criterion_version_id FROM criterion_version WHERE criterion_version_id = $1;`,
+        [cv.version_id]
+      );
+      if (existingCv.rows.length === 0) {
+        const existingByNum = await pool.query(
+          `SELECT criterion_version_id FROM criterion_version WHERE criterion_id = $1 AND version_no = $2;`,
+          [cv.criterion_id, cv.version_no]
+        );
+        if (existingByNum.rows.length > 0) {
+          await pool.query(
+            `UPDATE criterion_version SET criterion_version_id = $1 WHERE criterion_id = $2 AND version_no = $3;`,
+            [cv.version_id, cv.criterion_id, cv.version_no]
+          );
+        } else {
+          await pool.query(
+            `INSERT INTO criterion_version (criterion_version_id, criterion_id, version_no, default_weight, scoring_rule_id, effective_from, status)
+             VALUES ($1, $2, $3, $4, $5, NOW(), $6)
+             ON CONFLICT (criterion_version_id) DO NOTHING;`,
+            [cv.version_id, cv.criterion_id, cv.version_no, cv.default_weight, cv.scoring_rule_id, cv.status]
+          );
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    await pool.query(`
+      INSERT INTO template_criterion (
+        template_criterion_id,
+        evaluation_template_version_id,
+        criterion_version_id,
+        effective_weight,
+        is_disabled,
+        display_order
+      )
+      SELECT
+        tc.id,
+        $1,
+        cv.criterion_version_id,
+        COALESCE(tc.weight, 0),
+        NOT tc.enabled,
+        tc.display_order
+      FROM template_criteria tc
+      JOIN criterion_version cv ON cv.criterion_version_id = tc.criterion_version_id
+      WHERE tc.template_version_id = $1
+      ON CONFLICT (template_criterion_id) DO UPDATE SET
+        effective_weight = EXCLUDED.effective_weight,
+        is_disabled = EXCLUDED.is_disabled,
+        display_order = EXCLUDED.display_order;
+    `, [templateVersionId]);
+  } catch (err) {
+    console.error('Error ensuring legacy template_criterion rows:', err);
+  }
 }
