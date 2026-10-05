@@ -323,8 +323,21 @@ export class CrawlJobService {
         // Blueprint uses Keycloak SSO (cookie-based) — CrawlSourceClient cannot handle redirects.
         // Use BlueprintCollector directly which manages the full SSO cookie session.
         const { BlueprintCollector } = await import('../../collector/plugins/blueprint.collector.js');
-        const bpUsername = process.env['BLUEPRINT_USERNAME'] || '';
-        const bpPassword = process.env['BLUEPRINT_PASSWORD'] || '';
+        const cleanStr = (val?: string | null): string => {
+          if (!val) return '';
+          let s = String(val).trim();
+          if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+            s = s.slice(1, -1).trim();
+          }
+          return s;
+        };
+        let bpUsername = cleanStr(process.env['BLUEPRINT_USERNAME']);
+        let bpPassword = cleanStr(process.env['BLUEPRINT_PASSWORD']);
+        if (!bpUsername || !bpPassword) {
+          throw new AppError(400, 'BAD_REQUEST', 'Blueprint credentials missing in environment variables (BLUEPRINT_USERNAME, BLUEPRINT_PASSWORD).');
+        }
+        if (bpUsername.includes('@')) bpUsername = bpUsername.split('@')[0]!;
+
         const bpBaseUrl = (sourceConfig['base_url'] as string | undefined) || process.env['BLUEPRINT_BASE_URL'] || 'https://blueprint.cyberlogitec.com.vn';
         const collector = BlueprintCollector.getInstance({ username: bpUsername, password: bpPassword, baseUrl: bpBaseUrl });
         await collector.ensureLoggedIn();

@@ -1470,8 +1470,8 @@ export class CollectorService {
   }
 
   async getBlueprintConfig(): Promise<BlueprintSavedConfig> {
-    const defaultUsername = process.env.BLUEPRINT_USERNAME || 'kyluong';
-    const defaultPassword = process.env.BLUEPRINT_PASSWORD || '19901991';
+    const defaultUsername = process.env.BLUEPRINT_USERNAME || '';
+    const defaultPassword = process.env.BLUEPRINT_PASSWORD || '';
     const defaultBaseUrl = process.env.BLUEPRINT_BASE_URL || 'https://blueprint.cyberlogitec.com.vn';
 
     const res = await this.pool.query(
@@ -1506,8 +1506,8 @@ export class CollectorService {
     month?: string;
     projectFilter?: string;
   }): Promise<Record<string, unknown>> {
-    const defaultUsername = process.env.BLUEPRINT_USERNAME || 'kyluong';
-    const defaultPassword = process.env.BLUEPRINT_PASSWORD || '19901991';
+    const defaultUsername = process.env.BLUEPRINT_USERNAME || '';
+    const defaultPassword = process.env.BLUEPRINT_PASSWORD || '';
     const defaultBaseUrl = process.env.BLUEPRINT_BASE_URL || 'https://blueprint.cyberlogitec.com.vn';
 
     const existing = await this.pool.query(

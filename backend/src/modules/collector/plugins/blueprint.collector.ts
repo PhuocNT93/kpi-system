@@ -174,9 +174,24 @@ export class BlueprintCollector {
       formAction = `${parsed.protocol}//${parsed.host}${formAction}`;
     }
 
+    const cleanStr = (val?: string | null): string => {
+      if (!val) return '';
+      let s = String(val).trim();
+      if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+        s = s.slice(1, -1).trim();
+      }
+      return s;
+    };
+
+    let effectiveUsername = cleanStr(this.credentials.username);
+    const effectivePassword = cleanStr(this.credentials.password);
+    if (effectiveUsername.includes('@')) {
+      effectiveUsername = effectiveUsername.split('@')[0]!;
+    }
+
     const params = new URLSearchParams();
-    params.append('username', this.credentials.username);
-    params.append('password', this.credentials.password);
+    params.append('username', effectiveUsername);
+    params.append('password', effectivePassword);
     params.append('credentialId', '');
 
     const loginSubmitRes = await this.fetchWithCookies(formAction, {

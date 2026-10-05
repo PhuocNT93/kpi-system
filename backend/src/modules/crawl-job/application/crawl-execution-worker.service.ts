@@ -103,13 +103,51 @@ export class CrawlExecutionWorkerService {
         { source_system: snapshot.source_system }
       );
 
+      const cleanStr = (val?: string | null): string => {
+        if (!val) return '';
+        let s = String(val).trim();
+        if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+          s = s.slice(1, -1).trim();
+        }
+        return s;
+      };
+
       let fetcher: CrawlSourceFetcher;
       if (snapshot.source_system === 'BLUEPRINT') {
         const { BlueprintCollector } = await import('../../collector/plugins/blueprint.collector.js');
-        const bpUsername = process.env['BLUEPRINT_USERNAME'] || 'kyluong';
-        const bpPassword = process.env['BLUEPRINT_PASSWORD'] || '19901991';
+
+        const secretRef = String(execution.secret_reference || 'BLUEPRINT_PASSWORD');
+        let bpUsername = cleanStr(process.env['BLUEPRINT_USERNAME']);
+        let bpPassword = cleanStr(process.env['BLUEPRINT_PASSWORD']);
+
+        if (secretRef && process.env[secretRef]) {
+          const raw = process.env[secretRef]!;
+          try {
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object') {
+              if (parsed.username) bpUsername = cleanStr(String(parsed.username));
+              if (parsed.password) bpPassword = cleanStr(String(parsed.password));
+            } else {
+              bpPassword = cleanStr(String(parsed));
+            }
+          } catch {
+            bpPassword = cleanStr(raw);
+          }
+        }
+
+        if (!bpUsername || !bpPassword) {
+          throw new Error('Blueprint credentials missing. Please configure BLUEPRINT_USERNAME and BLUEPRINT_PASSWORD environment variables.');
+        }
+
         const bpBaseUrl = (snapshot.source_config['base_url'] as string | undefined) || process.env['BLUEPRINT_BASE_URL'] || 'https://blueprint.cyberlogitec.com.vn';
         const collector = BlueprintCollector.getInstance({ username: bpUsername, password: bpPassword, baseUrl: bpBaseUrl });
+
+        await this.crawlJobService.appendExecutionLog(
+          executionId,
+          'INFO',
+          `[Source Connect] Authenticating Blueprint Keycloak SSO for user "${bpUsername}" (credential ref: ${secretRef}, pwd len: ${bpPassword.length})`,
+          { source_system: 'BLUEPRINT', username: bpUsername, secret_ref: secretRef }
+        );
         await collector.ensureLoggedIn();
         fetcher = async (path, optionsOrQuery) => {
           const url = path.startsWith('http') ? path : `${bpBaseUrl.replace(/\/$/, '')}${path.startsWith('/') ? '' : '/'}${path}`;
@@ -134,10 +172,29 @@ export class CrawlExecutionWorkerService {
           return payload;
         };
       } else {
+        const secretRef = String(execution.secret_reference || (snapshot.source_system === 'JIRA' ? 'JIRA_PASSWORD' : 'CRAWL_TEST_SECRET'));
+        let enrichedConfig = snapshot.source_config;
+        if (snapshot.source_system === 'JIRA') {
+          const jiraUser = cleanStr(process.env['JIRA_USERNAME']);
+          const jiraPass = cleanStr(process.env[secretRef] || process.env['JIRA_PASSWORD']);
+          const jiraBaseUrl = cleanStr(snapshot.source_config['base_url'] as string) || cleanStr(process.env['JIRA_BASE_URL']) || 'https://pim.cyberlogitec.com/jira';
+          enrichedConfig = { ...snapshot.source_config, base_url: jiraBaseUrl };
+
+          if (!jiraUser || !jiraPass) {
+            throw new Error(`Jira credentials missing. Please configure JIRA_USERNAME and ${secretRef} (or JIRA_PASSWORD) environment variables.`);
+          }
+
+          await this.crawlJobService.appendExecutionLog(
+            executionId,
+            'INFO',
+            `[Source Connect] Authenticating Jira REST API for user "${jiraUser}" (credential ref: ${secretRef}, pwd len: ${jiraPass.length}, baseUrl: ${jiraBaseUrl})`,
+            { source_system: 'JIRA', username: jiraUser, secret_ref: secretRef, base_url: jiraBaseUrl }
+          );
+        }
         fetcher = this.sourceClient.createFetcher(
           snapshot.source_system,
-          snapshot.source_config,
-          String(execution.secret_reference),
+          enrichedConfig,
+          secretRef,
           (payload) => this.stagingService.saveRawPayload(executionId, payload)
         );
       }

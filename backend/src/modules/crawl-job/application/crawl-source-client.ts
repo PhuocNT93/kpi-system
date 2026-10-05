@@ -62,21 +62,50 @@ export function isHostAllowlisted(hostname: string, allowlist: string[]): boolea
  * username env var (JIRA_USERNAME / BLUEPRINT_USERNAME) to build Basic auth
  * automatically when the env var contains only the plain password string.
  */
+export function cleanStr(val?: string | null): string {
+  if (!val) return '';
+  let s = String(val).trim();
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+    s = s.slice(1, -1).trim();
+  }
+  return s;
+}
+
 function getCredentialHeader(secretReference: string, sourceSystem?: string): string {
   if (!/^[A-Z][A-Z0-9_]{0,127}$/.test(secretReference)) {
     throw new CrawlSourceError('CREDENTIAL_REFERENCE_INVALID', false, 'Connector credential reference is invalid.');
   }
-  const secret = process.env[secretReference];
-  if (!secret) throw new CrawlSourceError('CREDENTIAL_INVALID', false, 'Connector credential is unavailable.');
+  let secret = cleanStr(process.env[secretReference]);
+  if (!secret && sourceSystem === 'JIRA') {
+    secret = cleanStr(process.env['JIRA_PASSWORD']);
+  }
+  if (!secret && sourceSystem === 'BLUEPRINT') {
+    secret = cleanStr(process.env['BLUEPRINT_PASSWORD']);
+  }
+  if (!secret) {
+    throw new CrawlSourceError(
+      'CREDENTIAL_INVALID',
+      false,
+      `Connector credential is unavailable. Please set environment variable "${secretReference}" (or ${sourceSystem}_PASSWORD).`
+    );
+  }
 
   // Helper: build Basic or Bearer from a plain password string + optional paired username env var
-  const buildFromPlainPassword = (plainPassword: string): string => {
+  const buildFromPlainPassword = (rawPassword: string): string => {
+    const plainPassword = cleanStr(rawPassword);
     const usernameEnvKey = sourceSystem === 'JIRA'
       ? 'JIRA_USERNAME'
       : sourceSystem === 'BLUEPRINT'
         ? 'BLUEPRINT_USERNAME'
         : '';
-    const username = usernameEnvKey ? (process.env[usernameEnvKey] ?? '') : '';
+    const username = cleanStr(usernameEnvKey ? (process.env[usernameEnvKey] ?? '') : '');
+    if (sourceSystem === 'JIRA' && !username) {
+      throw new CrawlSourceError(
+        'CREDENTIAL_INVALID',
+        false,
+        'JIRA_USERNAME environment variable is required for Jira authentication.'
+      );
+    }
     if (username) {
       return `Basic ${Buffer.from(`${username}:${plainPassword}`).toString('base64')}`;
     }
@@ -94,9 +123,9 @@ function getCredentialHeader(secretReference: string, sourceSystem?: string): st
   // Structured credential object
   if (parsed !== null && typeof parsed === 'object') {
     const cred = parsed as { token?: unknown; username?: unknown; password?: unknown };
-    if (typeof cred.token === 'string' && cred.token) return `Bearer ${cred.token}`;
+    if (typeof cred.token === 'string' && cred.token) return `Bearer ${cleanStr(cred.token)}`;
     if (typeof cred.username === 'string' && typeof cred.password === 'string') {
-      return `Basic ${Buffer.from(`${cred.username}:${cred.password}`).toString('base64')}`;
+      return `Basic ${Buffer.from(`${cleanStr(cred.username)}:${cleanStr(cred.password)}`).toString('base64')}`;
     }
     throw new CrawlSourceError('CREDENTIAL_INVALID', false, 'Connector credential format is invalid.');
   }
@@ -139,7 +168,12 @@ export class CrawlSourceClient {
     optionsOrQuery?: Record<string, string> | { method?: 'GET' | 'POST'; body?: unknown; headers?: Record<string, string>; query?: Record<string, string> },
     writeRawPayload?: RawPayloadWriter
   ): Promise<unknown> {
-    const baseUrl = typeof sourceConfig.base_url === 'string' ? sourceConfig.base_url : '';
+    let baseUrl = typeof sourceConfig.base_url === 'string' ? cleanStr(sourceConfig.base_url) : '';
+    if (!baseUrl && sourceSystem === 'JIRA') {
+      baseUrl = cleanStr(process.env['JIRA_BASE_URL']) || 'https://pim.cyberlogitec.com/jira';
+    } else if (!baseUrl && sourceSystem === 'BLUEPRINT') {
+      baseUrl = cleanStr(process.env['BLUEPRINT_BASE_URL']) || 'https://blueprint.cyberlogitec.com.vn';
+    }
     let target: URL;
     let base: URL;
     try {
