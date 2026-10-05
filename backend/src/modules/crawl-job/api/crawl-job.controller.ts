@@ -111,6 +111,11 @@ export class CrawlJobController {
     sendCreated(res, 'Crawl Job created successfully.', created, `/api/crawl-jobs/${created.crawl_job_definition_id}`);
   }
 
+  async listCriteria(req: Request, res: Response): Promise<void> {
+    const result = await this.service.listCriteria(getActorOrThrow(req));
+    sendSuccess(res, 200, 'Criteria retrieved successfully.', result);
+  }
+
   async getJob(req: Request, res: Response): Promise<void> {
     const result = await this.service.getJob(getActorOrThrow(req), req.params.id as string);
     sendSuccess(res, 200, 'Crawl Job retrieved successfully.', result);

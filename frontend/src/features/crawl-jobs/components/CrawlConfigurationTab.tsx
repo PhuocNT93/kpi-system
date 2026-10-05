@@ -78,14 +78,41 @@ Return JSON:
   "evidence": ["<key factual evidence>"]
 }`);
 
-  // ── KPI List from KPI Library (/api/kpis) ──
+  // ── KPI & Criteria List for Crawl Scripts ──
+  const criteriaQuery = useQuery({
+    queryKey: ['crawlConfig', 'criteria'],
+    queryFn: crawlJobApi.listCriteria,
+    enabled: scriptDialogOpen || Boolean(editingScript),
+  });
   const kpisQuery = useQuery({
     queryKey: ['crawlConfig', 'kpisLibrary'],
     queryFn: () => fetchKpis({ size: 100 }),
     enabled: scriptDialogOpen || Boolean(editingScript),
   });
-  const kpis = useMemo(() => kpisQuery.data?.items ?? [], [kpisQuery.data]);
-  const activeKpis = useMemo(() => kpis.filter((k) => k.active !== false), [kpis]);
+  const combinedKpis = useMemo(() => {
+    const list: Array<{ kpiId: string; code: string; name: string; active?: boolean }> = [];
+    const seenCodes = new Set<string>();
+
+    // 1. Add crawl criteria (source of truth for crawl scripts & jobs)
+    const criteria = criteriaQuery.data ?? [];
+    for (const c of criteria) {
+      if (!seenCodes.has(c.code)) {
+        seenCodes.add(c.code);
+        list.push({ kpiId: c.id || c.criterion_id, code: c.code, name: c.name, active: c.active !== false });
+      }
+    }
+    // 2. Add KPI library items not already covered
+    const libraryItems = kpisQuery.data?.items ?? [];
+    for (const k of libraryItems) {
+      if (!seenCodes.has(k.code)) {
+        seenCodes.add(k.code);
+        list.push({ kpiId: k.kpiId, code: k.code, name: k.name, active: k.active !== false });
+      }
+    }
+    return list;
+  }, [criteriaQuery.data, kpisQuery.data]);
+
+  const activeKpis = useMemo(() => combinedKpis.filter((k) => k.active !== false), [combinedKpis]);
   const filteredKpis = useMemo(() => {
     if (!kpiSearch.trim()) return activeKpis;
     const term = kpiSearch.toLowerCase();
@@ -250,13 +277,58 @@ Scoring guidelines (1.0 to 5.0 scale):
       let savedKpis: string[] = [];
       if (typeof window !== 'undefined') {
         const stored = localStorage.getItem(`crawl_script_criteria_${script.code}`);
-        if (stored) savedKpis = JSON.parse(stored);
+        if (stored) {
+          try { savedKpis = JSON.parse(stored); } catch { /* ignore */ }
+        }
       }
+
+      // If no criteria stored in localStorage, auto-detect from jobs using this script or source code
+      if (!savedKpis || savedKpis.length === 0) {
+        try {
+          const allJobs = await crawlJobApi.listJobs();
+          const matchingJobs = allJobs.filter(
+            (j) => j.crawl_script_version_id === script.crawl_script_version_id || j.script_code === script.code
+          );
+          for (const j of matchingJobs) {
+            if (Array.isArray(j.criteria)) {
+              for (const c of j.criteria) {
+                if (c.criterion_id && !savedKpis.includes(c.criterion_id)) savedKpis.push(c.criterion_id);
+                if (c.criterion_code && !savedKpis.includes(c.criterion_code)) savedKpis.push(c.criterion_code);
+              }
+            }
+          }
+        } catch { /* ignore */ }
+
+        const rawCode = script.source_code || '';
+        if (rawCode) {
+          const matches = rawCode.match(/['"](CRIT_[A-Z0-9_]+|PERF_[A-Z0-9_]+|KPI_[A-Z0-9_]+)['"]/g);
+          if (matches) {
+            for (const m of matches) {
+              const clean = m.replace(/['"]/g, '');
+              if (!savedKpis.includes(clean)) savedKpis.push(clean);
+            }
+          }
+        }
+      }
+
       setEditScriptKpiIds(savedKpis);
       if (!script.source_code) {
         setEditScriptLoading(true);
         const details = await crawlJobApi.getScriptDetails(script.crawl_script_version_id);
-        if (details.source_code) setEditScriptCodeBody(details.source_code);
+        if (details.source_code) {
+          setEditScriptCodeBody(details.source_code);
+          if (savedKpis.length === 0) {
+            const matches = details.source_code.match(/['"](CRIT_[A-Z0-9_]+|PERF_[A-Z0-9_]+|KPI_[A-Z0-9_]+)['"]/g);
+            if (matches) {
+              const detected = [...savedKpis];
+              for (const m of matches) {
+                const clean = m.replace(/['"]/g, '');
+                if (!detected.includes(clean)) detected.push(clean);
+              }
+              setEditScriptKpiIds(detected);
+            }
+          }
+        }
       }
     } catch {
       // fallback

@@ -42,6 +42,8 @@ export const crawlJobApi = {
   updateJob: (jobId: string, payload: Partial<CrawlJobCreatePayload>) => patchApi<CrawlJob>(`/api/crawl-jobs/${jobId}`, payload),
   deleteJob: (jobId: string) => deleteApi<{ success: boolean; message: string }>(`/api/crawl-jobs/${jobId}`),
   setJobEnabled: (jobId: string, enabled: boolean) => postApi<CrawlJob>(`/api/crawl-jobs/${jobId}/${enabled ? 'enable' : 'disable'}`, {}),
+  listCriteria: () =>
+    getApi<Array<{ id: string; criterion_id: string; code: string; name: string; category: string; description?: string; active: boolean; status: string }>>('/api/crawl-criteria'),
 
   // ── Crawl Scripts ───────────────────────────────────────────────────────
   listPublishedScripts: (sourceSystem?: CrawlSourceSystem) => {

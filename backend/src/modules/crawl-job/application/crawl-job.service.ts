@@ -76,6 +76,16 @@ export class CrawlJobService {
     return this.repository.listJobs(filters);
   }
 
+  async listCriteria(actor: Actor): Promise<Array<{ id: string; criterion_id: string; code: string; name: string; category: string; description: string | null; active: boolean; status: string }>> {
+    if (!CRAWL_ADMIN_ROLES.has(actor.role)) throw new AppError(403, 'FORBIDDEN', 'Crawl Job access is restricted.');
+    const rows = await this.repository.listCriteria();
+    return rows.map((r) => ({
+      ...r,
+      id: r.criterion_id,
+      status: r.active ? 'ACTIVE' : 'INACTIVE',
+    }));
+  }
+
   async getJob(actor: Actor, jobId: string): Promise<CrawlJobRecord> {
     if (!CRAWL_ADMIN_ROLES.has(actor.role)) throw new AppError(403, 'FORBIDDEN', 'Crawl Job access is restricted.');
     const job = await this.repository.getJob(jobId);
@@ -568,9 +578,16 @@ export class CrawlJobService {
         }
         const enabledCycleIds = await this.repository.listEnabledCycleIds(jobId, client);
         for (const cycleId of enabledCycleIds) {
-          const conflictCode = await this.repository.findConflictingJobForCriteria(cycleId, jobId, uniqueIds, client);
-          if (conflictCode) {
-            throw new AppError(409, 'CRITERION_ALREADY_ASSIGNED', `Updated KPI coverage conflicts with enabled job ${conflictCode}.`);
+          const conflict = await this.repository.findConflictingJobForCriteria(cycleId, jobId, uniqueIds, client);
+          if (conflict) {
+            const detail = conflict.criterionCode
+              ? ` trên tiêu chí "${conflict.criterionCode}"${conflict.criterionName ? ` (${conflict.criterionName})` : ''}`
+              : '';
+            throw new AppError(
+              409,
+              'CRITERION_ALREADY_ASSIGNED',
+              `Updated KPI coverage conflicts with enabled job ${conflict.jobCode}${detail}. Vui lòng bỏ chọn tiêu chí này hoặc tắt job kia trước.`
+            );
           }
         }
         await this.repository.replaceCriteria(jobId, uniqueIds, client);
@@ -589,9 +606,16 @@ export class CrawlJobService {
           const currentCriteria = (current as unknown as { criteria?: Array<{ criterion_id: string }> }).criteria ?? [];
           const activeCriteria = criterionIds ? [...new Set(criterionIds)] : currentCriteria.map((c) => c.criterion_id);
           if (activeCriteria.length > 0) {
-            const conflictCode = await this.repository.findConflictingJobForCriteria(evaluationCycleId, jobId, activeCriteria, client);
-            if (conflictCode) {
-              throw new AppError(409, 'CRITERION_ALREADY_ASSIGNED', `Updated KPI coverage conflicts with enabled job ${conflictCode} in cycle.`);
+            const conflict = await this.repository.findConflictingJobForCriteria(evaluationCycleId, jobId, activeCriteria, client);
+            if (conflict) {
+              const detail = conflict.criterionCode
+                ? ` trên tiêu chí "${conflict.criterionCode}"${conflict.criterionName ? ` (${conflict.criterionName})` : ''}`
+                : '';
+              throw new AppError(
+                409,
+                'CRITERION_ALREADY_ASSIGNED',
+                `Updated KPI coverage conflicts with enabled job ${conflict.jobCode} in cycle${detail}. Vui lòng bỏ chọn tiêu chí này hoặc tắt job kia trước.`
+              );
             }
           }
           await this.repository.upsertCycleJob(
