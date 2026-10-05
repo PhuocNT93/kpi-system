@@ -20,11 +20,12 @@ export class CrawlJobController {
   async listJobs(req: Request, res: Response): Promise<void> {
     const sourceSystem = typeof req.query.source_system === 'string' ? req.query.source_system : undefined;
     const active = typeof req.query.active === 'string' ? req.query.active === 'true' : undefined;
-    const cycleId = typeof req.query.cycle_id === 'string'
+    const rawCycleId = typeof req.query.cycle_id === 'string'
       ? req.query.cycle_id
       : typeof req.query.cycleId === 'string'
         ? req.query.cycleId
         : undefined;
+    const cycleId = rawCycleId && rawCycleId !== 'ALL' && rawCycleId.trim() !== '' ? rawCycleId : undefined;
     const items = await this.service.listJobs(getActorOrThrow(req), { source_system: sourceSystem, active, cycle_id: cycleId });
     sendCollection(res, 'Crawl Jobs retrieved successfully.', items, {
       number: 1, size: items.length, total_items: items.length, total_pages: 1,
