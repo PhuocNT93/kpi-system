@@ -9,6 +9,7 @@
  */
 
 import type { NextFunction, Request, Response } from 'express';
+import { ZodError } from 'zod';
 import { AppError } from './app-error.js';
 import { sendFailure } from './http-response.js';
 
@@ -27,6 +28,22 @@ export function errorHandler(
 
   if (error instanceof AppError) {
     sendFailure(response, error.status, error.message, error.code, error.field, error.details);
+    return;
+  }
+
+  if (error instanceof ZodError) {
+    sendFailure(
+      response,
+      400,
+      error.issues.map((i) => i.message).join('; ') || 'Validation error',
+      'VALIDATION_ERROR',
+      error.issues[0]?.path.join('.') || null,
+      error.issues.map((i) => ({
+        field: i.path.join('.'),
+        message: i.message,
+        code: i.code,
+      }))
+    );
     return;
   }
 

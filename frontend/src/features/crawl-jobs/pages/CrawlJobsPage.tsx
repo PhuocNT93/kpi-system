@@ -1097,7 +1097,7 @@ function JobDialog({ form, editing, loading, error, criteria, scripts, credentia
   const matchingScripts = scripts.filter((script) => script.source_system === form.sourceSystem && (script.status !== 'DISABLED' || script.crawl_script_version_id === form.scriptVersionId));
   const matchingCredentials = credentials.filter((credential) => credential.source_system === form.sourceSystem);
   const change = <K extends keyof JobFormState>(key: K, value: JobFormState[K]) => onChange({ ...form, [key]: value });
-  const selectedCycle = cycles.find((c) => c.id === form.evaluationCycleId) || cycles[0];
+  const selectedCycle = cycles.find((c) => c.id === form.evaluationCycleId);
 
   const handleScriptChange = (selectedVersionId: string) => {
     const chosenScript = scripts.find((s) => s.crawl_script_version_id === selectedVersionId);
@@ -1151,6 +1151,11 @@ function JobDialog({ form, editing, loading, error, criteria, scripts, credentia
           onChange={(event) => change('evaluationCycleId', event.target.value)}
         >
           <option value="">Select an OPEN evaluation cycle</option>
+          {form.evaluationCycleId && !cycles.some((c) => c.id === form.evaluationCycleId) && (
+            <option value={form.evaluationCycleId}>
+              {`Chu kỳ hiện tại (${form.evaluationCycleId.slice(0, 8)}...)`}
+            </option>
+          )}
           {cycles.map((cycle) => (
             <option key={cycle.id} value={cycle.id}>
               {cycle.code} · {cycle.name} (OPEN)
@@ -1161,7 +1166,7 @@ function JobDialog({ form, editing, loading, error, criteria, scripts, credentia
       {selectedCycle && (
         <div style={{ marginTop: '-6px', marginBottom: '10px', fontSize: '12px', color: '#059669', display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
-          <span>Chu kỳ mở kế thừa: <strong>{selectedCycle.code}</strong> ({selectedCycle.name}) - OPEN</span>
+          <span>Chu kỳ mở: <strong>{selectedCycle.code}</strong> ({selectedCycle.name}) - OPEN</span>
         </div>
       )}
       <div className="crawl-form-grid" style={{ alignItems: 'flex-start' }}>

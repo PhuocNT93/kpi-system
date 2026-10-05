@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { ReportsQueryService } from '../application/reports-query.service.js';
 import { sendSuccess, sendFailure } from '../../../api/http-response.js';
 import { getActorFromContext } from '../../../shared/auth/actor-context.js';
-import { getReportQuerySchema, getEmployeeKpiSummaryQuerySchema, getDashboardQuerySchema } from './reports.dto.js';
+import { getReportQuerySchema, getEmployeeKpiSummaryQuerySchema, getDashboardQuerySchema, uuidRegex } from './reports.dto.js';
 import { z } from 'zod';
 
 export class ReportsController {
@@ -86,10 +86,10 @@ export class ReportsController {
     try {
       // For KPI trend, we need base cycle and previous cycle, and scope ID (team/employee)
       const trendQuerySchema = z.object({
-        currentCycleId: z.string().uuid(),
-        previousCycleId: z.string().uuid(),
-        teamId: z.string().uuid().optional(),
-        employeeId: z.string().uuid().optional(),
+        currentCycleId: z.string().regex(uuidRegex, 'Invalid currentCycleId format'),
+        previousCycleId: z.string().regex(uuidRegex, 'Invalid previousCycleId format'),
+        teamId: z.string().regex(uuidRegex, 'Invalid teamId format').optional(),
+        employeeId: z.string().regex(uuidRegex, 'Invalid employeeId format').optional(),
       }).refine(data => data.teamId || data.employeeId, {
         message: "Either teamId or employeeId must be provided for trend scope",
         path: ["teamId"]

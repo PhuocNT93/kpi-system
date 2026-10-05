@@ -78,6 +78,17 @@ describe('ReportsController API', () => {
     expect(res.body.data.aggregate.team_average_score).toBe(90);
   });
 
+  it('GET /reports/teams/:id should accept valid postgres UUID format with all zeros (e.g. seeded cycles)', async () => {
+    queryServiceMock.getTeamReport.mockResolvedValue({
+      aggregate: { team_average_score: 85 },
+      kpis: [],
+    });
+
+    const res = await request(app).get('/reports/teams/123e4567-e89b-12d3-a456-426614174002?cycleId=a0000000-0000-0000-0000-000000000001');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+
   it('GET /reports/employees/:id should fail if cycleId is missing', async () => {
     const res = await request(app).get('/reports/employees/123e4567-e89b-12d3-a456-426614174000');
     expect(res.status).toBe(400);

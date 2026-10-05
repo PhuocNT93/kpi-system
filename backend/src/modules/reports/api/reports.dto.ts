@@ -1,14 +1,17 @@
 import { z } from 'zod';
 
+export const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+export const uuidSchema = z.string().regex(uuidRegex, 'Invalid UUID format');
+
 export const getReportQuerySchema = z.object({
-  cycleId: z.string().uuid('Invalid cycleId format').min(1, 'cycleId is required'),
+  cycleId: z.string().regex(uuidRegex, 'Invalid cycleId format').min(1, 'cycleId is required'),
 });
 
 export type GetReportQueryDto = z.infer<typeof getReportQuerySchema>;
 
 export const getEmployeeKpiSummaryQuerySchema = z.object({
-  evaluation_cycle_id: z.string().uuid().optional(),
-  evaluationCycleId: z.string().uuid().optional(),
+  evaluation_cycle_id: z.string().regex(uuidRegex, 'Invalid evaluation_cycle_id format').optional(),
+  evaluationCycleId: z.string().regex(uuidRegex, 'Invalid evaluationCycleId format').optional(),
   evaluation_status: z.string().optional(),
   evaluationStatus: z.string().optional(),
 });
@@ -16,9 +19,9 @@ export const getEmployeeKpiSummaryQuerySchema = z.object({
 export type GetEmployeeKpiSummaryQueryDto = z.infer<typeof getEmployeeKpiSummaryQuerySchema>;
 
 export const getDashboardQuerySchema = z.object({
-  cycleId: z.string().uuid().optional(),
-  evaluation_cycle_id: z.string().uuid().optional(),
-  evaluationCycleId: z.string().uuid().optional(),
+  cycleId: z.string().regex(uuidRegex, 'Invalid cycleId format').optional(),
+  evaluation_cycle_id: z.string().regex(uuidRegex, 'Invalid evaluation_cycle_id format').optional(),
+  evaluationCycleId: z.string().regex(uuidRegex, 'Invalid evaluationCycleId format').optional(),
 });
 
 export type GetDashboardQueryDto = z.infer<typeof getDashboardQuerySchema>;
