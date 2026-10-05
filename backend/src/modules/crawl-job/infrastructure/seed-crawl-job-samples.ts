@@ -538,7 +538,8 @@ export async function seedCrawlJobSamples(): Promise<void> {
         ('c0000000-0000-0000-0000-000000000001', 'CRIT_JIRA_TASK_COMPLETION', 'DELIVERY', 'Tỷ lệ hoàn thành Task Jira', 'Đo lường mức độ hoàn thành task đúng tiến độ trên Jira', true),
         ('c0000000-0000-0000-0000-000000000002', 'CRIT_JIRA_BUG_COUNT', 'QUALITY', 'Số lượng Bug phát sinh trên Jira', 'Tổng số lượng bug và lỗi phát sinh từ task Jira', true),
         ('c0000000-0000-0000-0000-000000000003', 'CRIT_BP_TASK_ONTIME_RATE', 'DELIVERY', 'Tỷ lệ hoàn thành đúng hạn Blueprint', 'Tỷ lệ các tác vụ Blueprint hoàn thành đúng hạn', true),
-        ('c0000000-0000-0000-0000-000000000004', 'CRIT_BP_DELAYED_HOURS', 'QUALITY', 'Số giờ trễ hạn Blueprint', 'Tổng số giờ trễ hạn trên hệ thống Blueprint', true)
+        ('c0000000-0000-0000-0000-000000000004', 'CRIT_BP_DELAYED_HOURS', 'QUALITY', 'Số giờ trễ hạn Blueprint', 'Tổng số giờ trễ hạn trên hệ thống Blueprint', true),
+        ('c0000000-0000-0000-0000-000000000005', 'PERF_01', 'DELIVERY', 'Hiệu suất công việc & Tiến độ (Merged KPI)', 'Đo lường tiến độ hoàn thành task kết hợp từ Jira và Blueprint', true)
       ON CONFLICT (code) DO NOTHING;
     `);
 
@@ -664,10 +665,10 @@ export async function seedCrawlJobSamples(): Promise<void> {
       VALUES
         ('10000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', $1),
         ('10000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000002', NULL),
-        ('10000000-0000-0000-0000-000000000001', 'f4df8567-b506-42a5-befd-551b01e1b35b', $1),
+        ('10000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000005', $1),
         ('10000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000003', $2),
         ('10000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000004', NULL),
-        ('10000000-0000-0000-0000-000000000002', 'f4df8567-b506-42a5-befd-551b01e1b35b', $2)
+        ('10000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000005', $2)
       ON CONFLICT (crawl_job_definition_id, criterion_id) DO UPDATE SET
         scoring_prompt_version_id = EXCLUDED.scoring_prompt_version_id;
     `, [jiraPvId, bpPvId]);

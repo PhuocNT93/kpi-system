@@ -5,8 +5,20 @@ import { CriterionCategory, ScoringRuleType } from '../../domain/configuration.t
 export async function clearConfigurationData(pool: Pool): Promise<void> {
   await pool.query(`
     DO $$ BEGIN
+      IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'crawl_job_execution') THEN
+        UPDATE crawl_job_execution SET evaluation_data_import_id = NULL;
+      END IF;
+      IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'evaluation_data_import') THEN
+        UPDATE evaluation_data_import SET crawl_job_execution_id = NULL;
+      END IF;
+      IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'evaluation_data_import_record') THEN
+        UPDATE evaluation_data_import_record SET crawl_job_execution_id = NULL;
+      END IF;
       IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'crawl_scoring_execution') THEN
         DELETE FROM crawl_scoring_execution;
+      END IF;
+      IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'crawl_job_execution_log') THEN
+        DELETE FROM crawl_job_execution_log;
       END IF;
       IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'evaluation_data_import_evidence') THEN
         DELETE FROM evaluation_data_import_evidence;
@@ -14,11 +26,11 @@ export async function clearConfigurationData(pool: Pool): Promise<void> {
       IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'evaluation_data_import_record') THEN
         DELETE FROM evaluation_data_import_record;
       END IF;
-      IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'evaluation_data_import') THEN
-        DELETE FROM evaluation_data_import;
-      END IF;
       IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'crawl_job_execution') THEN
         DELETE FROM crawl_job_execution;
+      END IF;
+      IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'evaluation_data_import') THEN
+        DELETE FROM evaluation_data_import;
       END IF;
       IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'evaluation_cycle_crawl_job') THEN
         DELETE FROM evaluation_cycle_crawl_job;
