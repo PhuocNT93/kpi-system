@@ -275,6 +275,16 @@ export class PostgresCrawlJobRepository {
     return result.rows.length > 0;
   }
 
+  async listCriteria(): Promise<Array<{ criterion_id: string; code: string; name: string; category: string; description: string | null; active: boolean }>> {
+    const result = await this.pool.query(
+      `SELECT criterion_id, code, name, category, description, active
+       FROM criterion
+       WHERE active = TRUE
+       ORDER BY code ASC`
+    );
+    return result.rows as Array<{ criterion_id: string; code: string; name: string; category: string; description: string | null; active: boolean }>;
+  }
+
   async getCriteria(criterionIds: string[], client: TransactionClient): Promise<Array<{ criterion_id: string; code: string }>> {
     const result = await client.query(
       `SELECT criterion_id, code FROM criterion WHERE criterion_id = ANY($1::uuid[]) AND active = TRUE`,
@@ -525,18 +535,25 @@ export class PostgresCrawlJobRepository {
     jobId: string,
     criterionIds: string[],
     client: TransactionClient
-  ): Promise<string | null> {
+  ): Promise<{ jobCode: string; criterionCode?: string; criterionName?: string } | null> {
     const result = await client.query(
-      `SELECT other_job.code FROM evaluation_cycle_crawl_job mapping
+      `SELECT other_job.code AS job_code, c.code AS criterion_code, c.name AS criterion_name
+       FROM evaluation_cycle_crawl_job mapping
        JOIN crawl_job_criterion mapping_criterion USING (crawl_job_definition_id)
        JOIN crawl_job_definition other_job USING (crawl_job_definition_id)
+       LEFT JOIN criterion c ON c.criterion_id = mapping_criterion.criterion_id
        WHERE mapping.evaluation_cycle_id = $1 AND mapping.enabled = TRUE
          AND mapping.crawl_job_definition_id <> $2
          AND mapping_criterion.criterion_id = ANY($3::uuid[])
        LIMIT 1`,
       [cycleId, jobId, criterionIds]
     );
-    return typeof result.rows[0]?.code === 'string' ? result.rows[0].code : null;
+    if (!result.rows[0]?.job_code) return null;
+    return {
+      jobCode: result.rows[0].job_code as string,
+      criterionCode: (result.rows[0].criterion_code as string) || undefined,
+      criterionName: (result.rows[0].criterion_name as string) || undefined,
+    };
   }
 
   async createExecution(

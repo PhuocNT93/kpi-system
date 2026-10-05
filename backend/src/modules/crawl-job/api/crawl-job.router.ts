@@ -35,6 +35,7 @@ export function createCrawlJobRouter(
   router.post('/connector-credentials', run((req, res) => controller.createCredentialReference(req, res)));
 
   // Crawl Jobs & Executions
+  router.get('/crawl-criteria', run((req, res) => controller.listCriteria(req, res)));
   router.get('/crawl-jobs', run((req, res) => controller.listJobs(req, res)));
   router.post('/crawl-jobs', run((req, res) => controller.createJob(req, res)));
   router.get('/crawl-jobs/:id', run((req, res) => controller.getJob(req, res)));

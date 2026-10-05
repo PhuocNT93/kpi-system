@@ -150,7 +150,7 @@ export function CrawlJobsPage() {
   const jobs = useMemo(() => jobsQuery.data ?? [], [jobsQuery.data]);
   const criteriaQuery = useQuery({
     queryKey: ['crawlJobs', 'criteria'],
-    queryFn: fetchCriterionLibrary,
+    queryFn: () => crawlJobApi.listCriteria().catch(() => fetchCriterionLibrary()),
     enabled: Boolean(jobDialog),
   });
   const scriptsQuery = useQuery({
@@ -651,6 +651,7 @@ export function CrawlJobsPage() {
         scripts={scriptsQuery.data ?? []}
         credentials={credentialsQuery.data ?? []}
         cycles={openCyclesQuery.data ?? []}
+        existingJobs={jobs}
         onChange={setJobDialog}
         onSubmit={handleSaveJob}
         onClose={() => setJobDialog(null)}
@@ -1078,22 +1079,23 @@ function Fact({ label, value }: { label: string; value: string }) {
   return <div className="crawl-fact"><span>{label}</span><strong>{value || '—'}</strong></div>;
 }
 
-function JobDialog({ form, editing, loading, error, criteria, scripts, credentials, cycles, onChange, onSubmit, onClose, onScriptCreatedAndPublished }: {
+function JobDialog({ form, editing, loading, error, criteria, scripts, credentials, cycles, existingJobs, onChange, onSubmit, onClose, onScriptCreatedAndPublished }: {
   form: JobFormState;
   editing: boolean;
   loading: boolean;
   error: string;
-  criteria: Array<{ id: string; code: string; name: string; status: string }>;
+  criteria: Array<{ id: string; code: string; name: string; status?: string; active?: boolean }>;
   scripts: CrawlScriptItem[];
   credentials: Array<{ connector_credential_id: string; code: string; source_system: CrawlSourceSystem; display_name: string }>;
   cycles: Array<{ id: string; code: string; name: string }>;
+  existingJobs?: CrawlJob[];
   onChange: (state: JobFormState) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onClose: () => void;
   onScriptCreatedAndPublished?: (newVersionId: string) => void;
 }) {
   const [showCreateScriptModal, setShowCreateScriptModal] = useState(false);
-  const activeCriteria = criteria.filter((criterion) => criterion.status === 'ACTIVE');
+  const activeCriteria = criteria.filter((criterion) => (criterion.status ? criterion.status === 'ACTIVE' : criterion.active !== false));
   const matchingScripts = scripts.filter((script) => script.source_system === form.sourceSystem && (script.status !== 'DISABLED' || script.crawl_script_version_id === form.scriptVersionId));
   const matchingCredentials = credentials.filter((credential) => credential.source_system === form.sourceSystem);
   const change = <K extends keyof JobFormState>(key: K, value: JobFormState[K]) => onChange({ ...form, [key]: value });
@@ -1102,7 +1104,7 @@ function JobDialog({ form, editing, loading, error, criteria, scripts, credentia
   const handleScriptChange = (selectedVersionId: string) => {
     const chosenScript = scripts.find((s) => s.crawl_script_version_id === selectedVersionId);
     let newCriterionIds = [...form.criterionIds];
-    if (chosenScript) {
+    if (chosenScript && !editing) {
       const saved = localStorage.getItem(`crawl_script_criteria_${chosenScript.code}`);
       if (saved) {
         try {
@@ -1266,7 +1268,66 @@ function JobDialog({ form, editing, loading, error, criteria, scripts, credentia
           ))}
         </select>
       </div>
-      <fieldset className="crawl-criteria"><legend>KPI criteria</legend>{activeCriteria.length === 0 ? <span className="crawl-muted">No active criteria available.</span> : activeCriteria.map((criterion) => <label key={criterion.id}><input type="checkbox" checked={form.criterionIds.includes(criterion.id)} onChange={(event) => change('criterionIds', event.target.checked ? [...form.criterionIds, criterion.id] : form.criterionIds.filter((id) => id !== criterion.id))} /><span><strong>{criterion.code}</strong><small>{criterion.name}</small></span></label>)}</fieldset>
+      <fieldset className="crawl-criteria">
+        <legend>KPI criteria</legend>
+        {activeCriteria.length === 0 ? (
+          <span className="crawl-muted">No active criteria available.</span>
+        ) : (
+          activeCriteria.map((criterion) => {
+            const criterionId = criterion.id || (criterion as unknown as { criterion_id?: string }).criterion_id || '';
+            const isChecked = form.criterionIds.includes(criterionId) ||
+              form.criterionIds.includes(criterion.id) ||
+              Boolean((criterion as unknown as { criterion_id?: string }).criterion_id && form.criterionIds.includes((criterion as unknown as { criterion_id?: string }).criterion_id!));
+            const conflictJob = existingJobs?.find(
+              (j) =>
+                j.crawl_job_definition_id !== form.id &&
+                j.active &&
+                (!form.evaluationCycleId || !j.evaluation_cycle_id || j.evaluation_cycle_id === form.evaluationCycleId) &&
+                j.criteria?.some((c) => c.criterion_id === criterionId || c.criterion_code === criterion.code)
+            );
+            return (
+              <label
+                key={criterionId || criterion.code}
+                style={
+                  conflictJob && isChecked
+                    ? { borderColor: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.05)' }
+                    : undefined
+                }
+              >
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  onChange={(event) =>
+                    change(
+                      'criterionIds',
+                      event.target.checked
+                        ? [...form.criterionIds, criterionId]
+                        : form.criterionIds.filter((id) => id !== criterionId && id !== criterion.id && id !== (criterion as unknown as { criterion_id?: string }).criterion_id)
+                    )
+                  }
+                />
+                <span>
+                  <strong>{criterion.code}</strong>
+                  <small>{criterion.name}</small>
+                  {conflictJob && (
+                    <span
+                      style={{
+                        display: 'block',
+                        marginTop: '2px',
+                        fontSize: '11px',
+                        color: '#d97706',
+                        fontWeight: 500,
+                      }}
+                    >
+                      ⚠ Trùng với job: {conflictJob.code}
+                    </span>
+                  )}
+                </span>
+              </label>
+            );
+          })
+        )}
+      </fieldset>
       <div className="crawl-form-grid"><label>Default schedule (cron)<input value={form.schedule} placeholder="0 2 * * *" onChange={(event) => change('schedule', event.target.value)} /></label><label>Failure policy<select value={form.failurePolicy} onChange={(event) => change('failurePolicy', event.target.value as CrawlFailurePolicy)}>{FAILURE_POLICIES.map((policy) => <option key={policy} value={policy}>{statusLabel(policy)}</option>)}</select></label></div>
       <label>Source configuration (JSON)<textarea rows={5} spellCheck={false} value={form.sourceConfigText} onChange={(event) => change('sourceConfigText', event.target.value)} /></label>
       {error && <ApiError error={error} />}

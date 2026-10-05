@@ -659,7 +659,7 @@ export async function seedCrawlJobSamples(): Promise<void> {
     const jiraPvId = promptVersions.find((p) => p.code === 'PROMPT_JIRA_TASK_COMPLETION')?.prompt_version_id || null;
     const bpPvId = promptVersions.find((p) => p.code === 'PROMPT_BP_ONTIME_RATE')?.prompt_version_id || null;
 
-    // Seed Job Criteria (include PERF_01 for BOTH Jira and Blueprint so they cover the same KPI)
+    // Seed Job Criteria (Rule 27: unique criteria per enabled job in a cycle)
     await pool.query(`
       INSERT INTO crawl_job_criterion (crawl_job_definition_id, criterion_id, scoring_prompt_version_id)
       VALUES
@@ -667,8 +667,7 @@ export async function seedCrawlJobSamples(): Promise<void> {
         ('10000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000002', NULL),
         ('10000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000005', $1),
         ('10000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000003', $2),
-        ('10000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000004', NULL),
-        ('10000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000005', $2)
+        ('10000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000004', NULL)
       ON CONFLICT (crawl_job_definition_id, criterion_id) DO UPDATE SET
         scoring_prompt_version_id = EXCLUDED.scoring_prompt_version_id;
     `, [jiraPvId, bpPvId]);
