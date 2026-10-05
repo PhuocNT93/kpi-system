@@ -332,7 +332,7 @@ export class CrawlJobService {
           return s;
         };
         let bpUsername = cleanStr(process.env['BLUEPRINT_USERNAME']);
-        let bpPassword = cleanStr(process.env['BLUEPRINT_PASSWORD']);
+        const bpPassword = cleanStr(process.env['BLUEPRINT_PASSWORD']);
         if (!bpUsername || !bpPassword) {
           throw new AppError(400, 'BAD_REQUEST', 'Blueprint credentials missing in environment variables (BLUEPRINT_USERNAME, BLUEPRINT_PASSWORD).');
         }
