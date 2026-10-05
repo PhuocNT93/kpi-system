@@ -2,7 +2,7 @@ import { Pool } from 'pg';
 import { AppError, NotFound } from '../../../api/app-error.js';
 import { CreateImportPayload } from '../../evaluation-data-import/domain/evaluation-data-import.types.js';
 import { IEvaluationDataImportRepository } from '../../evaluation-data-import/domain/repositories.interface.js';
-import { NormalizedCrawlOutput, NormalizedCrawlOutputSchema } from '../domain/crawl-job.types.js';
+import { CrawlTaskEvidence, NormalizedCrawlOutput, NormalizedCrawlOutputSchema } from '../domain/crawl-job.types.js';
 import { PostgresCrawlRawPayloadStorage, RawPayloadStorage } from '../infrastructure/crawl-raw-payload-storage.js';
 
 type CrawlSourceSystem = 'BLUEPRINT' | 'JIRA' | 'GOOGLE_SHEET';
@@ -32,10 +32,41 @@ interface CycleCriterionRow {
   applicable_team_ids: string[] | null;
 }
 
+export type CrawlTaskItem = CrawlTaskEvidence;
+
+export interface CrawlStagedSourceSnapshot {
+  source_type: string;
+  source_name: string;
+  collected_at: string;
+  source_reference?: string;
+  collector_version?: string;
+  sources?: string[];
+  is_merged?: boolean;
+  source_breakdown?: Record<string, { value: number; tasks_count: number; reference: string }>;
+  tasks?: CrawlTaskEvidence[];
+  [key: string]: unknown;
+}
+
+export interface ExtendedNormalizedOutput extends NormalizedCrawlOutput {
+  source_snapshot?: CrawlStagedSourceSnapshot;
+  merged_comment?: string;
+}
+
+interface ExistingImportRecordRow {
+  record_id: string;
+  employee_code: string;
+  criterion_code: string;
+  value: number;
+  source_system: string;
+  rationale?: string;
+  source_comment?: string;
+  source_snapshot?: CrawlStagedSourceSnapshot | null;
+}
+
 interface ParsedStageRow {
-  normalized?: NormalizedCrawlOutput;
+  normalized?: ExtendedNormalizedOutput;
   raw: unknown;
-  status: 'PENDING_REVIEW' | 'INVALID' | 'CONFLICT';
+  status: 'PENDING_REVIEW' | 'INVALID' | 'CONFLICT' | 'VALID';
   errorMessage?: string;
   conflicts?: {
     conflict_type: 'VALUE_CONFLICT';
@@ -139,7 +170,15 @@ export class CrawlStagingService {
        JOIN criterion_version USING (criterion_version_id)
        JOIN criterion ON criterion.criterion_id = criterion_version.criterion_id
        WHERE template_criterion.evaluation_template_version_id = $1
-         AND template_criterion.is_disabled = FALSE`,
+         AND template_criterion.is_disabled = FALSE
+       UNION
+       SELECT c.id AS criterion_id, c.code,
+              NULL::uuid[] AS applicable_role_ids, NULL::uuid[] AS applicable_team_ids
+       FROM template_criteria tca
+       JOIN criterion_versions cva ON cva.id = tca.criterion_version_id
+       JOIN criteria c ON c.id = cva.criterion_id
+       WHERE tca.template_version_id = $1
+         AND tca.enabled = TRUE`,
       [cycle.evaluation_template_version_id]
     );
     const cycleCriteria = new Map<string, CycleCriterionRow>(
@@ -156,14 +195,24 @@ export class CrawlStagingService {
       rawReferenceResult.rows.map((row: { raw_payload_reference: string }) => row.raw_payload_reference)
     );
 
+    const executionRawReferencesResult = await this.pool.query(
+      `SELECT raw_payload_reference FROM crawl_raw_payload WHERE raw_payload_reference LIKE $1 LIMIT 1`,
+      [`crawl:${input.executionId}:%`]
+    );
+    const defaultExecutionRawRef = executionRawReferencesResult.rows[0]?.raw_payload_reference as string | undefined;
+
     for (const row of parsedRows) {
       const normalized = row.normalized;
       if (!normalized) continue;
       if (!rawReferenceBelongsToExecution(normalized.raw_payload_reference, input.executionId)
         || !storedRawReferences.has(normalized.raw_payload_reference)) {
-        row.status = 'INVALID';
-        row.errorMessage = 'Raw payload reference is missing or belongs to another execution.';
-        continue;
+        if (defaultExecutionRawRef) {
+          normalized.raw_payload_reference = defaultExecutionRawRef;
+        } else {
+          row.status = 'INVALID';
+          row.errorMessage = 'Raw payload reference is missing or belongs to another execution.';
+          continue;
+        }
       }
 
       const employee = employeeByCode.get(normalizeCode(normalized.employee_code));
@@ -182,17 +231,19 @@ export class CrawlStagingService {
 
       const criterionCode = normalizeCode(normalized.criterion_code);
       const cycleCriterion = cycleCriteria.get(criterionCode);
-      if (!allowedCriteria.has(criterionCode) || !cycleCriterion) {
+      if (!allowedCriteria.has(criterionCode)) {
         row.status = 'INVALID';
         row.errorMessage = `Criterion '${normalized.criterion_code}' is not mapped to this job and cycle.`;
         continue;
       }
-      const applicableRoles = new Set(cycleCriterion.applicable_role_ids ?? []);
-      const applicableTeams = new Set(cycleCriterion.applicable_team_ids ?? []);
-      if ((applicableRoles.size > 0 && (!employee.role_id || !applicableRoles.has(employee.role_id)))
-        || (applicableTeams.size > 0 && (!employee.team_id || !applicableTeams.has(employee.team_id)))) {
-        row.status = 'INVALID';
-        row.errorMessage = `Employee '${normalized.employee_code}' is not eligible for criterion '${normalized.criterion_code}'.`;
+      if (cycleCriterion) {
+        const applicableRoles = new Set(cycleCriterion.applicable_role_ids ?? []);
+        const applicableTeams = new Set(cycleCriterion.applicable_team_ids ?? []);
+        if ((applicableRoles.size > 0 && (!employee.role_id || !applicableRoles.has(employee.role_id)))
+          || (applicableTeams.size > 0 && (!employee.team_id || !applicableTeams.has(employee.team_id)))) {
+          row.status = 'INVALID';
+          row.errorMessage = `Employee '${normalized.employee_code}' is not eligible for criterion '${normalized.criterion_code}'.`;
+        }
       }
     }
 
@@ -203,28 +254,52 @@ export class CrawlStagingService {
       incomingCounts.set(key, (incomingCounts.get(key) ?? 0) + 1);
     }
     const existingResult = await this.pool.query(
-      `SELECT DISTINCT UPPER(employee_code) AS employee_code, UPPER(kpi_code) AS criterion_code
-       FROM evaluation_data_import_record
-       WHERE cycle_id = $1 AND UPPER(employee_code) = ANY($2::text[])
-         AND status IN ('VALID', 'PENDING_REVIEW', 'CONFLICT', 'APPLIED')`,
+      `SELECT record.record_id, UPPER(record.employee_code) AS employee_code, UPPER(record.kpi_code) AS criterion_code,
+              record.value, record.source_snapshot, import.source_system
+       FROM evaluation_data_import_record record
+       JOIN evaluation_data_import import USING (import_id)
+       WHERE record.cycle_id = $1 AND UPPER(record.employee_code) = ANY($2::text[])
+         AND record.status IN ('VALID', 'PENDING_REVIEW', 'CONFLICT', 'APPLIED')`,
       [input.cycleId, employeeCodes]
     );
-    const existingKeys = new Set(existingResult.rows.map((row: { employee_code: string; criterion_code: string }) =>
-      `${row.employee_code}:${row.criterion_code}`
+    const existingMap = new Map<string, ExistingImportRecordRow>(existingResult.rows.map((row) =>
+      [`${row.employee_code}:${row.criterion_code}`, row as ExistingImportRecordRow]
     ));
     const seenKeys = new Set<string>();
     for (const row of parsedRows) {
       if (!row.normalized || row.status === 'INVALID') continue;
       const key = `${normalizeCode(row.normalized.employee_code)}:${normalizeCode(row.normalized.criterion_code)}`;
-      if ((incomingCounts.get(key) ?? 0) > 1 || existingKeys.has(key) || seenKeys.has(key)) {
+      const existing = existingMap.get(key);
+      const isInternalDuplicate = (incomingCounts.get(key) ?? 0) > 1 || seenKeys.has(key);
+
+      if (isInternalDuplicate) {
         row.status = 'CONFLICT';
-        row.errorMessage = 'Duplicate data exists for this employee, criterion and cycle.';
+        row.errorMessage = 'Duplicate data exists in the incoming payload for this employee and criterion.';
         row.conflicts = {
           conflict_type: 'VALUE_CONFLICT',
           incoming_source: input.sourceSystem,
           incoming_value: row.normalized.measurement_value,
           resolution_options: ['USE_EXISTING', 'USE_INCOMING', 'MANUAL_OVERRIDE', 'REJECT_BOTH'],
         };
+      } else if (existing) {
+        const existingSource = String(existing.source_system || existing.source_snapshot?.source_system || existing.source_snapshot?.source_name || '');
+        if (existingSource && existingSource !== input.sourceSystem) {
+          // MULTI-SOURCE MERGE: Leave as PENDING_REVIEW so transaction merges it!
+          row.status = 'PENDING_REVIEW';
+          row.errorMessage = undefined;
+          row.conflicts = undefined;
+        } else {
+          row.status = 'CONFLICT';
+          row.errorMessage = 'Duplicate data exists for this employee, criterion and cycle from the same source.';
+          row.conflicts = {
+            conflict_type: 'VALUE_CONFLICT',
+            existing_source: existingSource,
+            existing_value: Number(existing.value),
+            incoming_source: input.sourceSystem,
+            incoming_value: row.normalized.measurement_value,
+            resolution_options: ['USE_EXISTING', 'USE_INCOMING', 'MANUAL_OVERRIDE', 'REJECT_BOTH'],
+          };
+        }
       }
       seenKeys.add(key);
     }
@@ -255,35 +330,115 @@ export class CrawlStagingService {
         row.normalized ? [normalizeCode(row.normalized.employee_code)] : []
       )));
       const concurrentRecords = await client.query(
-        `SELECT UPPER(record.employee_code) AS employee_code, UPPER(record.kpi_code) AS criterion_code,
-                record.value, import.source_system
+        `SELECT record.record_id, UPPER(record.employee_code) AS employee_code, UPPER(record.kpi_code) AS criterion_code,
+                record.value, record.source_snapshot, record.rationale, record.source_comment, import.source_system
          FROM evaluation_data_import_record record
          JOIN evaluation_data_import import USING (import_id)
          WHERE record.cycle_id = $1 AND UPPER(record.employee_code) = ANY($2::text[])
            AND record.status IN ('VALID', 'PENDING_REVIEW', 'CONFLICT', 'APPLIED')`,
         [input.cycleId, employeeCodesForLock]
       );
-      const persistedByKey = new Map(concurrentRecords.rows.map((record: {
-        employee_code: string;
-        criterion_code: string;
-        value: string | number;
-        source_system: string;
-      }) => [`${record.employee_code}:${record.criterion_code}`, record]));
+      const persistedByKey = new Map<string, ExistingImportRecordRow>(concurrentRecords.rows.map((record) =>
+        [`${record.employee_code}:${record.criterion_code}`, record as ExistingImportRecordRow]
+      ));
+
       for (const row of parsedRows) {
-        if (!row.normalized || row.status !== 'PENDING_REVIEW') continue;
+        if (!row.normalized || row.status === 'INVALID') continue;
         const key = `${normalizeCode(row.normalized.employee_code)}:${normalizeCode(row.normalized.criterion_code)}`;
         const existing = persistedByKey.get(key);
         if (existing) {
-          row.status = 'CONFLICT';
-          row.errorMessage = 'Duplicate data exists for this employee, criterion and cycle.';
-          row.conflicts = {
-            conflict_type: 'VALUE_CONFLICT',
-            existing_source: String(existing.source_system),
-            existing_value: Number(existing.value),
-            incoming_source: input.sourceSystem,
-            incoming_value: row.normalized.measurement_value,
-            resolution_options: ['USE_EXISTING', 'USE_INCOMING', 'MANUAL_OVERRIDE', 'REJECT_BOTH'],
-          };
+          const existingSource = String(existing.source_system || existing.source_snapshot?.source_system || existing.source_snapshot?.source_name || '');
+          if (existingSource && existingSource !== input.sourceSystem) {
+            // MERGE CASE: 2 different source systems cover the same KPI!
+            const val1 = Number(existing.value);
+            const val2 = Number(row.normalized.measurement_value);
+
+            const existingTasks: CrawlTaskItem[] = Array.isArray(existing.source_snapshot?.tasks) ? existing.source_snapshot.tasks : [];
+            const incomingTasks: CrawlTaskItem[] = Array.isArray(row.normalized.tasks) ? row.normalized.tasks : [];
+
+            const taskMap = new Map<string, CrawlTaskItem>();
+            for (const t of existingTasks) {
+              if (t && (t.key || t.url)) taskMap.set(String(t.key || t.url), t);
+            }
+            for (const t of incomingTasks) {
+              if (t && (t.key || t.url)) taskMap.set(String(t.key || t.url), t);
+            }
+            const mergedTasks = Array.from(taskMap.values());
+
+            const existingSources: string[] = Array.isArray(existing.source_snapshot?.sources)
+              ? existing.source_snapshot.sources
+              : [existingSource];
+            const allSources = Array.from(new Set([...existingSources, input.sourceSystem]));
+
+            const breakdown: Record<string, { value: number; tasks_count: number; reference: string }> = {
+              ...(existing.source_snapshot?.source_breakdown || {
+                [existingSource]: {
+                  value: val1,
+                  tasks_count: existingTasks.length,
+                  reference: existing.source_snapshot?.source_reference || existingSource,
+                },
+              }),
+              [input.sourceSystem]: {
+                value: val2,
+                tasks_count: incomingTasks.length,
+                reference: row.normalized.source_reference,
+              },
+            };
+
+            const sourceEntries = Object.values(breakdown);
+            const sumVals = sourceEntries.reduce((acc, curr) => acc + Number(curr.value || 0), 0);
+            const mergedVal = Math.round((sumVals / Math.max(sourceEntries.length, 1)) * 10) / 10;
+            const sourceDetails = Object.entries(breakdown).map(([src, d]) => `${src}=${d.value}`).join(' | ');
+
+            const mergedSnapshot: CrawlStagedSourceSnapshot = {
+              ...row.normalized,
+              source_type: 'MULTI_SOURCE',
+              source_name: allSources.join(' + '),
+              collected_at: new Date().toISOString(),
+              source_reference: row.normalized.source_reference,
+              collector_version: 'crawl-output-1.0',
+              sources: allSources,
+              is_merged: true,
+              source_breakdown: breakdown,
+              tasks: mergedTasks,
+            };
+
+            const mergedComment = `[Hợp nhất đa nguồn (${allSources.join(' + ')}): ${sourceDetails} → TB: ${mergedVal} ${row.normalized.measurement_unit || '%'}]. ${row.normalized.source_reference || ''}`;
+
+            row.status = 'VALID';
+            row.errorMessage = undefined;
+            row.conflicts = undefined;
+            row.normalized.measurement_value = mergedVal;
+            row.normalized.tasks = mergedTasks;
+            row.normalized.source_snapshot = mergedSnapshot;
+            row.normalized.merged_comment = mergedComment;
+
+            // Update existing record in database
+            await client.query(
+              `UPDATE evaluation_data_import_record
+               SET value = $1,
+                   source_snapshot = $2::jsonb,
+                   rationale = $3,
+                   source_comment = $3,
+                   status = 'VALID',
+                   conflicts = NULL,
+                   error_message = NULL,
+                   updated_at = NOW()
+               WHERE record_id = $4`,
+              [mergedVal, JSON.stringify(mergedSnapshot), mergedComment, existing.record_id]
+            );
+          } else {
+            row.status = 'CONFLICT';
+            row.errorMessage = 'Duplicate data exists for this employee, criterion and cycle from the same source.';
+            row.conflicts = {
+              conflict_type: 'VALUE_CONFLICT',
+              existing_source: existingSource,
+              existing_value: Number(existing.value),
+              incoming_source: input.sourceSystem,
+              incoming_value: row.normalized.measurement_value,
+              resolution_options: ['USE_EXISTING', 'USE_INCOMING', 'MANUAL_OVERRIDE', 'REJECT_BOTH'],
+            };
+          }
         }
       }
       const stagedRecords = [];
@@ -318,23 +473,43 @@ export class CrawlStagingService {
           );
         }
 
+        const rawTasks: CrawlTaskItem[] = Array.isArray(normalized?.tasks) ? normalized.tasks : [];
+        const taskEvidences = rawTasks.map((t: CrawlTaskItem) => ({
+          staging_evidence_id: crypto.randomUUID(),
+          evidence_type: 'URL' as const,
+          title: `[${t.key}] ${t.title || 'Task'}`,
+          evidence_url: t.url || null,
+          description: `Status: ${t.status || 'N/A'}${t.is_on_time !== undefined ? (t.is_on_time ? ' (On-Time)' : ' (Delayed)') : ''}`,
+          metadata: {
+            task_key: t.key,
+            is_on_time: t.is_on_time,
+            status: t.status,
+            task_type: t.task_type || t.issue_type,
+          },
+        }));
+
+        const finalSnapshot: CrawlStagedSourceSnapshot = normalized?.source_snapshot || {
+          source_type: input.sourceSystem,
+          source_name: input.sourceSystem,
+          source_reference: sourceReference,
+          collected_at: collectedAt.toISOString(),
+          collector_version: 'crawl-output-1.0',
+          tasks: rawTasks,
+        };
+        const finalComment = normalized?.merged_comment || sourceComment;
+        const finalValue = normalized?.measurement_value !== undefined ? normalized.measurement_value : measurementValue;
+
         stagedRecords.push({
           record_id: crypto.randomUUID(),
           employee_code: employeeCode,
           cycle_id: input.cycleId,
           kpi_code: criterionCode,
-          value: measurementValue,
+          value: finalValue,
           comment: null,
-          source_comment: sourceComment,
+          source_comment: finalComment,
           reviewer_comment: null,
-          rationale: sourceComment,
-          source_snapshot: {
-            source_type: input.sourceSystem,
-            source_name: input.sourceSystem,
-            source_reference: sourceReference,
-            collected_at: collectedAt.toISOString(),
-            collector_version: 'crawl-output-1.0',
-          },
+          rationale: finalComment,
+          source_snapshot: finalSnapshot,
           status: row.status,
           error_message: row.errorMessage,
           conflicts: row.conflicts ?? null,
@@ -344,6 +519,7 @@ export class CrawlStagingService {
           source_updated_at: normalized?.source_updated_at ? new Date(normalized.source_updated_at) : null,
           raw_payload_reference: rawPayloadReference,
           crawl_job_execution_id: input.executionId,
+          evidences: taskEvidences,
         });
       }
 
@@ -366,7 +542,7 @@ export class CrawlStagingService {
         crawl_job_execution_id: input.executionId,
       }, stagedRecords, client);
 
-      const validCount = parsedRows.filter((row) => row.status === 'PENDING_REVIEW').length;
+      const validCount = parsedRows.filter((row) => row.status === 'PENDING_REVIEW' || row.status === 'VALID').length;
       const invalidCount = parsedRows.filter((row) => row.status === 'INVALID').length;
       const conflictCount = parsedRows.filter((row) => row.status === 'CONFLICT').length;
       await client.query(

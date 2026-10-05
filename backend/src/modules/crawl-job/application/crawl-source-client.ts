@@ -252,7 +252,12 @@ export class CrawlSourceClient {
             const payload = JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
             if (writeRawPayload) {
               void writeRawPayload(payload).then((rawPayloadReference) => {
-                resolve({ data: payload, raw_payload_reference: rawPayloadReference });
+                if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+                  (payload as Record<string, unknown>)._raw_payload_reference = rawPayloadReference;
+                  resolve(payload);
+                } else {
+                  resolve({ data: payload, raw_payload_reference: rawPayloadReference });
+                }
               }, () => reject(new CrawlSourceError('RAW_PAYLOAD_STORAGE_FAILED', false, 'Crawl source payload could not be stored safely.')));
             } else {
               resolve(payload);

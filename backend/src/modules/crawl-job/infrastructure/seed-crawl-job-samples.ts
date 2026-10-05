@@ -32,18 +32,32 @@ const JIRA_SCRIPT_CODE = `async function (input, fetchSource) {
   const picField = sourceConfig.pic_custom_field || '11902';
   const fromDate = sourceConfig.from_date || '';
   const toDate = sourceConfig.to_date || '';
+  const employeeList = input.employees || (input.targetCycle && input.targetCycle.employees) || [];
+
+  // Build team identifiers from context.employees (supports assignee, reporter, cf[11902])
+  const userIdentifiers = [];
+  for (const emp of employeeList) {
+    if (emp.employee_code) userIdentifiers.push('"' + emp.employee_code + '"');
+    if (emp.email) {
+      const prefix = emp.email.split('@')[0];
+      if (prefix) userIdentifiers.push('"' + prefix + '"');
+    }
+  }
+  const inClause = userIdentifiers.join(', ');
 
   // 1. Build JQL query matching Jira crawler patterns (supports PIC cf[11902] and assignee)
   let jql = sourceConfig.jql;
   if (!jql) {
     let dateFilter = '';
     if (fromDate && toDate) {
-      dateFilter = \`AND (updated >= "\${fromDate}" AND updated <= "\${toDate}")\`;
+      dateFilter = 'AND (updated >= "' + fromDate + '" AND updated <= "' + toDate + '")';
     } else if (fromDate) {
-      dateFilter = \`AND updated >= "\${fromDate}"\`;
+      dateFilter = 'AND updated >= "' + fromDate + '"';
     }
-    const projClause = projectKey ? \`project = "\${projectKey}"\` : 'project is not EMPTY';
-    jql = \`\${projClause} \${dateFilter} ORDER BY updated DESC\`.trim();
+    const teamClause = inClause
+      ? '(assignee in (' + inClause + ') OR reporter in (' + inClause + ') OR cf[' + picField + '] in (' + inClause + '))'
+      : (projectKey ? 'project = "' + projectKey + '"' : 'project is not EMPTY');
+    jql = (teamClause + ' ' + dateFilter).trim() + ' ORDER BY updated DESC';
   }
 
   try {
@@ -58,89 +72,192 @@ const JIRA_SCRIPT_CODE = `async function (input, fetchSource) {
           'summary', 'project', 'issuetype', 'priority', 'status',
           'created', 'updated', 'duedate', 'resolutiondate',
           'timespent', 'timeoriginalestimate', 'assignee', 'reporter',
-          'description', 'components', 'labels', 'resolution', \`customfield_\${picField}\`
+          'description', 'components', 'labels', 'resolution', 'customfield_' + picField
         ]
       }
     });
 
-    const issues = (data && data.issues) || [];
-    for (const issue of issues) {
+    const issues = (data && (data.issues || (data.data && data.data.issues))) || [];
+    const executionId = input.executionId || input.execution_id || 'manual';
+    const defaultRawRef = (data && (data._raw_payload_reference || (data.data && data.data._raw_payload_reference) || data.raw_payload_reference)) || ('crawl:' + executionId + ':raw');
+
+    function normalize(s) {
+      if (!s) return '';
+      const str = typeof s === 'string' ? s : (s.name || s.displayName || s.value || String(s));
+      return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    }
+
+    function resolveEmployeeCode(issue) {
+      if (!Array.isArray(employeeList) || employeeList.length === 0) return null;
       const f = issue.fields || {};
-      const empCode = f.assignee?.name || f.assignee?.emailAddress || f.assignee?.displayName || 'EMP001';
-      const statusCategory = f.status?.statusCategory?.name || '';
-      const statusName = (f.status?.name || '').toLowerCase();
-      const issueTypeName = (f.issuetype?.name || '').toLowerCase();
-      const priorityName = (f.priority?.name || '').toLowerCase();
+      const cAssignee = normalize(f.assignee?.name || f.assignee?.emailAddress);
+      const picObj = f['customfield_' + picField];
+      const cPic = normalize(picObj?.name || picObj?.emailAddress || (typeof picObj === 'string' ? picObj : ''));
+      const cReporter = normalize(f.reporter?.name || f.reporter?.emailAddress);
+      const cDisplayName = normalize(f.assignee?.displayName);
+      const cPicDisplayName = normalize(picObj?.displayName);
 
-      // Determine task completion status
-      const isCompleted = statusCategory.toLowerCase() === 'done' || 
-        ['closed', 'resolved', 'done', 'complete'].some(s => statusName.includes(s));
+      // 1. Direct code or email prefix match (check PIC first, then assignee, then reporter)
+      let match = employeeList.find(e => {
+        const code = normalize(e.employee_code);
+        const local = normalize((e.email || '').split('@')[0]);
+        return (cPic && (cPic === code || cPic.includes(local))) ||
+               (cAssignee && (cAssignee === code || cAssignee.includes(local))) ||
+               (cReporter && (cReporter === code || cReporter.includes(local)));
+      });
+      if (match) return match.employee_code;
 
-      // Determine on-time delivery
-      let isOnTime = true;
-      if (isCompleted) {
-        if (f.resolutiondate && f.duedate) {
-          const resDate = new Date(f.resolutiondate);
+      // 2. Display name match
+      match = employeeList.find(e => {
+        const en = normalize(e.full_name);
+        return (cPicDisplayName && (en.includes(cPicDisplayName) || cPicDisplayName.includes(en))) ||
+               (cDisplayName && (en.includes(cDisplayName) || cDisplayName.includes(en)));
+      });
+      if (match) return match.employee_code;
+
+      return null;
+    }
+
+    function parseToIso(dtStr) {
+      if (!dtStr) return new Date().toISOString();
+      if (typeof dtStr !== 'string') return new Date(dtStr).toISOString();
+      const d = new Date(dtStr);
+      if (!isNaN(d.getTime())) return d.toISOString();
+      const clean = dtStr.replace(/[^0-9]/g, '');
+      if (clean.length >= 8) {
+        const y = clean.slice(0, 4);
+        const m = clean.slice(4, 6);
+        const d = clean.slice(6, 8);
+        const h = clean.length >= 10 ? clean.slice(8, 10) : '00';
+        const min = clean.length >= 12 ? clean.slice(10, 12) : '00';
+        return y + '-' + m + '-' + d + 'T' + h + ':' + min + ':00.000Z';
+      }
+      return new Date().toISOString();
+    }
+
+    const empIssues = {};
+    for (const issue of issues) {
+      const empCode = resolveEmployeeCode(issue);
+      if (!empCode) continue;
+      if (!empIssues[empCode]) empIssues[empCode] = [];
+      empIssues[empCode].push(issue);
+    }
+
+    for (const [empCode, iList] of Object.entries(empIssues)) {
+      // Filter issues by employee review window [last_review + 1, next_review]
+      const emp = employeeList.find(e => e.employee_code === empCode);
+      const empFromTime = emp && emp.review_from ? new Date(emp.review_from).getTime() : 0;
+      const empToTime = emp && emp.review_to ? new Date(emp.review_to).getTime() : Infinity;
+
+      const inWindowIssues = iList.filter(issue => {
+        const f = issue.fields || {};
+        const iTime = new Date(parseToIso(f.resolutiondate || f.updated || f.created || now)).getTime();
+        return iTime >= empFromTime && iTime <= empToTime;
+      });
+      const effectiveIssues = inWindowIssues.length > 0 ? inWindowIssues : iList;
+
+      let totalScore = 0;
+      let bugCount = 0;
+      let latestMeasuredAt = now;
+
+      for (const issue of effectiveIssues) {
+        const f = issue.fields || {};
+        const statusCategory = f.status?.statusCategory?.name || '';
+        const statusName = (f.status?.name || '').toLowerCase();
+        const issueTypeName = (f.issuetype?.name || '').toLowerCase();
+        const isCompleted = statusCategory.toLowerCase() === 'done' || 
+          ['closed', 'resolved', 'done', 'complete', 'hoàn thành'].some(s => statusName.includes(s));
+
+        let isOnTime = true;
+        if (isCompleted) {
+          if (f.resolutiondate && f.duedate) {
+            const resDate = new Date(f.resolutiondate);
+            const dueDate = new Date(f.duedate);
+            dueDate.setHours(23, 59, 59, 999);
+            isOnTime = resDate <= dueDate;
+          }
+        } else if (f.duedate) {
           const dueDate = new Date(f.duedate);
           dueDate.setHours(23, 59, 59, 999);
-          isOnTime = resDate <= dueDate;
+          isOnTime = new Date() <= dueDate;
         }
-      } else if (f.duedate) {
-        const dueDate = new Date(f.duedate);
-        dueDate.setHours(23, 59, 59, 999);
-        isOnTime = new Date() <= dueDate;
+
+        const isBug = ['bug', 'defect', 'issue', 'lỗi'].some(b => issueTypeName.includes(b));
+        if (isBug) bugCount++;
+        totalScore += isCompleted ? (isOnTime ? 100.0 : 80.0) : 0.0;
+        const measuredAt = parseToIso(f.resolutiondate || f.updated || now);
+        if (measuredAt > latestMeasuredAt || latestMeasuredAt === now) latestMeasuredAt = measuredAt;
       }
 
-      // Check bug classification (bugs/defects)
-      const isBug = ['bug', 'defect', 'issue'].some(b => issueTypeName.includes(b));
-      const isCritical = ['critical', 'highest', 'blocker'].some(cp => priorityName.includes(cp));
-      const measuredAt = f.resolutiondate || f.updated || now;
-      const timeSpentHours = f.timespent ? Math.round((f.timespent / 3600) * 10) / 10 : 0;
+      const avgCompletion = effectiveIssues.length > 0 ? Math.round((totalScore / effectiveIssues.length) * 10) / 10 : 0;
+      const refSummary = 'JIRA:' + (sourceConfig.project_key || 'PROJ') + ' (' + effectiveIssues.length + ' issues)';
 
-      const rawReference = JSON.stringify({
-        key: issue.key,
-        summary: f.summary || '',
-        issueType: f.issuetype?.name || 'Task',
-        priority: f.priority?.name || 'Medium',
-        status: f.status?.name || 'Open',
-        timeSpentHours,
-        isOnTime,
-        cycleCode,
+      const rawJiraUrl = String(sourceConfig.base_url || 'https://pim.cyberlogitec.com/jira');
+      const jiraBaseUrl = rawJiraUrl.endsWith('/') ? rawJiraUrl.slice(0, -1) : rawJiraUrl;
+      const taskItems = effectiveIssues.map(issue => {
+        const f = issue.fields || {};
+        const statusName = f.status && f.status.name ? f.status.name : 'Unknown';
+        const isCompleted = ['done', 'closed', 'resolved', 'hoàn thành'].some(s => statusName.toLowerCase().includes(s));
+        let isOnTime = true;
+        if (f.duedate) {
+          const resDate = f.resolutiondate ? new Date(f.resolutiondate) : (isCompleted ? new Date() : null);
+          const dueDate = new Date(f.duedate);
+          dueDate.setHours(23, 59, 59, 999);
+          isOnTime = resDate ? resDate <= dueDate : new Date() <= dueDate;
+        }
+        return {
+          key: issue.key,
+          title: f.summary || '',
+          url: jiraBaseUrl + '/browse/' + issue.key,
+          status: statusName,
+          is_on_time: isOnTime,
+          issue_type: f.issuetype && f.issuetype.name ? f.issuetype.name : 'Task',
+          completed_at: f.resolutiondate || null
+        };
       });
 
-      // Criterion 1: Task Completion & On-Time Rate (%)
-      if (shouldInclude('CRIT_JIRA_TASK_COMPLETION')) {
-        records.push({
-          schema_version: '1.0',
-          employee_code: empCode,
-          criterion_code: 'CRIT_JIRA_TASK_COMPLETION',
-          measurement_value: isCompleted ? (isOnTime ? 100.0 : 80.0) : 0.0,
-          measurement_unit: '%',
-          measured_at: measuredAt,
-          source_reference: 'JIRA:' + issue.key,
-          raw_payload_reference: rawReference,
-          collected_at: now,
-        });
-      }
+      const targetCriteria = criteriaList.length > 0
+        ? criteriaList
+        : ['CRIT_JIRA_TASK_COMPLETION', 'CRIT_JIRA_BUG_COUNT'];
 
-      // Criterion 2: Bug & Defect Count (1.0 count per bug)
-      if (isBug && shouldInclude('CRIT_JIRA_BUG_COUNT')) {
+      for (const crit of targetCriteria) {
+        const critCode = typeof crit === 'string' ? crit : (crit.criterion_code || crit.code);
+        if (!critCode) continue;
+
+        const upper = critCode.toUpperCase();
+        let val = 0;
+        let unit = 'count';
+
+        if (upper.includes('COMPLET') || upper.includes('ONTIME') || upper.includes('RATE') || upper.includes('HOAN_THANH')) {
+          val = avgCompletion;
+          unit = '%';
+        } else if (upper.includes('BUG') || upper.includes('DEFECT') || upper.includes('LOI')) {
+          val = bugCount;
+          unit = 'count';
+        } else {
+          val = avgCompletion;
+          unit = '%';
+        }
+
         records.push({
           schema_version: '1.0',
           employee_code: empCode,
-          criterion_code: 'CRIT_JIRA_BUG_COUNT',
-          measurement_value: 1.0,
-          measurement_unit: 'count',
-          measured_at: measuredAt,
-          source_reference: 'JIRA:' + issue.key,
-          raw_payload_reference: rawReference,
+          criterion_code: critCode,
+          measurement_value: val,
+          measurement_unit: unit,
+          measured_at: latestMeasuredAt,
+          source_reference: refSummary,
+          raw_payload_reference: defaultRawRef,
           collected_at: now,
+          tasks: taskItems,
         });
       }
     }
   } catch (err) {
-    // If the upstream Jira API is unreachable, return empty - do not produce fake records.
-    void err;
+    if (typeof onLog === 'function') {
+      onLog('[Error in Jira Script] ' + (err && err.message ? err.message : String(err)));
+    }
+    throw err;
   }
 
   return records;
@@ -161,7 +278,7 @@ const BLUEPRINT_SCRIPT_CODE = `async function (input, fetchSource) {
 
   const sourceConfig = input.sourceConfig || input.source_config || {};
   const projectId = sourceConfig.project_id || 'PJT20230208000000001'; // Allegro NX
-  const userId = sourceConfig.user_id || 'kyluong';
+  const userId = sourceConfig.user_id !== undefined ? sourceConfig.user_id : '';
   const fromDate = sourceConfig.from_date || '';
   const toDate = sourceConfig.to_date || '';
   const cleanFromDate = fromDate.replace(/[^0-9]/g, '').slice(0, 8);
@@ -189,64 +306,163 @@ const BLUEPRINT_SCRIPT_CODE = `async function (input, fetchSource) {
         plnDueEndDt: '',
         actFinStDt: '',
         actFinEndDt: '',
-        creUsrId: userId,
+        creUsrId: userId || '',
         assiUsrId: '',
         picId: '',
       }
     });
 
     const tasks = (data && (data.lstReq || data.tasks || data.lstRequirement)) || [];
-    for (const t of tasks) {
-      const empCode = t.assiUsrId || t.assignee || t.createUserId || t.createUser || 'EMP001';
-      const isFinished = t.reqStsCd === 'REQ_STS_CDFIN' || 
-        String(t.reqStsNm || '').toLowerCase().includes('finish') || 
-        String(t.reqStsNm || '').toLowerCase().includes('closed');
+    const executionId = input.executionId || input.execution_id || 'manual';
+    const defaultRawRef = (data && data._raw_payload_reference) || ('crawl:' + executionId + ':raw');
+    const employeeList = input.employees || (input.targetCycle && input.targetCycle.employees) || [];
 
-      // Blueprint delay calculation via delayProc flag ('N' = on time, 'Y' = delayed)
-      const isOnTime = t.delayProc === 'N';
-      const delayedHours = isOnTime ? 0.0 : Number(t.delayHours || (t.actFinDt && t.plnDueDt && t.actFinDt > t.plnDueDt ? 24.0 : 8.0));
-      const ontimeRate = isOnTime ? 100.0 : (isFinished ? 70.0 : 40.0);
-      const measuredAt = t.actFinDt || t.currentPhsDueDt || t.plnDueDt || now;
+    function normalize(s) {
+      if (!s) return '';
+      const str = typeof s === 'string' ? s : (s.name || s.displayName || s.value || String(s));
+      return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    }
 
-      const rawReference = JSON.stringify({
-        reqId: t.reqId || t.id,
-        seqNo: t.seqNo ? '#' + t.seqNo : undefined,
-        title: t.reqTitNm || t.reqNm || 'Untitled Task',
-        jobType: t.jbTpNm || 'Development',
-        delayProc: t.delayProc,
-        delayedHours,
-        plnDueDt: t.plnDueDt,
-        actFinDt: t.actFinDt,
-        cycleCode,
+    function resolveEmployeeCode(t) {
+      if (!Array.isArray(employeeList) || employeeList.length === 0) return '163188';
+      const cUser = normalize(t.createUserId || t.assiUsrId);
+      const cAssignee = normalize(t.assignee);
+      const cCreator = normalize(t.createUser);
+
+      // 1. Direct code match
+      let match = employeeList.find(e => e.employee_code === t.assiUsrId || e.employee_code === t.createUserId);
+      if (match) return match.employee_code;
+
+      // 2. Email local match (e.g. phuocnt matches phuoc.nt@cyberlogitec.com)
+      match = employeeList.find(e => {
+        const local = normalize((e.email || '').split('@')[0]);
+        return cUser && (local === cUser || local.includes(cUser) || cUser.includes(local));
       });
+      if (match) return match.employee_code;
 
-      // Criterion 1: Blueprint Task On-Time Completion Rate (%)
-      if (shouldInclude('CRIT_BP_TASK_ONTIME_RATE')) {
-        records.push({
-          schema_version: '1.0',
-          employee_code: empCode,
-          criterion_code: 'CRIT_BP_TASK_ONTIME_RATE',
-          measurement_value: ontimeRate,
-          measurement_unit: '%',
-          measured_at: measuredAt,
-          source_reference: 'BP:' + (t.reqId || t.seqNo || 'REQ-01'),
-          raw_payload_reference: rawReference,
-          collected_at: now,
-        });
+      // 3. Normalized full name match
+      match = employeeList.find(e => {
+        const en = normalize(e.full_name);
+        return (cAssignee && (en.includes(cAssignee) || cAssignee.includes(en))) ||
+               (cCreator && (en.includes(cCreator) || cCreator.includes(en)));
+      });
+      if (match) return match.employee_code;
+
+      return null;
+    }
+
+    function parseToIso(dtStr) {
+      if (!dtStr) return new Date().toISOString();
+      if (typeof dtStr !== 'string') return new Date(dtStr).toISOString();
+      const clean = dtStr.replace(/[^0-9]/g, '');
+      if (clean.length >= 8) {
+        const y = clean.slice(0, 4);
+        const m = clean.slice(4, 6);
+        const d = clean.slice(6, 8);
+        const h = clean.length >= 10 ? clean.slice(8, 10) : '00';
+        const min = clean.length >= 12 ? clean.slice(10, 12) : '00';
+        return y + '-' + m + '-' + d + 'T' + h + ':' + min + ':00.000Z';
+      }
+      const d = new Date(dtStr);
+      return !isNaN(d.getTime()) ? d.toISOString() : new Date().toISOString();
+    }
+
+    const empTasks = {};
+    for (const t of tasks) {
+      const empCode = resolveEmployeeCode(t);
+      if (!empCode) continue;
+      if (!empTasks[empCode]) empTasks[empCode] = [];
+      empTasks[empCode].push(t);
+    }
+
+    for (const [empCode, tList] of Object.entries(empTasks)) {
+      // Filter tasks by employee review window [last_review + 1, next_review]
+      const emp = employeeList.find(e => e.employee_code === empCode);
+      const empFromTime = emp && emp.review_from ? new Date(emp.review_from).getTime() : 0;
+      const empToTime = emp && emp.review_to ? new Date(emp.review_to).getTime() : Infinity;
+
+      const inWindowTasks = tList.filter(t => {
+        const tTime = new Date(parseToIso(t.actFinDt || t.plnDueDt || t.regstDt || t.actDueDtSkd || t.plnDueDtSkd || now)).getTime();
+        return tTime >= empFromTime && tTime <= empToTime;
+      });
+      const effectiveTasks = inWindowTasks.length > 0 ? inWindowTasks : tList;
+
+      let totalOntimeRate = 0;
+      let totalDelayedHours = 0;
+      let latestMeasuredAt = now;
+
+      for (const t of effectiveTasks) {
+        const isFinished = t.reqStsCd === 'REQ_STS_CDFIN' || 
+          String(t.reqStsNm || '').toLowerCase().includes('finish') || 
+          String(t.reqStsNm || '').toLowerCase().includes('closed');
+
+        const isOnTime = t.delayProc === 'N';
+        const delayedHours = isOnTime ? 0.0 : Number(t.delayHours || (t.actFinDt && t.plnDueDt && t.actFinDt > t.plnDueDt ? 24.0 : 8.0));
+        const ontimeRate = isOnTime ? 100.0 : (isFinished ? 70.0 : 40.0);
+        const measuredAt = parseToIso(t.actDueDtSkd || t.plnDueDtSkd || t.actFinDt || t.currentPhsDueDt || t.plnDueDt || now);
+
+        totalOntimeRate += ontimeRate;
+        totalDelayedHours += delayedHours;
+        if (measuredAt > latestMeasuredAt || latestMeasuredAt === now) {
+          latestMeasuredAt = measuredAt;
+        }
       }
 
-      // Criterion 2: Blueprint Delayed Hours
-      if (delayedHours > 0 && shouldInclude('CRIT_BP_DELAYED_HOURS')) {
+      const avgOntimeRate = Math.round((totalOntimeRate / effectiveTasks.length) * 10) / 10;
+      const refSummary = 'BP:' + projectId + ' (' + effectiveTasks.length + ' tasks)';
+
+      const rawBpUrl = String(sourceConfig.base_url || 'https://blueprint.cyberlogitec.com.vn');
+      const bpBaseUrl = rawBpUrl.endsWith('/') ? rawBpUrl.slice(0, -1) : rawBpUrl;
+      const taskItems = effectiveTasks.map(t => {
+        const tKey = String(t.seqNo || t.reqId || 'TASK');
+        const reqId = String(t.reqId || '');
+        const tUrl = reqId ? (bpBaseUrl + '/UI_PIM_001_1/' + encodeURIComponent(reqId)) : (bpBaseUrl + '/UI_PIM_001');
+        return {
+          key: tKey,
+          title: t.reqNm || t.reqTitNm || '',
+          url: tUrl,
+          status: t.reqStsNm || t.reqStsCd || 'Unknown',
+          is_on_time: t.delayProc === 'N',
+          task_type: t.jbTpNm || 'Requirement',
+          completed_at: t.actFinDt ? parseToIso(t.actFinDt) : null
+        };
+      });
+
+      const targetCriteria = criteriaList.length > 0
+        ? criteriaList
+        : ['CRIT_BP_TASK_ONTIME_RATE', 'CRIT_BP_DELAYED_HOURS'];
+
+      for (const crit of targetCriteria) {
+        const critCode = typeof crit === 'string' ? crit : (crit.criterion_code || crit.code);
+        if (!critCode) continue;
+
+        const upper = critCode.toUpperCase();
+        let val = 0;
+        let unit = '%';
+
+        if (upper.includes('DELAY') || upper.includes('TRE') || upper.includes('HOUR') || upper.includes('GIO')) {
+          val = Math.round(totalDelayedHours * 10) / 10;
+          unit = 'hours';
+        } else if (upper.includes('BUG') || upper.includes('DEFECT')) {
+          val = 0;
+          unit = 'count';
+        } else {
+          // ONTIME, ON_TIME, RATE, TASK_COMPLETION, etc.
+          val = avgOntimeRate;
+          unit = '%';
+        }
+
         records.push({
           schema_version: '1.0',
           employee_code: empCode,
-          criterion_code: 'CRIT_BP_DELAYED_HOURS',
-          measurement_value: delayedHours,
-          measurement_unit: 'hours',
-          measured_at: measuredAt,
-          source_reference: 'BP:' + (t.reqId || t.seqNo || 'REQ-01'),
-          raw_payload_reference: rawReference,
+          criterion_code: critCode,
+          measurement_value: val,
+          measurement_unit: unit,
+          measured_at: latestMeasuredAt,
+          source_reference: refSummary,
+          raw_payload_reference: defaultRawRef,
           collected_at: now,
+          tasks: taskItems,
         });
       }
     }
@@ -286,7 +502,7 @@ export async function seedCrawlJobSamples(): Promise<void> {
           '2026-01-01',
           '2026-06-30',
           COALESCE((SELECT id FROM app_user WHERE email = 'hradmin@kpi.com' LIMIT 1), 'd3a986c4-1a7a-4a06-8710-7abb2513c831'),
-          COALESCE((SELECT id FROM evaluation_template_versions WHERE status = 'PUBLISHED' ORDER BY created_at DESC LIMIT 1), (SELECT id FROM evaluation_template_versions LIMIT 1))
+          COALESCE((SELECT evaluation_template_version_id FROM evaluation_template_version WHERE status = 'PUBLISHED' ORDER BY created_at DESC LIMIT 1), (SELECT evaluation_template_version_id FROM evaluation_template_version LIMIT 1))
         )
         ON CONFLICT (code) DO UPDATE SET status = 'OPEN'
         RETURNING evaluation_cycle_id, code, name;
@@ -324,6 +540,11 @@ export async function seedCrawlJobSamples(): Promise<void> {
         ('c0000000-0000-0000-0000-000000000003', 'CRIT_BP_TASK_ONTIME_RATE', 'DELIVERY', 'Tỷ lệ hoàn thành đúng hạn Blueprint', 'Tỷ lệ các tác vụ Blueprint hoàn thành đúng hạn', true),
         ('c0000000-0000-0000-0000-000000000004', 'CRIT_BP_DELAYED_HOURS', 'QUALITY', 'Số giờ trễ hạn Blueprint', 'Tổng số giờ trễ hạn trên hệ thống Blueprint', true)
       ON CONFLICT (code) DO NOTHING;
+    `);
+
+    // Ensure employee blueprint_username mappings
+    await pool.query(`
+      UPDATE employee SET blueprint_username = 'kyluong' WHERE email = 'ky.luong@cyberlogitec.com';
     `);
 
     // 5. Seed KPI Scoring Prompts & Immutable Versions
@@ -400,7 +621,7 @@ export async function seedCrawlJobSamples(): Promise<void> {
           'JIRA',
           'd0000000-0000-0000-0000-000000000011',
           'b0000000-0000-0000-0000-000000000001',
-          '{"base_url": "https://pim.cyberlogitec.com/jira", "project_key": "", "max_results": 50}'::jsonb,
+          '{"base_url": "https://pim.cyberlogitec.com/jira", "project_key": "", "max_results": 100}'::jsonb,
           '0 2 * * *',
           true,
           'CONTINUE',
@@ -413,7 +634,7 @@ export async function seedCrawlJobSamples(): Promise<void> {
           'BLUEPRINT',
           'd0000000-0000-0000-0000-000000000012',
           'b0000000-0000-0000-0000-000000000002',
-          '{"base_url": "https://blueprint.cyberlogitec.com.vn", "project_id": "PJT20230208000000001", "user_id": "kyluong"}'::jsonb,
+          '{"base_url": "https://blueprint.cyberlogitec.com.vn", "project_id": "PJT20230208000000001", "user_id": ""}'::jsonb,
           '0 3 * * *',
           true,
           'CONTINUE',
@@ -437,14 +658,16 @@ export async function seedCrawlJobSamples(): Promise<void> {
     const jiraPvId = promptVersions.find((p) => p.code === 'PROMPT_JIRA_TASK_COMPLETION')?.prompt_version_id || null;
     const bpPvId = promptVersions.find((p) => p.code === 'PROMPT_BP_ONTIME_RATE')?.prompt_version_id || null;
 
-    // Seed Job Criteria
+    // Seed Job Criteria (include PERF_01 for BOTH Jira and Blueprint so they cover the same KPI)
     await pool.query(`
       INSERT INTO crawl_job_criterion (crawl_job_definition_id, criterion_id, scoring_prompt_version_id)
       VALUES
         ('10000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', $1),
         ('10000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000002', NULL),
+        ('10000000-0000-0000-0000-000000000001', 'f4df8567-b506-42a5-befd-551b01e1b35b', $1),
         ('10000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000003', $2),
-        ('10000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000004', NULL)
+        ('10000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000004', NULL),
+        ('10000000-0000-0000-0000-000000000002', 'f4df8567-b506-42a5-befd-551b01e1b35b', $2)
       ON CONFLICT (crawl_job_definition_id, criterion_id) DO UPDATE SET
         scoring_prompt_version_id = EXCLUDED.scoring_prompt_version_id;
     `, [jiraPvId, bpPvId]);

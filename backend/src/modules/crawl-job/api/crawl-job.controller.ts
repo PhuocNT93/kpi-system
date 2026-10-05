@@ -210,4 +210,9 @@ export class CrawlJobController {
     const result = await this.service.cancelExecution(getActorOrThrow(req), req.params.executionId as string);
     sendSuccess(res, 200, 'Crawl execution cancelled.', result);
   }
+
+  async listExecutionRecords(req: Request, res: Response): Promise<void> {
+    const items = await this.service.listExecutionRecords(getActorOrThrow(req), req.params.executionId as string);
+    sendSuccess(res, 200, 'Crawl Execution records retrieved successfully.', items);
+  }
 }

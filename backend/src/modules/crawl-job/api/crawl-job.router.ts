@@ -47,6 +47,7 @@ export function createCrawlJobRouter(
   router.post('/crawl-jobs/:id/executions', run((req, res) => controller.createExecution(req, res)));
   router.get('/crawl-jobs/:id/executions', run((req, res) => controller.listExecutions(req, res)));
   router.get('/crawl-executions/:executionId', run((req, res) => controller.getExecution(req, res)));
+  router.get('/crawl-executions/:executionId/records', run((req, res) => controller.listExecutionRecords(req, res)));
   router.get('/crawl-executions/:executionId/logs', run((req, res) => controller.listExecutionLogs(req, res)));
   router.post('/crawl-executions/:executionId/retry', run((req, res) => controller.retryExecution(req, res)));
   router.post('/crawl-executions/:executionId/cancel', run((req, res) => controller.cancelExecution(req, res)));

@@ -127,7 +127,10 @@ export class CrawlExecutionWorkerService {
           );
           if (!res.ok) throw new Error(`Blueprint API returned ${res.status}`);
           const payload = await res.json() as unknown;
-          await this.stagingService.saveRawPayload(executionId, payload);
+          const rawPayloadReference = await this.stagingService.saveRawPayload(executionId, payload);
+          if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+            (payload as Record<string, unknown>)._raw_payload_reference = rawPayloadReference;
+          }
           return payload;
         };
       } else {
@@ -161,6 +164,10 @@ export class CrawlExecutionWorkerService {
         id: execution.evaluation_cycle_id,
         code: execution.cycle_code,
         name: execution.cycle_name,
+        start_date: execution.cycle_start_date ? String(execution.cycle_start_date).slice(0, 10) : null,
+        end_date: execution.cycle_end_date ? String(execution.cycle_end_date).slice(0, 10) : null,
+        startDate: execution.cycle_start_date ? String(execution.cycle_start_date).slice(0, 10) : null,
+        endDate: execution.cycle_end_date ? String(execution.cycle_end_date).slice(0, 10) : null,
         employees: cycleEmployees,
       };
 
@@ -220,9 +227,9 @@ export class CrawlExecutionWorkerService {
         records: output,
         importRepository: this.importRepository,
       });
-      const terminalStatus = staged.records_invalid + staged.records_conflict > 0
+      const terminalStatus = staged.records_invalid > 0
         ? staged.records_valid > 0 ? 'PARTIAL_SUCCESS' : 'FAILED'
-        : 'SUCCESS';
+        : (staged.records_conflict > 0 ? (staged.records_valid > 0 ? 'SUCCESS' : 'PARTIAL_SUCCESS') : 'SUCCESS');
       await this.crawlJobService.transitionExecution(executionId, 'RUNNING', terminalStatus, null, {
         importId: staged.import_id,
         ...(terminalStatus === 'FAILED' ? {
@@ -232,13 +239,17 @@ export class CrawlExecutionWorkerService {
       }, workerId);
 
       // Rule 4 & 5: Persist raw rows FIRST, then asynchronously enqueue row-level scoring tasks
-      if (staged.records_valid > 0 && this.scoringWorker) {
+      if ((staged.records_valid > 0 || staged.records_conflict > 0) && this.scoringWorker) {
         try {
           const enqueued = await this.scoringWorker.enqueueTasksForExecution(executionId);
           await this.crawlJobService.appendExecutionLog(executionId, 'INFO', `[AI Scoring Queue] Enqueued ${enqueued} row-level scoring task(s) for Gemini evaluation.`, {
             execution_id: executionId,
             enqueued_count: enqueued,
           });
+          // Trigger immediate scoring tasks processing
+          for (let i = 0; i < Math.min(enqueued, 10); i++) {
+            void this.scoringWorker.processNextScoringTask().catch(() => {});
+          }
         } catch (queueErr) {
           console.error('[CrawlExecutionWorker] Error enqueuing scoring tasks:', queueErr);
         }
@@ -256,13 +267,15 @@ export class CrawlExecutionWorkerService {
         import_id: staged.import_id,
       });
     } catch (error) {
+      console.error(`[CrawlExecutionWorker] Execution ${executionId} failed:`, error);
       const sourceError = error instanceof CrawlSourceError ? error : null;
       const sandboxError = error instanceof CrawlSandboxError ? error : null;
       const latest = await this.repository.getExecution(executionId);
       if (latest?.status === 'CANCELLED' || sourceError?.code === 'EXECUTION_CANCELLED') return;
       const errorCode = sourceError?.code ?? sandboxError?.code ?? 'CRAWL_EXECUTION_FAILED';
       const timedOut = errorCode === 'NETWORK_TIMEOUT' || errorCode === 'SANDBOX_TIMEOUT';
-      const safeMessage = sourceError?.message ?? sandboxError?.message ?? 'Crawl execution failed. Review the safe execution log for details.';
+      const rawMessage = error instanceof Error ? error.message : String(error);
+      const safeMessage = sourceError?.message ?? sandboxError?.message ?? (rawMessage ? `Crawl execution failed: ${rawMessage}` : 'Crawl execution failed. Review the safe execution log for details.');
       await this.crawlJobService.transitionExecution(executionId, 'RUNNING', timedOut ? 'TIMEOUT' : 'FAILED', null, {
         errorCode,
         errorMessage: safeMessage,

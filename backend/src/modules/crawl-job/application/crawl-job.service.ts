@@ -1080,4 +1080,13 @@ export class CrawlJobService {
     if (!job) throw new NotFound(`Crawl Job ${jobId}`);
     return this.repository.listExecutions(jobId, filters);
   }
+
+  async listExecutionRecords(actor: Actor, executionId: string): Promise<Record<string, unknown>[]> {
+    if (!CRAWL_ADMIN_ROLES.has(actor.role)) {
+      throw new AppError(403, 'FORBIDDEN', 'Crawl Execution access is restricted.');
+    }
+    const execution = await this.repository.getExecution(executionId);
+    if (!execution) throw new NotFound(`Crawl Execution ${executionId}`);
+    return this.repository.listExecutionRecords(executionId);
+  }
 }

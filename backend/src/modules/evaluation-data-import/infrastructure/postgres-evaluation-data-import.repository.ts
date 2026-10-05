@@ -98,7 +98,7 @@ export class PostgresEvaluationDataImportRepository implements IEvaluationDataIm
           comment, rationale, source_snapshot, status, error_message, conflicts,
           source_comment, reviewer_comment, collected_at, measurement_from, measurement_to,
           source_updated_at, raw_payload_reference, crawl_job_execution_id
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
         [
           rec.record_id,
           importData.import_id,

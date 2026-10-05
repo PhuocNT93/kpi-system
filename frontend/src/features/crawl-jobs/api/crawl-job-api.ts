@@ -97,6 +97,7 @@ export const crawlJobApi = {
     return getApi<CrawlExecution[]>(`/api/crawl-jobs/${jobId}/executions?${query.toString()}`);
   },
   getExecution: (executionId: string) => getApi<CrawlExecution>(`/api/crawl-executions/${executionId}`),
+  listExecutionRecords: (executionId: string) => getApi<Array<Record<string, unknown>>>(`/api/crawl-executions/${executionId}/records`),
   listExecutionLogs: (executionId: string, filters: { search?: string; level?: 'INFO' | 'WARN' | 'ERROR' } = {}) => {
     const query = new URLSearchParams({ page: '1', limit: '100' });
     if (filters.search) query.set('search', filters.search);

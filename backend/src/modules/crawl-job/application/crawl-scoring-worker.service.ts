@@ -213,6 +213,7 @@ Return a valid JSON object matching:
 
       // 4. Safely render prompt template placeholders
       const rawSnapshot = rawRow.source_snapshot || {};
+      const tasksJson = JSON.stringify(rawSnapshot['tasks'] || [], null, 2);
       const renderedUserPrompt = userTemplate
         .replace(/\{\{employee_code\}\}/g, rawRow.employee_code || '')
         .replace(/\{\{employee\}\}/g, rawRow.employee_code || '')
@@ -221,8 +222,12 @@ Return a valid JSON object matching:
         .replace(/\{\{measurement_value\}\}/g, String(rawRow.value ?? 0))
         .replace(/\{\{measurement\}\}/g, String(rawRow.value ?? 0))
         .replace(/\{\{evaluation_cycle\}\}/g, rawRow.cycle_name || rawRow.cycle_code || '')
+        .replace(/\{\{target_cycle_code\}\}/g, rawRow.cycle_code || '')
         .replace(/\{\{source_reference\}\}/g, String(rawSnapshot['source_reference'] || rawRow.comment || ''))
         .replace(/\{\{source\}\}/g, rawRow.source_system || '')
+        .replace(/\{\{source_system\}\}/g, rawRow.source_system || '')
+        .replace(/\{\{tasks\}\}/g, tasksJson)
+        .replace(/\{\{raw_payload\}\}/g, JSON.stringify(rawSnapshot['raw_payload'] || rawSnapshot, null, 2))
         .replace(/\{\{raw_data\}\}/g, JSON.stringify(rawSnapshot['raw_payload'] || rawSnapshot, null, 2));
 
       const inputSnapshot = {
@@ -247,6 +252,49 @@ Return a valid JSON object matching:
         throw new Error(`Evaluated score ${geminiResult.score} is outside allowed KPI rubric range [1.0 - 5.0]`);
       }
 
+      // Multi-source scoring check: If another source system scored this employee + criterion in this cycle, average them
+      const prevScoreRes = await this.pool.query(
+        `SELECT id, score, confidence, reason, crawl_execution_id
+         FROM crawl_scoring_execution
+         WHERE evaluation_cycle_id = $1
+           AND UPPER(employee_code) = UPPER($2)
+           AND UPPER(criterion_code) = UPPER($3)
+           AND status = 'SUCCESS'
+           AND id != $4
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [task.evaluation_cycle_id, task.employee_code, task.criterion_code, task.id]
+      );
+
+      let finalScore = geminiResult.score;
+      let finalConfidence = geminiResult.confidence ?? 0.90;
+      let finalReason = geminiResult.reason;
+
+      if (prevScoreRes.rows.length > 0 && prevScoreRes.rows[0].score != null) {
+        const prev = prevScoreRes.rows[0];
+        const prevScoreVal = Number(prev.score);
+        finalScore = Math.round(((prevScoreVal + geminiResult.score) / 2) * 100) / 100;
+        finalConfidence = Math.round(((Number(prev.confidence ?? 0.90) + finalConfidence) / 2) * 100) / 100;
+        finalReason = `[Điểm TB hợp nhất 2 nguồn: Nguồn 1 = ${prevScoreVal.toFixed(2)} | Nguồn 2 = ${geminiResult.score.toFixed(2)} → Điểm TB: ${finalScore.toFixed(2)}/5.0]. ` + geminiResult.reason;
+
+        // Sync previous scoring record so both reflect the averaged score
+        const cleanPrevReason = (prev.reason || '').replace(/^\[Điểm TB hợp nhất 2 nguồn:.*?\]\.\s*/, '');
+        await this.pool.query(
+          `UPDATE crawl_scoring_execution
+           SET score = $1,
+               confidence = $2,
+               reason = $3,
+               updated_at = NOW()
+           WHERE id = $4`,
+          [
+            finalScore,
+            finalConfidence,
+            `[Điểm TB hợp nhất 2 nguồn: Nguồn 1 = ${prevScoreVal.toFixed(2)} | Nguồn 2 = ${geminiResult.score.toFixed(2)} → Điểm TB: ${finalScore.toFixed(2)}/5.0]. ` + cleanPrevReason,
+            prev.id,
+          ]
+        );
+      }
+
       // 7. Persist successful row evaluation with immutable snapshots
       await this.pool.query(
         `UPDATE crawl_scoring_execution
@@ -268,13 +316,13 @@ Return a valid JSON object matching:
              updated_at = NOW()
          WHERE id = $10`,
         [
-          geminiResult.score,
-          geminiResult.reason,
-          geminiResult.confidence ?? 0.90,
+          finalScore,
+          finalReason,
+          finalConfidence,
           JSON.stringify(geminiResult.evidence || []),
           JSON.stringify(geminiResult.flags || []),
           JSON.stringify(inputSnapshot),
-          JSON.stringify(geminiResult),
+          JSON.stringify({ ...geminiResult, blended_score: finalScore, is_averaged: prevScoreRes.rows.length > 0 }),
           promptVersion?.model || 'gemini-2.5-flash',
           promptVersion?.prompt_version_id || null,
           task.id,
@@ -323,6 +371,7 @@ Return a valid JSON object matching:
         criterion_code,
         evaluation_cycle_id,
         status,
+        prompt_version_id,
         created_at,
         updated_at
       )
@@ -333,12 +382,17 @@ Return a valid JSON object matching:
         r.kpi_code,
         e.evaluation_cycle_id,
         'QUEUED',
+        COALESCE(cjc.scoring_prompt_version_id, pv.prompt_version_id),
         NOW(),
         NOW()
       FROM evaluation_data_import_record r
       JOIN crawl_job_execution e ON e.crawl_job_execution_id = $1
-      WHERE r.import_id = e.evaluation_data_import_id
-        AND r.status = 'PENDING_REVIEW'
+      LEFT JOIN criterion cr ON UPPER(cr.code) = UPPER(r.kpi_code)
+      LEFT JOIN crawl_job_criterion cjc ON cjc.crawl_job_definition_id = e.crawl_job_definition_id AND cjc.criterion_id = cr.criterion_id
+      LEFT JOIN kpi_scoring_prompt ksp ON UPPER(ksp.criterion_code) = UPPER(r.kpi_code)
+      LEFT JOIN kpi_scoring_prompt_version pv ON pv.prompt_id = ksp.prompt_id AND pv.status = 'PUBLISHED'
+      WHERE (r.crawl_job_execution_id = $1 OR r.import_id = e.evaluation_data_import_id)
+        AND r.status IN ('PENDING_REVIEW', 'CONFLICT', 'VALID')
       ON CONFLICT (crawl_data_row_id) DO NOTHING
       RETURNING id`,
       [crawlExecutionId]

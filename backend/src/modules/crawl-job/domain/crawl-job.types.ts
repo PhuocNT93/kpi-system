@@ -70,6 +70,19 @@ export function isRetryableCrawlFailure(failure: CrawlFailure): boolean {
     || failure.kind === 'TEMPORARY_UNAVAILABLE';
 }
 
+export const CrawlTaskEvidenceSchema = z.object({
+  key: z.union([z.string(), z.number()]).transform((val) => String(val)),
+  title: z.string().optional().nullable(),
+  url: z.string().optional().nullable(),
+  status: z.string().optional().nullable(),
+  is_on_time: z.boolean().optional().nullable(),
+  completed_at: z.string().optional().nullable(),
+  issue_type: z.string().optional().nullable(),
+  task_type: z.string().optional().nullable(),
+});
+
+export type CrawlTaskEvidence = z.infer<typeof CrawlTaskEvidenceSchema>;
+
 export const NormalizedCrawlOutputSchema = z.object({
   schema_version: z.literal('1.0'),
   employee_code: z.string().trim().min(1).max(100),
@@ -83,7 +96,8 @@ export const NormalizedCrawlOutputSchema = z.object({
   measurement_from: z.string().datetime({ offset: true }).optional(),
   measurement_to: z.string().datetime({ offset: true }).optional(),
   source_updated_at: z.string().datetime({ offset: true }).optional(),
-});
+  tasks: z.array(CrawlTaskEvidenceSchema).optional(),
+}).passthrough();
 
 export type NormalizedCrawlOutput = z.infer<typeof NormalizedCrawlOutputSchema>;
 

@@ -3,8 +3,8 @@ import type { FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Activity, AlertTriangle, CircleStop,
-  FileCode, Play, Plus, RefreshCw, RotateCcw, Settings2, ShieldAlert, Sparkles, Trash2, X
+  Activity, AlertTriangle, ChevronDown, ChevronUp, CircleStop,
+  ExternalLink, FileCode, Play, Plus, RefreshCw, RotateCcw, Settings2, ShieldAlert, Sparkles, Trash2, X
 } from 'lucide-react';
 import { ApiClientError } from '@/shared/api/api-client';
 import { useAuth } from '@/shared/auth/auth-context';
@@ -621,6 +621,7 @@ export function CrawlJobsPage() {
             cancelling={cancelMutation.isPending}
             onRetry={() => { if (window.confirm('Retry will create a new execution attempt. The historical execution will remain unchanged.')) retryMutation.mutate(selectedExecutionId); }}
             onCancel={() => { if (window.confirm('Cancel this crawl execution?')) cancelMutation.mutate(selectedExecutionId); }}
+            onOpenScoresTab={() => handleTabChange('review')}
           />}
           {retryMutation.error && <ApiError error={retryMutation.error} />}{cancelMutation.error && <ApiError error={cancelMutation.error} />}
         </section>
@@ -690,8 +691,37 @@ export function CrawlJobsPage() {
   );
 }
 
+interface ExecutionTaskItem {
+  key?: string;
+  title?: string;
+  url?: string;
+  status?: string;
+  is_on_time?: boolean;
+}
+
+interface ExecutionRecordItem {
+  record_id: string;
+  employee_code?: string;
+  employee_name?: string | null;
+  kpi_code?: string;
+  row_staging_status?: string;
+  scoring_status?: string;
+  row_comment?: string | null;
+  raw_measurement_value?: number | string | null;
+  score?: number | null;
+  final_score?: number | null;
+  confidence?: number | null;
+  reason?: string;
+  ai_evidence?: { summary?: string; [key: string]: unknown } | null;
+  source_snapshot?: {
+    tasks?: ExecutionTaskItem[];
+    [key: string]: unknown;
+  } | null;
+  [key: string]: unknown;
+}
+
 function ExecutionDetail({
-  execution, loading, error, logs, logLoading, logError, logSearch, logLevel, onLogSearchChange, onLogLevelChange, canManage, retrying, cancelling, onRetry, onCancel,
+  execution, loading, error, logs, logLoading, logError, logSearch, logLevel, onLogSearchChange, onLogLevelChange, canManage, retrying, cancelling, onRetry, onCancel, onOpenScoresTab,
 }: {
   execution?: CrawlExecution;
   loading: boolean;
@@ -708,12 +738,44 @@ function ExecutionDetail({
   cancelling: boolean;
   onRetry: () => void;
   onCancel: () => void;
+  onOpenScoresTab?: () => void;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const [onlySteps, setOnlySteps] = useState(false);
+  const [recordSearch, setRecordSearch] = useState('');
+  const [expandedRecordId, setExpandedRecordId] = useState<string | null>(null);
+
   const filteredLogs = useMemo(() => {
     if (!onlySteps) return logs;
     return logs.filter((l) => /\[(Script Step|Source Connect|Sandbox Run|Data Normalization|AI Scoring|Crawl Complete)/i.test(l.message));
   }, [logs, onlySteps]);
+
+  const recordsQuery = useQuery({
+    queryKey: ['crawl-execution-records', execution?.crawl_job_execution_id],
+    queryFn: () => execution ? crawlJobApi.listExecutionRecords(execution.crawl_job_execution_id) : Promise.resolve([]),
+    enabled: Boolean(execution?.crawl_job_execution_id),
+    refetchInterval: (query) => {
+      if (!execution) return false;
+      if (execution.status === 'RUNNING' || execution.status === 'QUEUED') return 3000;
+      const records = (query.state.data ?? []) as ExecutionRecordItem[];
+      const hasPending = records.some((r) => r.scoring_status === 'PENDING' || r.scoring_status === 'PROCESSING');
+      return hasPending ? 3000 : false;
+    },
+  });
+
+  const records = useMemo(() => {
+    const list = (recordsQuery.data ?? []) as ExecutionRecordItem[];
+    if (!recordSearch.trim()) return list;
+    const term = recordSearch.toLowerCase();
+    return list.filter((r) =>
+      String(r.employee_code || '').toLowerCase().includes(term) ||
+      String(r.employee_name || '').toLowerCase().includes(term) ||
+      String(r.kpi_code || '').toLowerCase().includes(term) ||
+      String(r.row_staging_status || '').toLowerCase().includes(term) ||
+      String(r.reason || '').toLowerCase().includes(term)
+    );
+  }, [recordsQuery.data, recordSearch]);
 
   if (loading) return <LoadingState label="Loading execution detail" />;
   if (error) return <ApiError error={error} />;
@@ -727,6 +789,236 @@ function ExecutionDetail({
     <div className="crawl-timeline"><span className={execution.created_at ? 'is-done' : ''}><i />Queued <small>{formatDate(execution.created_at)}</small></span><span className={execution.started_at ? 'is-done' : ''}><i />Running <small>{formatDate(execution.started_at)}</small></span><span className={execution.finished_at ? 'is-done' : ''}><i />{statusLabel(execution.status)} <small>{formatDate(execution.finished_at)}</small></span></div>
     <div className="crawl-stat-grid">{[['Fetched', execution.records_fetched], ['Parsed', execution.records_parsed], ['Valid', execution.records_valid], ['Invalid', execution.records_invalid], ['Conflict', execution.records_conflict], ['Applied', execution.records_applied]].map(([label, value]) => <div key={String(label)}><span>{label}</span><strong>{value}</strong></div>)}</div>
     {execution.error_code && <div className="crawl-alert"><AlertTriangle size={17} /><span><strong>{execution.error_code}</strong>{execution.error_message ? ` · ${execution.error_message}` : ''}</span></div>}
+
+    {/* Crawled Data Records & Gemini AI Scores */}
+    <section className="crawl-records-viewer" style={{ marginTop: '20px', marginBottom: '20px', background: isDark ? 'rgba(30, 41, 59, 0.6)' : '#ffffff', borderRadius: '12px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, padding: '18px' }} aria-label="Crawled records and AI scores">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: isDark ? '#f8fafc' : '#0f172a' }}>
+              📋 Dữ liệu Crawl & Chấm điểm AI Gemini ({records.length})
+            </h4>
+            <span style={{ fontSize: '11px', background: isDark ? '#1e293b' : '#f1f5f9', color: isDark ? '#94a3b8' : '#64748b', padding: '2px 8px', borderRadius: '12px', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}` }}>
+              Source: {execution.source_system}
+            </span>
+          </div>
+          <p style={{ margin: '4px 0 0', fontSize: '12px', color: isDark ? '#94a3b8' : '#64748b' }}>
+            Chi tiết các dòng dữ liệu đã crawl, danh sách task/issue có link trực tiếp để mở nhanh, và điểm số đánh giá bởi AI.
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <input
+            aria-label="Search crawled records"
+            placeholder="Tìm theo NV, KPI..."
+            value={recordSearch}
+            onChange={(e) => setRecordSearch(e.target.value)}
+            style={{
+              height: '32px',
+              padding: '0 10px',
+              fontSize: '12px',
+              borderRadius: '6px',
+              border: `1px solid ${isDark ? '#475569' : '#cbd5e1'}`,
+              background: isDark ? '#0f172a' : '#ffffff',
+              color: isDark ? '#f8fafc' : '#0f172a',
+              minWidth: '180px',
+            }}
+          />
+          {onOpenScoresTab && (
+            <button
+              type="button"
+              className="crawl-button crawl-button--primary"
+              style={{ height: '32px', fontSize: '12px', whiteSpace: 'nowrap' }}
+              onClick={onOpenScoresTab}
+            >
+              <Sparkles size={13} /> Chuyển sang Tab Duyệt & Chấm điểm
+            </button>
+          )}
+        </div>
+      </div>
+
+      {recordsQuery.isLoading ? (
+        <LoadingState label="Đang tải danh sách dòng dữ liệu đã crawl..." />
+      ) : recordsQuery.error ? (
+        <ApiError error={recordsQuery.error} />
+      ) : records.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '24px 16px', color: isDark ? '#94a3b8' : '#64748b', fontSize: '13px' }}>
+          {isActive ? 'Đang thực hiện crawl dữ liệu hoặc xếp hàng...' : 'Chưa có dòng dữ liệu nào được ghi nhận cho lần crawl này.'}
+        </div>
+      ) : (
+        <div className="crawl-table-wrap" style={{ maxHeight: '420px', overflowY: 'auto' }}>
+          <table className="crawl-table">
+            <thead>
+              <tr>
+                <th style={{ width: '110px' }}>Nhân viên</th>
+                <th style={{ width: '130px' }}>Chỉ số KPI</th>
+                <th>Dữ liệu thô & Tasks đã đọc (Click link mở task)</th>
+                <th style={{ width: '190px' }}>Điểm AI Gemini</th>
+                <th style={{ width: '100px' }}>Trạng thái</th>
+                <th style={{ width: '60px', textAlign: 'center' }}>Chi tiết</th>
+              </tr>
+            </thead>
+            <tbody>
+              {records.map((r: ExecutionRecordItem) => {
+                const snapshot = r.source_snapshot || {};
+                const tasks = Array.isArray(snapshot.tasks) ? snapshot.tasks : [];
+                const isExpanded = expandedRecordId === r.record_id;
+                const hasScore = r.score != null || r.final_score != null;
+                const isScoring = r.scoring_status === 'PROCESSING' || r.scoring_status === 'PENDING';
+
+                return (
+                  <tr key={r.record_id} style={{ borderBottom: isExpanded ? 'none' : undefined }}>
+                    <td colSpan={6} style={{ padding: 0 }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <tbody>
+                          <tr style={{ background: isExpanded ? (isDark ? 'rgba(51, 65, 85, 0.4)' : '#f8fafc') : undefined }}>
+                            <td style={{ width: '130px' }}>
+                              <strong style={{ fontSize: '13px', color: isDark ? '#f1f5f9' : '#0f172a' }}>{r.employee_code}</strong>
+                              {r.employee_name && (
+                                <div style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#64748b', marginTop: '2px' }}>
+                                  {r.employee_name}
+                                </div>
+                              )}
+                            </td>
+                            <td style={{ width: '130px' }}>
+                              <span className="crawl-badge" style={{ fontSize: '11px', fontWeight: 600 }}>{r.kpi_code}</span>
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span style={{ fontWeight: 700, fontSize: '13px', color: isDark ? '#38bdf8' : '#0284c7' }}>
+                                    Giá trị: {r.raw_measurement_value != null ? String(r.raw_measurement_value) : '—'}
+                                  </span>
+                                  {tasks.length > 0 && (
+                                    <span style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#64748b' }}>
+                                      ({tasks.length} tasks/issues)
+                                    </span>
+                                  )}
+                                </div>
+                                {tasks.length > 0 ? (
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxHeight: '80px', overflowY: 'auto' }}>
+                                    {tasks.map((task: ExecutionTaskItem, tIdx: number) => (
+                                      <a
+                                        key={`${task.key}-${tIdx}`}
+                                        href={task.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        title={`${task.key}: ${task.title || ''}${task.status ? ` [${task.status}]` : ''}`}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '3px',
+                                          padding: '2px 6px',
+                                          borderRadius: '4px',
+                                          fontSize: '11px',
+                                          fontWeight: 600,
+                                          textDecoration: 'none',
+                                          color: isDark ? '#93c5fd' : '#1d4ed8',
+                                          background: isDark ? 'rgba(30, 58, 138, 0.3)' : '#eff6ff',
+                                          border: `1px solid ${isDark ? '#1e40af' : '#bfdbfe'}`,
+                                        }}
+                                      >
+                                        <span>{task.key}</span>
+                                        {task.is_on_time === true && <span style={{ color: '#16a34a', fontSize: '10px' }}>✓</span>}
+                                        {task.is_on_time === false && <span style={{ color: '#dc2626', fontSize: '10px' }}>⏱</span>}
+                                        <ExternalLink size={9} style={{ opacity: 0.7 }} />
+                                      </a>
+                                    ))}
+                                  </div>
+                                ) : r.row_comment ? (
+                                  <span style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#64748b', fontStyle: 'italic' }}>
+                                    {r.row_comment}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </td>
+                            <td style={{ width: '190px' }}>
+                              {hasScore ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span style={{ fontSize: '14px', fontWeight: 800, color: isDark ? '#34d399' : '#059669' }}>
+                                      {r.final_score ?? r.score} <small style={{ fontSize: '11px', fontWeight: 500, color: isDark ? '#94a3b8' : '#64748b' }}>/ 100</small>
+                                    </span>
+                                    {r.confidence != null && (
+                                      <span style={{ fontSize: '10px', color: isDark ? '#94a3b8' : '#64748b', background: isDark ? '#1e293b' : '#f1f5f9', padding: '1px 4px', borderRadius: '4px' }}>
+                                        {Math.round(r.confidence * 100)}% tin cậy
+                                      </span>
+                                    )}
+                                  </div>
+                                  {r.reason && (
+                                    <div style={{ fontSize: '11px', color: isDark ? '#cbd5e1' : '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '200px' }} title={r.reason}>
+                                      {r.reason}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : isScoring ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#f59e0b', fontWeight: 600 }}>
+                                  <Sparkles size={12} className="spin" /> Đang chấm điểm...
+                                </span>
+                              ) : r.scoring_status === 'FAILED' ? (
+                                <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: 600 }}>
+                                  ❌ Thất bại
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#64748b' }}>—</span>
+                              )}
+                            </td>
+                            <td style={{ width: '100px' }}>
+                              <StatusBadge status={r.row_staging_status ?? 'UNKNOWN'} />
+                            </td>
+                            <td style={{ width: '60px', textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                className="crawl-icon-button"
+                                title={isExpanded ? 'Thu gọn' : 'Xem chi tiết'}
+                                onClick={() => setExpandedRecordId(isExpanded ? null : r.record_id)}
+                              >
+                                {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                              </button>
+                            </td>
+                          </tr>
+                          {isExpanded && (
+                            <tr style={{ background: isDark ? 'rgba(30, 41, 59, 0.4)' : '#f8fafc' }}>
+                              <td colSpan={6} style={{ padding: '12px 16px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '12px' }}>
+                                  <div>
+                                    <strong style={{ color: isDark ? '#f8fafc' : '#0f172a', display: 'block', marginBottom: '6px' }}>
+                                      💡 Nhận xét & Đánh giá của AI Gemini:
+                                    </strong>
+                                    <p style={{ margin: '0 0 8px', color: isDark ? '#cbd5e1' : '#334155', lineHeight: 1.5 }}>
+                                      {r.reason || 'Chưa có phân tích lý do từ AI.'}
+                                    </p>
+                                    {r.ai_evidence?.summary && (
+                                      <div style={{ marginTop: '6px', padding: '8px', background: isDark ? '#0f172a' : '#ffffff', borderRadius: '6px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}` }}>
+                                        <strong>Bằng chứng trích xuất (Evidence):</strong>
+                                        <div style={{ marginTop: '4px', color: isDark ? '#94a3b8' : '#64748b' }}>
+                                          {r.ai_evidence.summary}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div>
+                                    <strong style={{ color: isDark ? '#f8fafc' : '#0f172a', display: 'block', marginBottom: '6px' }}>
+                                      📦 Raw Source Snapshot:
+                                    </strong>
+                                    <pre style={{ margin: 0, padding: '8px', background: isDark ? '#0f172a' : '#ffffff', borderRadius: '6px', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, maxHeight: '140px', overflow: 'auto', fontSize: '11px', color: isDark ? '#94a3b8' : '#64748b' }}>
+                                      {JSON.stringify(r.source_snapshot, null, 2)}
+                                    </pre>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
     <details className="crawl-snapshot" open><summary>Configuration actually used by this execution</summary><div className="crawl-snapshot__facts"><Fact label="Script version" value={`v${execution.script_version}`} /><Fact label="Checksum" value={execution.script_checksum} /><Fact label="Source" value={execution.source_system} /></div><pre>{JSON.stringify({ source_config: execution.source_config_snapshot, criteria: execution.criteria_snapshot }, null, 2)}</pre></details>
     <section className="crawl-log-viewer" aria-label="Execution logs">
       <div className="crawl-log-viewer__toolbar">
@@ -991,6 +1283,7 @@ function JobDialog({ form, editing, loading, error, criteria, scripts, credentia
   </Modal>;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function getLiveCollectorTemplate(sourceSystem: CrawlSourceSystem, cycleCode: string = 'OPEN'): string {
   if (sourceSystem === 'JIRA') {
     return `async function (input, fetchSource) {

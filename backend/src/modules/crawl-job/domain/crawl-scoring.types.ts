@@ -12,6 +12,7 @@ export interface CrawlScoringExecutionRecord {
   crawl_execution_id: string;
   employee_id: string | null;
   employee_code: string;
+  employee_name?: string | null;
   criterion_id: string | null;
   criterion_code: string;
   evaluation_cycle_id: string;

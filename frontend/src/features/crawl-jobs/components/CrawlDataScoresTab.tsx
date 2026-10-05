@@ -1,11 +1,21 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Check, Edit2, Eye,
+  Check, Edit2, ExternalLink, Eye,
   RefreshCw, RotateCcw, Search, Sparkles, UploadCloud, X
 } from 'lucide-react';
 import { crawlJobApi } from '../api/crawl-job-api';
 import type { CrawlScoringExecutionRecord } from '../api/crawl-job.types';
+
+interface CrawlTaskSummary {
+  key: string;
+  title?: string;
+  url?: string;
+  status?: string;
+  is_on_time?: boolean;
+  task_type?: string;
+  issue_type?: string;
+}
 
 interface CrawlDataScoresTabProps {
   canReview: boolean;
@@ -157,7 +167,7 @@ export function CrawlDataScoresTab({ canReview, selectedExecutionId }: CrawlData
             <Search size={15} />
             <input
               type="text"
-              placeholder="Search employee code..."
+              placeholder="Search employee code or name..."
               value={searchEmployee}
               onChange={(e) => setSearchEmployee(e.target.value)}
             />
@@ -253,7 +263,14 @@ export function CrawlDataScoresTab({ canReview, selectedExecutionId }: CrawlData
                 return (
                   <tr key={row.id}>
                     <td>
-                      <strong>{row.employee_code}</strong>
+                      <div>
+                        <strong>{row.employee_code}</strong>
+                        {row.employee_name && (
+                          <div style={{ fontSize: '12px', color: 'var(--crawl-muted)', marginTop: '2px' }}>
+                            {row.employee_name}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td>
                       <span className="crawl-cell-mono">{row.criterion_code}</span>
@@ -267,6 +284,59 @@ export function CrawlDataScoresTab({ canReview, selectedExecutionId }: CrawlData
                           </small>
                         ) : null}
                       </div>
+                      {Array.isArray(row.source_snapshot?.tasks) && (row.source_snapshot.tasks as CrawlTaskSummary[]).length > 0 && (
+                        <div style={{ marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '4px', maxWidth: '280px' }}>
+                          {(row.source_snapshot.tasks as CrawlTaskSummary[])
+                            .slice(0, 3)
+                            .map((task, idx) => (
+                              <a
+                                key={task.key || idx}
+                                href={task.url || '#'}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={`${task.key}: ${task.title || ''} (${task.status || ''})${task.is_on_time !== undefined ? (task.is_on_time ? ' • Đúng hạn' : ' • Trễ hạn') : ''}`}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  fontSize: '11px',
+                                  padding: '1px 6px',
+                                  borderRadius: '4px',
+                                  backgroundColor: task.is_on_time === false ? 'rgba(239, 68, 68, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+                                  color: task.is_on_time === false ? '#b91c1c' : '#1d4ed8',
+                                  textDecoration: 'none',
+                                  fontWeight: 600,
+                                  border: `1px solid ${task.is_on_time === false ? 'rgba(239, 68, 68, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`,
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <span>{task.key}</span>
+                                <ExternalLink size={10} />
+                              </a>
+                            ))}
+                          {(row.source_snapshot.tasks as CrawlTaskSummary[]).length > 3 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setInspectingRow(row);
+                              }}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--crawl-blue)',
+                                fontSize: '11px',
+                                cursor: 'pointer',
+                                padding: '1px 4px',
+                                textDecoration: 'underline',
+                                fontWeight: 600,
+                              }}
+                            >
+                              +{(row.source_snapshot.tasks as CrawlTaskSummary[]).length - 3} tasks
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td>
                       {row.status === 'SUCCESS' && scoreVal != null ? (
@@ -420,7 +490,8 @@ export function CrawlDataScoresTab({ canReview, selectedExecutionId }: CrawlData
             <form className="crawl-form" onSubmit={handleSubmitAdjust} style={{ padding: '20px 24px' }}>
               <div>
                 <div style={{ marginBottom: 14, fontSize: 13, color: 'var(--crawl-muted)' }}>
-                  Employee: <strong>{adjustDialogRow.employee_code}</strong> | Criterion:{' '}
+                  Employee: <strong>{adjustDialogRow.employee_code}</strong>
+                  {adjustDialogRow.employee_name && <span> ({adjustDialogRow.employee_name})</span>} | Criterion:{' '}
                   <strong>{adjustDialogRow.criterion_code}</strong>
                 </div>
 
@@ -504,7 +575,8 @@ export function CrawlDataScoresTab({ canReview, selectedExecutionId }: CrawlData
             <form className="crawl-form" onSubmit={handleSubmitReject} style={{ padding: '20px 24px' }}>
               <div>
                 <div style={{ marginBottom: 14, fontSize: 13, color: 'var(--crawl-muted)' }}>
-                  Employee: <strong>{rejectDialogRow.employee_code}</strong> | Criterion:{' '}
+                  Employee: <strong>{rejectDialogRow.employee_code}</strong>
+                  {rejectDialogRow.employee_name && <span> ({rejectDialogRow.employee_name})</span>} | Criterion:{' '}
                   <strong>{rejectDialogRow.criterion_code}</strong>
                 </div>
 
@@ -562,6 +634,7 @@ export function CrawlDataScoresTab({ canReview, selectedExecutionId }: CrawlData
                 <h3>Row-Level AI Scoring Deep Inspection</h3>
                 <small style={{ color: 'var(--crawl-muted)' }}>
                   Row ID: {inspectingRow.crawl_data_row_id} | Employee: {inspectingRow.employee_code}
+                  {inspectingRow.employee_name && ` (${inspectingRow.employee_name})`}
                 </small>
               </div>
               <button className="crawl-icon-button" onClick={() => setInspectingRow(null)}>
@@ -580,13 +653,91 @@ export function CrawlDataScoresTab({ canReview, selectedExecutionId }: CrawlData
                     </span>
                     <span className="crawl-status crawl-status--success">Ingested</span>
                   </div>
-                  <div style={{ fontSize: 12, marginBottom: 6 }}>
+                  <div style={{ fontSize: 12, marginBottom: 8 }}>
                     Measurement Value: <strong>{inspectingRow.raw_measurement_value ?? '—'}</strong> | Reference:{' '}
                     <code>{String(inspectingRow.source_snapshot?.source_reference || 'N/A')}</code>
                   </div>
-                  <pre className="crawl-drawer-code">
-                    {JSON.stringify(inspectingRow.source_snapshot || {}, null, 2)}
-                  </pre>
+
+                  {/* Dedicated Tasks List with Clickable Direct Links */}
+                  {Array.isArray(inspectingRow.source_snapshot?.tasks) && (inspectingRow.source_snapshot.tasks as CrawlTaskSummary[]).length > 0 && (
+                    <div style={{ marginBottom: '14px', border: '1px solid var(--crawl-border)', borderRadius: '8px', padding: '12px', backgroundColor: 'var(--crawl-bg-subtle, rgba(248, 250, 252, 0.8))' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <strong style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>📋 Tasks Read from Source</span>
+                          <span style={{ fontSize: '11px', backgroundColor: 'var(--crawl-blue)', color: '#fff', padding: '1px 7px', borderRadius: '10px' }}>
+                            {(inspectingRow.source_snapshot.tasks as CrawlTaskSummary[]).length}
+                          </span>
+                        </strong>
+                        <small style={{ color: 'var(--crawl-muted)', fontSize: '11px' }}>Click task link to open directly in Jira / Blueprint</small>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '220px', overflowY: 'auto' }}>
+                        {(inspectingRow.source_snapshot.tasks as CrawlTaskSummary[]).map((task, idx) => (
+                          <div
+                            key={task.key || idx}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '6px 10px',
+                              borderRadius: '6px',
+                              backgroundColor: '#fff',
+                              border: '1px solid var(--crawl-border, #e2e8f0)',
+                              fontSize: '12px',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                              <a
+                                href={task.url || '#'}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  color: '#2563eb',
+                                  fontWeight: 600,
+                                  textDecoration: 'underline',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                <span>{task.key}</span>
+                                <ExternalLink size={12} />
+                              </a>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--crawl-text)' }} title={task.title || ''}>
+                                {task.title || '(No title)'}
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, marginLeft: '8px' }}>
+                              {(task.task_type || task.issue_type) && (
+                                <span style={{ fontSize: '10px', padding: '2px 5px', borderRadius: '4px', backgroundColor: '#e0e7ff', color: '#3730a3' }}>
+                                  {task.task_type || task.issue_type}
+                                </span>
+                              )}
+                              {task.status && (
+                                <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', backgroundColor: '#f1f5f9', color: '#475569' }}>
+                                  {task.status}
+                                </span>
+                              )}
+                              {task.is_on_time !== undefined && (
+                                <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: 600, backgroundColor: task.is_on_time ? '#dcfce7' : '#fee2e2', color: task.is_on_time ? '#15803d' : '#b91c1c' }}>
+                                  {task.is_on_time ? 'On-time' : 'Delayed'}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <details style={{ fontSize: '11px', marginTop: '6px' }}>
+                    <summary style={{ cursor: 'pointer', color: 'var(--crawl-muted)', marginBottom: '4px' }}>
+                      View Complete Raw Snapshot JSON
+                    </summary>
+                    <pre className="crawl-drawer-code" style={{ maxHeight: '180px', overflowY: 'auto' }}>
+                      {JSON.stringify(inspectingRow.source_snapshot || {}, null, 2)}
+                    </pre>
+                  </details>
                 </div>
 
                 {/* Step 2: Evaluation Rule */}

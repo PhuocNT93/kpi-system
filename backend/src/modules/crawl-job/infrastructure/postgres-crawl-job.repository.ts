@@ -719,7 +719,8 @@ export class PostgresCrawlJobRepository {
     const result = await this.pool.query(
       `SELECT execution.*, job.active AS job_active,
               mapping.enabled AS cycle_job_enabled, mapping.failure_policy, mapping.sequence_order,
-              cycle.status AS cycle_status,
+              cycle.status AS cycle_status, cycle.code AS cycle_code, cycle.name AS cycle_name,
+              cycle.start_date AS cycle_start_date, cycle.end_date AS cycle_end_date,
               script.source_code, credential.secret_reference
        FROM crawl_job_execution execution
        JOIN crawl_job_definition job ON job.crawl_job_definition_id = execution.crawl_job_definition_id
@@ -1116,14 +1117,17 @@ export class PostgresCrawlJobRepository {
       conditions.push(`s.review_status = $${params.length}`);
     }
     if (filters.employee_code) {
-      params.push(filters.employee_code);
-      conditions.push(`s.employee_code ILIKE $${params.length}`);
+      params.push(`%${filters.employee_code}%`);
+      conditions.push(`(s.employee_code ILIKE $${params.length} OR emp.full_name ILIKE $${params.length})`);
     }
 
     const whereClause = conditions.join(' AND ');
 
     const countRes = await this.pool.query(
-      `SELECT COUNT(*)::integer AS total FROM crawl_scoring_execution s WHERE ${whereClause}`,
+      `SELECT COUNT(*)::integer AS total
+       FROM crawl_scoring_execution s
+       LEFT JOIN employee emp ON UPPER(emp.employee_code) = UPPER(s.employee_code)
+       WHERE ${whereClause}`,
       params
     );
     const total = Number(countRes.rows[0]?.total || 0);
@@ -1131,6 +1135,7 @@ export class PostgresCrawlJobRepository {
     params.push(limit, offset);
     const itemsRes = await this.pool.query(
       `SELECT s.*,
+              emp.full_name AS employee_name,
               r.value AS raw_measurement_value,
               r.source_snapshot,
               r.status AS row_staging_status,
@@ -1139,6 +1144,7 @@ export class PostgresCrawlJobRepository {
               p.name AS prompt_name
        FROM crawl_scoring_execution s
        JOIN evaluation_data_import_record r ON s.crawl_data_row_id = r.record_id
+       LEFT JOIN employee emp ON UPPER(emp.employee_code) = UPPER(s.employee_code)
        LEFT JOIN kpi_scoring_prompt_version pv ON s.prompt_version_id = pv.prompt_version_id
        LEFT JOIN kpi_scoring_prompt p ON pv.prompt_id = p.prompt_id
        WHERE ${whereClause}
@@ -1153,6 +1159,7 @@ export class PostgresCrawlJobRepository {
   async getScoringExecution(id: string): Promise<Record<string, unknown> | null> {
     const result = await this.pool.query(
       `SELECT s.*,
+              emp.full_name AS employee_name,
               r.value AS raw_measurement_value,
               r.source_snapshot,
               r.status AS row_staging_status,
@@ -1161,6 +1168,7 @@ export class PostgresCrawlJobRepository {
               p.name AS prompt_name
        FROM crawl_scoring_execution s
        JOIN evaluation_data_import_record r ON s.crawl_data_row_id = r.record_id
+       LEFT JOIN employee emp ON UPPER(emp.employee_code) = UPPER(s.employee_code)
        LEFT JOIN kpi_scoring_prompt_version pv ON s.prompt_version_id = pv.prompt_version_id
        LEFT JOIN kpi_scoring_prompt p ON pv.prompt_id = p.prompt_id
        WHERE s.id = $1`,
@@ -1248,13 +1256,25 @@ export class PostgresCrawlJobRepository {
     employee_code: string;
     full_name: string;
     email: string;
+    last_evaluation_completed_at?: string | null;
+    next_review_due_date?: string | null;
+    join_date?: string | null;
+    review_from: string;
+    review_to: string;
+    review_from_date: string;
+    review_to_date: string;
   }>> {
     const result = await this.pool.query(
       `SELECT 
         e.employee_id, 
         e.employee_code, 
         e.full_name, 
-        e.email
+        e.email,
+        e.last_evaluation_completed_at,
+        e.next_review_due_date,
+        e.join_date,
+        ec.start_date AS cycle_start_date,
+        ec.end_date AS cycle_end_date
        FROM employee e
        JOIN evaluation_cycle ec ON ec.evaluation_cycle_id = $1
        WHERE e.employment_status = 'ACTIVE'
@@ -1276,11 +1296,81 @@ export class PostgresCrawlJobRepository {
        ORDER BY e.employee_code ASC`,
       [cycleId]
     );
-    return result.rows.map((row) => ({
-      employee_id: String(row.employee_id),
-      employee_code: String(row.employee_code),
-      full_name: String(row.full_name),
-      email: String(row.email),
-    }));
+    return result.rows.map((row) => {
+      let fromDate: Date;
+      if (row.last_evaluation_completed_at) {
+        const last = new Date(row.last_evaluation_completed_at);
+        last.setUTCDate(last.getUTCDate() + 1);
+        last.setUTCHours(0, 0, 0, 0);
+        fromDate = last;
+      } else if (row.join_date) {
+        fromDate = new Date(row.join_date);
+        fromDate.setUTCHours(0, 0, 0, 0);
+      } else if (row.cycle_start_date) {
+        fromDate = new Date(row.cycle_start_date);
+        fromDate.setUTCHours(0, 0, 0, 0);
+      } else {
+        fromDate = new Date();
+      }
+
+      let toDate: Date;
+      if (row.next_review_due_date) {
+        toDate = new Date(row.next_review_due_date);
+        toDate.setUTCHours(23, 59, 59, 999);
+      } else if (row.cycle_end_date) {
+        toDate = new Date(row.cycle_end_date);
+        toDate.setUTCHours(23, 59, 59, 999);
+      } else {
+        toDate = new Date();
+      }
+
+      const formatDateOnly = (d: Date) => d.toISOString().slice(0, 10);
+
+      return {
+        employee_id: String(row.employee_id),
+        employee_code: String(row.employee_code),
+        full_name: String(row.full_name),
+        email: String(row.email),
+        last_evaluation_completed_at: row.last_evaluation_completed_at ? new Date(row.last_evaluation_completed_at).toISOString() : null,
+        next_review_due_date: row.next_review_due_date ? String(row.next_review_due_date) : null,
+        join_date: row.join_date ? String(row.join_date) : null,
+        review_from: fromDate.toISOString(),
+        review_to: toDate.toISOString(),
+        review_from_date: formatDateOnly(fromDate),
+        review_to_date: formatDateOnly(toDate),
+      };
+    });
+  }
+
+  async listExecutionRecords(executionId: string): Promise<Record<string, unknown>[]> {
+    const result = await this.pool.query(
+      `SELECT r.record_id,
+              r.employee_code,
+              emp.full_name AS employee_name,
+              r.kpi_code,
+              r.value AS raw_measurement_value,
+              r.status AS row_staging_status,
+              r.comment AS row_comment,
+              r.rationale,
+              r.source_snapshot,
+              r.error_message,
+              r.conflicts,
+              r.created_at,
+              s.id AS scoring_id,
+              s.score,
+              s.confidence,
+              s.reason,
+              s.evidence AS ai_evidence,
+              s.status AS scoring_status,
+              s.review_status,
+              s.final_score
+       FROM evaluation_data_import_record r
+       LEFT JOIN employee emp ON UPPER(emp.employee_code) = UPPER(r.employee_code)
+       LEFT JOIN crawl_scoring_execution s ON s.crawl_data_row_id = r.record_id
+       WHERE (r.crawl_job_execution_id = $1 OR r.import_id = (SELECT evaluation_data_import_id FROM crawl_job_execution WHERE crawl_job_execution_id = $1))
+       ORDER BY r.created_at DESC, r.employee_code ASC`,
+      [executionId]
+    );
+    return result.rows;
   }
 }
